@@ -2,7 +2,7 @@
 //
 // This program is made available under an ISC-style license.  See the
 // accompanying file LICENSE for details.
-
+#[macro_use]
 extern crate cubeb_backend;
 
 mod backend;
