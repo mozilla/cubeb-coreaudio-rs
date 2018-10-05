@@ -11,10 +11,10 @@
 // - DeviceId           : pub type DeviceId                 (cubeb-core/device.rs).
 // - DeviceType         : pub struct DeviceType             (cubeb-core/device.rs).
 // - Error              : pub struct Error                  (cubeb-core/error.rs).
-// - Ops                :
+// - Ops                : pub struct Ops                    (cubeb-backend/ops.rs).
 // - Result             : pub type Result<T>                (cubeb-core/error.rs).
 // - Stream             : pub struct Stream                 (cubeb-core/stream.rs)
-// - StreamOps          :
+// - StreamOps          : pub trait StreamOps               (cubeb-backend/traits.rs)
 // - StreamParams       : pub struct StreamParams           (cubeb-core/stream.rs)
 // - StreamParamsRef    : pub struct StreamParamsRef        (cubeb-core/stream.rs)
 use cubeb_backend::{ffi, Context, ContextOps, DeviceCollectionRef, DeviceId,
@@ -24,15 +24,15 @@ use std::ffi::CStr;
 use std::os::raw::c_void;
 use std::ptr;
 
-pub const OPS: Ops = capi_new!(TestContext, TestStream);
+pub const OPS: Ops = capi_new!(AudioUnitContext, AudioUnitStream);
 
-pub struct TestContext {
+pub struct AudioUnitContext {
     pub ops: *const Ops,
 }
 
-impl ContextOps for TestContext {
+impl ContextOps for AudioUnitContext {
     fn init(_context_name: Option<&CStr>) -> Result<Context> {
-        let ctx = Box::new(TestContext {
+        let ctx = Box::new(AudioUnitContext {
             ops: &OPS as *const _,
         });
         Ok(unsafe { Context::from_ptr(Box::into_raw(ctx) as *mut _) })
@@ -92,9 +92,9 @@ impl ContextOps for TestContext {
     }
 }
 
-struct TestStream {}
+struct AudioUnitStream {}
 
-impl StreamOps for TestStream {
+impl StreamOps for AudioUnitStream {
     fn start(&mut self) -> Result<()> {
         Ok(())
     }

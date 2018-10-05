@@ -3,7 +3,7 @@
 // This program is made available under an ISC-style license.  See the
 // accompanying file LICENSE for details.
 
-use backend::TestContext;
+use backend::AudioUnitContext;
 // cubeb_backend::{*} is is referred:
 // - capi   : cubeb_backend::capi   (cubeb-core/capi.rs)
 // - ffi    : cubeb_sys::*          (cubeb-core/lib.rs).
@@ -21,5 +21,5 @@ pub unsafe extern "C" fn audiounit_rust_init(
     context_name: *const c_char,
 ) -> c_int {
     // `capi::capi_init` is referred to `cubeb_backend::capi_init`(cubeb-backend/capi.rs).
-    capi::capi_init::<TestContext>(c, context_name)
+    capi::capi_init::<AudioUnitContext>(c, context_name)
 }
