@@ -39,7 +39,7 @@ impl ContextOps for AudioUnitContext {
     }
 
     fn backend_id(&mut self) -> &'static CStr {
-        unsafe { CStr::from_ptr(b"remote\0".as_ptr() as *const _) }
+        unsafe { CStr::from_ptr(b"audiounit-rust\0".as_ptr() as *const _) }
     }
     fn max_channel_count(&mut self) -> Result<u32> {
         Ok(0u32)
