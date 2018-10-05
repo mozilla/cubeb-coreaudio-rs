@@ -3,6 +3,9 @@ name = "cubeb-coreaudio"
 version = "0.1.0"
 authors = ["Chun-Min Chang <chun.m.chang@gmail.com>"]
 
+[lib]
+crate-type = ["staticlib", "rlib"]
+
 [features]
 
 [dependencies]
