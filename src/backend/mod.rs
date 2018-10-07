@@ -32,12 +32,52 @@ use std::os::raw::c_void;
 use std::ptr;
 use std::slice;
 
+const DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS: AudioObjectPropertyAddress =
+    AudioObjectPropertyAddress {
+        mSelector: kAudioHardwarePropertyDefaultInputDevice,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMaster,
+    };
+
+const DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS: AudioObjectPropertyAddress =
+    AudioObjectPropertyAddress {
+        mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMaster,
+};
+
 const DEVICES_PROPERTY_ADDRESS: AudioObjectPropertyAddress =
     AudioObjectPropertyAddress {
         mSelector: kAudioHardwarePropertyDevices,
         mScope: kAudioObjectPropertyScopeGlobal,
         mElement: kAudioObjectPropertyElementMaster,
 };
+
+fn audiounit_get_default_device_id(
+    dev_type: DeviceType
+) -> AudioObjectID {
+    let mut adr;
+    if dev_type == DeviceType::OUTPUT {
+        adr = &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS;
+    } else if dev_type == DeviceType::INPUT {
+        adr = &DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS;
+    } else {
+        return kAudioObjectUnknown;
+    }
+
+    let mut dev_id: AudioDeviceID = kAudioObjectUnknown;
+    let mut size = mem::size_of::<AudioDeviceID>();
+    if audio_object_get_property_data(
+        kAudioObjectSystemObject,
+        adr,
+        &mut size,
+        &mut dev_id
+    ) != 0 {
+        return kAudioObjectUnknown;
+    }
+
+    return dev_id;
+}
 
 fn audiounit_get_channel_count(
     dev_id: AudioObjectID,
@@ -355,194 +395,5 @@ impl StreamOps for AudioUnitStream {
     }
 }
 
-#[test]
-fn test_ops_context_init() {
-    let mut c: *mut ffi::cubeb = ptr::null_mut();
-    assert_eq!(
-        unsafe { OPS.init.unwrap()(&mut c, ptr::null()) },
-        ffi::CUBEB_OK
-    );
-    unsafe { OPS.destroy.unwrap()(c) }
-}
-
-#[test]
-fn test_ops_context_max_channel_count() {
-    let c: *mut ffi::cubeb = ptr::null_mut();
-    let mut max_channel_count = u32::max_value();
-    assert_eq!(
-        unsafe { OPS.get_max_channel_count.unwrap()(c, &mut max_channel_count) },
-        ffi::CUBEB_OK
-    );
-    assert_eq!(max_channel_count, 0);
-}
-
-#[test]
-fn test_ops_context_min_latency() {
-    let c: *mut ffi::cubeb = ptr::null_mut();
-    let params: ffi::cubeb_stream_params = unsafe { ::std::mem::zeroed() };
-    let mut latency = u32::max_value();
-    assert_eq!(
-        unsafe { OPS.get_min_latency.unwrap()(c, params, &mut latency) },
-        ffi::CUBEB_OK
-    );
-    assert_eq!(latency, 0);
-}
-
-#[test]
-fn test_ops_context_preferred_sample_rate() {
-    let c: *mut ffi::cubeb = ptr::null_mut();
-    let mut rate = u32::max_value();
-    assert_eq!(
-        unsafe { OPS.get_preferred_sample_rate.unwrap()(c, &mut rate) },
-        ffi::CUBEB_OK
-    );
-    assert_eq!(rate, 0);
-}
-
-#[test]
-fn test_ops_context_enumerate_devices_unknown() {
-    let ctx: *mut ffi::cubeb = ptr::null_mut();
-    let mut coll = ffi::cubeb_device_collection {
-        device: ptr::null_mut(),
-        count: 0,
-    };
-    assert_eq!(
-        unsafe {
-            OPS.enumerate_devices.unwrap()(
-                ctx,
-                ffi::CUBEB_DEVICE_TYPE_UNKNOWN,
-                &mut coll
-            )
-        },
-        ffi::CUBEB_OK
-    );
-    assert_eq!(coll.count, 0);
-    assert_eq!(coll.device, ptr::null_mut());
-    assert_eq!(
-        unsafe { OPS.device_collection_destroy.unwrap()(ctx, &mut coll) },
-        ffi::CUBEB_OK
-    );
-}
-
-#[test]
-fn test_ops_context_enumerate_devices_input() {
-    let ctx: *mut ffi::cubeb = ptr::null_mut();
-    let mut coll = ffi::cubeb_device_collection {
-        device: ptr::null_mut(),
-        count: 0,
-    };
-    assert_eq!(
-        unsafe {
-            OPS.enumerate_devices.unwrap()(
-                ctx,
-                ffi::CUBEB_DEVICE_TYPE_INPUT,
-                &mut coll
-            )
-        },
-        ffi::CUBEB_OK
-    );
-    if coll.count > 0 {
-        assert_ne!(coll.device, ptr::null_mut());
-    } else {
-        assert_eq!(coll.device, ptr::null_mut());
-    }
-    assert_eq!(
-        unsafe { OPS.device_collection_destroy.unwrap()(ctx, &mut coll) },
-        ffi::CUBEB_OK
-    );
-}
-
-#[test]
-fn test_ops_context_enumerate_devices_output() {
-    let ctx: *mut ffi::cubeb = ptr::null_mut();
-    let mut coll = ffi::cubeb_device_collection {
-        device: ptr::null_mut(),
-        count: 0,
-    };
-    assert_eq!(
-        unsafe {
-            OPS.enumerate_devices.unwrap()(
-                ctx,
-                ffi::CUBEB_DEVICE_TYPE_OUTPUT,
-                &mut coll
-            )
-        },
-        ffi::CUBEB_OK
-    );
-    if coll.count > 0 {
-        assert_ne!(coll.device, ptr::null_mut());
-    } else {
-        assert_eq!(coll.device, ptr::null_mut());
-    }
-    assert_eq!(
-        unsafe { OPS.device_collection_destroy.unwrap()(ctx, &mut coll) },
-        ffi::CUBEB_OK
-    );
-}
-
-#[test]
-fn test_ops_context_device_collection_destroy() {
-    let c: *mut ffi::cubeb = ptr::null_mut();
-    let mut coll = ffi::cubeb_device_collection {
-        device: ptr::null_mut(),
-        count: 0,
-    };
-    assert_eq!(
-        unsafe { OPS.device_collection_destroy.unwrap()(c, &mut coll) },
-        ffi::CUBEB_OK
-    );
-    assert_eq!(coll.device, ptr::null_mut());
-    assert_eq!(coll.count, 0);
-}
-
-// stream_init: Some($crate::capi::capi_stream_init::<$ctx>),
-// stream_destroy: Some($crate::capi::capi_stream_destroy::<$stm>),
-// stream_start: Some($crate::capi::capi_stream_start::<$stm>),
-// stream_stop: Some($crate::capi::capi_stream_stop::<$stm>),
-// stream_get_position: Some($crate::capi::capi_stream_get_position::<$stm>),
-
-#[test]
-fn test_ops_stream_latency() {
-    let s: *mut ffi::cubeb_stream = ptr::null_mut();
-    let mut latency = u32::max_value();
-    assert_eq!(
-        unsafe { OPS.stream_get_latency.unwrap()(s, &mut latency) },
-        ffi::CUBEB_OK
-    );
-    assert_eq!(latency, 0);
-}
-
-#[test]
-fn test_ops_stream_set_volume() {
-    let s: *mut ffi::cubeb_stream = ptr::null_mut();
-    unsafe {
-        OPS.stream_set_volume.unwrap()(s, 0.5);
-    }
-}
-
-#[test]
-fn test_ops_stream_set_panning() {
-    let s: *mut ffi::cubeb_stream = ptr::null_mut();
-    unsafe {
-        OPS.stream_set_panning.unwrap()(s, 0.5);
-    }
-}
-
-#[test]
-fn test_ops_stream_current_device() {
-    let s: *mut ffi::cubeb_stream = ptr::null_mut();
-    let mut device: *mut ffi::cubeb_device = ptr::null_mut();
-    assert_eq!(
-        unsafe { OPS.stream_get_current_device.unwrap()(s, &mut device) },
-        ffi::CUBEB_OK
-    );
-    assert_eq!(device, 0xDEAD_BEEF as *mut _);
-}
-
-#[test]
-fn test_ops_stream_device_destroy() {
-    let s: *mut ffi::cubeb_stream = ptr::null_mut();
-    unsafe {
-        OPS.stream_device_destroy.unwrap()(s, 0xDEAD_BEEF as *mut _);
-    }
-}
+#[cfg(test)]
+mod test;
