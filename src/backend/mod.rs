@@ -234,7 +234,7 @@ fn audiounit_create_device_from_hwdev(
     let mut device_id_str: CFStringRef = ptr::null();
     let mut size = mem::size_of::<CFStringRef>();
     adr.mSelector = kAudioDevicePropertyDeviceUID;
-    let ret = audio_object_get_property_data(
+    let mut ret = audio_object_get_property_data(
         devid,
         &adr,
         &mut size,
@@ -244,7 +244,7 @@ fn audiounit_create_device_from_hwdev(
         let mut c_char_vec = audiounit_strref_to_cstr_utf8(device_id_str);
         c_char_vec.shrink_to_fit(); // Make sure the capacity is same as the length.
         dev_info.device_id = c_char_vec.as_mut_ptr();
-        mem::forget(c_char_vec); // Leak c_char_vec to the external code.
+        mem::forget(c_char_vec); // Leak the memory to the external code.
 
         // TODO: Why we set devid here? Does it has relationship with device_id_str?
         assert!(mem::size_of::<ffi::cubeb_devid>() >= mem::size_of_val(&devid),
@@ -258,11 +258,39 @@ fn audiounit_create_device_from_hwdev(
         }
     }
 
-    // Leak the memory of these strings to the external code.
-    let friendly_name_c = CString::new(devid.to_string() + " friendly_name").unwrap().into_raw();
-    let vendor_name_c = CString::new(devid.to_string() + " vendor_name").unwrap().into_raw();
+    // TODO: Get the name of data source
 
-    dev_info.friendly_name = friendly_name_c;
+    let mut friendly_name_str: CFStringRef = ptr::null();
+    // If there is no datasource for this device, fall back to the
+    // device name.
+    if friendly_name_str.is_null() {
+        size = mem::size_of::<CFStringRef>();
+        adr.mSelector = kAudioObjectPropertyName;
+        audio_object_get_property_data(
+            devid,
+            &adr,
+            &mut size,
+            &mut friendly_name_str
+        );
+    }
+
+    let mut friendly_name_c_chars = if friendly_name_str.is_null() {
+        // Couldn't get a datasource name nor a device name, return a
+        // valid string of length 0.
+        vec!['\0' as c_char; 1]
+    } else {
+        let c_char_vec = audiounit_strref_to_cstr_utf8(friendly_name_str);
+        unsafe {
+            CFRelease(friendly_name_str as *const c_void);
+        }
+        c_char_vec
+    };
+    friendly_name_c_chars.shrink_to_fit(); // Make sure the capacity is same as the length.
+    dev_info.friendly_name = friendly_name_c_chars.as_mut_ptr();
+    mem::forget(friendly_name_c_chars); // Leak the memory to the external code.
+
+    // Leak the memory of these strings to the external code.
+    let vendor_name_c = CString::new(devid.to_string() + " vendor_name").unwrap().into_raw();
     dev_info.vendor_name = vendor_name_c;
 
     // TODO: Implement From trait for enum cubeb_device_type so we can use
@@ -408,7 +436,11 @@ impl ContextOps for AudioUnitContext {
                     );
                 }
                 if !device.friendly_name.is_null() {
-                    let _ = CString::from_raw(device.friendly_name as *mut _);
+                    let _: Vec<c_char> = Vec::from_raw_parts(
+                        device.friendly_name as *mut _,
+                        libc::strlen(device.friendly_name) + 1,
+                        libc::strlen(device.friendly_name) + 1,
+                    );
                 }
                 if !device.vendor_name.is_null() {
                     let _ = CString::from_raw(device.vendor_name as *mut _);
