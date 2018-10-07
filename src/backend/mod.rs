@@ -254,6 +254,10 @@ impl ContextOps for AudioUnitContext {
     }
     fn device_collection_destroy(&mut self, collection: &mut DeviceCollectionRef) -> Result<()> {
         let coll = unsafe { &mut *collection.as_ptr() };
+        if coll.device.is_null() {
+            return Ok(());
+        }
+
         // Retake the ownership of the previous leaked memory from the external code.
         let mut devices = unsafe {
             Vec::from_raw_parts(
@@ -396,26 +400,92 @@ fn test_ops_context_preferred_sample_rate() {
 }
 
 #[test]
-fn test_ops_context_enumerate_devices() {
-    let c: *mut ffi::cubeb = ptr::null_mut();
+fn test_ops_context_enumerate_devices_unknown() {
+    let ctx: *mut ffi::cubeb = ptr::null_mut();
     let mut coll = ffi::cubeb_device_collection {
         device: ptr::null_mut(),
         count: 0,
     };
     assert_eq!(
-        unsafe { OPS.enumerate_devices.unwrap()(c, 0, &mut coll) },
+        unsafe {
+            OPS.enumerate_devices.unwrap()(
+                ctx,
+                ffi::CUBEB_DEVICE_TYPE_UNKNOWN,
+                &mut coll
+            )
+        },
         ffi::CUBEB_OK
     );
-    assert_eq!(coll.device, 0xDEAD_BEEF as *mut _);
-    assert_eq!(coll.count, usize::max_value())
+    assert_eq!(coll.count, 0);
+    assert_eq!(coll.device, ptr::null_mut());
+    assert_eq!(
+        unsafe { OPS.device_collection_destroy.unwrap()(ctx, &mut coll) },
+        ffi::CUBEB_OK
+    );
+}
+
+#[test]
+fn test_ops_context_enumerate_devices_input() {
+    let ctx: *mut ffi::cubeb = ptr::null_mut();
+    let mut coll = ffi::cubeb_device_collection {
+        device: ptr::null_mut(),
+        count: 0,
+    };
+    assert_eq!(
+        unsafe {
+            OPS.enumerate_devices.unwrap()(
+                ctx,
+                ffi::CUBEB_DEVICE_TYPE_INPUT,
+                &mut coll
+            )
+        },
+        ffi::CUBEB_OK
+    );
+    if coll.count > 0 {
+        assert_ne!(coll.device, ptr::null_mut());
+    } else {
+        assert_eq!(coll.device, ptr::null_mut());
+    }
+    assert_eq!(
+        unsafe { OPS.device_collection_destroy.unwrap()(ctx, &mut coll) },
+        ffi::CUBEB_OK
+    );
+}
+
+#[test]
+fn test_ops_context_enumerate_devices_output() {
+    let ctx: *mut ffi::cubeb = ptr::null_mut();
+    let mut coll = ffi::cubeb_device_collection {
+        device: ptr::null_mut(),
+        count: 0,
+    };
+    assert_eq!(
+        unsafe {
+            OPS.enumerate_devices.unwrap()(
+                ctx,
+                ffi::CUBEB_DEVICE_TYPE_OUTPUT,
+                &mut coll
+            )
+        },
+        ffi::CUBEB_OK
+    );
+    if coll.count > 0 {
+        assert_ne!(coll.device, ptr::null_mut());
+    } else {
+        assert_eq!(coll.device, ptr::null_mut());
+    }
+    assert_eq!(
+        unsafe { OPS.device_collection_destroy.unwrap()(ctx, &mut coll) },
+        ffi::CUBEB_OK
+    );
 }
 
 #[test]
 fn test_ops_context_device_collection_destroy() {
     let c: *mut ffi::cubeb = ptr::null_mut();
     let mut coll = ffi::cubeb_device_collection {
-        device: 0xDEAD_BEEF as *mut _,
-        count: usize::max_value(),
+        device: ptr::null_mut(),
+        count: 0,
     };
     assert_eq!(
         unsafe { OPS.device_collection_destroy.unwrap()(c, &mut coll) },
