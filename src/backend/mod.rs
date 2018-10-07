@@ -66,18 +66,18 @@ fn audiounit_get_default_device_id(
         return kAudioObjectUnknown;
     }
 
-    let mut dev_id: AudioDeviceID = kAudioObjectUnknown;
+    let mut devid: AudioDeviceID = kAudioObjectUnknown;
     let mut size = mem::size_of::<AudioDeviceID>();
     if audio_object_get_property_data(
         kAudioObjectSystemObject,
         adr,
         &mut size,
-        &mut dev_id
+        &mut devid
     ) != 0 {
         return kAudioObjectUnknown;
     }
 
-    return dev_id;
+    return devid;
 }
 
 // TODO: Use CString maybe.
@@ -130,7 +130,7 @@ fn audiounit_strref_to_cstr_utf8(
 }
 
 fn audiounit_get_channel_count(
-    dev_id: AudioObjectID,
+    devid: AudioObjectID,
     scope: AudioObjectPropertyScope
 ) -> u32 {
     let mut count: u32 = 0;
@@ -142,10 +142,10 @@ fn audiounit_get_channel_count(
         mElement: kAudioObjectPropertyElementMaster
     };
 
-    if audio_object_get_property_data_size(dev_id, &adr, &mut size) == 0 && size > 0 {
+    if audio_object_get_property_data_size(devid, &adr, &mut size) == 0 && size > 0 {
         let mut data: Vec<u8> = allocate_array_by_size(size);
         let ptr = data.as_mut_ptr() as *mut AudioBufferList;
-        if audio_object_get_property_data(dev_id, &adr, &mut size, ptr) == 0 {
+        if audio_object_get_property_data(devid, &adr, &mut size, ptr) == 0 {
             let list = unsafe { *ptr };
             let buffers = unsafe {
                 let ptr = list.mBuffers.as_ptr() as *mut AudioBuffer;
