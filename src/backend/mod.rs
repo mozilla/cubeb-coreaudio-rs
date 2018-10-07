@@ -258,9 +258,33 @@ fn audiounit_create_device_from_hwdev(
         }
     }
 
-    // TODO: Get the name of data source
-
     let mut friendly_name_str: CFStringRef = ptr::null();
+    let mut ds: u32 = 0;
+    size = mem::size_of::<u32>();
+    adr.mSelector = kAudioDevicePropertyDataSource;
+    ret = audio_object_get_property_data(
+        devid,
+        &adr,
+        &mut size,
+        &mut ds
+    );
+    if ret == 0 {
+        let mut trl = AudioValueTranslation {
+            mInputData: &mut ds as *mut u32 as *mut c_void,
+            mInputDataSize: mem::size_of_val(&ds) as u32,
+            mOutputData: &mut friendly_name_str as *mut CFStringRef as *mut c_void,
+            mOutputDataSize: mem::size_of::<CFStringRef>() as u32,
+        };
+        adr.mSelector = kAudioDevicePropertyDataSourceNameForIDCFString;
+        size = mem::size_of::<AudioValueTranslation>();
+        audio_object_get_property_data(
+            devid,
+            &adr,
+            &mut size,
+            &mut trl
+        );
+    }
+
     // If there is no datasource for this device, fall back to the
     // device name.
     if friendly_name_str.is_null() {
