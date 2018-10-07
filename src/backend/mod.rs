@@ -204,6 +204,7 @@ fn audiounit_get_devices_of_type(dev_type: DeviceType) -> Vec<AudioObjectID> {
     return devices_in_scope;
 }
 
+// TODO: Split it into several small functions. It will be easier to test.
 fn audiounit_create_device_from_hwdev(
     dev_info: &mut ffi::cubeb_device_info,
     devid: AudioObjectID,
@@ -313,9 +314,24 @@ fn audiounit_create_device_from_hwdev(
     dev_info.friendly_name = friendly_name_c_chars.as_mut_ptr();
     mem::forget(friendly_name_c_chars); // Leak the memory to the external code.
 
-    // Leak the memory of these strings to the external code.
-    let vendor_name_c = CString::new(devid.to_string() + " vendor_name").unwrap().into_raw();
-    dev_info.vendor_name = vendor_name_c;
+    let mut vendor_name_str: CFStringRef = ptr::null();
+    size = mem::size_of::<CFStringRef>();
+    adr.mSelector = kAudioObjectPropertyManufacturer;
+    ret = audio_object_get_property_data(
+        devid,
+        &adr,
+        &mut size,
+        &mut vendor_name_str
+    );
+    if ret == 0 && !vendor_name_str.is_null() {
+        let mut c_char_vec = audiounit_strref_to_cstr_utf8(vendor_name_str);
+        c_char_vec.shrink_to_fit(); // Make sure the capacity is same as the length.
+        dev_info.vendor_name = c_char_vec.as_mut_ptr();
+        mem::forget(c_char_vec); // Leak the memory to the external code.
+        unsafe {
+            CFRelease(vendor_name_str as *const c_void);
+        }
+    }
 
     // TODO: Implement From trait for enum cubeb_device_type so we can use
     // `devtype.into()` to get `ffi::CUBEB_DEVICE_TYPE_*`.
@@ -467,7 +483,11 @@ impl ContextOps for AudioUnitContext {
                     );
                 }
                 if !device.vendor_name.is_null() {
-                    let _ = CString::from_raw(device.vendor_name as *mut _);
+                    let _: Vec<c_char> = Vec::from_raw_parts(
+                        device.vendor_name as *mut _,
+                        libc::strlen(device.vendor_name) + 1,
+                        libc::strlen(device.vendor_name) + 1,
+                    );
                 }
             }
         }
