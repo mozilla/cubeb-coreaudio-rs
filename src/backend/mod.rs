@@ -20,9 +20,44 @@
 use cubeb_backend::{ffi, Context, ContextOps, DeviceCollectionRef, DeviceId,
                     DeviceRef, DeviceType, Error, Ops, Result, Stream,
                     StreamOps, StreamParams, StreamParamsRef};
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
+use std::mem;
 use std::os::raw::c_void;
 use std::ptr;
+
+fn audiounit_create_device_from_hwdev(
+    dev_info: &mut ffi::cubeb_device_info,
+    devid: u32,
+    devtype: DeviceType
+) -> Result<()> {
+    // Leak the memory of these strings to the external code.
+    let device_id_c = CString::new(devid.to_string() + " device_id").unwrap().into_raw();
+    let friendly_name_c = CString::new(devid.to_string() + " friendly_name").unwrap().into_raw();
+    let group_id_c = CString::new(devid.to_string() + " group_id").unwrap().into_raw();
+    let vendor_name_c = CString::new(devid.to_string() + " vendor_name").unwrap().into_raw();
+
+    dev_info.devid = devid as *const c_void;
+    dev_info.device_id = device_id_c;
+    dev_info.friendly_name = friendly_name_c;
+    dev_info.group_id = group_id_c;
+    dev_info.vendor_name = vendor_name_c;
+
+    dev_info.device_type = ffi::CUBEB_DEVICE_TYPE_UNKNOWN;
+    dev_info.state = ffi::CUBEB_DEVICE_STATE_UNPLUGGED;
+    dev_info.preferred = ffi::CUBEB_DEVICE_PREF_NONE;
+
+    dev_info.format = ffi::CUBEB_DEVICE_FMT_ALL;
+    dev_info.default_format = ffi::CUBEB_DEVICE_FMT_F32LE;
+    dev_info.max_channels = 2;
+    dev_info.min_rate = 1;
+    dev_info.max_rate = 2;
+    dev_info.default_rate = 44100;
+
+    dev_info.latency_lo = 0;
+    dev_info.latency_hi = 0;
+
+    Ok(())
+}
 
 pub const OPS: Ops = capi_new!(AudioUnitContext, AudioUnitStream);
 
@@ -55,15 +90,49 @@ impl ContextOps for AudioUnitContext {
         _devtype: DeviceType,
         collection: &DeviceCollectionRef,
     ) -> Result<()> {
+        let mut devices = Vec::<ffi::cubeb_device_info>::new();
+        for i in 0..3 {
+            let mut device = ffi::cubeb_device_info::default();
+            audiounit_create_device_from_hwdev(&mut device, i, DeviceType::UNKNOWN)?;
+            devices.push(device);
+        }
+        devices.shrink_to_fit(); // Make sure the capacity is same as the length.
         let coll = unsafe { &mut *collection.as_ptr() };
-        coll.device = 0xDEAD_BEEF as *mut _;
-        coll.count = usize::max_value();
+        coll.device = devices.as_mut_ptr();
+        coll.count = devices.len();
+        mem::forget(devices); // Leak the memory of devices to the external code.
         Ok(())
     }
     fn device_collection_destroy(&mut self, collection: &mut DeviceCollectionRef) -> Result<()> {
         let coll = unsafe { &mut *collection.as_ptr() };
-        assert_eq!(coll.device, 0xDEAD_BEEF as *mut _);
-        assert_eq!(coll.count, usize::max_value());
+        // Retake the ownership of the previous leaked memory from the external code.
+        let mut devices = unsafe {
+            Vec::from_raw_parts(
+                coll.device,
+                coll.count,
+                coll.count
+            )
+        };
+        for device in &mut devices {
+            // This should be mapped to the memory allocation in
+            // audiounit_create_device_from_hwdev.
+            unsafe {
+                // Retake the memory of these strings from the external code.
+                if !device.device_id.is_null() {
+                    let _ = CString::from_raw(device.device_id as *mut _);
+                }
+                if !device.friendly_name.is_null() {
+                    let _ = CString::from_raw(device.friendly_name as *mut _);
+                }
+                if !device.group_id.is_null() {
+                    let _ = CString::from_raw(device.group_id as *mut _);
+                }
+                if !device.vendor_name.is_null() {
+                    let _ = CString::from_raw(device.vendor_name as *mut _);
+                }
+            }
+        }
+        drop(devices); // Release the memory.
         coll.device = ptr::null_mut();
         coll.count = 0;
         Ok(())
