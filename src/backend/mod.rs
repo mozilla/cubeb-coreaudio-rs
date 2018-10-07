@@ -195,7 +195,11 @@ fn audiounit_create_device_from_hwdev(
 
     dev_info.device_type = ffi::CUBEB_DEVICE_TYPE_UNKNOWN;
     dev_info.state = ffi::CUBEB_DEVICE_STATE_UNPLUGGED;
-    dev_info.preferred = ffi::CUBEB_DEVICE_PREF_NONE;
+    dev_info.preferred = if devid == audiounit_get_default_device_id(devtype) {
+        ffi::CUBEB_DEVICE_PREF_ALL
+    } else {
+        ffi::CUBEB_DEVICE_PREF_NONE
+    };
 
     dev_info.format = ffi::CUBEB_DEVICE_FMT_ALL;
     dev_info.default_format = ffi::CUBEB_DEVICE_FMT_F32LE;
