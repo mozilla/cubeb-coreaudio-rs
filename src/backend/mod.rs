@@ -245,6 +245,14 @@ fn audiounit_create_device_from_hwdev(
         c_char_vec.shrink_to_fit(); // Make sure the capacity is same as the length.
         dev_info.device_id = c_char_vec.as_mut_ptr();
         mem::forget(c_char_vec); // Leak c_char_vec to the external code.
+
+        // TODO: Why we set devid here? Does it has relationship with device_id_str?
+        assert!(mem::size_of::<ffi::cubeb_devid>() >= mem::size_of_val(&devid),
+                "cubeb_devid can't represent devid");
+        dev_info.devid = devid as ffi::cubeb_devid;
+
+        dev_info.group_id = dev_info.device_id;
+
         unsafe {
             CFRelease(device_id_str as *const c_void);
         }
@@ -252,12 +260,10 @@ fn audiounit_create_device_from_hwdev(
 
     // Leak the memory of these strings to the external code.
     let friendly_name_c = CString::new(devid.to_string() + " friendly_name").unwrap().into_raw();
-    let group_id_c = CString::new(devid.to_string() + " group_id").unwrap().into_raw();
     let vendor_name_c = CString::new(devid.to_string() + " vendor_name").unwrap().into_raw();
 
     dev_info.devid = devid as *const c_void;
     dev_info.friendly_name = friendly_name_c;
-    dev_info.group_id = group_id_c;
     dev_info.vendor_name = vendor_name_c;
 
     dev_info.device_type = ffi::CUBEB_DEVICE_TYPE_UNKNOWN;
@@ -383,6 +389,10 @@ impl ContextOps for AudioUnitContext {
             unsafe {
                 // Retake the memory of these strings from the external code.
                 if !device.device_id.is_null() {
+                    // group_id is a mirror to device_id, so we could skip it.
+                    assert!(!device.group_id.is_null());
+                    assert_eq!(device.device_id, device.group_id);
+
                     let _: Vec<c_char> = Vec::from_raw_parts(
                         device.device_id as *mut _,
                         libc::strlen(device.device_id) + 1,
@@ -391,9 +401,6 @@ impl ContextOps for AudioUnitContext {
                 }
                 if !device.friendly_name.is_null() {
                     let _ = CString::from_raw(device.friendly_name as *mut _);
-                }
-                if !device.group_id.is_null() {
-                    let _ = CString::from_raw(device.group_id as *mut _);
                 }
                 if !device.vendor_name.is_null() {
                     let _ = CString::from_raw(device.vendor_name as *mut _);
