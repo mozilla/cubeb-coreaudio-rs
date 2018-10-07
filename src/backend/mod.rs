@@ -346,7 +346,11 @@ impl ContextOps for AudioUnitContext {
         _state_callback: ffi::cubeb_state_callback,
         _user_ptr: *mut c_void,
     ) -> Result<Stream> {
-        Ok(unsafe { Stream::from_ptr(0xDEAD_BEEF as *mut _) })
+        let boxed_stream = AudioUnitStream::new(self)?;
+        let cubeb_stream = unsafe {
+            Stream::from_ptr(Box::into_raw(boxed_stream) as *mut _)
+        };
+        Ok(cubeb_stream)
     }
     fn register_device_collection_changed(
         &mut self,
@@ -358,9 +362,32 @@ impl ContextOps for AudioUnitContext {
     }
 }
 
-struct AudioUnitStream {}
+struct AudioUnitStream<'ctx> {
+    context: &'ctx AudioUnitContext,
+    state: ffi::cubeb_state,
+}
 
-impl StreamOps for AudioUnitStream {
+impl<'ctx> AudioUnitStream<'ctx> {
+    fn new(
+        context: &'ctx AudioUnitContext,
+    ) -> Result<Box<Self>> {
+         let stm = AudioUnitStream {
+             context,
+             state: ffi::CUBEB_STATE_ERROR,
+         };
+         let boxed_stm = Box::new(stm);
+         println!("stream @ {:p} is initialized!", boxed_stm.as_ref());
+         Ok(boxed_stm)
+    }
+}
+
+impl<'ctx> Drop for AudioUnitStream<'ctx> {
+    fn drop(&mut self) {
+        println!("stream @ {:p} is dropped!", self);
+    }
+}
+
+impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     fn start(&mut self) -> Result<()> {
         Ok(())
     }
