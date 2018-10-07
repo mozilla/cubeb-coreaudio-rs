@@ -4,7 +4,7 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
 
 ## Current Goals
 - Translate [C code][cubeb-au] line by line into Rust
-- Add large tests for later refactoring
+- Create tests for later refactoring
 
 [cubeb]: https://github.com/kinetiknz/cubeb "Cross platform audio library"
 [cubeb-au]: https://github.com/kinetiknz/cubeb/blob/master/src/cubeb_audiounit.cpp "Cubeb AudioUnit"
