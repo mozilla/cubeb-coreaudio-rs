@@ -17,6 +17,12 @@ pub fn allocate_array<T>(elements: usize) -> Vec<T> {
     array
 }
 
+// TODO:
+// pub fn get_leaked_ptr<T>(vec: Vec<T>) -> *mut T {
+// }
+// pub fn retake_leaked_ptr<T>(ptr: *mut T) {
+// }
+
 pub fn audio_object_get_property_data<T>(
     id: sys::AudioObjectID,
     address: &sys::AudioObjectPropertyAddress,

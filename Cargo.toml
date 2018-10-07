@@ -15,3 +15,4 @@ audio_unit = ["coreaudio-sys/audio_unit"]
 cubeb-backend = "0.5"
 coreaudio-sys = { version = "0.2", default-features = false }
 core-foundation-sys = { version = "0.6" }
+libc = "0.2"

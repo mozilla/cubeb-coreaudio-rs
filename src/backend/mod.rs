@@ -4,10 +4,9 @@
 // accompanying file LICENSE for details.
 
 extern crate coreaudio_sys;
-use self::coreaudio_sys::*;
+extern crate libc;
 
 mod utils;
-use self::utils::*;
 
 // cubeb_backend::{*} is is referred:
 // - ffi                : cubeb_sys::*                      (cubeb-core/lib.rs).
@@ -26,9 +25,11 @@ use self::utils::*;
 use cubeb_backend::{ffi, Context, ContextOps, DeviceCollectionRef, DeviceId,
                     DeviceRef, DeviceType, Error, Ops, Result, Stream,
                     StreamOps, StreamParams, StreamParamsRef};
+use self::coreaudio_sys::*;
+use self::utils::*;
 use std::ffi::{CStr, CString};
 use std::mem;
-use std::os::raw::c_void;
+use std::os::raw::{c_void, c_char};
 use std::ptr;
 use std::slice;
 
@@ -77,6 +78,55 @@ fn audiounit_get_default_device_id(
     }
 
     return dev_id;
+}
+
+// TODO: Use CString maybe.
+//       CString::from_vec_unchecked will add o and the end of the input vec.
+//       We can use CString::into_raw to leak memory and use CString::from_raw
+//       to retake the ownership of the memory. CString::from_raw will use
+//       `strlen` as the length of the slice that will be converted into its
+//       inner boxed slice. Thus, we may need to remove '\0' in the raw bytes
+//       in case `strlen` get a wrong value and cause memory leaks.
+fn audiounit_strref_to_cstr_utf8(
+    strref: CFStringRef
+) -> Vec<c_char> {
+    let mut ret = Vec::<c_char>::new();
+    if strref.is_null() {
+        return ret;
+    }
+
+    let len = unsafe {
+        CFStringGetLength(strref)
+    };
+    // Add 1 to size to allow for '\0' termination character.
+    let size = unsafe {
+        CFStringGetMaximumSizeForEncoding(len, kCFStringEncodingUTF8) + 1
+    };
+    ret = allocate_array_by_size::<c_char>(size as usize);
+
+    let success = unsafe {
+        CFStringGetCString(
+            strref,
+            ret.as_mut_ptr(),
+            size,
+            kCFStringEncodingUTF8
+        ) != 0
+    };
+    if !success {
+        ret.clear();
+    }
+
+    // The size returned from CFStringGetMaximumSizeForEncoding is always
+    // greater than or equal to the string length, where the string length
+    // is the number of characters from the beginning to nul-terminator('\0'),
+    // so we should shrink the string vector to fit that size.
+    let str_size = unsafe {
+        libc::strlen(ret.as_ptr()) + 1
+    };
+    ret.truncate(str_size);
+    assert_eq!(ret.len(), str_size);
+
+    ret
 }
 
 fn audiounit_get_channel_count(
@@ -181,14 +231,31 @@ fn audiounit_create_device_from_hwdev(
 
     // TODO: set all data in dev_info to 0.
 
+    let mut device_id_str: CFStringRef = ptr::null();
+    let mut size = mem::size_of::<CFStringRef>();
+    adr.mSelector = kAudioDevicePropertyDeviceUID;
+    let ret = audio_object_get_property_data(
+        devid,
+        &adr,
+        &mut size,
+        &mut device_id_str
+    );
+    if ret == 0 && !device_id_str.is_null() {
+        let mut c_char_vec = audiounit_strref_to_cstr_utf8(device_id_str);
+        c_char_vec.shrink_to_fit(); // Make sure the capacity is same as the length.
+        dev_info.device_id = c_char_vec.as_mut_ptr();
+        mem::forget(c_char_vec); // Leak c_char_vec to the external code.
+        unsafe {
+            CFRelease(device_id_str as *const c_void);
+        }
+    }
+
     // Leak the memory of these strings to the external code.
-    let device_id_c = CString::new(devid.to_string() + " device_id").unwrap().into_raw();
     let friendly_name_c = CString::new(devid.to_string() + " friendly_name").unwrap().into_raw();
     let group_id_c = CString::new(devid.to_string() + " group_id").unwrap().into_raw();
     let vendor_name_c = CString::new(devid.to_string() + " vendor_name").unwrap().into_raw();
 
     dev_info.devid = devid as *const c_void;
-    dev_info.device_id = device_id_c;
     dev_info.friendly_name = friendly_name_c;
     dev_info.group_id = group_id_c;
     dev_info.vendor_name = vendor_name_c;
@@ -316,7 +383,11 @@ impl ContextOps for AudioUnitContext {
             unsafe {
                 // Retake the memory of these strings from the external code.
                 if !device.device_id.is_null() {
-                    let _ = CString::from_raw(device.device_id as *mut _);
+                    let _: Vec<c_char> = Vec::from_raw_parts(
+                        device.device_id as *mut _,
+                        libc::strlen(device.device_id) + 1,
+                        libc::strlen(device.device_id) + 1,
+                    );
                 }
                 if !device.friendly_name.is_null() {
                     let _ = CString::from_raw(device.friendly_name as *mut _);
