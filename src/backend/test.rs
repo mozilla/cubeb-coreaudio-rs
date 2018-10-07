@@ -276,6 +276,10 @@ fn test_get_devices_of_type() {
     }
 }
 
+// audiounit_create_device_from_hwdev
+// ------------------------------------
+// ...
+
 // Utils
 // ------------------------------------
 fn valid_id(id: AudioObjectID) -> bool {
