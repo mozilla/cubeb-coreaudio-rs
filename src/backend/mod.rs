@@ -243,6 +243,7 @@ fn audiounit_create_device_from_hwdev(
     );
     if ret == 0 && !device_id_str.is_null() {
         let mut c_char_vec = audiounit_strref_to_cstr_utf8(device_id_str);
+        // TODO: Use a function to leak the memory and get raw pointer.
         c_char_vec.shrink_to_fit(); // Make sure the capacity is same as the length.
         dev_info.device_id = c_char_vec.as_mut_ptr();
         mem::forget(c_char_vec); // Leak the memory to the external code.
@@ -257,6 +258,8 @@ fn audiounit_create_device_from_hwdev(
         unsafe {
             CFRelease(device_id_str as *const c_void);
         }
+        // TODO: device_id_str is a danlging pointer now.
+        //       Find a way to prevent it from being called.
     }
 
     let mut friendly_name_str: CFStringRef = ptr::null();
@@ -308,8 +311,11 @@ fn audiounit_create_device_from_hwdev(
         unsafe {
             CFRelease(friendly_name_str as *const c_void);
         }
+        // TODO: friendly_name_str is a danlging pointer now.
+        //       Find a way to prevent it from being called.
         c_char_vec
     };
+    // TODO: Use a function to leak the memory and get raw pointer.
     friendly_name_c_chars.shrink_to_fit(); // Make sure the capacity is same as the length.
     dev_info.friendly_name = friendly_name_c_chars.as_mut_ptr();
     mem::forget(friendly_name_c_chars); // Leak the memory to the external code.
@@ -324,6 +330,7 @@ fn audiounit_create_device_from_hwdev(
         &mut vendor_name_str
     );
     if ret == 0 && !vendor_name_str.is_null() {
+        // TODO: Use a function to leak the memory and get raw pointer.
         let mut c_char_vec = audiounit_strref_to_cstr_utf8(vendor_name_str);
         c_char_vec.shrink_to_fit(); // Make sure the capacity is same as the length.
         dev_info.vendor_name = c_char_vec.as_mut_ptr();
@@ -331,6 +338,8 @@ fn audiounit_create_device_from_hwdev(
         unsafe {
             CFRelease(vendor_name_str as *const c_void);
         }
+        // TODO: vendor_name_str is a danlging pointer now.
+        //       Find a way to prevent it from being called.
     }
 
     // TODO: Implement From trait for enum cubeb_device_type so we can use
