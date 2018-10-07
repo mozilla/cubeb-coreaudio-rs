@@ -262,25 +262,33 @@ fn audiounit_create_device_from_hwdev(
     let friendly_name_c = CString::new(devid.to_string() + " friendly_name").unwrap().into_raw();
     let vendor_name_c = CString::new(devid.to_string() + " vendor_name").unwrap().into_raw();
 
-    dev_info.devid = devid as *const c_void;
     dev_info.friendly_name = friendly_name_c;
     dev_info.vendor_name = vendor_name_c;
 
-    dev_info.device_type = ffi::CUBEB_DEVICE_TYPE_UNKNOWN;
-    dev_info.state = ffi::CUBEB_DEVICE_STATE_UNPLUGGED;
+    // TODO: Implement From trait for enum cubeb_device_type so we can use
+    // `devtype.into()` to get `ffi::CUBEB_DEVICE_TYPE_*`.
+    dev_info.device_type = if devtype == DeviceType::OUTPUT {
+        ffi::CUBEB_DEVICE_TYPE_OUTPUT
+    } else if devtype == DeviceType::INPUT {
+        ffi::CUBEB_DEVICE_TYPE_INPUT
+    } else {
+        ffi::CUBEB_DEVICE_TYPE_UNKNOWN
+    };
+    dev_info.state = ffi::CUBEB_DEVICE_STATE_ENABLED;
     dev_info.preferred = if devid == audiounit_get_default_device_id(devtype) {
         ffi::CUBEB_DEVICE_PREF_ALL
     } else {
         ffi::CUBEB_DEVICE_PREF_NONE
     };
 
-    dev_info.format = ffi::CUBEB_DEVICE_FMT_ALL;
-    dev_info.default_format = ffi::CUBEB_DEVICE_FMT_F32LE;
     dev_info.max_channels = ch;
+    dev_info.format = ffi::CUBEB_DEVICE_FMT_ALL;
+    dev_info.default_format = ffi::CUBEB_DEVICE_FMT_F32NE;
+    // TODO: audiounit_get_available_samplerate
     dev_info.min_rate = 1;
     dev_info.max_rate = 2;
     dev_info.default_rate = 44100;
-
+    // TODO: audiounit_get_device_presentation_latency
     dev_info.latency_lo = 0;
     dev_info.latency_hi = 0;
 
