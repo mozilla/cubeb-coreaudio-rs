@@ -3,6 +3,12 @@
 // This program is made available under an ISC-style license.  See the
 // accompanying file LICENSE for details.
 
+extern crate coreaudio_sys;
+use self::coreaudio_sys::*;
+
+mod utils;
+use self::utils::*;
+
 // cubeb_backend::{*} is is referred:
 // - ffi                : cubeb_sys::*                      (cubeb-core/lib.rs).
 // - Context            : pub struct Context                (cubeb-core/context.rs).
@@ -24,12 +30,117 @@ use std::ffi::{CStr, CString};
 use std::mem;
 use std::os::raw::c_void;
 use std::ptr;
+use std::slice;
+
+const DEVICES_PROPERTY_ADDRESS: AudioObjectPropertyAddress =
+    AudioObjectPropertyAddress {
+        mSelector: kAudioHardwarePropertyDevices,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMaster,
+};
+
+fn audiounit_get_channel_count(
+    dev_id: AudioObjectID,
+    scope: AudioObjectPropertyScope
+) -> u32 {
+    let mut count: u32 = 0;
+    let mut size: usize = 0;
+
+    let adr = AudioObjectPropertyAddress {
+        mSelector: kAudioDevicePropertyStreamConfiguration,
+        mScope: scope,
+        mElement: kAudioObjectPropertyElementMaster
+    };
+
+    if audio_object_get_property_data_size(dev_id, &adr, &mut size) == 0 && size > 0 {
+        let mut data: Vec<u8> = allocate_array_by_size(size);
+        let ptr = data.as_mut_ptr() as *mut AudioBufferList;
+        if audio_object_get_property_data(dev_id, &adr, &mut size, ptr) == 0 {
+            let list = unsafe { *ptr };
+            let buffers = unsafe {
+                let ptr = list.mBuffers.as_ptr() as *mut AudioBuffer;
+                let len = list.mNumberBuffers as usize;
+                slice::from_raw_parts_mut(ptr, len)
+            };
+            for buffer in buffers {
+                count += buffer.mNumberChannels;
+            }
+        }
+    }
+    count
+}
+
+fn audiounit_get_devices_of_type(dev_type: DeviceType) -> Vec<AudioObjectID> {
+    let mut size: usize = 0;
+    let mut ret = audio_object_get_property_data_size(
+        kAudioObjectSystemObject,
+        &DEVICES_PROPERTY_ADDRESS,
+        &mut size
+    );
+    if ret != 0 {
+        return Vec::new();
+    }
+    /* Total number of input and output devices. */
+    let mut devices: Vec<AudioObjectID> = allocate_array_by_size(size);
+    ret = audio_object_get_property_data(
+        kAudioObjectSystemObject,
+        &DEVICES_PROPERTY_ADDRESS,
+        &mut size,
+        devices.as_mut_ptr(),
+    );
+    if ret != 0 {
+        return Vec::new();
+    }
+    /* Expected sorted but did not find anything in the docs. */
+    devices.sort();
+    if dev_type.contains(DeviceType::INPUT | DeviceType::OUTPUT) {
+        return devices;
+    }
+
+    // FIXIT: This is wrong. We will return the output devices when dev_type
+    //       is unknown. Change it after C version is updated!
+    let scope = if dev_type == DeviceType::INPUT {
+        kAudioDevicePropertyScopeInput
+    } else {
+        kAudioDevicePropertyScopeOutput
+    };
+    let mut devices_in_scope = Vec::new();
+    for device in devices {
+        if audiounit_get_channel_count(device, scope) > 0 {
+            devices_in_scope.push(device);
+        }
+    }
+
+    return devices_in_scope;
+}
 
 fn audiounit_create_device_from_hwdev(
     dev_info: &mut ffi::cubeb_device_info,
-    devid: u32,
+    devid: AudioObjectID,
     devtype: DeviceType
 ) -> Result<()> {
+    let mut adr = AudioObjectPropertyAddress {
+        mSelector: 0,
+        mScope: 0,
+        mElement: kAudioObjectPropertyElementMaster
+    };
+    let mut size: usize = 0;
+
+    if devtype == DeviceType::OUTPUT {
+        adr.mScope = kAudioDevicePropertyScopeOutput;
+    } else if devtype == DeviceType::INPUT {
+        adr.mScope = kAudioDevicePropertyScopeInput;
+    } else {
+        return Err(Error::error());
+    }
+
+    let ch = audiounit_get_channel_count(devid, adr.mScope);
+    if ch == 0 {
+        return Err(Error::error());
+    }
+
+    // TODO: set all data in dev_info to 0.
+
     // Leak the memory of these strings to the external code.
     let device_id_c = CString::new(devid.to_string() + " device_id").unwrap().into_raw();
     let friendly_name_c = CString::new(devid.to_string() + " friendly_name").unwrap().into_raw();
@@ -48,7 +159,7 @@ fn audiounit_create_device_from_hwdev(
 
     dev_info.format = ffi::CUBEB_DEVICE_FMT_ALL;
     dev_info.default_format = ffi::CUBEB_DEVICE_FMT_F32LE;
-    dev_info.max_channels = 2;
+    dev_info.max_channels = ch;
     dev_info.min_rate = 1;
     dev_info.max_rate = 2;
     dev_info.default_rate = 44100;
@@ -87,20 +198,58 @@ impl ContextOps for AudioUnitContext {
     }
     fn enumerate_devices(
         &mut self,
-        _devtype: DeviceType,
+        devtype: DeviceType,
         collection: &DeviceCollectionRef,
     ) -> Result<()> {
-        let mut devices = Vec::<ffi::cubeb_device_info>::new();
-        for i in 0..3 {
-            let mut device = ffi::cubeb_device_info::default();
-            audiounit_create_device_from_hwdev(&mut device, i, DeviceType::UNKNOWN)?;
-            devices.push(device);
+        let mut input_devs = Vec::<AudioObjectID>::new();
+        let mut output_devs = Vec::<AudioObjectID>::new();
+
+        // Count number of input and output devices.  This is not
+        // necessarily the same as the count of raw devices supported by the
+        // system since, for example, with Soundflower installed, some
+        // devices may report as being both input *and* output and cubeb
+        // separates those into two different devices.
+
+        if devtype.contains(DeviceType::OUTPUT) {
+            output_devs = audiounit_get_devices_of_type(DeviceType::OUTPUT);
         }
-        devices.shrink_to_fit(); // Make sure the capacity is same as the length.
+
+        if devtype.contains(DeviceType::INPUT) {
+            input_devs = audiounit_get_devices_of_type(DeviceType::INPUT);
+        }
+
+        let mut devices: Vec<ffi::cubeb_device_info> = allocate_array(
+            output_devs.len() + input_devs.len()
+        );
+
+        let mut count = 0;
+        if devtype.contains(DeviceType::OUTPUT) {
+            for dev in output_devs {
+                audiounit_create_device_from_hwdev(&mut devices[count], dev, DeviceType::OUTPUT)?;
+                // is_aggregate_device ?
+                count += 1;
+            }
+        }
+
+        if devtype.contains(DeviceType::INPUT) {
+            for dev in input_devs {
+                audiounit_create_device_from_hwdev(&mut devices[count], dev, DeviceType::INPUT)?;
+                // is_aggregate_device ?
+                count += 1;
+            }
+        }
+
         let coll = unsafe { &mut *collection.as_ptr() };
-        coll.device = devices.as_mut_ptr();
-        coll.count = devices.len();
-        mem::forget(devices); // Leak the memory of devices to the external code.
+        if count > 0 {
+            devices.shrink_to_fit(); // Make sure the capacity is same as the length.
+            coll.device = devices.as_mut_ptr();
+            coll.count = devices.len();
+            mem::forget(devices); // Leak the memory of devices to the external code.
+        } else {
+            coll.device = ptr::null_mut();
+            coll.count = 0;
+        }
+
         Ok(())
     }
     fn device_collection_destroy(&mut self, collection: &mut DeviceCollectionRef) -> Result<()> {

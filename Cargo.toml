@@ -7,6 +7,11 @@ authors = ["Chun-Min Chang <chun.m.chang@gmail.com>"]
 crate-type = ["staticlib", "rlib"]
 
 [features]
+default = ["audio_unit", "core_audio"]
+core_audio = ["coreaudio-sys/core_audio"]
+audio_unit = ["coreaudio-sys/audio_unit"]
 
 [dependencies]
 cubeb-backend = "0.5"
+coreaudio-sys = { version = "0.2", default-features = false }
+core-foundation-sys = { version = "0.6" }
