@@ -27,7 +27,7 @@ use cubeb_backend::{ffi, Context, ContextOps, DeviceCollectionRef, DeviceId,
                     StreamOps, StreamParams, StreamParamsRef};
 use self::coreaudio_sys::*;
 use self::utils::*;
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::mem;
 use std::os::raw::{c_void, c_char};
 use std::ptr;
@@ -57,7 +57,7 @@ const DEVICES_PROPERTY_ADDRESS: AudioObjectPropertyAddress =
 fn audiounit_get_default_device_id(
     dev_type: DeviceType
 ) -> AudioObjectID {
-    let mut adr;
+    let adr;
     if dev_type == DeviceType::OUTPUT {
         adr = &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS;
     } else if dev_type == DeviceType::INPUT {
@@ -188,7 +188,7 @@ fn audiounit_get_devices_of_type(dev_type: DeviceType) -> Vec<AudioObjectID> {
     }
 
     // FIXIT: This is wrong. We will return the output devices when dev_type
-    //       is unknown. Change it after C version is updated!
+    //        is unknown. Change it after C version is updated!
     let scope = if dev_type == DeviceType::INPUT {
         kAudioDevicePropertyScopeInput
     } else {
@@ -233,7 +233,7 @@ fn audiounit_create_device_from_hwdev(
     // TODO: set all data in dev_info to 0.
 
     let mut device_id_str: CFStringRef = ptr::null();
-    let mut size = mem::size_of::<CFStringRef>();
+    size = mem::size_of::<CFStringRef>();
     adr.mSelector = kAudioDevicePropertyDeviceUID;
     let mut ret = audio_object_get_property_data(
         devid,
@@ -473,6 +473,7 @@ impl ContextOps for AudioUnitContext {
             // audiounit_create_device_from_hwdev.
             unsafe {
                 // Retake the memory of these strings from the external code.
+                // TODO: Use a function to retake the memory from these raw pointers.
                 if !device.device_id.is_null() {
                     // group_id is a mirror to device_id, so we could skip it.
                     assert!(!device.group_id.is_null());
