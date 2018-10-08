@@ -56,9 +56,8 @@ const DEVICES_PROPERTY_ADDRESS: AudioObjectPropertyAddress =
         mElement: kAudioObjectPropertyElementMaster,
 };
 
-fn audiounit_get_default_device_id(
-    dev_type: DeviceType
-) -> AudioObjectID {
+fn audiounit_get_default_device_id(dev_type: DeviceType) -> AudioObjectID
+{
     let adr;
     if dev_type == DeviceType::OUTPUT {
         adr = &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS;
@@ -78,9 +77,8 @@ fn audiounit_get_default_device_id(
     return devid;
 }
 
-fn audiounit_strref_to_cstr_utf8(
-    strref: CFStringRef
-) -> CString {
+fn audiounit_strref_to_cstr_utf8(strref: CFStringRef) -> CString
+{
     let empty = CString::default();
     if strref.is_null() {
         return empty;
@@ -123,10 +121,8 @@ fn audiounit_strref_to_cstr_utf8(
     CString::new(buffer).unwrap_or(empty)
 }
 
-fn audiounit_get_channel_count(
-    devid: AudioObjectID,
-    scope: AudioObjectPropertyScope
-) -> u32 {
+fn audiounit_get_channel_count(devid: AudioObjectID, scope: AudioObjectPropertyScope) -> u32
+{
     let mut count: u32 = 0;
     let mut size: usize = 0;
 
@@ -154,13 +150,9 @@ fn audiounit_get_channel_count(
     count
 }
 
-fn audiounit_get_available_samplerate(
-    devid: AudioObjectID,
-    scope: AudioObjectPropertyScope,
-    min: &mut u32,
-    max: &mut u32,
-    def: &mut u32
-) {
+fn audiounit_get_available_samplerate(devid: AudioObjectID, scope: AudioObjectPropertyScope,
+                                      min: &mut u32, max: &mut u32, def: &mut u32)
+{
     let mut adr = AudioObjectPropertyAddress {
         mSelector: 0,
         mScope: scope,
@@ -202,10 +194,8 @@ fn audiounit_get_available_samplerate(
     }
 }
 
-fn audiounit_get_device_presentation_latency(
-    devid: AudioObjectID,
-    scope: AudioObjectPropertyScope
-) -> u32 {
+fn audiounit_get_device_presentation_latency(devid: AudioObjectID, scope: AudioObjectPropertyScope) -> u32
+{
     let mut adr = AudioObjectPropertyAddress {
         mSelector: 0,
         mScope: scope,
@@ -233,54 +223,8 @@ fn audiounit_get_device_presentation_latency(
     dev + stream
 }
 
-fn audiounit_get_devices_of_type(dev_type: DeviceType) -> Vec<AudioObjectID> {
-    let mut size: usize = 0;
-    let mut ret = audio_object_get_property_data_size(kAudioObjectSystemObject,
-                                                      &DEVICES_PROPERTY_ADDRESS,
-                                                      &mut size
-    );
-    if ret != 0 {
-        return Vec::new();
-    }
-    /* Total number of input and output devices. */
-    let mut devices: Vec<AudioObjectID> = allocate_array_by_size(size);
-    ret = audio_object_get_property_data(kAudioObjectSystemObject,
-                                         &DEVICES_PROPERTY_ADDRESS,
-                                         &mut size,
-                                         devices.as_mut_ptr(),
-    );
-    if ret != 0 {
-        return Vec::new();
-    }
-    /* Expected sorted but did not find anything in the docs. */
-    devices.sort();
-    if dev_type.contains(DeviceType::INPUT | DeviceType::OUTPUT) {
-        return devices;
-    }
-
-    // FIXIT: This is wrong. We will return the output devices when dev_type
-    //        is unknown. Change it after C version is updated!
-    let scope = if dev_type == DeviceType::INPUT {
-        kAudioDevicePropertyScopeInput
-    } else {
-        kAudioDevicePropertyScopeOutput
-    };
-    let mut devices_in_scope = Vec::new();
-    for device in devices {
-        if audiounit_get_channel_count(device, scope) > 0 {
-            devices_in_scope.push(device);
-        }
-    }
-
-    return devices_in_scope;
-}
-
-// TODO: Split it into several small functions. It will be easier to test.
-fn audiounit_create_device_from_hwdev(
-    dev_info: &mut ffi::cubeb_device_info,
-    devid: AudioObjectID,
-    devtype: DeviceType
-) -> Result<()> {
+fn audiounit_create_device_from_hwdev(dev_info: &mut ffi::cubeb_device_info, devid: AudioObjectID, devtype: DeviceType) -> Result<()>
+{
     let mut adr = AudioObjectPropertyAddress {
         mSelector: 0,
         mScope: 0,
@@ -426,6 +370,48 @@ fn is_aggregate_device(device_info: &ffi::cubeb_device_info) -> bool {
         libc::strncmp(device_info.friendly_name, PRIVATE_AGGREGATE_DEVICE_NAME.as_ptr() as *const c_char,
                       libc::strlen(PRIVATE_AGGREGATE_DEVICE_NAME.as_ptr() as *const c_char)) == 0
     }
+}
+
+fn audiounit_get_devices_of_type(dev_type: DeviceType) -> Vec<AudioObjectID> {
+    let mut size: usize = 0;
+    let mut ret = audio_object_get_property_data_size(kAudioObjectSystemObject,
+                                                      &DEVICES_PROPERTY_ADDRESS,
+                                                      &mut size
+    );
+    if ret != 0 {
+        return Vec::new();
+    }
+    /* Total number of input and output devices. */
+    let mut devices: Vec<AudioObjectID> = allocate_array_by_size(size);
+    ret = audio_object_get_property_data(kAudioObjectSystemObject,
+                                         &DEVICES_PROPERTY_ADDRESS,
+                                         &mut size,
+                                         devices.as_mut_ptr(),
+    );
+    if ret != 0 {
+        return Vec::new();
+    }
+    /* Expected sorted but did not find anything in the docs. */
+    devices.sort();
+    if dev_type.contains(DeviceType::INPUT | DeviceType::OUTPUT) {
+        return devices;
+    }
+
+    // FIXIT: This is wrong. We will return the output devices when dev_type
+    //        is unknown. Change it after C version is updated!
+    let scope = if dev_type == DeviceType::INPUT {
+        kAudioDevicePropertyScopeInput
+    } else {
+        kAudioDevicePropertyScopeOutput
+    };
+    let mut devices_in_scope = Vec::new();
+    for device in devices {
+        if audiounit_get_channel_count(device, scope) > 0 {
+            devices_in_scope.push(device);
+        }
+    }
+
+    return devices_in_scope;
 }
 
 pub const OPS: Ops = capi_new!(AudioUnitContext, AudioUnitStream);
