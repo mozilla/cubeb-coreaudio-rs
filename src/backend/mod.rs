@@ -27,7 +27,7 @@ use cubeb_backend::{ffi, Context, ContextOps, DeviceCollectionRef, DeviceId,
                     StreamOps, StreamParams, StreamParamsRef};
 use self::coreaudio_sys::*;
 use self::utils::*;
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 use std::mem;
 use std::os::raw::{c_void, c_char};
 use std::ptr;
@@ -80,19 +80,12 @@ fn audiounit_get_default_device_id(
     return devid;
 }
 
-// TODO: Use CString maybe.
-//       CString::from_vec_unchecked will add o and the end of the input vec.
-//       We can use CString::into_raw to leak memory and use CString::from_raw
-//       to retake the ownership of the memory. CString::from_raw will use
-//       `strlen` as the length of the slice that will be converted into its
-//       inner boxed slice. Thus, we may need to remove '\0' in the raw bytes
-//       in case `strlen` get a wrong value and cause memory leaks.
 fn audiounit_strref_to_cstr_utf8(
     strref: CFStringRef
-) -> Vec<c_char> {
-    let mut ret = Vec::<c_char>::new();
+) -> CString {
+    let empty = CString::default();
     if strref.is_null() {
-        return ret;
+        return empty;
     }
 
     let len = unsafe {
@@ -102,31 +95,34 @@ fn audiounit_strref_to_cstr_utf8(
     let size = unsafe {
         CFStringGetMaximumSizeForEncoding(len, kCFStringEncodingUTF8) + 1
     };
-    ret = allocate_array_by_size::<c_char>(size as usize);
+    let mut buffer = vec![b'\x00'; size as usize];
 
     let success = unsafe {
         CFStringGetCString(
             strref,
-            ret.as_mut_ptr(),
+            buffer.as_mut_ptr() as *mut c_char,
             size,
             kCFStringEncodingUTF8
         ) != 0
     };
     if !success {
-        ret.clear();
+        buffer.clear();
     }
 
+    // CString::new() will consume the input bytes vec and add a '\0' at the
+    // end of the bytes. We need to remove the '\0' from the bytes data
+    // returned from CFStringGetCString by ourselves to avoid memory leaks.
+    // https://doc.rust-lang.org/std/ffi/struct.CString.html#method.new
     // The size returned from CFStringGetMaximumSizeForEncoding is always
     // greater than or equal to the string length, where the string length
     // is the number of characters from the beginning to nul-terminator('\0'),
     // so we should shrink the string vector to fit that size.
-    let str_size = unsafe {
-        libc::strlen(ret.as_ptr()) + 1
+    let str_len = unsafe {
+        libc::strlen(buffer.as_ptr() as *mut c_char)
     };
-    ret.truncate(str_size);
-    assert_eq!(ret.len(), str_size);
+    buffer.truncate(str_len); // Drop the elements from '\0'(including '\0').
 
-    ret
+    CString::new(buffer).unwrap_or(empty)
 }
 
 fn audiounit_get_channel_count(
@@ -242,11 +238,9 @@ fn audiounit_create_device_from_hwdev(
         &mut device_id_str
     );
     if ret == 0 && !device_id_str.is_null() {
-        let mut c_char_vec = audiounit_strref_to_cstr_utf8(device_id_str);
-        // TODO: Use a function to leak the memory and get raw pointer.
-        c_char_vec.shrink_to_fit(); // Make sure the capacity is same as the length.
-        dev_info.device_id = c_char_vec.as_mut_ptr();
-        mem::forget(c_char_vec); // Leak the memory to the external code.
+        let c_string = audiounit_strref_to_cstr_utf8(device_id_str);
+        // Leak the memory to the external code.
+        dev_info.device_id = c_string.into_raw();
 
         // TODO: Why we set devid here? Does it has relationship with device_id_str?
         assert!(mem::size_of::<ffi::cubeb_devid>() >= mem::size_of_val(&devid),
@@ -259,7 +253,7 @@ fn audiounit_create_device_from_hwdev(
             CFRelease(device_id_str as *const c_void);
         }
         // TODO: device_id_str is a danlging pointer now.
-        //       Find a way to prevent it from being called.
+        //       Find a way to prevent it from being used.
     }
 
     let mut friendly_name_str: CFStringRef = ptr::null();
@@ -302,23 +296,21 @@ fn audiounit_create_device_from_hwdev(
         );
     }
 
-    let mut friendly_name_c_chars = if friendly_name_str.is_null() {
+    if friendly_name_str.is_null() {
         // Couldn't get a datasource name nor a device name, return a
         // valid string of length 0.
-        vec!['\0' as c_char; 1]
+        let c_string = CString::default();
+        dev_info.friendly_name = c_string.into_raw();
     } else {
-        let c_char_vec = audiounit_strref_to_cstr_utf8(friendly_name_str);
+        let c_string = audiounit_strref_to_cstr_utf8(friendly_name_str);
+        // Leak the memory to the external code.
+        dev_info.friendly_name = c_string.into_raw();
         unsafe {
             CFRelease(friendly_name_str as *const c_void);
         }
         // TODO: friendly_name_str is a danlging pointer now.
-        //       Find a way to prevent it from being called.
-        c_char_vec
+        //       Find a way to prevent it from being used.
     };
-    // TODO: Use a function to leak the memory and get raw pointer.
-    friendly_name_c_chars.shrink_to_fit(); // Make sure the capacity is same as the length.
-    dev_info.friendly_name = friendly_name_c_chars.as_mut_ptr();
-    mem::forget(friendly_name_c_chars); // Leak the memory to the external code.
 
     let mut vendor_name_str: CFStringRef = ptr::null();
     size = mem::size_of::<CFStringRef>();
@@ -330,16 +322,14 @@ fn audiounit_create_device_from_hwdev(
         &mut vendor_name_str
     );
     if ret == 0 && !vendor_name_str.is_null() {
-        // TODO: Use a function to leak the memory and get raw pointer.
-        let mut c_char_vec = audiounit_strref_to_cstr_utf8(vendor_name_str);
-        c_char_vec.shrink_to_fit(); // Make sure the capacity is same as the length.
-        dev_info.vendor_name = c_char_vec.as_mut_ptr();
-        mem::forget(c_char_vec); // Leak the memory to the external code.
+        let c_string = audiounit_strref_to_cstr_utf8(vendor_name_str);
+        // Leak the memory to the external code.
+        dev_info.vendor_name = c_string.into_raw();
         unsafe {
             CFRelease(vendor_name_str as *const c_void);
         }
         // TODO: vendor_name_str is a danlging pointer now.
-        //       Find a way to prevent it from being called.
+        //       Find a way to prevent it from being used.
     }
 
     // TODO: Implement From trait for enum cubeb_device_type so we can use
@@ -478,26 +468,13 @@ impl ContextOps for AudioUnitContext {
                     // group_id is a mirror to device_id, so we could skip it.
                     assert!(!device.group_id.is_null());
                     assert_eq!(device.device_id, device.group_id);
-
-                    let _: Vec<c_char> = Vec::from_raw_parts(
-                        device.device_id as *mut _,
-                        libc::strlen(device.device_id) + 1,
-                        libc::strlen(device.device_id) + 1,
-                    );
+                    let _ = CString::from_raw(device.device_id as *mut _);
                 }
                 if !device.friendly_name.is_null() {
-                    let _: Vec<c_char> = Vec::from_raw_parts(
-                        device.friendly_name as *mut _,
-                        libc::strlen(device.friendly_name) + 1,
-                        libc::strlen(device.friendly_name) + 1,
-                    );
+                    let _ = CString::from_raw(device.friendly_name as *mut _);
                 }
                 if !device.vendor_name.is_null() {
-                    let _: Vec<c_char> = Vec::from_raw_parts(
-                        device.vendor_name as *mut _,
-                        libc::strlen(device.vendor_name) + 1,
-                        libc::strlen(device.vendor_name) + 1,
-                    );
+                    let _ = CString::from_raw(device.vendor_name as *mut _);
                 }
             }
         }
