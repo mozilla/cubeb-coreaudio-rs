@@ -56,6 +56,20 @@ const DEVICES_PROPERTY_ADDRESS: AudioObjectPropertyAddress =
         mElement: kAudioObjectPropertyElementMaster,
 };
 
+const INPUT_DATA_SOURCE_PROPERTY_ADDRESS: AudioObjectPropertyAddress =
+    AudioObjectPropertyAddress {
+        mSelector: kAudioDevicePropertyDataSource,
+        mScope: kAudioDevicePropertyScopeInput,
+        mElement: kAudioObjectPropertyElementMaster,
+};
+
+const OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS: AudioObjectPropertyAddress =
+    AudioObjectPropertyAddress {
+        mSelector: kAudioDevicePropertyDataSource,
+        mScope: kAudioDevicePropertyScopeOutput,
+        mElement: kAudioObjectPropertyElementMaster,
+};
+
 fn audiounit_get_default_device_id(dev_type: DeviceType) -> AudioObjectID
 {
     let adr;
@@ -75,6 +89,78 @@ fn audiounit_get_default_device_id(dev_type: DeviceType) -> AudioObjectID
     }
 
     return devid;
+}
+
+fn convert_uint32_into_string(data: u32) -> CString
+{
+    // Simply create an empty string if no data.
+    let empty = CString::default();
+    if data == 0 {
+        return empty;
+    }
+
+    // Reverse 0xWXYZ into 0xZYXW.
+    let mut buffer = vec![b'\x00'; 4]; // 4 bytes for uint32.
+    buffer[0] = (data >> 24) as u8;
+    buffer[1] = (data >> 16) as u8;
+    buffer[2] = (data >> 8) as u8;
+    buffer[3] = (data) as u8;
+
+    // CString::new() will consume the input bytes vec and add a '\0' at the
+    // end of the bytes. The input bytes vec must not contain any 0 bytes in
+    // it, in case causing memory leaks when we leak its memory to the
+    // external code and then retake the ownership of its memory.
+    // https://doc.rust-lang.org/std/ffi/struct.CString.html#method.new
+    CString::new(buffer).unwrap_or(empty)
+}
+
+fn audiounit_get_default_device_datasource(devtype: DeviceType,
+                                           data: &mut u32) -> Result<()>
+{
+    let id = audiounit_get_default_device_id(devtype);
+    if id == kAudioObjectUnknown {
+        return Err(Error::error());
+    }
+
+    let mut size = mem::size_of_val(data);
+    // FIXIT: This is wrong. We will use output scope when dev_type
+    //        is unknown. Change it after C version is updated!
+    /* This fails with some USB headsets (e.g., Plantronic .Audio 628). */
+    let r = audio_object_get_property_data(id, if devtype == DeviceType::INPUT {
+                                                   &INPUT_DATA_SOURCE_PROPERTY_ADDRESS
+                                               } else {
+                                                   &OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS
+                                               }, &mut size, data);
+    if r != 0 {
+        *data = 0;
+    }
+
+    Ok(())
+}
+
+fn audiounit_get_default_device_name(stm: &AudioUnitStream,
+                                     device: &mut ffi::cubeb_device,
+                                     devtype: DeviceType) -> Result<()>
+{
+    let mut data: u32 = 0;
+    audiounit_get_default_device_datasource(devtype, &mut data)?;
+
+    // FIXIT: This is wrong. We will use output scope when dev_type
+    //        is unknown. Change it after C version is updated!
+    let name = if devtype == DeviceType::INPUT {
+        &mut device.input_name
+    } else {
+        &mut device.output_name
+    };
+    // Leak the memory to the external code.
+    *name = convert_uint32_into_string(data).into_raw();
+    if name.is_null() {
+        // FIXIT: This is wrong. We will use output scope when dev_type
+        //        is unknown. Change it after C version is updated!
+        cubeb_log!("({:p}) name of {} device is empty!", stm,
+                   if devtype == DeviceType::INPUT { "input" } else { "output" } );
+    }
+    Ok(())
 }
 
 fn audiounit_strref_to_cstr_utf8(strref: CFStringRef) -> CString
@@ -399,7 +485,7 @@ fn audiounit_get_devices_of_type(dev_type: DeviceType) -> Vec<AudioObjectID> {
         return devices;
     }
 
-    // FIXIT: This is wrong. We will return the output devices when dev_type
+    // FIXIT: This is wrong. We will use output scope when dev_type
     //        is unknown. Change it after C version is updated!
     let scope = if dev_type == DeviceType::INPUT {
         kAudioDevicePropertyScopeInput
@@ -619,8 +705,8 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     #[cfg(not(target_os = "ios"))]
     fn current_device(&mut self) -> Result<&DeviceRef> {
         let mut device: Box<ffi::cubeb_device> = Box::new(unsafe { mem::zeroed() });
-        device.output_name = CString::new("output").unwrap().into_raw(); // leak the memory to the external code.
-        device.input_name = CString::new("input").unwrap().into_raw(); // leak the memory to the external code.
+        audiounit_get_default_device_name(self, device.as_mut(), DeviceType::OUTPUT)?;
+        audiounit_get_default_device_name(self, device.as_mut(), DeviceType::INPUT)?;
         Ok(unsafe { DeviceRef::from_ptr(Box::into_raw(device) as *mut _) })
     }
     #[cfg(target_os = "ios")]
@@ -633,9 +719,15 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
             Err(Error::error())
         } else {
             unsafe {
-                let dev: Box<ffi::cubeb_device> = Box::from_raw(device.as_ptr() as *mut _);
-                let _ = CString::from_raw(dev.output_name as *mut _);
-                let _ = CString::from_raw(dev.input_name as *mut _);
+                let mut dev: Box<ffi::cubeb_device> = Box::from_raw(device.as_ptr() as *mut _);
+                if !dev.output_name.is_null() {
+                    let _ = CString::from_raw(dev.output_name as *mut _);
+                    dev.output_name = ptr::null_mut();
+                }
+                if !dev.input_name.is_null() {
+                    let _ = CString::from_raw(dev.input_name as *mut _);
+                    dev.input_name = ptr::null_mut();
+                }
                 drop(dev);
             }
             Ok(())
