@@ -68,12 +68,8 @@ fn audiounit_get_default_device_id(
 
     let mut devid: AudioDeviceID = kAudioObjectUnknown;
     let mut size = mem::size_of::<AudioDeviceID>();
-    if audio_object_get_property_data(
-        kAudioObjectSystemObject,
-        adr,
-        &mut size,
-        &mut devid
-    ) != 0 {
+    if audio_object_get_property_data(kAudioObjectSystemObject,
+                                      adr, &mut size, &mut devid) != 0 {
         return kAudioObjectUnknown;
     }
 
@@ -173,12 +169,7 @@ fn audiounit_get_available_samplerate(
     if audio_object_has_property(devid, &adr) {
         let mut size = mem::size_of::<f64>();
         let mut fvalue: f64 = 0.0;
-        if audio_object_get_property_data(
-            devid,
-            &adr,
-            &mut size,
-            &mut fvalue
-        ) == 0 {
+        if audio_object_get_property_data(devid, &adr, &mut size, &mut fvalue) == 0 {
             *def = fvalue as u32;
         }
     }
@@ -211,21 +202,19 @@ fn audiounit_get_available_samplerate(
 
 fn audiounit_get_devices_of_type(dev_type: DeviceType) -> Vec<AudioObjectID> {
     let mut size: usize = 0;
-    let mut ret = audio_object_get_property_data_size(
-        kAudioObjectSystemObject,
-        &DEVICES_PROPERTY_ADDRESS,
-        &mut size
+    let mut ret = audio_object_get_property_data_size(kAudioObjectSystemObject,
+                                                      &DEVICES_PROPERTY_ADDRESS,
+                                                      &mut size
     );
     if ret != 0 {
         return Vec::new();
     }
     /* Total number of input and output devices. */
     let mut devices: Vec<AudioObjectID> = allocate_array_by_size(size);
-    ret = audio_object_get_property_data(
-        kAudioObjectSystemObject,
-        &DEVICES_PROPERTY_ADDRESS,
-        &mut size,
-        devices.as_mut_ptr(),
+    ret = audio_object_get_property_data(kAudioObjectSystemObject,
+                                         &DEVICES_PROPERTY_ADDRESS,
+                                         &mut size,
+                                         devices.as_mut_ptr(),
     );
     if ret != 0 {
         return Vec::new();
@@ -284,12 +273,7 @@ fn audiounit_create_device_from_hwdev(
     let mut device_id_str: CFStringRef = ptr::null();
     size = mem::size_of::<CFStringRef>();
     adr.mSelector = kAudioDevicePropertyDeviceUID;
-    let mut ret = audio_object_get_property_data(
-        devid,
-        &adr,
-        &mut size,
-        &mut device_id_str
-    );
+    let mut ret = audio_object_get_property_data(devid, &adr, &mut size, &mut device_id_str);
     if ret == 0 && !device_id_str.is_null() {
         let c_string = audiounit_strref_to_cstr_utf8(device_id_str);
         // Leak the memory to the external code.
@@ -313,12 +297,7 @@ fn audiounit_create_device_from_hwdev(
     let mut ds: u32 = 0;
     size = mem::size_of::<u32>();
     adr.mSelector = kAudioDevicePropertyDataSource;
-    ret = audio_object_get_property_data(
-        devid,
-        &adr,
-        &mut size,
-        &mut ds
-    );
+    ret = audio_object_get_property_data(devid, &adr, &mut size, &mut ds);
     if ret == 0 {
         let mut trl = AudioValueTranslation {
             mInputData: &mut ds as *mut u32 as *mut c_void,
@@ -328,12 +307,7 @@ fn audiounit_create_device_from_hwdev(
         };
         adr.mSelector = kAudioDevicePropertyDataSourceNameForIDCFString;
         size = mem::size_of::<AudioValueTranslation>();
-        audio_object_get_property_data(
-            devid,
-            &adr,
-            &mut size,
-            &mut trl
-        );
+        audio_object_get_property_data(devid, &adr, &mut size, &mut trl);
     }
 
     // If there is no datasource for this device, fall back to the
@@ -341,12 +315,7 @@ fn audiounit_create_device_from_hwdev(
     if friendly_name_str.is_null() {
         size = mem::size_of::<CFStringRef>();
         adr.mSelector = kAudioObjectPropertyName;
-        audio_object_get_property_data(
-            devid,
-            &adr,
-            &mut size,
-            &mut friendly_name_str
-        );
+        audio_object_get_property_data(devid, &adr, &mut size, &mut friendly_name_str);
     }
 
     if friendly_name_str.is_null() {
@@ -368,12 +337,7 @@ fn audiounit_create_device_from_hwdev(
     let mut vendor_name_str: CFStringRef = ptr::null();
     size = mem::size_of::<CFStringRef>();
     adr.mSelector = kAudioObjectPropertyManufacturer;
-    ret = audio_object_get_property_data(
-        devid,
-        &adr,
-        &mut size,
-        &mut vendor_name_str
-    );
+    ret = audio_object_get_property_data(devid, &adr, &mut size, &mut vendor_name_str);
     if ret == 0 && !vendor_name_str.is_null() {
         let c_string = audiounit_strref_to_cstr_utf8(vendor_name_str);
         // Leak the memory to the external code.
@@ -404,13 +368,8 @@ fn audiounit_create_device_from_hwdev(
     dev_info.max_channels = ch;
     dev_info.format = ffi::CUBEB_DEVICE_FMT_ALL;
     dev_info.default_format = ffi::CUBEB_DEVICE_FMT_F32NE;
-    audiounit_get_available_samplerate(
-        devid,
-        adr.mScope,
-        &mut dev_info.min_rate,
-        &mut dev_info.max_rate,
-        &mut dev_info.default_rate
-    );
+    audiounit_get_available_samplerate(devid, adr.mScope,
+                                       &mut dev_info.min_rate, &mut dev_info.max_rate, &mut dev_info.default_rate);
 
     // TODO: audiounit_get_device_presentation_latency
     dev_info.latency_lo = 0;
