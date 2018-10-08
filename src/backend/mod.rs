@@ -123,8 +123,10 @@ fn audiounit_get_default_device_datasource(devtype: DeviceType,
     }
 
     let mut size = mem::size_of_val(data);
-    // FIXIT: This is wrong. We will use output scope when dev_type
-    //        is unknown. Change it after C version is updated!
+    // TODO: devtype includes input, output, and unknown. This is a bad style
+    //       to check type, although this function will early return for
+    //       unknown type since audiounit_get_default_device_id will gives
+    //       a kAudioObjectUnknown for unknown type.
     /* This fails with some USB headsets (e.g., Plantronic .Audio 628). */
     let r = audio_object_get_property_data(id, if devtype == DeviceType::INPUT {
                                                    &INPUT_DATA_SOURCE_PROPERTY_ADDRESS
@@ -138,6 +140,9 @@ fn audiounit_get_default_device_datasource(devtype: DeviceType,
     Ok(())
 }
 
+// TODO: This actually is the name converted from the bytes of the data source
+//       (kAudioDevicePropertyDataSource), rather than the name of the audio
+//       device(kAudioObjectPropertyName). The naming here is vague.
 fn audiounit_get_default_device_name(stm: &AudioUnitStream,
                                      device: &mut ffi::cubeb_device,
                                      devtype: DeviceType) -> Result<()>
@@ -145,8 +150,10 @@ fn audiounit_get_default_device_name(stm: &AudioUnitStream,
     let mut data: u32 = 0;
     audiounit_get_default_device_datasource(devtype, &mut data)?;
 
-    // FIXIT: This is wrong. We will use output scope when dev_type
-    //        is unknown. Change it after C version is updated!
+    // TODO: devtype includes input, output, and unknown. This is a bad style
+    //       to check type, although this function will early return for
+    //       unknown type since audiounit_get_default_device_datasource will
+    //       throw an error for unknown type.
     let name = if devtype == DeviceType::INPUT {
         &mut device.input_name
     } else {
@@ -155,8 +162,7 @@ fn audiounit_get_default_device_name(stm: &AudioUnitStream,
     // Leak the memory to the external code.
     *name = convert_uint32_into_string(data).into_raw();
     if name.is_null() {
-        // FIXIT: This is wrong. We will use output scope when dev_type
-        //        is unknown. Change it after C version is updated!
+        // TODO: Bad style to use scope as the above.
         cubeb_log!("({:p}) name of {} device is empty!", stm,
                    if devtype == DeviceType::INPUT { "input" } else { "output" } );
     }
@@ -236,6 +242,7 @@ fn audiounit_get_channel_count(devid: AudioObjectID, scope: AudioObjectPropertyS
     count
 }
 
+// TODO: It seems that it works no matter what scope is(see test.rs). Is it ok?
 fn audiounit_get_available_samplerate(devid: AudioObjectID, scope: AudioObjectPropertyScope,
                                       min: &mut u32, max: &mut u32, def: &mut u32)
 {

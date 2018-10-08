@@ -17,7 +17,6 @@ pub fn allocate_array<T>(elements: usize) -> Vec<T> {
     array
 }
 
-
 pub fn get_leaked_vec<T>(mut v: Vec<T>) -> (*mut T, usize) {
     v.shrink_to_fit(); // Make sure the capacity is same as the length.
     let ptr_and_len = (v.as_mut_ptr(), v.len());
