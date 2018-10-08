@@ -616,7 +616,10 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     }
     #[cfg(not(target_os = "ios"))]
     fn current_device(&mut self) -> Result<&DeviceRef> {
-        Ok(unsafe { DeviceRef::from_ptr(0xDEAD_BEEF as *mut _) })
+        let mut device: Box<ffi::cubeb_device> = Box::new(unsafe { mem::zeroed() });
+        device.output_name = CString::new("output").unwrap().into_raw(); // leak the memory to the external code.
+        device.input_name = CString::new("input").unwrap().into_raw(); // leak the memory to the external code.
+        Ok(unsafe { DeviceRef::from_ptr(Box::into_raw(device) as *mut _) })
     }
     #[cfg(target_os = "ios")]
     fn device_destroy(&mut self, device: &DeviceRef) -> Result<()> {
@@ -624,8 +627,17 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     }
     #[cfg(not(target_os = "ios"))]
     fn device_destroy(&mut self, device: &DeviceRef) -> Result<()> {
-        assert_eq!(device.as_ptr(), 0xDEAD_BEEF as *mut _);
-        Ok(())
+        if device.as_ptr().is_null() {
+            Err(Error::error())
+        } else {
+            unsafe {
+                let dev: Box<ffi::cubeb_device> = Box::from_raw(device.as_ptr() as *mut _);
+                let _ = CString::from_raw(dev.output_name as *mut _);
+                let _ = CString::from_raw(dev.input_name as *mut _);
+                drop(dev);
+            }
+            Ok(())
+        }
     }
     fn register_device_changed_callback(
         &mut self,
