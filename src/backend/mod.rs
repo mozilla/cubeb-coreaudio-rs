@@ -245,7 +245,9 @@ fn audiounit_create_device_from_hwdev(dev_info: &mut ffi::cubeb_device_info, dev
         return Err(Error::error());
     }
 
-    // TODO: set all data in dev_info to 0.
+    // Set all data in dev_info to zero(its default data is zero):
+    // https://github.com/djg/cubeb-rs/blob/78ed9459b8ac2ca50ea37bb72f8a06847eb8d379/cubeb-sys/src/device.rs#L129
+    *dev_info = ffi::cubeb_device_info::default();
 
     let mut device_id_str: CFStringRef = ptr::null();
     size = mem::size_of::<CFStringRef>();
