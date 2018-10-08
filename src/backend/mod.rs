@@ -200,6 +200,37 @@ fn audiounit_get_available_samplerate(
     }
 }
 
+fn audiounit_get_device_presentation_latency(
+    devid: AudioObjectID,
+    scope: AudioObjectPropertyScope
+) -> u32 {
+    let mut adr = AudioObjectPropertyAddress {
+        mSelector: 0,
+        mScope: scope,
+        mElement: kAudioObjectPropertyElementMaster
+    };
+    let mut size: usize = 0;
+    let mut dev: u32 = 0;
+    let mut stream: u32 = 0;
+    let mut sid: Vec<AudioStreamID> = allocate_array(1);
+
+    adr.mSelector = kAudioDevicePropertyLatency;
+    size = mem::size_of::<u32>();
+    if audio_object_get_property_data(devid, &adr, &mut size, &mut dev) != 0 {
+        dev = 0;
+    }
+
+    adr.mSelector = kAudioDevicePropertyStreams;
+    size = mem::size_of_val(&sid);
+    if audio_object_get_property_data(devid, &adr, &mut size, sid.as_mut_ptr()) == 0 {
+        adr.mSelector = kAudioStreamPropertyLatency;
+        size = mem::size_of::<u32>();
+        audio_object_get_property_data(sid[0], &adr, &mut size, &mut stream);
+    }
+
+    dev + stream
+}
+
 fn audiounit_get_devices_of_type(dev_type: DeviceType) -> Vec<AudioObjectID> {
     let mut size: usize = 0;
     let mut ret = audio_object_get_property_data_size(kAudioObjectSystemObject,
@@ -371,9 +402,18 @@ fn audiounit_create_device_from_hwdev(
     audiounit_get_available_samplerate(devid, adr.mScope,
                                        &mut dev_info.min_rate, &mut dev_info.max_rate, &mut dev_info.default_rate);
 
-    // TODO: audiounit_get_device_presentation_latency
-    dev_info.latency_lo = 0;
-    dev_info.latency_hi = 0;
+    let latency = audiounit_get_device_presentation_latency(devid, adr.mScope);
+    let mut range = AudioValueRange::default();
+    adr.mSelector = kAudioDevicePropertyBufferFrameSizeRange;
+    size = mem::size_of::<AudioValueRange>();
+    ret = audio_object_get_property_data(devid, &adr, &mut size, &mut range);
+    if ret == 0 {
+        dev_info.latency_lo = latency + range.mMinimum as u32;
+        dev_info.latency_hi = latency + range.mMaximum as u32;
+    } else {
+        dev_info.latency_lo = 10 * dev_info.default_rate / 1000;    /* Default to 10ms */
+        dev_info.latency_hi = 100 * dev_info.default_rate / 1000;   /* Default to 10ms */
+    }
 
     Ok(())
 }
