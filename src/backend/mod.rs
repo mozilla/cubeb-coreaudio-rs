@@ -33,6 +33,8 @@ use std::os::raw::{c_void, c_char};
 use std::ptr;
 use std::slice;
 
+const PRIVATE_AGGREGATE_DEVICE_NAME: &'static str = "CubebAggregateDevice";
+
 const DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS: AudioObjectPropertyAddress =
     AudioObjectPropertyAddress {
         mSelector: kAudioHardwarePropertyDefaultInputDevice,
@@ -418,6 +420,14 @@ fn audiounit_create_device_from_hwdev(
     Ok(())
 }
 
+fn is_aggregate_device(device_info: &ffi::cubeb_device_info) -> bool {
+    assert!(!device_info.friendly_name.is_null());
+    unsafe {
+        libc::strncmp(device_info.friendly_name, PRIVATE_AGGREGATE_DEVICE_NAME.as_ptr() as *const c_char,
+                      libc::strlen(PRIVATE_AGGREGATE_DEVICE_NAME.as_ptr() as *const c_char)) == 0
+    }
+}
+
 pub const OPS: Ops = capi_new!(AudioUnitContext, AudioUnitStream);
 
 pub struct AudioUnitContext {
@@ -473,16 +483,22 @@ impl ContextOps for AudioUnitContext {
         let mut count = 0;
         if devtype.contains(DeviceType::OUTPUT) {
             for dev in output_devs {
-                audiounit_create_device_from_hwdev(&mut devices[count], dev, DeviceType::OUTPUT)?;
-                // is_aggregate_device ?
+                let device = &mut devices[count];
+                if audiounit_create_device_from_hwdev(device, dev, DeviceType::OUTPUT).is_err() ||
+                   is_aggregate_device(device) {
+                    continue;
+                }
                 count += 1;
             }
         }
 
         if devtype.contains(DeviceType::INPUT) {
             for dev in input_devs {
-                audiounit_create_device_from_hwdev(&mut devices[count], dev, DeviceType::INPUT)?;
-                // is_aggregate_device ?
+                let device = &mut devices[count];
+                if audiounit_create_device_from_hwdev(device, dev, DeviceType::INPUT).is_err() ||
+                   is_aggregate_device(device) {
+                    continue;
+                }
                 count += 1;
             }
         }
