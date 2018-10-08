@@ -17,6 +17,24 @@ pub fn allocate_array<T>(elements: usize) -> Vec<T> {
     array
 }
 
+
+pub fn get_leaked_vec<T>(mut v: Vec<T>) -> (*mut T, usize) {
+    v.shrink_to_fit(); // Make sure the capacity is same as the length.
+    let ptr_and_len = (v.as_mut_ptr(), v.len());
+    mem::forget(v); // Leak the memory of devices to the external code.
+    ptr_and_len
+}
+
+pub fn retake_leaked_vec<T>(ptr: *mut T, len: usize) -> Vec<T> {
+    unsafe {
+        Vec::from_raw_parts(
+            ptr,
+            len,
+            len
+        )
+    }
+}
+
 pub fn audio_object_has_property(
     id: sys::AudioObjectID,
     address: &sys::AudioObjectPropertyAddress,

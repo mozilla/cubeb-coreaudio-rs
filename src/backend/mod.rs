@@ -8,7 +8,7 @@ extern crate libc;
 
 mod utils;
 
-// cubeb_backend::{*} is is referred:
+// cubeb_backend::{*} is referred:
 // - ffi                : cubeb_sys::*                      (cubeb-core/lib.rs).
 // - Context            : pub struct Context                (cubeb-core/context.rs).
 // - ContextOps         : pub trait ContextOps              (cubeb-backend/trait.rs).
@@ -449,10 +449,9 @@ impl ContextOps for AudioUnitContext {
 
         let coll = unsafe { &mut *collection.as_ptr() };
         if count > 0 {
-            devices.shrink_to_fit(); // Make sure the capacity is same as the length.
-            coll.device = devices.as_mut_ptr();
-            coll.count = devices.len();
-            mem::forget(devices); // Leak the memory of devices to the external code.
+            let (ptr, len) = get_leaked_vec(devices);
+            coll.device = ptr;
+            coll.count = len;
         } else {
             coll.device = ptr::null_mut();
             coll.count = 0;
@@ -467,19 +466,12 @@ impl ContextOps for AudioUnitContext {
         }
 
         // Retake the ownership of the previous leaked memory from the external code.
-        let mut devices = unsafe {
-            Vec::from_raw_parts(
-                coll.device,
-                coll.count,
-                coll.count
-            )
-        };
+        let mut devices = retake_leaked_vec(coll.device, coll.count);
         for device in &mut devices {
             // This should be mapped to the memory allocation in
             // audiounit_create_device_from_hwdev.
             unsafe {
                 // Retake the memory of these strings from the external code.
-                // TODO: Use a function to retake the memory from these raw pointers.
                 if !device.device_id.is_null() {
                     // group_id is a mirror to device_id, so we could skip it.
                     assert!(!device.group_id.is_null());
