@@ -17,6 +17,18 @@ pub fn allocate_array<T>(elements: usize) -> Vec<T> {
     array
 }
 
+pub fn audio_object_has_property(
+    id: sys::AudioObjectID,
+    address: &sys::AudioObjectPropertyAddress,
+) -> bool {
+    unsafe {
+        sys::AudioObjectHasProperty(
+            id,
+            address, // as `*const AudioObjectPropertyAddress` automatically.
+        ) != 0
+    }
+}
+
 pub fn audio_object_get_property_data<T>(
     id: sys::AudioObjectID,
     address: &sys::AudioObjectPropertyAddress,

@@ -156,6 +156,59 @@ fn audiounit_get_channel_count(
     count
 }
 
+fn audiounit_get_available_samplerate(
+    devid: AudioObjectID,
+    scope: AudioObjectPropertyScope,
+    min: &mut u32,
+    max: &mut u32,
+    def: &mut u32
+) {
+    let mut adr = AudioObjectPropertyAddress {
+        mSelector: 0,
+        mScope: scope,
+        mElement: kAudioObjectPropertyElementMaster
+    };
+
+    adr.mSelector = kAudioDevicePropertyNominalSampleRate;
+    if audio_object_has_property(devid, &adr) {
+        let mut size = mem::size_of::<f64>();
+        let mut fvalue: f64 = 0.0;
+        if audio_object_get_property_data(
+            devid,
+            &adr,
+            &mut size,
+            &mut fvalue
+        ) == 0 {
+            *def = fvalue as u32;
+        }
+    }
+
+    adr.mSelector = kAudioDevicePropertyAvailableNominalSampleRates;
+    let mut size = 0;
+    let mut range = AudioValueRange::default();
+    if audio_object_has_property(devid, &adr) &&
+       audio_object_get_property_data_size(devid, &adr, &mut size) == 0 {
+        let mut ranges: Vec<AudioValueRange> = allocate_array_by_size(size);
+        range.mMinimum = 9999999999.0; // TODO: why not f64::MAX?
+        range.mMaximum = 0.0; // TODO: why not f64::MIN?
+        if audio_object_get_property_data(devid, &adr, &mut size, ranges.as_mut_ptr()) == 0 {
+            for rng in &ranges {
+                if rng.mMaximum > range.mMaximum {
+                    range.mMaximum = rng.mMaximum;
+                }
+                if rng.mMinimum < range.mMinimum {
+                    range.mMinimum = rng.mMinimum;
+                }
+            }
+        }
+        *max = range.mMaximum as u32;
+        *min = range.mMinimum as u32;
+    } else {
+        *max = 0;
+        *min = 0;
+    }
+}
+
 fn audiounit_get_devices_of_type(dev_type: DeviceType) -> Vec<AudioObjectID> {
     let mut size: usize = 0;
     let mut ret = audio_object_get_property_data_size(
@@ -351,10 +404,14 @@ fn audiounit_create_device_from_hwdev(
     dev_info.max_channels = ch;
     dev_info.format = ffi::CUBEB_DEVICE_FMT_ALL;
     dev_info.default_format = ffi::CUBEB_DEVICE_FMT_F32NE;
-    // TODO: audiounit_get_available_samplerate
-    dev_info.min_rate = 1;
-    dev_info.max_rate = 2;
-    dev_info.default_rate = 44100;
+    audiounit_get_available_samplerate(
+        devid,
+        adr.mScope,
+        &mut dev_info.min_rate,
+        &mut dev_info.max_rate,
+        &mut dev_info.default_rate
+    );
+
     // TODO: audiounit_get_device_presentation_latency
     dev_info.latency_lo = 0;
     dev_info.latency_hi = 0;
