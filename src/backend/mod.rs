@@ -624,9 +624,19 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         assert_eq!(panning, 0.5);
         Ok(())
     }
+    #[cfg(target_os = "ios")]
+    fn current_device(&mut self) -> Result<&DeviceRef> {
+        Err(not_supported())
+    }
+    #[cfg(not(target_os = "ios"))]
     fn current_device(&mut self) -> Result<&DeviceRef> {
         Ok(unsafe { DeviceRef::from_ptr(0xDEAD_BEEF as *mut _) })
     }
+    #[cfg(target_os = "ios")]
+    fn device_destroy(&mut self, device: &DeviceRef) -> Result<()> {
+        Err(not_supported())
+    }
+    #[cfg(not(target_os = "ios"))]
     fn device_destroy(&mut self, device: &DeviceRef) -> Result<()> {
         assert_eq!(device.as_ptr(), 0xDEAD_BEEF as *mut _);
         Ok(())
