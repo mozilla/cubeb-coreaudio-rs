@@ -607,12 +607,15 @@ impl ContextOps for AudioUnitContext {
                     assert!(!device.group_id.is_null());
                     assert_eq!(device.device_id, device.group_id);
                     let _ = CString::from_raw(device.device_id as *mut _);
+                    device.device_id = ptr::null_mut();
                 }
                 if !device.friendly_name.is_null() {
                     let _ = CString::from_raw(device.friendly_name as *mut _);
+                    device.friendly_name = ptr::null_mut();
                 }
                 if !device.vendor_name.is_null() {
                     let _ = CString::from_raw(device.vendor_name as *mut _);
+                    device.vendor_name = ptr::null_mut();
                 }
             }
         }
