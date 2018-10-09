@@ -285,6 +285,15 @@ fn test_get_default_device_datasource() {
         ).is_ok()
     );
     assert_ne!(data, 0);
+
+    // in-out:
+    assert_eq!(
+        audiounit_get_default_device_datasource(
+            DeviceType::INPUT | DeviceType::OUTPUT,
+            &mut data
+        ).unwrap_err(),
+        Error::error()
+    );
 }
 
 // audiounit_get_default_device_name
@@ -331,6 +340,20 @@ fn test_get_default_device_name() {
     );
     assert_eq!(device.input_name, ptr::null_mut());
     assert_ne!(device.output_name, ptr::null_mut());
+
+    // in-out:
+    device = ffi::cubeb_device::default();
+    assert_eq!(
+        audiounit_get_default_device_name(
+            stream.as_ref(),
+            &mut device,
+            DeviceType::INPUT | DeviceType::OUTPUT
+        ).unwrap_err(),
+        Error::error()
+    );
+    assert_eq!(device.input_name, ptr::null_mut());
+    assert_eq!(device.output_name, ptr::null_mut());
+
 }
 
 // strref_to_cstr_utf8
@@ -690,6 +713,16 @@ fn test_create_device_from_hwdev_unknown() {
         ).unwrap_err(),
         Error::error()
     );
+
+    // in-out
+    assert_eq!(
+        audiounit_create_device_from_hwdev(
+            &mut info,
+            kAudioObjectUnknown,
+            DeviceType::INPUT | DeviceType::OUTPUT,
+        ).unwrap_err(),
+        Error::error()
+    );
 }
 
 #[test]
@@ -773,6 +806,16 @@ fn test_create_device_from_hwdev_input() {
             Error::error()
         );
     }
+
+    // in-out
+    assert_eq!(
+        audiounit_create_device_from_hwdev(
+            &mut info,
+            input_id,
+            DeviceType::INPUT | DeviceType::OUTPUT,
+        ).unwrap_err(),
+        Error::error()
+    );
 }
 
 #[test]
@@ -856,6 +899,16 @@ fn test_create_device_from_hwdev_output() {
     assert!(info.latency_lo > 0);
     assert!(info.latency_hi > 0);
     assert!(info.latency_lo <= info.latency_hi);
+
+    // in-out
+    assert_eq!(
+        audiounit_create_device_from_hwdev(
+            &mut info,
+            output_id,
+            DeviceType::INPUT | DeviceType::OUTPUT,
+        ).unwrap_err(),
+        Error::error()
+    );
 }
 
 // is_aggregate_device
