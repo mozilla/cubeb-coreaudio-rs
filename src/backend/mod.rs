@@ -162,10 +162,10 @@ fn audiounit_get_default_device_datasource(devtype: DeviceType,
     }
 
     let mut size = mem::size_of_val(data);
-    // TODO: devtype includes input, output, and unknown. This is a bad style
-    //       to check type, although this function will early return for
-    //       unknown type since audiounit_get_default_device_id will gives
-    //       a kAudioObjectUnknown for unknown type.
+    // TODO: devtype includes input, output, in-out, and unknown. This is a
+    //       bad style to check type, although this function will early return
+    //       for in-out and unknown type since audiounit_get_default_device_id
+    //       will gives a kAudioObjectUnknown for unknown type.
     /* This fails with some USB headsets (e.g., Plantronic .Audio 628). */
     let r = audio_object_get_property_data(id, if devtype == DeviceType::INPUT {
                                                    &INPUT_DATA_SOURCE_PROPERTY_ADDRESS
@@ -189,10 +189,11 @@ fn audiounit_get_default_device_name(stm: &AudioUnitStream,
     let mut data: u32 = 0;
     audiounit_get_default_device_datasource(devtype, &mut data)?;
 
-    // TODO: devtype includes input, output, and unknown. This is a bad style
-    //       to check type, although this function will early return for
-    //       unknown type since audiounit_get_default_device_datasource will
-    //       throw an error for unknown type.
+    // TODO: devtype includes input, output, in-out, and unknown. This is a
+    //       bad style to check type, although this function will early return
+    //       for in-out and unknown type since
+    //       audiounit_get_default_device_datasource will throw an error for
+    //       in-out and unknown type.
     let name = if devtype == DeviceType::INPUT {
         &mut device.input_name
     } else {
