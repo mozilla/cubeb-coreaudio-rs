@@ -20,7 +20,7 @@ fn test_ops_context_max_channel_count() {
         unsafe { OPS.get_max_channel_count.unwrap()(c, &mut max_channel_count) },
         ffi::CUBEB_OK
     );
-    assert_eq!(max_channel_count, 0);
+    assert!(max_channel_count > 0);
 }
 
 #[test]
@@ -32,7 +32,8 @@ fn test_ops_context_min_latency() {
         unsafe { OPS.get_min_latency.unwrap()(c, params, &mut latency) },
         ffi::CUBEB_OK
     );
-    assert_eq!(latency, 0);
+    assert!(latency >= SAFE_MIN_LATENCY_FRAMES);
+    assert!(SAFE_MAX_LATENCY_FRAMES >= latency);
 }
 
 #[test]
@@ -43,7 +44,7 @@ fn test_ops_context_preferred_sample_rate() {
         unsafe { OPS.get_preferred_sample_rate.unwrap()(c, &mut rate) },
         ffi::CUBEB_OK
     );
-    assert_eq!(rate, 0);
+    assert!(rate > 0);
 }
 
 #[test]
@@ -196,6 +197,21 @@ fn test_ops_context_device_collection_destroy() {
 
 // Private APIs
 // ============================================================================
+// get_acceptable_latency_range
+// ------------------------------------
+#[test]
+fn test_get_acceptable_latency_range() {
+    let mut latency_range = AudioValueRange::default();
+    assert!(
+        audiounit_get_acceptable_latency_range(
+            &mut latency_range
+        ).is_ok()
+    );
+    assert!(latency_range.mMinimum > 0.0);
+    assert!(latency_range.mMaximum > 0.0);
+    assert!(latency_range.mMaximum > latency_range.mMinimum);
+}
+
 // get_default_device_id
 // ------------------------------------
 #[test]
