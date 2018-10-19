@@ -248,6 +248,37 @@ fn test_get_default_device_id() {
     )
 }
 
+// get_device_name
+// ------------------------------------
+#[test]
+fn test_get_device_name() {
+    // Unknown device:
+    assert_eq!(
+        get_device_name(kAudioObjectUnknown),
+        ptr::null()
+    );
+
+    let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
+    if valid_id(input_id) {
+        assert_ne!(
+            get_device_name(input_id),
+            ptr::null()
+        );
+        println!("input: {}", audiounit_strref_to_cstr_utf8(get_device_name(input_id)).into_string().unwrap());
+    }
+
+    let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
+    if valid_id(output_id) {
+        assert_ne!(
+            get_device_name(output_id),
+            ptr::null()
+        );
+        println!("output: {}", audiounit_strref_to_cstr_utf8(get_device_name(output_id)).into_string().unwrap());
+
+    }
+}
+
+
 // convert_uint32_into_string
 // ------------------------------------
 #[test]

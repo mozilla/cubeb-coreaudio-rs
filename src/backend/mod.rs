@@ -130,6 +130,19 @@ fn audiounit_get_default_device_id(dev_type: DeviceType) -> AudioObjectID
     return devid;
 }
 
+fn get_device_name(id: AudioDeviceID) -> CFStringRef
+{
+    let mut size = mem::size_of::<CFStringRef>();
+    let mut UIname: CFStringRef = ptr::null();
+    let address_uuid = AudioObjectPropertyAddress {
+        mSelector: kAudioDevicePropertyDeviceUID,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMaster
+    };
+    let err = audio_object_get_property_data(id, &address_uuid, &mut size, &mut UIname);
+    if err == 0 { UIname } else { ptr::null() }
+}
+
 fn convert_uint32_into_string(data: u32) -> CString
 {
     // Simply create an empty string if no data.
@@ -499,6 +512,8 @@ fn audiounit_create_device_from_hwdev(dev_info: &mut ffi::cubeb_device_info, dev
     Ok(())
 }
 
+// TODO: Rename to is_private_aggregate_device ?
+//       Is it possible to have a public aggregate device ?
 fn is_aggregate_device(device_info: &ffi::cubeb_device_info) -> bool {
     assert!(!device_info.friendly_name.is_null());
     unsafe {
@@ -526,6 +541,7 @@ fn audiounit_get_devices_of_type(dev_type: DeviceType) -> Vec<AudioObjectID> {
     if ret != 0 {
         return Vec::new();
     }
+    // TODO: Remove private aggregate devices here.
     /* Expected sorted but did not find anything in the docs. */
     devices.sort();
     if dev_type.contains(DeviceType::INPUT | DeviceType::OUTPUT) {
