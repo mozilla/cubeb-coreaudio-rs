@@ -541,7 +541,16 @@ fn audiounit_get_devices_of_type(dev_type: DeviceType) -> Vec<AudioObjectID> {
     if ret != 0 {
         return Vec::new();
     }
-    // TODO: Remove private aggregate devices here.
+
+    // Remove the aggregate device from the list of devices (if any).
+    devices.retain(|&device| {
+        let name: CFStringRef = get_device_name(device);
+        let private_device = create_static_cfstring_ref(PRIVATE_AGGREGATE_DEVICE_NAME);
+        unsafe {
+            CFStringFind(name, private_device, 0).location == kCFNotFound
+        }
+    });
+
     /* Expected sorted but did not find anything in the docs. */
     devices.sort();
     if dev_type.contains(DeviceType::INPUT | DeviceType::OUTPUT) {
