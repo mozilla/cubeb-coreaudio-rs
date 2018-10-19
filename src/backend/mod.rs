@@ -717,7 +717,7 @@ impl ContextOps for AudioUnitContext {
 
         let coll = unsafe { &mut *collection.as_ptr() };
         if count > 0 {
-            let (ptr, len) = get_leaked_vec(devices);
+            let (ptr, len) = leak_vec(devices);
             coll.device = ptr;
             coll.count = len;
         } else {
