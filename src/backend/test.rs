@@ -264,7 +264,6 @@ fn test_get_device_name() {
             get_device_name(input_id),
             ptr::null()
         );
-        println!("input: {}", audiounit_strref_to_cstr_utf8(get_device_name(input_id)).into_string().unwrap());
     }
 
     let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
@@ -273,8 +272,6 @@ fn test_get_device_name() {
             get_device_name(output_id),
             ptr::null()
         );
-        println!("output: {}", audiounit_strref_to_cstr_utf8(get_device_name(output_id)).into_string().unwrap());
-
     }
 }
 
