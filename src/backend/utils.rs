@@ -34,6 +34,21 @@ pub fn retake_leaked_vec<T>(ptr: *mut T, len: usize) -> Vec<T> {
     }
 }
 
+// CFSTR doesn't be implemented in core-foundation-sys, so we create a function
+// to replace it.
+pub fn create_static_cfstring_ref(string: &'static str) -> sys::CFStringRef {
+    unsafe {
+        sys::CFStringCreateWithBytesNoCopy(
+            sys::kCFAllocatorDefault,
+            string.as_ptr(),
+            string.len() as sys::CFIndex,
+            sys::kCFStringEncodingUTF8,
+            false as sys::Boolean,
+            sys::kCFAllocatorNull
+        )
+    }
+}
+
 pub fn audio_object_has_property(
     id: sys::AudioObjectID,
     address: &sys::AudioObjectPropertyAddress,
@@ -96,4 +111,19 @@ pub fn audio_object_set_property_data<T>(
             data as *const c_void, // Cast raw T pointer to void pointer.
         )
     }
+}
+
+#[test]
+fn test_create_static_cfstring_ref() {
+    use super::*;
+
+    let cfstrref = create_static_cfstring_ref(PRIVATE_AGGREGATE_DEVICE_NAME);
+    let cstring = audiounit_strref_to_cstr_utf8(cfstrref);
+
+    assert_eq!(
+        PRIVATE_AGGREGATE_DEVICE_NAME,
+        cstring.into_string().unwrap()
+    );
+
+    // TODO: Find a way to check the string's inner pointer is same.
 }
