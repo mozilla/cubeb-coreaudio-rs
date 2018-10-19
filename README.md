@@ -11,6 +11,7 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
 - Test for stream operations
 - Clean up the tests. Merge the duplicated pieces in to a function.
 - Find a way to catch memory leaks
+  - Try Instrument on OSX
 
 [cubeb]: https://github.com/kinetiknz/cubeb "Cross platform audio library"
 [cubeb-au]: https://github.com/kinetiknz/cubeb/blob/master/src/cubeb_audiounit.cpp "Cubeb AudioUnit"
