@@ -517,9 +517,10 @@ fn audiounit_create_device_from_hwdev(dev_info: &mut ffi::cubeb_device_info, dev
 //       Is it possible to have a public aggregate device ?
 fn is_aggregate_device(device_info: &ffi::cubeb_device_info) -> bool {
     assert!(!device_info.friendly_name.is_null());
+    let private_name_ptr = PRIVATE_AGGREGATE_DEVICE_NAME.as_ptr() as *const c_char;
     unsafe {
-        libc::strncmp(device_info.friendly_name, PRIVATE_AGGREGATE_DEVICE_NAME.as_ptr() as *const c_char,
-                      libc::strlen(PRIVATE_AGGREGATE_DEVICE_NAME.as_ptr() as *const c_char)) == 0
+        libc::strncmp(device_info.friendly_name, private_name_ptr,
+                      libc::strlen(private_name_ptr)) == 0
     }
 }
 
