@@ -143,6 +143,22 @@ fn get_device_name(id: AudioDeviceID) -> CFStringRef
     if err == 0 { UIname } else { ptr::null() }
 }
 
+// fn get_device_name(id: AudioDeviceID) -> CString
+// {
+//     let mut size = mem::size_of::<CFStringRef>();
+//     let mut UIname: CFStringRef = ptr::null();
+//     let address_uuid = AudioObjectPropertyAddress {
+//         mSelector: kAudioDevicePropertyDeviceUID,
+//         mScope: kAudioObjectPropertyScopeGlobal,
+//         mElement: kAudioObjectPropertyElementMaster
+//     };
+//     let err = audio_object_get_property_data(id, &address_uuid, &mut size, &mut UIname);
+//     if err != 0 {
+//         UIname = ptr::null();
+//     }
+//     audiounit_strref_to_cstr_utf8(UIname)
+// }
+
 fn convert_uint32_into_string(data: u32) -> CString
 {
     // Simply create an empty string if no data.
@@ -552,6 +568,12 @@ fn audiounit_get_devices_of_type(dev_type: DeviceType) -> Vec<AudioObjectID> {
             CFStringFind(name, private_device, 0).location == kCFNotFound
         }
     });
+
+    // devices.retain(|&device| {
+    //     let name = get_device_name(device);
+    //     let private_name = CString::new(PRIVATE_AGGREGATE_DEVICE_NAME).unwrap();
+    //     name != private_name
+    // });
 
     /* Expected sorted but did not find anything in the docs. */
     devices.sort();
