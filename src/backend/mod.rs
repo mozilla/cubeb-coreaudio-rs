@@ -248,6 +248,7 @@ fn audiounit_strref_to_cstr_utf8(strref: CFStringRef) -> CString
     };
     if !success {
         buffer.clear();
+        return empty;
     }
 
     // CString::new() will consume the input bytes vec and add a '\0' at the
