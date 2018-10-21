@@ -36,7 +36,11 @@ pub fn retake_leaked_vec<T>(ptr: *mut T, len: usize) -> Vec<T> {
 
 // CFSTR doesn't be implemented in core-foundation-sys, so we create a function
 // to replace it.
-pub fn create_static_cfstring_ref(string: &'static str) -> sys::CFStringRef {
+pub fn cfstringref_from_static_string(string: &'static str) -> sys::CFStringRef {
+    // References:
+    // https://github.com/opensource-apple/CF/blob/3cc41a76b1491f50813e28a4ec09954ffa359e6f/CFString.c#L1605
+    // https://github.com/servo/core-foundation-rs/blob/2aac8fb85b5b114673280e273c04219c0c360e54/core-foundation/src/string.rs#L125
+    // https://github.com/servo/core-foundation-rs/blob/2aac8fb85b5b114673280e273c04219c0c360e54/io-surface/src/lib.rs#L48
     unsafe {
         sys::CFStringCreateWithBytesNoCopy(
             sys::kCFAllocatorDefault,
@@ -117,8 +121,11 @@ pub fn audio_object_set_property_data<T>(
 fn test_create_static_cfstring_ref() {
     use super::*;
 
-    let cfstrref = create_static_cfstring_ref(PRIVATE_AGGREGATE_DEVICE_NAME);
+    let cfstrref = cfstringref_from_static_string(PRIVATE_AGGREGATE_DEVICE_NAME);
     let cstring = audiounit_strref_to_cstr_utf8(cfstrref);
+    unsafe {
+        CFRelease(cfstrref as *const c_void);
+    }
 
     assert_eq!(
         PRIVATE_AGGREGATE_DEVICE_NAME,

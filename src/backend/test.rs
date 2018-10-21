@@ -260,18 +260,26 @@ fn test_get_device_name() {
 
     let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
     if valid_id(input_id) {
+        let name_str = get_device_name(input_id);
         assert_ne!(
-            get_device_name(input_id),
+            name_str,
             ptr::null()
         );
+        unsafe {
+            CFRelease(name_str as *const c_void);
+        }
     }
 
     let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
     if valid_id(output_id) {
+        let name_str = get_device_name(output_id);
         assert_ne!(
-            get_device_name(output_id),
+            name_str,
             ptr::null()
         );
+        unsafe {
+            CFRelease(name_str as *const c_void);
+        }
     }
 }
 
