@@ -579,7 +579,7 @@ fn audiounit_get_devices_of_type(dev_type: DeviceType) -> Vec<AudioObjectID> {
         unsafe {
             let found = CFStringFind(name, private_device, 0).location;
             CFRelease(private_device as *const c_void);
-            // TODO: release name here ?
+            // TODO: release name here ? (Sync with C version here.)
             // CFRelease(name as *const c_void);
             found == kCFNotFound
         }
