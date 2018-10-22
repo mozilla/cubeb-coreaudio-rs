@@ -298,10 +298,16 @@ fn audiounit_get_channel_count(devid: AudioObjectID, scope: AudioObjectPropertyS
         let mut data: Vec<u8> = allocate_array_by_size(size);
         let ptr = data.as_mut_ptr() as *mut AudioBufferList;
         if audio_object_get_property_data(devid, &adr, &mut size, ptr) == 0 {
-            let list = unsafe { *ptr };
+            // Cannot use AudioBufferList directly since it's a struct
+            // with variable size:
+            // https://github.com/phracker/MacOSX-SDKs/blob/aea47c83334af9c27dc57c49ca268723ef5e6349/MacOSX10.13.sdk/System/Library/Frameworks/CoreAudio.framework/Versions/A/Headers/CoreAudioTypes.h#L175-L189
+            let list: &AudioBufferList = unsafe { &(*ptr) };
+            let ptr = list.mBuffers.as_ptr() as *mut AudioBuffer;
+            let len = list.mNumberBuffers as usize;
+            if len == 0 {
+                return 0;
+            }
             let buffers = unsafe {
-                let ptr = list.mBuffers.as_ptr() as *mut AudioBuffer;
-                let len = list.mNumberBuffers as usize;
                 slice::from_raw_parts_mut(ptr, len)
             };
             for buffer in buffers {
