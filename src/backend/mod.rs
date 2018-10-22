@@ -7,6 +7,7 @@ extern crate coreaudio_sys;
 extern crate libc;
 
 mod utils;
+mod owned_critical_section;
 
 // cubeb_backend::{*} is referred:
 // - ffi                : cubeb_sys::*                      (cubeb-core/lib.rs).
