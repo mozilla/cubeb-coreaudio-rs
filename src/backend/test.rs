@@ -225,16 +225,6 @@ fn test_get_default_device_id() {
         audiounit_get_default_device_id(DeviceType::INPUT | DeviceType::OUTPUT),
         kAudioObjectUnknown,
     );
-    // The following types work since DeviceType::UNKNOWN is 0.
-    // TODO: Is that a bug?
-    // assert_eq!(
-    //     audiounit_get_default_device_id(DeviceType::UNKNOWN | DeviceType::INPUT),
-    //     kAudioObjectUnknown,
-    // );
-    // assert_eq!(
-    //     audiounit_get_default_device_id(DeviceType::UNKNOWN | DeviceType::OUTPUT),
-    //     kAudioObjectUnknown,
-    // );
 
     // Valid types:
     // P.S. Works only when there is available default input and output.
