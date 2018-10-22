@@ -298,17 +298,22 @@ fn audiounit_get_channel_count(devid: AudioObjectID, scope: AudioObjectPropertyS
         let mut data: Vec<u8> = allocate_array_by_size(size);
         let ptr = data.as_mut_ptr() as *mut AudioBufferList;
         if audio_object_get_property_data(devid, &adr, &mut size, ptr) == 0 {
-            // Cannot use AudioBufferList directly since it's a struct
-            // with variable size:
-            // https://github.com/phracker/MacOSX-SDKs/blob/aea47c83334af9c27dc57c49ca268723ef5e6349/MacOSX10.13.sdk/System/Library/Frameworks/CoreAudio.framework/Versions/A/Headers/CoreAudioTypes.h#L175-L189
+            // Cannot dereference *ptr to a AudioBufferList directly
+            // since it's a variable-size struct: https://bit.ly/2CYFhJ0
+            // `let list: = unsafe { *ptr }` will copy the `*ptr` whose type
+            // is AudioBufferList to a list. However, it contains only one
+            // `UInt32` and only one `AudioBuffer`, while the memory pointed
+            // by `ptr` may have one `UInt32` and lots of `AudioBuffer`s.
+            // See reference:
+            // https://bit.ly/2O2MJE4
             let list: &AudioBufferList = unsafe { &(*ptr) };
-            let ptr = list.mBuffers.as_ptr() as *mut AudioBuffer;
+            let ptr = list.mBuffers.as_ptr() as *const AudioBuffer;
             let len = list.mNumberBuffers as usize;
             if len == 0 {
                 return 0;
             }
             let buffers = unsafe {
-                slice::from_raw_parts_mut(ptr, len)
+                slice::from_raw_parts(ptr, len)
             };
             for buffer in buffers {
                 count += buffer.mNumberChannels;
