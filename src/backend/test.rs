@@ -342,7 +342,7 @@ fn test_get_default_device_datasource() {
 // ------------------------------------
 #[test]
 fn test_get_default_device_name() {
-    let ctx = AudioUnitContext { ops: ptr::null() };
+    let ctx = AudioUnitContext { _ops: ptr::null() };
     let stream = AudioUnitStream::new(&ctx).unwrap();
     let mut device = ffi::cubeb_device::default();
 

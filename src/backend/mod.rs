@@ -616,13 +616,13 @@ fn audiounit_get_devices_of_type(dev_type: DeviceType) -> Vec<AudioObjectID> {
 pub const OPS: Ops = capi_new!(AudioUnitContext, AudioUnitStream);
 
 pub struct AudioUnitContext {
-    pub ops: *const Ops,
+    _ops: *const Ops,
 }
 
 impl ContextOps for AudioUnitContext {
     fn init(_context_name: Option<&CStr>) -> Result<Context> {
         let ctx = Box::new(AudioUnitContext {
-            ops: &OPS as *const _,
+            _ops: &OPS as *const _,
         });
         Ok(unsafe { Context::from_ptr(Box::into_raw(ctx) as *mut _) })
     }
