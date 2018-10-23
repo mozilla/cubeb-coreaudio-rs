@@ -102,119 +102,118 @@ fn test_critical_section_unlock_without_locking() {
 //     // call lock().
 // }
 
-// #[test]
-// fn test_critical_section_multithread() {
-//     use std::thread;
-//     use std::time::Duration;
+#[test]
+fn test_critical_section_multithread() {
+    use std::thread;
+    use std::time::Duration;
 
-//     struct Resource {
-//         value: u32,
-//         mutex: OwnedCriticalSection,
-//     }
+    struct Resource {
+        value: u32,
+        mutex: OwnedCriticalSection,
+    }
 
-//     let mut resource = Resource {
-//         value: 0,
-//         mutex: OwnedCriticalSection::new(),
-//     };
+    let mut resource = Resource {
+        value: 0,
+        mutex: OwnedCriticalSection::new(),
+    };
 
-//     resource.mutex.init();
+    resource.mutex.init();
 
-//     // Make a vector to hold the children which are spawned.
-//     let mut children = vec![];
+    // Make a vector to hold the children which are spawned.
+    let mut children = vec![];
 
-//     // TODO: Only works on 64 bit computer ?
-//     println!("resource @ {:p}", &resource);
-//     // Rust compiler disallow the pointer to be passed into threads.
-//     // A hacky way to do so is to convert the pointer into a value
-//     // so it can copy the value to threads.
-//     let resource_ptr = &mut resource as *mut Resource as u64;
+    // TODO: Only works on 64 bit computer ?
+    println!("resource @ {:p}", &resource);
+    // Rust compiler disallow the pointer to be passed into threads.
+    // A hacky way to do so is to convert the pointer into a value
+    // so it can copy the value to threads.
+    let resource_ptr = &mut resource as *mut Resource as u64;
 
-//     for i in 0..10 {
-//         // Spin up another thread
-//         children.push(thread::spawn(move || {
-//             println!("resource address: {:x}", resource_ptr);
-//             let res = unsafe {
-//                 let ptr = resource_ptr as *mut Resource;
-//                 &mut (*ptr)
-//             };
+    for i in 0..10 {
+        // Spin up another thread
+        children.push(thread::spawn(move || {
+            println!("resource address: {:x}", resource_ptr);
+            let res = unsafe {
+                let ptr = resource_ptr as *mut Resource;
+                &mut (*ptr)
+            };
 
-//             // Test fails after commenting res.mutex.lock() and
-//             // res.mutex.unlock() since the order to run the threads
-//             // is random.
-//             res.mutex.lock(); // ---------------------------------------+
-//                                                                      // |
-//             res.value = i;                                           // |
-//             thread::sleep(Duration::from_millis(1));                 // | critical
-//             println!("this is thread number {}, resource value: {}", // | section
-//                     i, res.value);                                   // |
-//             // assert_eq!(i, res.value);                             // |
-//                                                                      // |
-//             res.mutex.unlock(); // <------------------------------------+
-//             i == res.value
-//         }));
-//     }
+            // Test fails after commenting res.mutex.lock() and
+            // res.mutex.unlock() since the order to run the threads
+            // is random.
+            res.mutex.lock(); // ---------------------------------------+
+                                                                     // |
+            res.value = i;                                           // |
+            thread::sleep(Duration::from_millis(1));                 // | critical
+            println!("this is thread number {}, resource value: {}", // | section
+                    i, res.value);                                   // |
+            // assert_eq!(i, res.value);                             // |
+                                                                     // |
+            res.mutex.unlock(); // <------------------------------------+
+            i == res.value
+        }));
+    }
 
-//     for child in children {
-//         // Wait for the thread to finish. Returns a result.
-//         let result = child.join().unwrap();
-//         assert!(result)
-//     }
-// }
+    for child in children {
+        // Wait for the thread to finish. Returns a result.
+        let result = child.join().unwrap();
+        assert!(result)
+    }
+}
 
-// #[test]
-// fn test_mutex_multithread() {
-//     use std::sync::Mutex;
-//     use std::thread;
-//     use std::time::Duration;
+#[test]
+fn test_dummy_mutex_multithread() {
+    use std::sync::Mutex;
+    use std::thread;
+    use std::time::Duration;
 
-//     struct Resource {
-//         value: u32,
-//         mutex: Mutex<u8>,
-//     }
+    struct Resource {
+        value: u32,
+        mutex: Mutex<()>,
+    }
 
-//     let mut resource = Resource {
-//         value: 0,
-//         mutex: Mutex::new(0),
-//     };
+    let mut resource = Resource {
+        value: 0,
+        mutex: Mutex::new(()),
+    };
 
-//     // Make a vector to hold the children which are spawned.
-//     let mut children = vec![];
+    // Make a vector to hold the children which are spawned.
+    let mut children = vec![];
 
-//     // TODO: Only works on 64 bit computer ?
-//     println!("resource @ {:p}", &resource);
-//     // Rust compiler disallow the pointer to be passed into threads.
-//     // A hacky way to do so is to convert the pointer into a value
-//     // so it can copy the value to threads.
-//     let resource_ptr = &mut resource as *mut Resource as u64;
+    // TODO: Only works on 64 bit computer ?
+    println!("resource @ {:p}", &resource);
+    // Rust compiler disallow the pointer to be passed into threads.
+    // A hacky way to do so is to convert the pointer into a value
+    // so it can copy the value to threads.
+    let resource_ptr = &mut resource as *mut Resource as u64;
 
-//     for i in 0..10 {
-//         // Spin up another thread
-//         children.push(thread::spawn(move || {
-//             println!("resource address: {:x}", resource_ptr);
-//             let res = unsafe {
-//                 let ptr = resource_ptr as *mut Resource;
-//                 &mut (*ptr)
-//             };
+    for i in 0..10 {
+        // Spin up another thread
+        children.push(thread::spawn(move || {
+            println!("resource address: {:x}", resource_ptr);
+            let res = unsafe {
+                let ptr = resource_ptr as *mut Resource;
+                &mut (*ptr)
+            };
 
-//             // Test fails after commenting res.mutex.lock() since the order
-//             // to run the threads is random.
-//             // Lock the mutex and gain access to the data inside.
-//             // The scope of `guard` is a critical section.
-//             let mut _guard = res.mutex.lock().unwrap();  // ------------+
-//                                                                      // |
-//             res.value = i;                                           // |
-//             thread::sleep(Duration::from_millis(1));                 // | critical
-//             println!("this is thread number {}, resource value: {}", // | section
-//                     i, res.value);                                   // |
-//             // assert_eq!(i, res.value);                             // |
-//                                                                      // |
-//             i == res.value                                           // |
-//         })); // <-------------------------------------------------------+
-//     }
+            // Test fails after commenting res.mutex.lock() since the order
+            // to run the threads is random.
+            // The scope of `guard` is a critical section.
+            let mut _guard = res.mutex.lock().unwrap();  // ------------+
+                                                                     // |
+            res.value = i;                                           // |
+            thread::sleep(Duration::from_millis(1));                 // | critical
+            println!("this is thread number {}, resource value: {}", // | section
+                    i, res.value);                                   // |
+            // assert_eq!(i, res.value);                             // |
+                                                                     // |
+            i == res.value                                           // |
+        })); // <-------------------------------------------------------+
+    }
 
-//     for child in children {
-//         // Wait for the thread to finish. Returns a result.
-//         let result = child.join().unwrap();
-//         assert!(result)
-//     }
-// }
+    for child in children {
+        // Wait for the thread to finish. Returns a result.
+        let result = child.join().unwrap();
+        assert!(result)
+    }
+}
