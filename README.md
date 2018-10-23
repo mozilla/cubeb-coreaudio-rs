@@ -13,7 +13,7 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
 - Find a way to catch memory leaks
   - Try Instrument on OSX
 - Multi thread: Find a replacement for `OwnedCriticalSection`
-  - a dummy mutex like `Mutex<u8>` should work, but we don't have replacement for `assert_current_thread_owns`
+  - a dummy mutex like `Mutex<u8>` should work (see `test_mutex_multithread`), but we don't have replacement for `assert_current_thread_owns`
 
 [cubeb]: https://github.com/kinetiknz/cubeb "Cross platform audio library"
 [cubeb-au]: https://github.com/kinetiknz/cubeb/blob/master/src/cubeb_audiounit.cpp "Cubeb AudioUnit"
