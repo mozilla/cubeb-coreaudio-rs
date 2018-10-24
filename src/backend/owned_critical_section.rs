@@ -123,9 +123,9 @@ fn test_critical_section_multithread() {
     let mut children = vec![];
 
     println!("resource @ {:p}", &resource);
-    // Rust compiler disallows the pointer to be passed into threads.
-    // A hacky way to do so is to convert the pointer into a value
-    // so it can copy the value(which is actually an address) to threads.
+    // Rust compilter doesn't allow a pointer to be passed across threads.
+    // A hacky way to do that is to cast the pointer into a value, then
+    // the value, which is actually an address, can be copied into threads.
     let resource_ptr = &mut resource as *mut Resource as usize;
 
     for i in 0..10 {
@@ -181,9 +181,9 @@ fn test_dummy_mutex_multithread() {
     let mut children = vec![];
 
     println!("resource @ {:p}", &resource);
-    // Rust compiler disallows the pointer to be passed into threads.
-    // A hacky way to do so is to convert the pointer into a value
-    // so it can copy the value(which is actually an address) to threads.
+    // Rust compilter doesn't allow a pointer to be passed across threads.
+    // A hacky way to do that is to cast the pointer into a value, then
+    // the value, which is actually an address, can be copied into threads.
     let resource_ptr = &mut resource as *mut Resource as usize;
 
     for i in 0..10 {
