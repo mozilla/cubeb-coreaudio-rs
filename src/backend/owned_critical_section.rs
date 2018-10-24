@@ -103,6 +103,8 @@ fn test_critical_section_unlock_without_locking() {
 // }
 
 // TODO: It causes the crashes sometime, find out why.
+//       pthread_mutex_destroy will get EBUSY. Some thread
+//       still lock the resource when it's destroyed?
 // #[test]
 fn test_critical_section_multithread() {
     use std::thread;
