@@ -57,6 +57,58 @@ pub fn cfstringref_from_static_string(string: &'static str) -> sys::CFStringRef 
     }
 }
 
+pub fn create_dispatch_queue(
+    label: &'static str,
+    queue_attr: sys::dispatch_queue_attr_t
+) -> sys::dispatch_queue_t
+{
+    unsafe {
+        sys::dispatch_queue_create(
+            label.as_ptr() as *const c_char,
+            queue_attr
+        )
+    }
+}
+
+// Send: Types that can be transferred across thread boundaries.
+// FnOnce: One-time closure
+pub fn async_dispatch<F>(queue: sys::dispatch_queue_t, work: F)
+  where F: 'static + Send + FnOnce()
+{
+    let (closure, executor) = create_closure_and_executor(work);
+    unsafe {
+        sys::dispatch_async_f(queue, closure, executor);
+    }
+}
+
+// Return an raw pointer to a (unboxed) closure and an executor that
+// will run the closure (after re-boxing the closure) when it's called.
+fn create_closure_and_executor<F>(
+    closure: F
+) -> (*mut c_void, sys::dispatch_function_t)
+    where F: FnOnce()
+{
+    extern fn closure_executer<F>(
+        unboxed_closure: *mut c_void
+    ) where F: FnOnce() {
+        // Retake the leaked closure.
+        let closure: Box<F> = unsafe {
+            Box::from_raw(unboxed_closure as *mut F)
+        };
+        // Execute the closure.
+        (*closure)();
+        // closure is released after finishiing this function call.
+    }
+
+    let closure: Box<F> = Box::new(closure); // Allocate closure on heap.
+    let executor: sys::dispatch_function_t = Some(closure_executer::<F>);
+
+    (
+        Box::into_raw(closure) as *mut c_void, // Leak the closure.
+        executor
+    )
+}
+
 pub fn audio_object_has_property(
     id: sys::AudioObjectID,
     address: &sys::AudioObjectPropertyAddress,
@@ -139,14 +191,11 @@ fn test_create_static_cfstring_ref() {
     // TODO: Find a way to check the string's inner pointer is same.
 }
 
-
 // References:
 // http://rustaudio.github.io/coreaudio-rs/coreaudio_sys/audio_unit/index.html
 // https://gist.github.com/ChunMinChang/8d13946ebc6c95b2622466c89a0c9bcc
 #[test]
 fn test_dispatch_async_f() {
-    use std::{thread, time};
-
     let label = "Run with native dispatch apis";
 
     // https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.13.sdk/usr/include/dispatch/queue.h#L472
@@ -170,9 +219,7 @@ fn test_dispatch_async_f() {
 
         // Retake the leaked `context`.
         let context = unsafe { Box::from_raw(leaked_context) };
-        // println!("context: {}", context);
         assert_eq!(context.as_ref(), &123);
-
         // `context` is released after finishing this function call.
     }
 
@@ -184,8 +231,53 @@ fn test_dispatch_async_f() {
             Some(work)
         );
     }
+}
 
-    // // Wait 100 milliseconds to show the results.
-    // let duration = time::Duration::from_millis(100);
-    // thread::sleep(duration);
+#[test]
+fn test_async_dispatch() {
+    use std::{thread, time};
+
+    let label = "Run with dispatch api wrappers";
+
+    // https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.13.sdk/usr/include/dispatch/queue.h#L472
+    const DISPATCH_QUEUE_SERIAL: sys::dispatch_queue_attr_t = 0 as sys::dispatch_queue_attr_t;
+
+    let queue = create_dispatch_queue(
+        label,
+        DISPATCH_QUEUE_SERIAL
+    );
+
+    struct Resource {
+        value: u32,
+    }
+
+    let mut resource = Resource {
+        value: 50,
+    };
+
+    // Rust compilter doesn't allow a pointer to be passed across threads.
+    // A hacky way to do that is to cast the pointer into a value, then
+    // the value, which is actually an address, can be copied into threads.
+    let resource_ptr = &mut resource as *mut Resource as usize;
+
+    // The following two closures should be executed sequentially.
+    async_dispatch(queue, move || {
+        let res: &mut Resource = unsafe {
+            let ptr = resource_ptr as *mut Resource;
+            &mut (*ptr)
+        };
+        assert_eq!(res as *mut Resource as usize, resource_ptr);
+        assert_eq!(res.value, 50);
+
+        res.value = 60;
+    });
+
+    async_dispatch(queue, move || {
+        let res: &mut Resource = unsafe {
+            let ptr = resource_ptr as *mut Resource;
+            &mut (*ptr)
+        };
+        assert_eq!(res as *mut Resource as usize, resource_ptr);
+        assert_eq!(res.value, 60);
+    });
 }
