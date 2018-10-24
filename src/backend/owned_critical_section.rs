@@ -136,6 +136,7 @@ fn test_critical_section_multithread() {
                 let ptr = resource_ptr as *mut Resource;
                 &mut (*ptr)
             };
+            assert_eq!(res as *mut Resource as usize, resource_ptr);
 
             // Test fails after commenting res.mutex.lock() and
             // res.mutex.unlock() since the order to run the threads
@@ -193,6 +194,7 @@ fn test_dummy_mutex_multithread() {
                 let ptr = resource_ptr as *mut Resource;
                 &mut (*ptr)
             };
+            assert_eq!(res as *mut Resource as usize, resource_ptr);
 
             // Test fails after commenting res.mutex.lock() since the order
             // to run the threads is random.
