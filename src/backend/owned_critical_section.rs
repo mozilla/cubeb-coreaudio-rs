@@ -122,12 +122,11 @@ fn test_critical_section_multithread() {
     // Make a vector to hold the children which are spawned.
     let mut children = vec![];
 
-    // TODO: Only works on 64 bit computer ?
     println!("resource @ {:p}", &resource);
-    // Rust compiler disallow the pointer to be passed into threads.
+    // Rust compiler disallows the pointer to be passed into threads.
     // A hacky way to do so is to convert the pointer into a value
-    // so it can copy the value to threads.
-    let resource_ptr = &mut resource as *mut Resource as u64;
+    // so it can copy the value(which is actually an address) to threads.
+    let resource_ptr = &mut resource as *mut Resource as usize;
 
     for i in 0..10 {
         // Spin up another thread
@@ -180,12 +179,11 @@ fn test_dummy_mutex_multithread() {
     // Make a vector to hold the children which are spawned.
     let mut children = vec![];
 
-    // TODO: Only works on 64 bit computer ?
     println!("resource @ {:p}", &resource);
-    // Rust compiler disallow the pointer to be passed into threads.
+    // Rust compiler disallows the pointer to be passed into threads.
     // A hacky way to do so is to convert the pointer into a value
-    // so it can copy the value to threads.
-    let resource_ptr = &mut resource as *mut Resource as u64;
+    // so it can copy the value(which is actually an address) to threads.
+    let resource_ptr = &mut resource as *mut Resource as usize;
 
     for i in 0..10 {
         // Spin up another thread
