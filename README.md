@@ -16,11 +16,13 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
 ## Issues
 - Multi thread: Find a replacement for `OwnedCriticalSection`
   - a dummy mutex like `Mutex<()>` should work (see `test_dummy_mutex_multithread`), but we don't have replacement for `assert_current_thread_owns`
-- Write a wrapper for `dispatch_async`?
+- Write a wrapper to replace `dispatch_async`?
   - The second parameter of `dispatch_async` is `dispatch_block_t`, which is defined by `typedef void (^dispatch_block_t)(void)`.
-  - The caret symbol `^` defines a block but not sure if Rust can work with it.
+  - The caret symbol `^` defines a [block](https://en.wikipedia.org/wiki/Blocks_(C_language_extension)) but not sure if Rust can work with it.
+    - The _block_ is a lambda expression-like syntax to create closures
   - Apple's document: [Working with Blocks](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ProgrammingWithObjectiveC/WorkingwithBlocks/WorkingwithBlocks.html)
   - May be we can replace it by `dispatch_async_f`?
+    - Write a wrapper for `dispatch_async_f` and pass _Rust closures_ as parameter
 
 [cubeb]: https://github.com/kinetiknz/cubeb "Cross platform audio library"
 [cubeb-au]: https://github.com/kinetiknz/cubeb/blob/master/src/cubeb_audiounit.cpp "Cubeb AudioUnit"
