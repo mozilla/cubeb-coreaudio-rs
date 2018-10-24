@@ -24,6 +24,7 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
   - May be we can replace `dispatch_async` by `dispatch_async_f`?
     - Write a wrapper for `dispatch_async_f` and pass _Rust closures_ (instead of Apple's *block*) as parameter
     - prototype on [gist](https://gist.github.com/ChunMinChang/8d13946ebc6c95b2622466c89a0c9bcc)
+  - Maybe we can use third-party crates to replace the whole `dispatch_async` related code.
 
 [cubeb]: https://github.com/kinetiknz/cubeb "Cross platform audio library"
 [cubeb-au]: https://github.com/kinetiknz/cubeb/blob/master/src/cubeb_audiounit.cpp "Cubeb AudioUnit"
