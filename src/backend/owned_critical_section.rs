@@ -112,14 +112,20 @@ fn test_critical_section_unlock_without_locking() {
 }
 
 // #[test]
-// #[should_panic]
-// fn test_critical_section_assert_without_locking() {
-//     let mut section = OwnedCriticalSection::new();
-//     section.init();
-//     section.assert_current_thread_owns();
-//     // Get 0 since calling assert_current_thread_owns is equal to
-//     // call lock().
-// }
+#[should_panic]
+fn test_critical_section_assert_without_locking() {
+    let mut section = OwnedCriticalSection::new();
+    section.init();
+    section.assert_current_thread_owns();
+    // pthread_mutex_lock() in assert_current_thread_owns() returns 0
+    // since lock() wasn't called, so the `assert_eq` in
+    // assert_current_thread_owns() fails.
+
+    // When we finish this test since the above assertion fails,
+    // `destroy()` will be called within `drop()`. However,
+    // `destroy()` also will fail on its assertion since
+    // we didn't unlock the section.
+}
 
 #[test]
 fn test_critical_section_multithread() {
