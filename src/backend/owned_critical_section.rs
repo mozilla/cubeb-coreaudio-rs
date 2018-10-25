@@ -62,6 +62,25 @@ impl Drop for OwnedCriticalSection {
     }
 }
 
+struct AutoLock<'a> {
+    mutex: &'a mut OwnedCriticalSection,
+}
+
+impl<'a> AutoLock<'a> {
+    fn new(mutex: &'a mut OwnedCriticalSection) -> Self {
+        mutex.lock();
+        AutoLock {
+            mutex,
+        }
+    }
+}
+
+impl<'a> Drop for AutoLock<'a> {
+    fn drop(&mut self) {
+        self.mutex.unlock();
+    }
+}
+
 #[test]
 fn test_create_critical_section() {
     let mut section = OwnedCriticalSection::new();
@@ -102,10 +121,7 @@ fn test_critical_section_unlock_without_locking() {
 //     // call lock().
 // }
 
-// TODO: It causes the crashes sometime, find out why.
-//       pthread_mutex_destroy will get EBUSY. Some thread
-//       still lock the resource when it's destroyed?
-// #[test]
+#[test]
 fn test_critical_section_multithread() {
     use std::thread;
     use std::time::Duration;
@@ -141,10 +157,10 @@ fn test_critical_section_multithread() {
             };
             assert_eq!(res as *mut Resource as usize, resource_ptr);
 
-            // Test fails after commenting res.mutex.lock() and
-            // res.mutex.unlock() since the order to run the threads
-            // is random.
-            res.mutex.lock(); // ---------------------------------------+
+            // Test fails after commenting `AutoLock` and since the order
+            // to run the threads is random.
+            // The scope of `guard` is a critical section.
+            let mut _guard = AutoLock::new(&mut res.mutex);  // --------+
                                                                      // |
             res.value = i;                                           // |
             thread::sleep(Duration::from_millis(1));                 // | critical
@@ -152,9 +168,8 @@ fn test_critical_section_multithread() {
                      i, res.value);                                  // |
             // assert_eq!(i, res.value);                             // |
                                                                      // |
-            res.mutex.unlock(); // <------------------------------------+
-            i == res.value
-        }));
+            i == res.value                                           // |
+        })); // <-------------------------------------------------------+
     }
 
     for child in children {
