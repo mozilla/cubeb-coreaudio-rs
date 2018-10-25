@@ -247,20 +247,20 @@ fn test_async_dispatch() {
     );
 
     struct Resource {
-        value: u32,
-        touched: u32,
+        last_touched: Option<u32>,
+        touched_count: u32,
     }
 
     impl Resource {
-        fn new(value: u32) -> Self {
+        fn new() -> Self {
             Resource {
-                value,
-                touched: 0,
+                last_touched: None,
+                touched_count: 0,
             }
         }
     }
 
-    let mut resource = Resource::new(50);
+    let mut resource = Resource::new();
 
     // Rust compilter doesn't allow a pointer to be passed across threads.
     // A hacky way to do that is to cast the pointer into a value, then
@@ -274,11 +274,11 @@ fn test_async_dispatch() {
             &mut (*ptr)
         };
         assert_eq!(res as *mut Resource as usize, resource_ptr);
-        assert_eq!(res.value, 50);
-        assert_eq!(res.touched, 0);
+        assert_eq!(res.last_touched, None);
+        assert_eq!(res.touched_count, 0);
 
-        res.value = 60;
-        res.touched += 1;
+        res.last_touched = Some(1);
+        res.touched_count += 1;
     });
 
     async_dispatch(queue, move || {
@@ -287,12 +287,16 @@ fn test_async_dispatch() {
             &mut (*ptr)
         };
         assert_eq!(res as *mut Resource as usize, resource_ptr);
-        assert_eq!(res.value, 60);
-        assert_eq!(res.touched, 1);
+        assert!(res.last_touched.is_some());
+        assert_eq!(res.last_touched.unwrap(), 1);
+        assert_eq!(res.touched_count, 1);
 
-        res.touched += 1;
+        res.last_touched = Some(2);
+        res.touched_count += 1;
     });
 
     // Make sure the resource won't be freed before the tasks are finished.
-    while resource.touched < 2 {};
+    while resource.touched_count < 2 {};
+    assert!(resource.last_touched.is_some());
+    assert_eq!(resource.last_touched.unwrap(), 2);
 }
