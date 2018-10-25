@@ -173,6 +173,32 @@ pub fn audio_object_set_property_data<T>(
     }
 }
 
+// TODO: Write a wrapper for registering the listeners.
+// https://developer.apple.com/documentation/coreaudio/audioobjectpropertylistenerproc?language=objc
+// https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.13.sdk/System/Library/Frameworks/CoreAudio.framework/Versions/A/Headers/AudioHardware.h#L118
+type audio_object_property_listener_proc = extern fn(
+    sys::AudioObjectID,
+    u32,
+    *const sys::AudioObjectPropertyAddress,
+    *mut c_void,
+) -> sys::OSStatus;
+
+pub fn audio_object_add_property_listener(
+    id: sys::AudioObjectID,
+    address: &sys::AudioObjectPropertyAddress,
+    listener: audio_object_property_listener_proc,
+    data: *mut c_void,
+) -> sys::OSStatus {
+    unsafe {
+        sys::AudioObjectAddPropertyListener(
+            id,
+            address, // as `*const AudioObjectPropertyAddress` automatically.
+            Some(listener),
+            data
+        )
+    }
+}
+
 #[test]
 fn test_create_static_cfstring_ref() {
     use super::*;
@@ -189,6 +215,42 @@ fn test_create_static_cfstring_ref() {
     );
 
     // TODO: Find a way to check the string's inner pointer is same.
+}
+
+#[test]
+#[ignore]
+fn test_manual_audio_object_add_property_listener() {
+    use super::*;
+
+    // Allocate the `context` on heap, otherwise the `context` will be
+    // freed before `work` is fired and after program goes out of the
+    // scope of the unsafe block.
+    let context: Box<i32> = Box::new(100);
+
+    extern fn listener(
+        id: sys::AudioObjectID,
+        number_of_address :u32,
+        address: *const sys::AudioObjectPropertyAddress,
+        data: *mut c_void
+    ) -> sys::OSStatus {
+        println!("id: {}", id);
+
+        // Retake the leaked `context`.
+        let context = unsafe { Box::from_raw(data as *mut i32) };
+        assert_eq!(context.as_ref(), &100);
+
+        0 // noErr.
+        // `context` is released after finishing this function call.
+    }
+
+    let r = audio_object_add_property_listener(
+        kAudioObjectSystemObject,
+        &DEVICES_PROPERTY_ADDRESS,
+        listener,
+        Box::into_raw(context) as *mut c_void, // Leak the `context`.
+    );
+
+    loop {};
 }
 
 // References:
