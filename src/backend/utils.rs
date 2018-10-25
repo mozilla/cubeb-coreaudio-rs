@@ -292,7 +292,16 @@ fn test_async_dispatch() {
         assert_eq!(res.touched_count, 1);
 
         res.last_touched = Some(2);
+
+        // Make sure the `res.touched_count += 1` is the last instruction of
+        // the task since we use `res.touched_count` to check if whether
+        // we should release the `resource` and should finish the
+        // `test_async_dispatch`(see below). Any instructions after
+        // `res.touched_count += 1` may be executed after `test_async_dispatch`.
         res.touched_count += 1;
+        // e.g., the following code may cause crash since this instruction may be
+        // executed after `resource` is freed.
+        // println!("crash > {:?} @ {:p}", res, res);
     });
 
     // Make sure the resource won't be freed before the tasks are finished.
