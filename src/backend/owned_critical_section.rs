@@ -168,14 +168,14 @@ fn test_critical_section_multithread() {
                      i, res.value);                                  // |
             // assert_eq!(i, res.value);                             // |
                                                                      // |
-            i == res.value                                           // |
+            (i, res.value)                                           // |
         })); // <-------------------------------------------------------+
     }
 
     for child in children {
-        // Wait for the thread to finish. Returns a result.
-        let result = child.join().unwrap();
-        assert!(result)
+        // Wait for the thread to finish.
+        let (num, value) = child.join().unwrap();
+        assert_eq!(num, value)
     }
 }
 
@@ -225,13 +225,13 @@ fn test_dummy_mutex_multithread() {
                      i, res.value);                                  // |
             // assert_eq!(i, res.value);                             // |
                                                                      // |
-            i == res.value                                           // |
+            (i, res.value)                                           // |
         })); // <-------------------------------------------------------+
     }
 
     for child in children {
-        // Wait for the thread to finish. Returns a result.
-        let result = child.join().unwrap();
-        assert!(result)
+        // Wait for the thread to finish.
+        let (num, value) = child.join().unwrap();
+        assert_eq!(num, value)
     }
 }
