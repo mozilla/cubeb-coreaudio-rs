@@ -233,11 +233,8 @@ fn test_dispatch_async_f() {
     }
 }
 
-// TODO: The task doesn't run in order.
-//       The `assert_eq!(res.value, 50/60)` fails.
-// #[test]
+#[test]
 fn test_async_dispatch() {
-    use std::{thread, time};
 
     let label = "Run with dispatch api wrappers";
 
@@ -251,11 +248,19 @@ fn test_async_dispatch() {
 
     struct Resource {
         value: u32,
+        touched: u32,
     }
 
-    let mut resource = Resource {
-        value: 50,
-    };
+    impl Resource {
+        fn new(value: u32) -> Self {
+            Resource {
+                value,
+                touched: 0,
+            }
+        }
+    }
+
+    let mut resource = Resource::new(50);
 
     // Rust compilter doesn't allow a pointer to be passed across threads.
     // A hacky way to do that is to cast the pointer into a value, then
@@ -270,8 +275,10 @@ fn test_async_dispatch() {
         };
         assert_eq!(res as *mut Resource as usize, resource_ptr);
         assert_eq!(res.value, 50);
+        assert_eq!(res.touched, 0);
 
         res.value = 60;
+        res.touched += 1;
     });
 
     async_dispatch(queue, move || {
@@ -281,5 +288,11 @@ fn test_async_dispatch() {
         };
         assert_eq!(res as *mut Resource as usize, resource_ptr);
         assert_eq!(res.value, 60);
+        assert_eq!(res.touched, 1);
+
+        res.touched += 1;
     });
+
+    // Make sure the resource won't be freed before the tasks are finished.
+    while resource.touched < 2 {};
 }
