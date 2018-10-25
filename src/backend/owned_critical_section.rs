@@ -136,7 +136,6 @@ fn test_critical_section_multithread() {
         mutex: OwnedCriticalSection::new(),
     };
     resource.mutex.init();
-    println!("[ocs] resource @ {:p}", &resource);
 
     // Make a vector to hold the children which are spawned.
     let mut children = vec![];
@@ -153,7 +152,6 @@ fn test_critical_section_multithread() {
                 let ptr = resource_ptr as *mut Resource;
                 &mut (*ptr)
             };
-            println!("[ocs] {}: resource @ {:p}", i, res);
             assert_eq!(res as *mut Resource as usize, resource_ptr);
 
             // Test fails after commenting `AutoLock` and since the order
@@ -161,9 +159,8 @@ fn test_critical_section_multithread() {
             // The scope of `guard` is a critical section.
             let mut _guard = AutoLock::new(&mut res.mutex);  // --------+
                                                                      // |
-            res.value = i;                                           // |
-            thread::sleep(Duration::from_millis(1));                 // | critical
-            println!("[ocs] {}: resource value: {}", i, res.value);  // | section
+            res.value = i;                                           // | critical
+            thread::sleep(Duration::from_millis(1));                 // | section
                                                                      // |
             (i, res.value)                                           // |
         })); // <-------------------------------------------------------+
@@ -191,7 +188,6 @@ fn test_dummy_mutex_multithread() {
         value: 0,
         mutex: Mutex::new(()),
     };
-    println!("[mtx] resource @ {:p}", &resource);
 
     // Make a vector to hold the children which are spawned.
     let mut children = vec![];
@@ -208,7 +204,6 @@ fn test_dummy_mutex_multithread() {
                 let ptr = resource_ptr as *mut Resource;
                 &mut (*ptr)
             };
-            println!("[mtx] {}: resource @ {:p}", i, res);
             assert_eq!(res as *mut Resource as usize, resource_ptr);
 
             // Test fails after commenting res.mutex.lock() since the order
@@ -216,9 +211,8 @@ fn test_dummy_mutex_multithread() {
             // The scope of `guard` is a critical section.
             let mut _guard = res.mutex.lock().unwrap();  // ------------+
                                                                      // |
-            res.value = i;                                           // |
-            thread::sleep(Duration::from_millis(1));                 // | critical
-            println!("[mtx] {}: resource value: {}", i, res.value);  // | section
+            res.value = i;                                           // | critical
+            thread::sleep(Duration::from_millis(1));                 // | section
                                                                      // |
             (i, res.value)                                           // |
         })); // <-------------------------------------------------------+
