@@ -135,13 +135,12 @@ fn test_critical_section_multithread() {
         value: 0,
         mutex: OwnedCriticalSection::new(),
     };
-
     resource.mutex.init();
+    println!("[ocs] resource @ {:p}", &resource);
 
     // Make a vector to hold the children which are spawned.
     let mut children = vec![];
 
-    println!("resource @ {:p}", &resource);
     // Rust compilter doesn't allow a pointer to be passed across threads.
     // A hacky way to do that is to cast the pointer into a value, then
     // the value, which is actually an address, can be copied into threads.
@@ -150,11 +149,11 @@ fn test_critical_section_multithread() {
     for i in 0..10 {
         // Spin up another thread
         children.push(thread::spawn(move || {
-            println!("resource address: {:x}", resource_ptr);
             let res = unsafe {
                 let ptr = resource_ptr as *mut Resource;
                 &mut (*ptr)
             };
+            println!("[ocs] {}: resource @ {:p}", i, res);
             assert_eq!(res as *mut Resource as usize, resource_ptr);
 
             // Test fails after commenting `AutoLock` and since the order
@@ -164,9 +163,7 @@ fn test_critical_section_multithread() {
                                                                      // |
             res.value = i;                                           // |
             thread::sleep(Duration::from_millis(1));                 // | critical
-            println!("this is thread number {}, resource value: {}", // | section
-                     i, res.value);                                  // |
-            // assert_eq!(i, res.value);                             // |
+            println!("[ocs] {}: resource value: {}", i, res.value);  // | section
                                                                      // |
             (i, res.value)                                           // |
         })); // <-------------------------------------------------------+
@@ -194,11 +191,11 @@ fn test_dummy_mutex_multithread() {
         value: 0,
         mutex: Mutex::new(()),
     };
+    println!("[mtx] resource @ {:p}", &resource);
 
     // Make a vector to hold the children which are spawned.
     let mut children = vec![];
 
-    println!("resource @ {:p}", &resource);
     // Rust compilter doesn't allow a pointer to be passed across threads.
     // A hacky way to do that is to cast the pointer into a value, then
     // the value, which is actually an address, can be copied into threads.
@@ -207,11 +204,11 @@ fn test_dummy_mutex_multithread() {
     for i in 0..10 {
         // Spin up another thread
         children.push(thread::spawn(move || {
-            println!("resource address: {:x}", resource_ptr);
             let res = unsafe {
                 let ptr = resource_ptr as *mut Resource;
                 &mut (*ptr)
             };
+            println!("[mtx] {}: resource @ {:p}", i, res);
             assert_eq!(res as *mut Resource as usize, resource_ptr);
 
             // Test fails after commenting res.mutex.lock() since the order
@@ -221,9 +218,7 @@ fn test_dummy_mutex_multithread() {
                                                                      // |
             res.value = i;                                           // |
             thread::sleep(Duration::from_millis(1));                 // | critical
-            println!("this is thread number {}, resource value: {}", // | section
-                     i, res.value);                                  // |
-            // assert_eq!(i, res.value);                             // |
+            println!("[mtx] {}: resource value: {}", i, res.value);  // | section
                                                                      // |
             (i, res.value)                                           // |
         })); // <-------------------------------------------------------+
