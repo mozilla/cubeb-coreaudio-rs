@@ -116,7 +116,7 @@ pub fn audio_object_has_property(
     unsafe {
         sys::AudioObjectHasProperty(
             id,
-            address, // as `*const AudioObjectPropertyAddress` automatically.
+            address,
         ) != 0
     }
 }
@@ -130,11 +130,11 @@ pub fn audio_object_get_property_data<T>(
     unsafe {
         sys::AudioObjectGetPropertyData(
             id,
-            address, // as `*const AudioObjectPropertyAddress` automatically.
+            address,
             0,
             ptr::null(),
-            size as *mut sys::UInt32, // Cast raw usize pointer to raw u32 pointer.
-            data as *mut c_void, // Cast raw T pointer to void pointer.
+            size as *mut sys::UInt32,
+            data as *mut c_void,
         )
     }
 }
@@ -147,10 +147,10 @@ pub fn audio_object_get_property_data_size(
     unsafe {
         sys::AudioObjectGetPropertyDataSize(
             id,
-            address, // as `*const AudioObjectPropertyAddress` automatically.
+            address,
             0,
             ptr::null(),
-            size as *mut sys::UInt32, // Cast raw usize pointer to raw u32 pointer.
+            size as *mut sys::UInt32,
         )
     }
 }
@@ -164,18 +164,17 @@ pub fn audio_object_set_property_data<T>(
     unsafe {
         sys::AudioObjectSetPropertyData(
             id,
-            address, // as `*const AudioObjectPropertyAddress` automatically.
+            address,
             0,
             ptr::null(),
-            size as sys::UInt32, // Cast usize variable to raw u32 variable.
-            data as *const c_void, // Cast raw T pointer to void pointer.
+            size as sys::UInt32,
+            data as *const c_void,
         )
     }
 }
 
-// TODO: Write a wrapper for registering the listeners.
-// https://developer.apple.com/documentation/coreaudio/audioobjectpropertylistenerproc?language=objc
-// https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.13.sdk/System/Library/Frameworks/CoreAudio.framework/Versions/A/Headers/AudioHardware.h#L118
+// Referece:
+// https://gist.github.com/ChunMinChang/f0f4a71f78d1e1c6390493ab1c9d10d3
 type audio_object_property_listener_proc = extern fn(
     sys::AudioObjectID,
     u32,
@@ -192,7 +191,7 @@ pub fn audio_object_add_property_listener(
     unsafe {
         sys::AudioObjectAddPropertyListener(
             id,
-            address, // as `*const AudioObjectPropertyAddress` automatically.
+            address,
             Some(listener),
             data
         )
@@ -222,35 +221,43 @@ fn test_create_static_cfstring_ref() {
 fn test_manual_audio_object_add_property_listener() {
     use super::*;
 
-    // Allocate the `context` on heap, otherwise the `context` will be
-    // freed before `work` is fired and after program goes out of the
-    // scope of the unsafe block.
-    let context: Box<i32> = Box::new(100);
+    let mut context: i32 = 100;
 
     extern fn listener(
         id: sys::AudioObjectID,
-        number_of_address :u32,
-        address: *const sys::AudioObjectPropertyAddress,
+        number_of_addresses :u32,
+        addresses: *const sys::AudioObjectPropertyAddress,
         data: *mut c_void
     ) -> sys::OSStatus {
-        println!("id: {}", id);
+        let addrs = unsafe {
+            slice::from_raw_parts(addresses, number_of_addresses as usize)
+        };
+        // TODO: Find a way to test the case for number_of_addresses > 1.
+        for (i, addr) in addrs.iter().enumerate() {
+            println!("device {} > address {}: selector {}, scope {}, element {}",
+                      id, i, addr.mSelector, addr.mScope, addr.mElement);
+        }
+        let ctx = unsafe {
+            &mut (*(data as *mut i32))
+        };
+        assert_eq!(ctx, &100);
 
-        // Retake the leaked `context`.
-        let context = unsafe { Box::from_raw(data as *mut i32) };
-        assert_eq!(context.as_ref(), &100);
 
         0 // noErr.
         // `context` is released after finishing this function call.
     }
 
-    let r = audio_object_add_property_listener(
-        kAudioObjectSystemObject,
+    let _ = audio_object_add_property_listener(
+        sys::kAudioObjectSystemObject,
         &DEVICES_PROPERTY_ADDRESS,
         listener,
-        Box::into_raw(context) as *mut c_void, // Leak the `context`.
+        &mut context as *mut i32 as *mut c_void,
     );
 
     loop {};
+
+    // Since this function never ends, we can make sure `context` exists
+    // when listener is called!
 }
 
 // References:
@@ -297,7 +304,6 @@ fn test_dispatch_async_f() {
 
 #[test]
 fn test_async_dispatch() {
-
     let label = "Run with dispatch api wrappers";
 
     // https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.13.sdk/usr/include/dispatch/queue.h#L472
