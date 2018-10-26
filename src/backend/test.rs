@@ -666,6 +666,8 @@ fn test_get_device_presentation_latency_input() {
     );
     assert_eq!(latency, 0);
 
+    // TODO: latency on some devices are 0 so the test fails!
+
     // input scope:
     latency = audiounit_get_device_presentation_latency(
         input_id,
@@ -700,6 +702,8 @@ fn test_get_device_presentation_latency_output() {
         kAudioObjectPropertyScopeGlobal,
     );
     assert_eq!(latency, 0);
+
+    // TODO: latency on some devices are 0 so the test fails!
 
     // input scope:
     latency = audiounit_get_device_presentation_latency(
@@ -829,7 +833,15 @@ fn test_create_device_from_hwdev_input() {
         assert_ne!(info.vendor_name, ptr::null_mut());
         assert_eq!(info.device_type, ffi::CUBEB_DEVICE_TYPE_OUTPUT);
         assert_eq!(info.state, ffi::CUBEB_DEVICE_STATE_ENABLED);
-        assert_eq!(info.preferred, ffi::CUBEB_DEVICE_PREF_ALL);
+        let default_output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
+        assert_eq!(
+            info.preferred,
+            if input_id == default_output_id {
+                ffi::CUBEB_DEVICE_PREF_ALL
+            } else {
+                ffi::CUBEB_DEVICE_PREF_NONE
+            }
+        );
         assert!(info.max_channels > 0);
         assert_eq!(info.default_format, ffi::CUBEB_DEVICE_FMT_F32NE);
         assert!(info.min_rate <= info.max_rate);
@@ -896,7 +908,15 @@ fn test_create_device_from_hwdev_output() {
         assert_ne!(info.vendor_name, ptr::null_mut());
         assert_eq!(info.device_type, ffi::CUBEB_DEVICE_TYPE_INPUT);
         assert_eq!(info.state, ffi::CUBEB_DEVICE_STATE_ENABLED);
-        assert_eq!(info.preferred, ffi::CUBEB_DEVICE_PREF_ALL);
+        let default_input_id = audiounit_get_default_device_id(DeviceType::INPUT);
+        assert_eq!(
+            info.preferred,
+            if output_id == default_input_id {
+                ffi::CUBEB_DEVICE_PREF_ALL
+            } else {
+                ffi::CUBEB_DEVICE_PREF_NONE
+            }
+        );
         assert!(info.max_channels > 0);
         assert_eq!(info.default_format, ffi::CUBEB_DEVICE_FMT_F32NE);
         assert!(info.min_rate <= info.max_rate);
