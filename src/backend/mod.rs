@@ -616,6 +616,27 @@ fn audiounit_get_devices_of_type(dev_type: DeviceType) -> Vec<AudioObjectID>
     return devices_in_scope;
 }
 
+extern fn audiounit_collection_changed_callback(_inObjectID: AudioObjectID,
+                                         _inNumberAddresses: u32,
+                                         _inAddresses: *const AudioObjectPropertyAddress,
+                                         inClientData: *mut c_void) -> OSStatus
+{
+    let context = inClientData as *mut AudioUnitContext;
+    0 // noErr.
+}
+
+fn audiounit_add_device_listener(context: *mut AudioUnitContext,
+                                 devtype: DeviceType,
+                                 collection_changed_callback: ffi::cubeb_device_collection_changed_callback,
+                                 user_ptr: *mut c_void) -> OSStatus
+{
+    let ret = audio_object_add_property_listener(kAudioObjectSystemObject,
+                                                 &DEVICES_PROPERTY_ADDRESS,
+                                                 audiounit_collection_changed_callback,
+                                                 context as *mut c_void);
+    0 // noErr.
+}
+
 pub const OPS: Ops = capi_new!(AudioUnitContext, AudioUnitStream);
 
 pub struct AudioUnitContext {
@@ -833,10 +854,14 @@ impl ContextOps for AudioUnitContext {
     }
     fn register_device_collection_changed(
         &mut self,
-        _dev_type: DeviceType,
-        _collection_changed_callback: ffi::cubeb_device_collection_changed_callback,
-        _user_ptr: *mut c_void,
+        devtype: DeviceType,
+        collection_changed_callback: ffi::cubeb_device_collection_changed_callback,
+        user_ptr: *mut c_void,
     ) -> Result<()> {
+        let ret = audiounit_add_device_listener(self,
+                                                devtype,
+                                                collection_changed_callback,
+                                                user_ptr);
         Ok(())
     }
 }
