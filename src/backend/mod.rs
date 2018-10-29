@@ -543,7 +543,8 @@ fn audiounit_create_device_from_hwdev(dev_info: &mut ffi::cubeb_device_info, dev
 
 // TODO: Rename to is_private_aggregate_device ?
 //       Is it possible to have a public aggregate device ?
-fn is_aggregate_device(device_info: &ffi::cubeb_device_info) -> bool {
+fn is_aggregate_device(device_info: &ffi::cubeb_device_info) -> bool
+{
     assert!(!device_info.friendly_name.is_null());
     let private_name_ptr = PRIVATE_AGGREGATE_DEVICE_NAME.as_ptr() as *const c_char;
     unsafe {
@@ -552,7 +553,8 @@ fn is_aggregate_device(device_info: &ffi::cubeb_device_info) -> bool {
     }
 }
 
-fn audiounit_get_devices_of_type(dev_type: DeviceType) -> Vec<AudioObjectID> {
+fn audiounit_get_devices_of_type(dev_type: DeviceType) -> Vec<AudioObjectID>
+{
     let mut size: usize = 0;
     let mut ret = audio_object_get_property_data_size(kAudioObjectSystemObject,
                                                       &DEVICES_PROPERTY_ADDRESS,
