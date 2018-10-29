@@ -858,6 +858,10 @@ impl ContextOps for AudioUnitContext {
         collection_changed_callback: ffi::cubeb_device_collection_changed_callback,
         user_ptr: *mut c_void,
     ) -> Result<()> {
+        if devtype == DeviceType::UNKNOWN {
+            return Err(Error::invalid_parameter());
+        }
+
         let ret = audiounit_add_device_listener(self,
                                                 devtype,
                                                 collection_changed_callback,
