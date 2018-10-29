@@ -28,6 +28,7 @@ use cubeb_backend::{ffi, Context, ContextOps, DeviceCollectionRef, DeviceId,
                     StreamOps, StreamParams, StreamParamsRef};
 use self::coreaudio_sys::*;
 use self::utils::*;
+use self::owned_critical_section::*;
 use std::cmp;
 use std::ffi::{CStr, CString};
 use std::mem;
@@ -630,6 +631,9 @@ fn audiounit_add_device_listener(context: *mut AudioUnitContext,
                                  collection_changed_callback: ffi::cubeb_device_collection_changed_callback,
                                  user_ptr: *mut c_void) -> OSStatus
 {
+    unsafe {
+        (*context).mutex.assert_current_thread_owns();
+    }
     let ret = audio_object_add_property_listener(kAudioObjectSystemObject,
                                                  &DEVICES_PROPERTY_ADDRESS,
                                                  audiounit_collection_changed_callback,
@@ -639,6 +643,9 @@ fn audiounit_add_device_listener(context: *mut AudioUnitContext,
 
 fn audiounit_remove_device_listener(context: *mut AudioUnitContext, devtype: DeviceType) -> OSStatus
 {
+    unsafe {
+        (*context).mutex.assert_current_thread_owns();
+    }
     0 // noErr.
 }
 
@@ -646,13 +653,16 @@ pub const OPS: Ops = capi_new!(AudioUnitContext, AudioUnitStream);
 
 pub struct AudioUnitContext {
     _ops: *const Ops,
+    mutex: OwnedCriticalSection,
 }
 
 impl ContextOps for AudioUnitContext {
     fn init(_context_name: Option<&CStr>) -> Result<Context> {
-        let ctx = Box::new(AudioUnitContext {
+        let mut ctx = Box::new(AudioUnitContext {
             _ops: &OPS as *const _,
+            mutex: OwnedCriticalSection::new(),
         });
+        ctx.mutex.init();
         Ok(unsafe { Context::from_ptr(Box::into_raw(ctx) as *mut _) })
     }
 
@@ -867,13 +877,16 @@ impl ContextOps for AudioUnitContext {
             return Err(Error::invalid_parameter());
         }
         let mut ret = 0; // noErr.
+        let ctx_ptr = self as *mut AudioUnitContext;
+        // The scope of `_guard` is a critical section.
+        let mut _guard = AutoLock::new(&mut self.mutex);
         if collection_changed_callback.is_some() {
-            ret = audiounit_add_device_listener(self,
+            ret = audiounit_add_device_listener(ctx_ptr,
                                                 devtype,
                                                 collection_changed_callback,
                                                 user_ptr);
         } else {
-            ret = audiounit_remove_device_listener(self, devtype);
+            ret = audiounit_remove_device_listener(ctx_ptr, devtype);
         }
         if ret == 0 {
             Ok(())

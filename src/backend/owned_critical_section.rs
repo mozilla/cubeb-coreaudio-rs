@@ -8,13 +8,13 @@ pub struct OwnedCriticalSection {
 }
 
 impl OwnedCriticalSection {
-    fn new() -> Self {
+    pub fn new() -> Self {
         OwnedCriticalSection {
             mutex: PTHREAD_MUTEX_INITIALIZER
         }
     }
 
-    fn init(&mut self) {
+    pub fn init(&mut self) {
         unsafe {
             let mut attr: pthread_mutexattr_t = mem::zeroed();
             let r = pthread_mutexattr_init(&mut attr);
@@ -48,7 +48,7 @@ impl OwnedCriticalSection {
         }
     }
 
-    fn assert_current_thread_owns(&mut self) {
+    pub fn assert_current_thread_owns(&mut self) {
         unsafe {
             let r = pthread_mutex_lock(&mut self.mutex);
             assert_eq!(r, EDEADLK);
@@ -62,12 +62,12 @@ impl Drop for OwnedCriticalSection {
     }
 }
 
-struct AutoLock<'a> {
+pub struct AutoLock<'a> {
     mutex: &'a mut OwnedCriticalSection,
 }
 
 impl<'a> AutoLock<'a> {
-    fn new(mutex: &'a mut OwnedCriticalSection) -> Self {
+    pub fn new(mutex: &'a mut OwnedCriticalSection) -> Self {
         mutex.lock();
         AutoLock {
             mutex,
