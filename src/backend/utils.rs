@@ -70,6 +70,8 @@ pub fn create_dispatch_queue(
     }
 }
 
+// Reference:
+// https://gist.github.com/ChunMinChang/8d13946ebc6c95b2622466c89a0c9bcc
 // Send: Types that can be transferred across thread boundaries.
 // FnOnce: One-time function.
 pub fn async_dispatch<F>(queue: sys::dispatch_queue_t, work: F)
@@ -260,9 +262,6 @@ fn test_manual_audio_object_add_property_listener() {
     // when listener is called!
 }
 
-// References:
-// http://rustaudio.github.io/coreaudio-rs/coreaudio_sys/audio_unit/index.html
-// https://gist.github.com/ChunMinChang/8d13946ebc6c95b2622466c89a0c9bcc
 #[test]
 fn test_dispatch_async_f() {
     let label = "Run with native dispatch apis";
