@@ -200,6 +200,22 @@ pub fn audio_object_add_property_listener(
     }
 }
 
+pub fn audio_object_remove_property_listener(
+    id: sys::AudioObjectID,
+    address: &sys::AudioObjectPropertyAddress,
+    listener: audio_object_property_listener_proc,
+    data: *mut c_void,
+) -> sys::OSStatus {
+    unsafe {
+        sys::AudioObjectRemovePropertyListener(
+            id,
+            address,
+            Some(listener),
+            data
+        )
+    }
+}
+
 #[test]
 fn test_create_static_cfstring_ref() {
     use super::*;
