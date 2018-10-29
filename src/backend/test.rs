@@ -143,6 +143,23 @@ fn test_ops_context_device_collection_destroy() {
     assert_eq!(coll.count, 0);
 }
 
+#[test]
+fn test_ops_context_register_device_collection_changed_unknown() {
+    let c: *mut ffi::cubeb = ptr::null_mut();
+    assert_eq!(
+        unsafe {
+            OPS.register_device_collection_changed.unwrap()(
+                c,
+                ffi::CUBEB_DEVICE_TYPE_UNKNOWN,
+                None,
+                ptr::null_mut()
+            )
+        },
+        ffi::CUBEB_ERROR_INVALID_PARAMETER
+    );
+}
+
+
 // stream_init: Some($crate::capi::capi_stream_init::<$ctx>),
 // stream_destroy: Some($crate::capi::capi_stream_destroy::<$stm>),
 // stream_start: Some($crate::capi::capi_stream_start::<$stm>),
