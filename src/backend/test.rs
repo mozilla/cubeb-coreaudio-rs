@@ -342,7 +342,15 @@ fn test_get_default_device_datasource() {
 // ------------------------------------
 #[test]
 fn test_get_default_device_name() {
-    let ctx = AudioUnitContext { _ops: ptr::null() };
+    let ctx = AudioUnitContext {
+        _ops: ptr::null(),
+        mutex: OwnedCriticalSection::new(),
+        input_collection_changed_callback: None,
+        input_collection_changed_user_ptr: ptr::null_mut(),
+        output_collection_changed_callback: None,
+        output_collection_changed_user_ptr: ptr::null_mut(),
+    };
+    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`.
     let stream = AudioUnitStream::new(&ctx).unwrap();
     let mut device = ffi::cubeb_device::default();
 
