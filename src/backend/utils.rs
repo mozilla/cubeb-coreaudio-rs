@@ -239,7 +239,7 @@ fn test_create_static_cfstring_ref() {
 fn test_manual_audio_object_add_property_listener() {
     use super::*;
 
-    let mut context: i32 = 100;
+    let mut called: u32 = 0;
 
     extern fn listener(
         id: sys::AudioObjectID,
@@ -255,24 +255,31 @@ fn test_manual_audio_object_add_property_listener() {
             println!("device {} > address {}: selector {}, scope {}, element {}",
                       id, i, addr.mSelector, addr.mScope, addr.mElement);
         }
-        let ctx = unsafe {
-            &mut (*(data as *mut i32))
+        let called = unsafe {
+            &mut (*(data as *mut u32))
         };
-        assert_eq!(ctx, &100);
-
+        *called += 1;
 
         0 // noErr.
-        // `context` is released after finishing this function call.
     }
 
-    let _ = audio_object_add_property_listener(
+    let r = audio_object_add_property_listener(
         sys::kAudioObjectSystemObject,
         &DEVICES_PROPERTY_ADDRESS,
         listener,
-        &mut context as *mut i32 as *mut c_void,
+        &mut called as *mut u32 as *mut c_void,
     );
+    assert_eq!(r, 0);
 
-    loop {};
+    while called == 0 {};
+
+    let r = audio_object_remove_property_listener(
+        sys::kAudioObjectSystemObject,
+        &DEVICES_PROPERTY_ADDRESS,
+        listener,
+        &mut called as *mut u32 as *mut c_void,
+    );
+    assert_eq!(r, 0);
 
     // Since this function never ends, we can make sure `context` exists
     // when listener is called!
