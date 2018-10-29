@@ -634,10 +634,37 @@ fn audiounit_add_device_listener(context: *mut AudioUnitContext,
     unsafe {
         (*context).mutex.assert_current_thread_owns();
     }
-    let ret = audio_object_add_property_listener(kAudioObjectSystemObject,
-                                                 &DEVICES_PROPERTY_ADDRESS,
-                                                 audiounit_collection_changed_callback,
-                                                 context as *mut c_void);
+    assert!(devtype.intersects(DeviceType::INPUT | DeviceType::OUTPUT));
+    // TODO: We should add an assertion here! (Sync with C verstion.)
+    assert!(collection_changed_callback.is_some());
+    unsafe {
+        /* Note: second register without unregister first causes 'nope' error.
+         * Current implementation requires unregister before register a new cb. */
+        assert!(devtype.contains(DeviceType::INPUT) && (*context).input_collection_changed_callback.is_none() ||
+                devtype.contains(DeviceType::OUTPUT) && (*context).output_collection_changed_callback.is_none());
+
+        if (*context).input_collection_changed_callback.is_none() &&
+           (*context).output_collection_changed_callback.is_none() {
+            let ret = audio_object_add_property_listener(kAudioObjectSystemObject,
+                                                         &DEVICES_PROPERTY_ADDRESS,
+                                                         audiounit_collection_changed_callback,
+                                                         context as *mut c_void);
+            if ret != 0 {
+                return ret;
+            }
+        }
+
+        if devtype.contains(DeviceType::INPUT) {
+            (*context).input_collection_changed_callback = collection_changed_callback;
+            (*context).input_collection_changed_user_ptr = user_ptr;
+        }
+
+        if devtype.contains(DeviceType::OUTPUT) {
+            (*context).output_collection_changed_callback = collection_changed_callback;
+            (*context).output_collection_changed_user_ptr = user_ptr;
+        }
+    }
+
     0 // noErr.
 }
 
@@ -646,7 +673,30 @@ fn audiounit_remove_device_listener(context: *mut AudioUnitContext, devtype: Dev
     unsafe {
         (*context).mutex.assert_current_thread_owns();
     }
-    0 // noErr.
+    // TODO: We should add an assertion here! (Sync with C verstion.)
+    assert!(devtype.intersects(DeviceType::INPUT | DeviceType::OUTPUT));
+    unsafe {
+        if devtype.contains(DeviceType::INPUT) {
+            (*context).input_collection_changed_callback = None;
+            (*context).input_collection_changed_user_ptr = ptr::null_mut();
+        }
+
+        if devtype.contains(DeviceType::OUTPUT) {
+            (*context).output_collection_changed_callback = None;
+            (*context).output_collection_changed_user_ptr = ptr::null_mut();
+        }
+
+        if (*context).input_collection_changed_callback.is_some() ||
+           (*context).output_collection_changed_callback.is_some() {
+            return 0; // noErr.
+        }
+    }
+
+    /* Note: unregister a non registered cb is not a problem, not checking. */
+    audio_object_remove_property_listener(kAudioObjectSystemObject,
+                                          &DEVICES_PROPERTY_ADDRESS,
+                                          audiounit_collection_changed_callback,
+                                          context as *mut c_void)
 }
 
 pub const OPS: Ops = capi_new!(AudioUnitContext, AudioUnitStream);
@@ -654,6 +704,10 @@ pub const OPS: Ops = capi_new!(AudioUnitContext, AudioUnitStream);
 pub struct AudioUnitContext {
     _ops: *const Ops,
     mutex: OwnedCriticalSection,
+    input_collection_changed_callback: ffi::cubeb_device_collection_changed_callback,
+    input_collection_changed_user_ptr: *mut c_void,
+    output_collection_changed_callback: ffi::cubeb_device_collection_changed_callback,
+    output_collection_changed_user_ptr: *mut c_void,
 }
 
 impl ContextOps for AudioUnitContext {
@@ -661,6 +715,10 @@ impl ContextOps for AudioUnitContext {
         let mut ctx = Box::new(AudioUnitContext {
             _ops: &OPS as *const _,
             mutex: OwnedCriticalSection::new(),
+            input_collection_changed_callback: None,
+            input_collection_changed_user_ptr: ptr::null_mut(),
+            output_collection_changed_callback: None,
+            output_collection_changed_user_ptr: ptr::null_mut(),
         });
         ctx.mutex.init();
         Ok(unsafe { Context::from_ptr(Box::into_raw(ctx) as *mut _) })
