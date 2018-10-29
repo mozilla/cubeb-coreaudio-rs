@@ -7,6 +7,12 @@ pub struct OwnedCriticalSection {
     mutex: pthread_mutex_t
 }
 
+// Notice that `OwnedCriticalSection` only works after `init` is called.
+// Since `pthread_mutex_t` cannot be copied, we don't initialize the `mutex` in
+// `new()`. The `let x = OwnedCriticalSection::new()` will temporarily creat a
+// `OwnedCriticalSection` struct inside `new()` and copied the created struct
+// to `x`, and then destroy the temporarily struct. We should initialize the
+// `x.mutex` instead of the `mutex` created temporarily inside `new()`.
 impl OwnedCriticalSection {
     pub fn new() -> Self {
         OwnedCriticalSection {
