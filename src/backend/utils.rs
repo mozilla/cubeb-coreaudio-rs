@@ -71,7 +71,7 @@ pub fn create_dispatch_queue(
 }
 
 // Send: Types that can be transferred across thread boundaries.
-// FnOnce: One-time closure
+// FnOnce: One-time function.
 pub fn async_dispatch<F>(queue: sys::dispatch_queue_t, work: F)
   where F: 'static + Send + FnOnce()
 {
@@ -88,9 +88,9 @@ fn create_closure_and_executor<F>(
 ) -> (*mut c_void, sys::dispatch_function_t)
     where F: FnOnce()
 {
-    extern fn closure_executer<F>(
-        unboxed_closure: *mut c_void
-    ) where F: FnOnce() {
+    extern fn closure_executer<F>(unboxed_closure: *mut c_void)
+        where F: FnOnce()
+    {
         // Retake the leaked closure.
         let closure: Box<F> = unsafe {
             Box::from_raw(unboxed_closure as *mut F)
