@@ -637,6 +637,11 @@ fn audiounit_add_device_listener(context: *mut AudioUnitContext,
     0 // noErr.
 }
 
+fn audiounit_remove_device_listener(context: *mut AudioUnitContext, devtype: DeviceType) -> OSStatus
+{
+    0 // noErr.
+}
+
 pub const OPS: Ops = capi_new!(AudioUnitContext, AudioUnitStream);
 
 pub struct AudioUnitContext {
@@ -861,12 +866,20 @@ impl ContextOps for AudioUnitContext {
         if devtype == DeviceType::UNKNOWN {
             return Err(Error::invalid_parameter());
         }
-
-        let ret = audiounit_add_device_listener(self,
+        let mut ret = 0; // noErr.
+        if collection_changed_callback.is_some() {
+            ret = audiounit_add_device_listener(self,
                                                 devtype,
                                                 collection_changed_callback,
                                                 user_ptr);
-        Ok(())
+        } else {
+            ret = audiounit_remove_device_listener(self, devtype);
+        }
+        if ret == 0 {
+            Ok(())
+        } else {
+            Err(Error::error())
+        }
     }
 }
 
