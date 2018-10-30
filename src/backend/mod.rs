@@ -987,11 +987,11 @@ impl ContextOps for AudioUnitContext {
     fn stream_init(
         &mut self,
         _stream_name: Option<&CStr>,
-        _input_device: DeviceId,
-        _input_stream_params: Option<&StreamParamsRef>,
-        _output_device: DeviceId,
-        _output_stream_params: Option<&StreamParamsRef>,
-        _latency_frame: u32,
+        input_device: DeviceId,
+        input_stream_params: Option<&StreamParamsRef>,
+        output_device: DeviceId,
+        output_stream_params: Option<&StreamParamsRef>,
+        latency_frames: u32,
         _data_callback: ffi::cubeb_data_callback,
         _state_callback: ffi::cubeb_state_callback,
         _user_ptr: *mut c_void,
@@ -1008,6 +1008,15 @@ impl ContextOps for AudioUnitContext {
         // The scope of `_context_lock` is a critical section.
         let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
         audiounit_increment_active_streams(self);
+        // TODO: Shouldn't this be put at the first so we don't need to perform
+        //       any action if the check fails? (Sync with C version)
+        assert!(latency_frames > 0);
+        // TODO: Shouldn't this be put at the first so we don't need to perform
+        //       any action if the check fails? (Sync with C version)
+        if (!input_device.is_null() && input_stream_params.is_none()) ||
+           (!output_device.is_null() && output_stream_params.is_none()) {
+            return Err(Error::invalid_parameter());
+        }
         let boxed_stream = AudioUnitStream::new(self)?;
         let cubeb_stream = unsafe {
             Stream::from_ptr(Box::into_raw(boxed_stream) as *mut _)
