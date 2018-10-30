@@ -174,7 +174,7 @@ fn test_critical_section_multithread() {
             // Test fails after commenting `AutoLock` and since the order
             // to run the threads is random.
             // The scope of `_guard` is a critical section.
-            let _guard = AutoLock::new(&mut res.mutex);  // ------------+
+            let _guard = AutoLock::new(&mut res.mutex); // -------------+
                                                                      // |
             res.value = i;                                           // | critical
             thread::sleep(Duration::from_millis(1));                 // | section
@@ -225,8 +225,8 @@ fn test_dummy_mutex_multithread() {
 
             // Test fails after commenting res.mutex.lock() since the order
             // to run the threads is random.
-            // The scope of `guard` is a critical section.
-            let mut _guard = res.mutex.lock().unwrap();  // ------------+
+            // The scope of `_guard` is a critical section.
+            let _guard = res.mutex.lock().unwrap(); // -----------------+
                                                                      // |
             res.value = i;                                           // | critical
             thread::sleep(Duration::from_millis(1));                 // | section
