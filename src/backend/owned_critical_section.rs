@@ -173,8 +173,8 @@ fn test_critical_section_multithread() {
 
             // Test fails after commenting `AutoLock` and since the order
             // to run the threads is random.
-            // The scope of `guard` is a critical section.
-            let mut _guard = AutoLock::new(&mut res.mutex);  // --------+
+            // The scope of `_guard` is a critical section.
+            let _guard = AutoLock::new(&mut res.mutex);  // ------------+
                                                                      // |
             res.value = i;                                           // | critical
             thread::sleep(Duration::from_millis(1));                 // | section
