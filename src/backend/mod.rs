@@ -622,9 +622,9 @@ fn audiounit_get_devices_of_type(dev_type: DeviceType) -> Vec<AudioObjectID>
 }
 
 extern fn audiounit_collection_changed_callback(_inObjectID: AudioObjectID,
-                                         _inNumberAddresses: u32,
-                                         _inAddresses: *const AudioObjectPropertyAddress,
-                                         inClientData: *mut c_void) -> OSStatus
+                                                _inNumberAddresses: u32,
+                                                _inAddresses: *const AudioObjectPropertyAddress,
+                                                inClientData: *mut c_void) -> OSStatus
 {
     let context = inClientData as *mut AudioUnitContext;
 
@@ -636,9 +636,9 @@ extern fn audiounit_collection_changed_callback(_inObjectID: AudioObjectID,
     unsafe {
         // This can be called from inside an AudioUnit function, dispatch to another queue.
         async_dispatch((*context).serial_queue, move || {
-            // The scope of `_guard` is a critical section.
+            // The scope of `lock` is a critical section.
             let ctx = ctx_ptr as *mut AudioUnitContext;
-            let mut _guard = AutoLock::new(&mut (*ctx).mutex);
+            let _lock = AutoLock::new(&mut (*ctx).mutex);
 
             if (*ctx).input_collection_changed_callback.is_none() &&
                (*ctx).output_collection_changed_callback.is_none() {
@@ -1005,8 +1005,8 @@ impl ContextOps for AudioUnitContext {
         }
         let mut ret = 0; // noErr.
         let ctx_ptr = self as *mut AudioUnitContext;
-        // The scope of `_guard` is a critical section.
-        let mut _guard = AutoLock::new(&mut self.mutex);
+        // The scope of `lock` is a critical section.
+        let _lock = AutoLock::new(&mut self.mutex);
         if collection_changed_callback.is_some() {
             ret = audiounit_add_device_listener(ctx_ptr,
                                                 devtype,
