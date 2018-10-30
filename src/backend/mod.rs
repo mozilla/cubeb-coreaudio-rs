@@ -578,6 +578,9 @@ fn audiounit_get_devices_of_type(dev_type: DeviceType) -> Vec<AudioObjectID>
     // Remove the aggregate device from the list of devices (if any).
     devices.retain(|&device| {
         let name = get_device_name(device);
+        if name.is_null() {
+            return true;
+        }
         let private_device = cfstringref_from_static_string(PRIVATE_AGGREGATE_DEVICE_NAME);
         unsafe {
             let found = CFStringFind(name, private_device, 0).location;
