@@ -724,9 +724,9 @@ pub struct AudioUnitContext {
     output_device_array: Vec<AudioObjectID>,
 }
 
-impl ContextOps for AudioUnitContext {
-    fn init(_context_name: Option<&CStr>) -> Result<Context> {
-        let mut ctx = Box::new(AudioUnitContext {
+impl AudioUnitContext {
+    fn new() -> Self {
+        AudioUnitContext {
             _ops: &OPS as *const _,
             mutex: OwnedCriticalSection::new(),
             input_collection_changed_callback: None,
@@ -735,8 +735,18 @@ impl ContextOps for AudioUnitContext {
             output_collection_changed_user_ptr: ptr::null_mut(),
             input_device_array: Vec::new(),
             output_device_array: Vec::new(),
-        });
-        ctx.mutex.init();
+        }
+    }
+
+    fn init(&mut self) {
+        self.mutex.init();
+    }
+}
+
+impl ContextOps for AudioUnitContext {
+    fn init(_context_name: Option<&CStr>) -> Result<Context> {
+        let mut ctx = Box::new(AudioUnitContext::new());
+        ctx.init();
         Ok(unsafe { Context::from_ptr(Box::into_raw(ctx) as *mut _) })
     }
 
