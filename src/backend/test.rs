@@ -159,9 +159,7 @@ fn test_ops_context_register_device_collection_changed_unknown() {
     );
 }
 
-#[test]
-#[should_panic]
-fn test_ops_context_register_device_collection_changed_twice_input() {
+fn test_ops_context_register_device_collection_changed_twice(devtype: u32) {
     // Init cubeb context.
     let mut c: *mut ffi::cubeb = ptr::null_mut();
     assert_eq!(
@@ -169,15 +167,15 @@ fn test_ops_context_register_device_collection_changed_twice_input() {
         ffi::CUBEB_OK
     );
 
-    extern "C" fn callback(context: *mut ffi::cubeb, user: *mut c_void) {
+    extern "C" fn callback(_: *mut ffi::cubeb, _: *mut c_void) {
     }
 
-    // Register a callback in the defined scoped.
+    // Register a callback within the defined scope.
     assert_eq!(
         unsafe {
             OPS.register_device_collection_changed.unwrap()(
                 c,
-                ffi::CUBEB_DEVICE_TYPE_INPUT,
+                devtype,
                 Some(callback),
                 ptr::null_mut()
             )
@@ -185,12 +183,11 @@ fn test_ops_context_register_device_collection_changed_twice_input() {
         ffi::CUBEB_OK
     );
 
-    // Hit an assertion when registering a callback in the defined scoped
-    // again without unregistering the original one.
+    // Hit an assertion when registering two callbacks within the same scope.
     unsafe {
         OPS.register_device_collection_changed.unwrap()(
             c,
-            ffi::CUBEB_DEVICE_TYPE_INPUT,
+            devtype,
             Some(callback),
             ptr::null_mut()
         );
@@ -198,88 +195,24 @@ fn test_ops_context_register_device_collection_changed_twice_input() {
 
     // Destroy cubeb context.
     unsafe { OPS.destroy.unwrap()(c) }
+}
+
+#[test]
+#[should_panic]
+fn test_ops_context_register_device_collection_changed_twice_input() {
+    test_ops_context_register_device_collection_changed_twice(ffi::CUBEB_DEVICE_TYPE_INPUT);
 }
 
 #[test]
 #[should_panic]
 fn test_ops_context_register_device_collection_changed_twice_output() {
-    // Init cubeb context.
-    let mut c: *mut ffi::cubeb = ptr::null_mut();
-    assert_eq!(
-        unsafe { OPS.init.unwrap()(&mut c, ptr::null()) },
-        ffi::CUBEB_OK
-    );
-
-    extern "C" fn callback(context: *mut ffi::cubeb, user: *mut c_void) {
-    }
-
-    // Register a callback in the defined scoped.
-    assert_eq!(
-        unsafe {
-            OPS.register_device_collection_changed.unwrap()(
-                c,
-                ffi::CUBEB_DEVICE_TYPE_OUTPUT,
-                Some(callback),
-                ptr::null_mut()
-            )
-        },
-        ffi::CUBEB_OK
-    );
-
-    // Hit an assertion when registering a callback in the defined scoped
-    // again without unregistering the original one.
-    unsafe {
-        OPS.register_device_collection_changed.unwrap()(
-            c,
-            ffi::CUBEB_DEVICE_TYPE_OUTPUT,
-            Some(callback),
-            ptr::null_mut()
-        );
-    }
-
-    // Destroy cubeb context.
-    unsafe { OPS.destroy.unwrap()(c) }
+    test_ops_context_register_device_collection_changed_twice(ffi::CUBEB_DEVICE_TYPE_OUTPUT);
 }
 
 #[test]
 #[should_panic]
-fn test_ops_context_register_device_collection_changed_twice_in_output() {
-    // Init cubeb context.
-    let mut c: *mut ffi::cubeb = ptr::null_mut();
-    assert_eq!(
-        unsafe { OPS.init.unwrap()(&mut c, ptr::null()) },
-        ffi::CUBEB_OK
-    );
-
-    extern "C" fn callback(context: *mut ffi::cubeb, user: *mut c_void) {
-    }
-
-    // Register a callback in the defined scoped.
-    assert_eq!(
-        unsafe {
-            OPS.register_device_collection_changed.unwrap()(
-                c,
-                ffi::CUBEB_DEVICE_TYPE_INPUT | ffi::CUBEB_DEVICE_TYPE_OUTPUT,
-                Some(callback),
-                ptr::null_mut()
-            )
-        },
-        ffi::CUBEB_OK
-    );
-
-    // Hit an assertion when registering a callback in the defined scoped
-    // again without unregistering the original one.
-    unsafe {
-        OPS.register_device_collection_changed.unwrap()(
-            c,
-            ffi::CUBEB_DEVICE_TYPE_INPUT | ffi::CUBEB_DEVICE_TYPE_OUTPUT,
-            Some(callback),
-            ptr::null_mut()
-        );
-    }
-
-    // Destroy cubeb context.
-    unsafe { OPS.destroy.unwrap()(c) }
+fn test_ops_context_register_device_collection_changed_twice_inout() {
+    test_ops_context_register_device_collection_changed_twice(ffi::CUBEB_DEVICE_TYPE_INPUT | ffi::CUBEB_DEVICE_TYPE_OUTPUT);
 }
 
 #[test]
