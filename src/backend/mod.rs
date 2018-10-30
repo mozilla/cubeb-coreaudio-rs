@@ -658,11 +658,17 @@ fn audiounit_add_device_listener(context: *mut AudioUnitContext,
         }
 
         if devtype.contains(DeviceType::INPUT) {
+            /* Expected empty after unregister. */
+            assert!((*context).input_device_array.is_empty());
+            (*context).input_device_array = audiounit_get_devices_of_type(DeviceType::INPUT);
             (*context).input_collection_changed_callback = collection_changed_callback;
             (*context).input_collection_changed_user_ptr = user_ptr;
         }
 
         if devtype.contains(DeviceType::OUTPUT) {
+            /* Expected empty after unregister. */
+            assert!((*context).output_device_array.is_empty());
+            (*context).output_device_array = audiounit_get_devices_of_type(DeviceType::OUTPUT);
             (*context).output_collection_changed_callback = collection_changed_callback;
             (*context).output_collection_changed_user_ptr = user_ptr;
         }
@@ -682,11 +688,13 @@ fn audiounit_remove_device_listener(context: *mut AudioUnitContext, devtype: Dev
         if devtype.contains(DeviceType::INPUT) {
             (*context).input_collection_changed_callback = None;
             (*context).input_collection_changed_user_ptr = ptr::null_mut();
+            (*context).input_device_array.clear();
         }
 
         if devtype.contains(DeviceType::OUTPUT) {
             (*context).output_collection_changed_callback = None;
             (*context).output_collection_changed_user_ptr = ptr::null_mut();
+            (*context).output_device_array.clear();
         }
 
         if (*context).input_collection_changed_callback.is_some() ||
@@ -711,6 +719,9 @@ pub struct AudioUnitContext {
     input_collection_changed_user_ptr: *mut c_void,
     output_collection_changed_callback: ffi::cubeb_device_collection_changed_callback,
     output_collection_changed_user_ptr: *mut c_void,
+    // Store list of devices to detect changes
+    input_device_array: Vec<AudioObjectID>,
+    output_device_array: Vec<AudioObjectID>,
 }
 
 impl ContextOps for AudioUnitContext {
@@ -722,6 +733,8 @@ impl ContextOps for AudioUnitContext {
             input_collection_changed_user_ptr: ptr::null_mut(),
             output_collection_changed_callback: None,
             output_collection_changed_user_ptr: ptr::null_mut(),
+            input_device_array: Vec::new(),
+            output_device_array: Vec::new(),
         });
         ctx.mutex.init();
         Ok(unsafe { Context::from_ptr(Box::into_raw(ctx) as *mut _) })

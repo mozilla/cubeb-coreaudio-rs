@@ -497,6 +497,8 @@ fn test_get_default_device_name() {
         input_collection_changed_user_ptr: ptr::null_mut(),
         output_collection_changed_callback: None,
         output_collection_changed_user_ptr: ptr::null_mut(),
+        input_device_array: Vec::new(),
+        output_device_array: Vec::new(),
     };
     // We don't use mutex here, so there is no need to call `ctx.mutex.init()`.
     let stream = AudioUnitStream::new(&ctx).unwrap();
