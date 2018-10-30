@@ -80,6 +80,12 @@ const OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS: AudioObjectPropertyAddress =
         mElement: kAudioObjectPropertyElementMaster,
 };
 
+fn audiounit_increment_active_streams(context: &mut AudioUnitContext)
+{
+    context.mutex.assert_current_thread_owns();
+    context.active_streams += 1;
+}
+
 fn audiounit_get_acceptable_latency_range(latency_range: &mut AudioValueRange) -> Result<()>
 {
     let mut size: usize = 0;
@@ -752,6 +758,7 @@ pub const OPS: Ops = capi_new!(AudioUnitContext, AudioUnitStream);
 pub struct AudioUnitContext {
     _ops: *const Ops,
     mutex: OwnedCriticalSection,
+    active_streams: i32, // TODO: Shouldn't it be u32?
     input_collection_changed_callback: ffi::cubeb_device_collection_changed_callback,
     input_collection_changed_user_ptr: *mut c_void,
     output_collection_changed_callback: ffi::cubeb_device_collection_changed_callback,
@@ -768,6 +775,7 @@ impl AudioUnitContext {
         AudioUnitContext {
             _ops: &OPS as *const _,
             mutex: OwnedCriticalSection::new(),
+            active_streams: 0,
             input_collection_changed_callback: None,
             input_collection_changed_user_ptr: ptr::null_mut(),
             output_collection_changed_callback: None,
@@ -997,10 +1005,9 @@ impl ContextOps for AudioUnitContext {
         {
             mutex_ptr = &mut self.mutex as *mut OwnedCriticalSection;
         }
-
         // The scope of `_context_lock` is a critical section.
         let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-
+        audiounit_increment_active_streams(self);
         let boxed_stream = AudioUnitStream::new(self)?;
         let cubeb_stream = unsafe {
             Stream::from_ptr(Box::into_raw(boxed_stream) as *mut _)
