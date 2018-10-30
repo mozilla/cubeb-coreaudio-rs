@@ -988,6 +988,19 @@ impl ContextOps for AudioUnitContext {
         _state_callback: ffi::cubeb_state_callback,
         _user_ptr: *mut c_void,
     ) -> Result<Stream> {
+        // Since we cannot call `AutoLock::new(&mut self.mutex)` and
+        // `AudioUnitStream::new(self)` at the same time.
+        // (`self` cannot be borrowed immutably after it's borrowed as mutable.),
+        // we take the pointer to `self.mutex` first and then dereference it to
+        // the mutex to avoid this problem for now.
+        let mutex_ptr: *mut OwnedCriticalSection;
+        {
+            mutex_ptr = &mut self.mutex as *mut OwnedCriticalSection;
+        }
+
+        // The scope of `_context_lock` is a critical section.
+        let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+
         let boxed_stream = AudioUnitStream::new(self)?;
         let cubeb_stream = unsafe {
             Stream::from_ptr(Box::into_raw(boxed_stream) as *mut _)
