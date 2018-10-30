@@ -36,6 +36,7 @@ use std::os::raw::{c_void, c_char};
 use std::ptr;
 use std::slice;
 
+const DISPATCH_QUEUE_LABEL: &'static str = "org.mozilla.cubeb";
 const PRIVATE_AGGREGATE_DEVICE_NAME: &'static str = "CubebAggregateDevice";
 
 /* Testing empirically, some headsets report a minimal latency that is very
@@ -626,6 +627,42 @@ extern fn audiounit_collection_changed_callback(_inObjectID: AudioObjectID,
                                          inClientData: *mut c_void) -> OSStatus
 {
     let context = inClientData as *mut AudioUnitContext;
+
+    // Rust compilter doesn't allow a pointer to be passed across threads.
+    // A hacky way to do that is to cast the pointer into a value, then
+    // the value, which is actually an address, can be copied into threads.
+    let ctx_ptr = context as usize;
+
+    unsafe {
+        // This can be called from inside an AudioUnit function, dispatch to another queue.
+        async_dispatch((*context).serial_queue, move || {
+            // The scope of `_guard` is a critical section.
+            let ctx = ctx_ptr as *mut AudioUnitContext;
+            let mut _guard = AutoLock::new(&mut (*ctx).mutex);
+
+            if (*ctx).input_collection_changed_callback.is_none() &&
+               (*ctx).output_collection_changed_callback.is_none() {
+                return;
+            }
+            if (*ctx).input_collection_changed_callback.is_some() {
+                let devices = audiounit_get_devices_of_type(DeviceType::INPUT);
+                /* Elements in the vector expected sorted. */
+                if (*ctx).input_device_array != devices {
+                    (*ctx).input_device_array = devices;
+                    (*ctx).input_collection_changed_callback.unwrap()(ctx as *mut _, (*ctx).input_collection_changed_user_ptr);
+                }
+            }
+            if (*ctx).output_collection_changed_callback.is_some() {
+                let devices = audiounit_get_devices_of_type(DeviceType::OUTPUT);
+                /* Elements in the vector expected sorted. */
+                if (*ctx).output_device_array != devices {
+                    (*ctx).output_device_array = devices;
+                    (*ctx).output_collection_changed_callback.unwrap()(ctx as *mut _, (*ctx).output_collection_changed_user_ptr);
+                }
+            }
+        });
+    }
+
     0 // noErr.
 }
 
@@ -722,6 +759,8 @@ pub struct AudioUnitContext {
     // Store list of devices to detect changes
     input_device_array: Vec<AudioObjectID>,
     output_device_array: Vec<AudioObjectID>,
+    // The queue is asynchronously deallocated once all references to it are released
+    serial_queue: dispatch_queue_t,
 }
 
 impl AudioUnitContext {
@@ -735,6 +774,10 @@ impl AudioUnitContext {
             output_collection_changed_user_ptr: ptr::null_mut(),
             input_device_array: Vec::new(),
             output_device_array: Vec::new(),
+            serial_queue: create_dispatch_queue(
+                DISPATCH_QUEUE_LABEL,
+                DISPATCH_QUEUE_SERIAL
+            )
         }
     }
 

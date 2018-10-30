@@ -57,6 +57,9 @@ pub fn cfstringref_from_static_string(string: &'static str) -> sys::CFStringRef 
     }
 }
 
+// https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.13.sdk/usr/include/dispatch/queue.h#L472
+pub const DISPATCH_QUEUE_SERIAL: sys::dispatch_queue_attr_t = 0 as sys::dispatch_queue_attr_t;
+
 pub fn create_dispatch_queue(
     label: &'static str,
     queue_attr: sys::dispatch_queue_attr_t
@@ -289,9 +292,6 @@ fn test_manual_audio_object_add_property_listener() {
 fn test_dispatch_async_f() {
     let label = "Run with native dispatch apis";
 
-    // https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.13.sdk/usr/include/dispatch/queue.h#L472
-    const DISPATCH_QUEUE_SERIAL: sys::dispatch_queue_attr_t = 0 as sys::dispatch_queue_attr_t;
-
     // http://rustaudio.github.io/coreaudio-rs/coreaudio_sys/audio_unit/fn.dispatch_queue_create.html
     let queue = unsafe {
         sys::dispatch_queue_create(
@@ -327,9 +327,6 @@ fn test_dispatch_async_f() {
 #[test]
 fn test_async_dispatch() {
     let label = "Run with dispatch api wrappers";
-
-    // https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.13.sdk/usr/include/dispatch/queue.h#L472
-    const DISPATCH_QUEUE_SERIAL: sys::dispatch_queue_attr_t = 0 as sys::dispatch_queue_attr_t;
 
     let queue = create_dispatch_queue(
         label,

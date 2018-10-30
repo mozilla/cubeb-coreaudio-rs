@@ -291,6 +291,59 @@ fn test_ops_context_register_device_collection_changed() {
     unsafe { OPS.destroy.unwrap()(c) }
 }
 
+#[test]
+#[ignore]
+fn test_manual_ops_context_register_device_collection_changed() {
+    // Init cubeb context.
+    let mut c: *mut ffi::cubeb = ptr::null_mut();
+    assert_eq!(
+        unsafe { OPS.init.unwrap()(&mut c, ptr::null()) },
+        ffi::CUBEB_OK
+    );
+    println!("context @ {:p}", c);
+
+    extern "C" fn input_callback(context: *mut ffi::cubeb, user: *mut c_void) {
+        assert_eq!(user, 0xDEAD_BEEF as *mut c_void);
+        println!("input > context @ {:p}", context);
+    }
+
+    extern "C" fn output_callback(context: *mut ffi::cubeb, user: *mut c_void) {
+        assert_eq!(user, 0xDEAD_BEEF as *mut c_void);
+        println!("output > context @ {:p}", context);
+    }
+
+    // Register a callback for input scope.
+    assert_eq!(
+        unsafe {
+            OPS.register_device_collection_changed.unwrap()(
+                c,
+                ffi::CUBEB_DEVICE_TYPE_INPUT,
+                Some(input_callback),
+                0xDEAD_BEEF as *mut c_void
+            )
+        },
+        ffi::CUBEB_OK
+    );
+
+    // Register a callback for output scope.
+    assert_eq!(
+        unsafe {
+            OPS.register_device_collection_changed.unwrap()(
+                c,
+                ffi::CUBEB_DEVICE_TYPE_OUTPUT,
+                Some(output_callback),
+                0xDEAD_BEEF as *mut c_void
+            )
+        },
+        ffi::CUBEB_OK
+    );
+
+    loop {}
+
+    // Destroy cubeb context.
+    unsafe { OPS.destroy.unwrap()(c) }
+}
+
 // stream_init: Some($crate::capi::capi_stream_init::<$ctx>),
 // stream_destroy: Some($crate::capi::capi_stream_destroy::<$stm>),
 // stream_start: Some($crate::capi::capi_stream_start::<$stm>),
