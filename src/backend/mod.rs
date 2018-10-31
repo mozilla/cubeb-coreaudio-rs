@@ -1055,7 +1055,6 @@ impl ContextOps for AudioUnitContext {
 
 struct AudioUnitStream<'ctx> {
     context: &'ctx AudioUnitContext,
-    state: ffi::cubeb_state,
 }
 
 impl<'ctx> AudioUnitStream<'ctx> {
@@ -1064,7 +1063,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
     ) -> Self {
          AudioUnitStream {
              context,
-             state: ffi::CUBEB_STATE_ERROR,
          }
     }
 }
