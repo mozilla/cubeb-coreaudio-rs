@@ -1017,7 +1017,8 @@ impl ContextOps for AudioUnitContext {
            (!output_device.is_null() && output_stream_params.is_none()) {
             return Err(Error::invalid_parameter());
         }
-        let boxed_stream = AudioUnitStream::new(self)?;
+        let boxed_stream = Box::new(AudioUnitStream::new(self));
+        println!("stream @ {:p} is initialized!", boxed_stream.as_ref());
         let cubeb_stream = unsafe {
             Stream::from_ptr(Box::into_raw(boxed_stream) as *mut _)
         };
@@ -1060,14 +1061,11 @@ struct AudioUnitStream<'ctx> {
 impl<'ctx> AudioUnitStream<'ctx> {
     fn new(
         context: &'ctx AudioUnitContext,
-    ) -> Result<Box<Self>> {
-         let stm = AudioUnitStream {
+    ) -> Self {
+         AudioUnitStream {
              context,
              state: ffi::CUBEB_STATE_ERROR,
-         };
-         let boxed_stm = Box::new(stm);
-         println!("stream @ {:p} is initialized!", boxed_stm.as_ref());
-         Ok(boxed_stm)
+         }
     }
 }
 

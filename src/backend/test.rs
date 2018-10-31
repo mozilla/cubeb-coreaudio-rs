@@ -550,13 +550,13 @@ fn test_get_default_device_datasource() {
 fn test_get_default_device_name() {
     let ctx = AudioUnitContext::new();
     // We don't use mutex here, so there is no need to call `ctx.mutex.init()`.
-    let stream = AudioUnitStream::new(&ctx).unwrap();
+    let stream = AudioUnitStream::new(&ctx);
     let mut device = ffi::cubeb_device::default();
 
     // unknown type:
     assert_eq!(
         audiounit_get_default_device_name(
-            stream.as_ref(),
+            &stream,
             &mut device,
             DeviceType::UNKNOWN
         ).unwrap_err(),
@@ -570,7 +570,7 @@ fn test_get_default_device_name() {
     device = ffi::cubeb_device::default();
     assert!(
         audiounit_get_default_device_name(
-            stream.as_ref(),
+            &stream,
             &mut device,
             DeviceType::INPUT
         ).is_ok()
@@ -582,7 +582,7 @@ fn test_get_default_device_name() {
     device = ffi::cubeb_device::default();
     assert!(
         audiounit_get_default_device_name(
-            stream.as_ref(),
+            &stream,
             &mut device,
             DeviceType::OUTPUT
         ).is_ok()
@@ -594,7 +594,7 @@ fn test_get_default_device_name() {
     device = ffi::cubeb_device::default();
     assert_eq!(
         audiounit_get_default_device_name(
-            stream.as_ref(),
+            &stream,
             &mut device,
             DeviceType::INPUT | DeviceType::OUTPUT
         ).unwrap_err(),
