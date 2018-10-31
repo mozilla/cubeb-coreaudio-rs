@@ -550,7 +550,13 @@ fn test_get_default_device_datasource() {
 fn test_get_default_device_name() {
     let ctx = AudioUnitContext::new();
     // We don't use mutex here, so there is no need to call `ctx.mutex.init()`.
-    let stream = AudioUnitStream::new(&ctx);
+    let stream = AudioUnitStream::new(
+        &ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
     let mut device = ffi::cubeb_device::default();
 
     // unknown type:

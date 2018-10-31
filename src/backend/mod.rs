@@ -992,9 +992,9 @@ impl ContextOps for AudioUnitContext {
         output_device: DeviceId,
         output_stream_params: Option<&StreamParamsRef>,
         latency_frames: u32,
-        _data_callback: ffi::cubeb_data_callback,
-        _state_callback: ffi::cubeb_state_callback,
-        _user_ptr: *mut c_void,
+        data_callback: ffi::cubeb_data_callback,
+        state_callback: ffi::cubeb_state_callback,
+        user_ptr: *mut c_void,
     ) -> Result<Stream> {
         // Since we cannot call `AutoLock::new(&mut self.mutex)` and
         // `AudioUnitStream::new(self)` at the same time.
@@ -1008,6 +1008,16 @@ impl ContextOps for AudioUnitContext {
         // The scope of `_context_lock` is a critical section.
         let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
         audiounit_increment_active_streams(self);
+        let boxed_stream = Box::new(
+            AudioUnitStream::new(
+                self,
+                user_ptr,
+                data_callback,
+                state_callback,
+                latency_frames
+            )
+        );
+        println!("stream @ {:p} is initialized!", boxed_stream.as_ref());
         // TODO: Shouldn't this be put at the first so we don't need to perform
         //       any action if the check fails? (Sync with C version)
         assert!(latency_frames > 0);
@@ -1017,8 +1027,6 @@ impl ContextOps for AudioUnitContext {
            (!output_device.is_null() && output_stream_params.is_none()) {
             return Err(Error::invalid_parameter());
         }
-        let boxed_stream = Box::new(AudioUnitStream::new(self));
-        println!("stream @ {:p} is initialized!", boxed_stream.as_ref());
         let cubeb_stream = unsafe {
             Stream::from_ptr(Box::into_raw(boxed_stream) as *mut _)
         };
@@ -1055,14 +1063,28 @@ impl ContextOps for AudioUnitContext {
 
 struct AudioUnitStream<'ctx> {
     context: &'ctx AudioUnitContext,
+    user_ptr: *mut c_void,
+
+    data_callback: ffi::cubeb_data_callback,
+    state_callback: ffi::cubeb_state_callback,
+    /* Latency requested by the user. */
+    latency_frames: u32,
 }
 
 impl<'ctx> AudioUnitStream<'ctx> {
     fn new(
         context: &'ctx AudioUnitContext,
+        user_ptr: *mut c_void,
+        data_callback: ffi::cubeb_data_callback,
+        state_callback: ffi::cubeb_state_callback,
+        latency_frames: u32,
     ) -> Self {
          AudioUnitStream {
              context,
+             user_ptr,
+             data_callback,
+             state_callback,
+             latency_frames
          }
     }
 }
