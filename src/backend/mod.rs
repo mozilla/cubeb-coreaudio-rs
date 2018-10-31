@@ -682,7 +682,7 @@ fn audiounit_add_device_listener(context: *mut AudioUnitContext,
     }
     assert!(devtype.intersects(DeviceType::INPUT | DeviceType::OUTPUT));
     // TODO: We should add an assertion here! (Sync with C verstion.)
-    assert!(collection_changed_callback.is_some());
+    // assert!(collection_changed_callback.is_some());
     unsafe {
         /* Note: second register without unregister first causes 'nope' error.
          * Current implementation requires unregister before register a new cb. */
@@ -726,7 +726,7 @@ fn audiounit_remove_device_listener(context: *mut AudioUnitContext, devtype: Dev
         (*context).mutex.assert_current_thread_owns();
     }
     // TODO: We should add an assertion here! (Sync with C verstion.)
-    assert!(devtype.intersects(DeviceType::INPUT | DeviceType::OUTPUT));
+    // assert!(devtype.intersects(DeviceType::INPUT | DeviceType::OUTPUT));
     unsafe {
         if devtype.contains(DeviceType::INPUT) {
             (*context).input_collection_changed_callback = None;
