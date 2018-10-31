@@ -229,7 +229,7 @@ fn test_ops_context_register_device_collection_changed() {
         ffi::CUBEB_OK
     );
 
-    let devtypes = [
+    let devtypes: [ffi::cubeb_device_type; 3] = [
         ffi::CUBEB_DEVICE_TYPE_INPUT,
         ffi::CUBEB_DEVICE_TYPE_OUTPUT,
         ffi::CUBEB_DEVICE_TYPE_INPUT | ffi::CUBEB_DEVICE_TYPE_INPUT
@@ -238,7 +238,7 @@ fn test_ops_context_register_device_collection_changed() {
     extern "C" fn callback(context: *mut ffi::cubeb, user: *mut c_void) {
     }
 
-    for devtype in devtypes.iter() {
+    for devtype in &devtypes {
         // Register a callback in the defined scoped.
         assert_eq!(
             unsafe {
