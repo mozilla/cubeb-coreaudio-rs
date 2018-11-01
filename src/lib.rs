@@ -4,6 +4,8 @@
 // accompanying file LICENSE for details.
 #[macro_use]
 extern crate cubeb_backend;
+#[macro_use]
+extern crate bitflags;
 
 mod backend;
 mod capi;
