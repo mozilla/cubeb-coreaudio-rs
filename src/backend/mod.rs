@@ -163,7 +163,7 @@ fn audiounit_set_device_info(stm: &mut AudioUnitStream, id: AudioDeviceID, side:
         info.flags |= device_flags::DEV_SELECTED_DEFAULT;
     }
 
-    if id == default_device_id {
+    if info.id == default_device_id {
         info.flags |= device_flags::DEV_SYSTEM_DEFAULT;
     }
 
@@ -214,7 +214,7 @@ fn audiounit_set_device_info(stm: &mut AudioUnitStream, id: AudioDeviceID, side:
 //         info.flags |= device_flags::DEV_SELECTED_DEFAULT;
 //     }
 
-//     if id == default_device_id {
+//     if info.id == default_device_id {
 //         info.flags |= device_flags::DEV_SYSTEM_DEFAULT;
 //     }
 
