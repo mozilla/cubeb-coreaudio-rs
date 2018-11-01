@@ -755,6 +755,7 @@ fn audiounit_remove_device_listener(context: *mut AudioUnitContext, devtype: Dev
 
 pub const OPS: Ops = capi_new!(AudioUnitContext, AudioUnitStream);
 
+#[derive(Debug)]
 pub struct AudioUnitContext {
     _ops: *const Ops,
     mutex: OwnedCriticalSection,
@@ -1017,7 +1018,6 @@ impl ContextOps for AudioUnitContext {
                 latency_frames
             )
         );
-        println!("stream @ {:p} is initialized!", boxed_stream.as_ref());
         // TODO: Shouldn't this be put at the first so we don't need to perform
         //       any action if the check fails? (Sync with C version)
         assert!(latency_frames > 0);
@@ -1034,6 +1034,8 @@ impl ContextOps for AudioUnitContext {
         if let Some(stream_params_ref) = output_stream_params {
             boxed_stream.output_stream_params = unsafe { *(stream_params_ref.as_ptr()) };
         }
+        println!("<Initialize> stream @ {:p}\nstream.context @ {:p}\n{:?}",
+                 boxed_stream.as_ref(), boxed_stream.context, boxed_stream.as_ref());
         let cubeb_stream = unsafe {
             Stream::from_ptr(Box::into_raw(boxed_stream) as *mut _)
         };
@@ -1068,6 +1070,7 @@ impl ContextOps for AudioUnitContext {
     }
 }
 
+#[derive(Debug)]
 struct AudioUnitStream<'ctx> {
     context: &'ctx AudioUnitContext,
     user_ptr: *mut c_void,
@@ -1115,7 +1118,8 @@ impl<'ctx> AudioUnitStream<'ctx> {
 
 impl<'ctx> Drop for AudioUnitStream<'ctx> {
     fn drop(&mut self) {
-        println!("stream @ {:p} is dropped!", self);
+        println!("<Drop> stream @ {:p}\nstream.context @ {:p}\n{:?}",
+                 self, self.context, self);
     }
 }
 

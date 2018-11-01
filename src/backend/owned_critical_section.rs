@@ -6,7 +6,7 @@
 extern crate libc;
 
 use self::libc::*;
-use std::mem;
+use std::{fmt, mem};
 
 pub struct OwnedCriticalSection {
     mutex: pthread_mutex_t
@@ -75,6 +75,12 @@ impl OwnedCriticalSection {
 impl Drop for OwnedCriticalSection {
     fn drop(&mut self) {
         self.destroy();
+    }
+}
+
+impl fmt::Debug for OwnedCriticalSection {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "OwnedCriticalSection {{ mutex @ {:p} }}", &self.mutex)
     }
 }
 
