@@ -1029,9 +1029,11 @@ impl ContextOps for AudioUnitContext {
         }
         // TODO: Add a method `to_owned` in `StreamParamsRef`.
         if let Some(stream_params_ref) = input_stream_params {
+            assert!(!stream_params_ref.as_ptr().is_null());
             boxed_stream.input_stream_params = unsafe { *(stream_params_ref.as_ptr()) };
         }
         if let Some(stream_params_ref) = output_stream_params {
+            assert!(!stream_params_ref.as_ptr().is_null());
             boxed_stream.output_stream_params = unsafe { *(stream_params_ref.as_ptr()) };
         }
         println!("<Initialize> stream @ {:p}\nstream.context @ {:p}\n{:?}",
