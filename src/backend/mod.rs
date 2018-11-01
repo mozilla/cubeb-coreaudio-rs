@@ -257,12 +257,12 @@ fn audiounit_get_acceptable_latency_range(latency_range: &mut AudioValueRange) -
     Ok(())
 }
 
-fn audiounit_get_default_device_id(dev_type: DeviceType) -> AudioObjectID
+fn audiounit_get_default_device_id(devtype: DeviceType) -> AudioObjectID
 {
     let adr;
-    if dev_type == DeviceType::OUTPUT {
+    if devtype == DeviceType::OUTPUT {
         adr = &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS;
-    } else if dev_type == DeviceType::INPUT {
+    } else if devtype == DeviceType::INPUT {
         adr = &DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS;
     } else {
         return kAudioObjectUnknown;
@@ -700,7 +700,7 @@ fn is_aggregate_device(device_info: &ffi::cubeb_device_info) -> bool
     }
 }
 
-fn audiounit_get_devices_of_type(dev_type: DeviceType) -> Vec<AudioObjectID>
+fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID>
 {
     let mut size: usize = 0;
     let mut ret = audio_object_get_property_data_size(kAudioObjectSystemObject,
@@ -745,13 +745,13 @@ fn audiounit_get_devices_of_type(dev_type: DeviceType) -> Vec<AudioObjectID>
 
     /* Expected sorted but did not find anything in the docs. */
     devices.sort();
-    if dev_type.contains(DeviceType::INPUT | DeviceType::OUTPUT) {
+    if devtype.contains(DeviceType::INPUT | DeviceType::OUTPUT) {
         return devices;
     }
 
-    // FIXIT: This is wrong. We will use output scope when dev_type
+    // FIXIT: This is wrong. We will use output scope when devtype
     //        is unknown. Change it after C version is updated!
-    let scope = if dev_type == DeviceType::INPUT {
+    let scope = if devtype == DeviceType::INPUT {
         kAudioDevicePropertyScopeInput
     } else {
         kAudioDevicePropertyScopeOutput
