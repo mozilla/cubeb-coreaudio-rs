@@ -1008,7 +1008,7 @@ impl ContextOps for AudioUnitContext {
         // The scope of `_context_lock` is a critical section.
         let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
         audiounit_increment_active_streams(self);
-        let boxed_stream = Box::new(
+        let mut boxed_stream = Box::new(
             AudioUnitStream::new(
                 self,
                 user_ptr,
@@ -1026,6 +1026,13 @@ impl ContextOps for AudioUnitContext {
         if (!input_device.is_null() && input_stream_params.is_none()) ||
            (!output_device.is_null() && output_stream_params.is_none()) {
             return Err(Error::invalid_parameter());
+        }
+        // TODO: Add a method `to_owned` in `StreamParamsRef`.
+        if let Some(stream_params_ref) = input_stream_params {
+            boxed_stream.input_stream_params = unsafe { *(stream_params_ref.as_ptr()) };
+        }
+        if let Some(stream_params_ref) = output_stream_params {
+            boxed_stream.output_stream_params = unsafe { *(stream_params_ref.as_ptr()) };
         }
         let cubeb_stream = unsafe {
             Stream::from_ptr(Box::into_raw(boxed_stream) as *mut _)
@@ -1067,6 +1074,9 @@ struct AudioUnitStream<'ctx> {
 
     data_callback: ffi::cubeb_data_callback,
     state_callback: ffi::cubeb_state_callback,
+    /* Stream creation parameters */
+    input_stream_params: ffi::cubeb_stream_params,
+    output_stream_params: ffi::cubeb_stream_params,
     /* Latency requested by the user. */
     latency_frames: u32,
 }
@@ -1084,6 +1094,20 @@ impl<'ctx> AudioUnitStream<'ctx> {
              user_ptr,
              data_callback,
              state_callback,
+             input_stream_params: ffi::cubeb_stream_params {
+                 format: ffi::CUBEB_SAMPLE_FLOAT32NE,
+                 rate: 0,
+                 channels: 0,
+                 layout: ffi::CUBEB_LAYOUT_UNDEFINED,
+                 prefs: ffi::CUBEB_STREAM_PREF_NONE
+             },
+             output_stream_params: ffi::cubeb_stream_params {
+                 format: ffi::CUBEB_SAMPLE_FLOAT32NE,
+                 rate: 0,
+                 channels: 0,
+                 layout: ffi::CUBEB_LAYOUT_UNDEFINED,
+                 prefs: ffi::CUBEB_STREAM_PREF_NONE
+             },
              latency_frames
          }
     }
