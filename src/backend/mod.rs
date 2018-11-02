@@ -123,6 +123,7 @@ fn audiounit_increment_active_streams(context: &mut AudioUnitContext)
     context.active_streams += 1;
 }
 
+// TODO: The following code may be changed soon. Sync with C version.
 fn audiounit_set_device_info(stm: &mut AudioUnitStream, id: AudioDeviceID, side: io_side) -> Result<()>
 {
     assert!(side == io_side::INPUT || side == io_side::OUTPUT);
@@ -148,7 +149,7 @@ fn audiounit_set_device_info(stm: &mut AudioUnitStream, id: AudioDeviceID, side:
 
     if side == io_side::INPUT {
         info.flags |= device_flags::DEV_INPUT;
-    } else if side == io_side::OUTPUT {
+    } else {
         info.flags |= device_flags::DEV_OUTPUT;
     }
 
