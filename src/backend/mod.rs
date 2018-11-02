@@ -1138,7 +1138,7 @@ impl ContextOps for AudioUnitContext {
         user_ptr: *mut c_void,
     ) -> Result<Stream> {
         // Since we cannot call `AutoLock::new(&mut self.mutex)` and
-        // `AudioUnitStream::new(self)` at the same time.
+        // `AudioUnitStream::new(self, ...)` at the same time.
         // (`self` cannot be borrowed immutably after it's borrowed as mutable.),
         // we take the pointer to `self.mutex` first and then dereference it to
         // the mutex to avoid this problem for now.
