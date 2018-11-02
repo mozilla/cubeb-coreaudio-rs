@@ -15,7 +15,7 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
 
 ## Issues
 - Mutex: Find a replacement for [`owned_critical_section`][ocs]
-  - A dummy mutex like `Mutex<()>` should work (see `test_dummy_mutex_multithread`) as what `owned_critical_section` does in [_C_ version][ocs], but it doens't has equivalent API for `assert_current_thread_owns`.
+  - A dummy mutex like `Mutex<()>` should work (see [`test_dummy_mutex_multithread`][ocs]) as what `owned_critical_section` does in [_C_ version][ocs], but it doens't has equivalent API for `assert_current_thread_owns`.
   - We implement a [`OwnedCriticalSection` around `pthread_mutex_t`][ocs-rust] like what we do in [_C_ version][ocs] for now.
 - Unworkable API: [`dispatch_async`][dis-async]
   - The second parameter of [`dispatch_async`][dis-async] is [`dispatch_block_t`][dis-block], which is defined by `typedef void (^dispatch_block_t)(void)`.
@@ -30,11 +30,11 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
 - Borrowing Issues
   1. Pass `AudioUnitContext` across threads. In _C_ version, we [pass the pointer to `cubeb` context across threads][cubeb-au-ptr-across-threads], but it's forbidden in _Rust_. A workaround here is to
       1. Cast the pointer to a `cubeb` context into a `usize` value
-      2. Pass the value to threads. The value is actually be copied into the code-block that will be run on another thread
+      2. Pass that value to threads. The value is actually be **copied** into the code-block that will be run on another thread
       3. When the task on another thread is run, the value is casted to a pointer to a `cubeb` context
-  2. We have a [`mutex`][ocs-rust] in `AudioUnitContext`, and we have a _reference_ to `AudioUnitContext` in `AudioUnitStream`. To sync what we do in [_C version_][cubeb-au-init-stream], we need to _lock_ the [`mutex`][ocs-rust] in `AudioUnitContext` then pass a _reference_ to `AudioUnitContext` to `AudioUnitStream::new(...)`. To _lock_ the [`mutex`][ocs-rust] in `AudioUnitContext`, we call [`AutoLock::new(&mut AudioUnitContext.mutex)`][ocs-rust]. That is, we will borrow a reference to `AudioUnitContext` as a mutable first then borrow it again. It's forbidden in _Rust_ to do that. A workaround here is to
+  2. We have a [`mutex`][ocs-rust] in `AudioUnitContext`, and we have a _reference_ to `AudioUnitContext` in `AudioUnitStream`. To sync what we do in [_C version_][cubeb-au-init-stream], we need to _lock_ the `mutex` in `AudioUnitContext` then pass a _reference_ to `AudioUnitContext` to `AudioUnitStream::new(...)`. To _lock_ the `mutex` in `AudioUnitContext`, we call `AutoLock::new(&mut AudioUnitContext.mutex)`. That is, we will borrow a reference to `AudioUnitContext` as a mutable first then borrow it again. It's forbidden in _Rust_. A workaround here is to
       1. Either replace `AutoLock` by calling `mutex.lock()` and `mutex.unlock()` explicitly.
-      2. Or save the pointer to `mutex` first, then use `AutoLock::new(unsafe { &mut (*mutex_ptr) })`
+      2. Or save the pointer to `mutex` first, then call `AutoLock::new(unsafe { &mut (*mutex_ptr) })`.
 
 [cubeb]: https://github.com/kinetiknz/cubeb "Cross platform audio library"
 [cubeb-au]: https://github.com/kinetiknz/cubeb/blob/master/src/cubeb_audiounit.cpp "Cubeb AudioUnit"
