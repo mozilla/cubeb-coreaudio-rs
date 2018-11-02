@@ -236,6 +236,32 @@ fn test_audio_object_remove_property_listener_for_unknown_device() {
 }
 
 #[test]
+fn test_audio_object_remove_property_listener_without_adding_any_listener() {
+    use super::DEVICES_PROPERTY_ADDRESS;
+
+    extern fn listener(
+        _: sys::AudioObjectID,
+        _: u32,
+        _: *const sys::AudioObjectPropertyAddress,
+        _: *mut c_void
+    ) -> sys::OSStatus {
+        assert!(false, "Should not be called.");
+        sys::kAudioHardwareUnspecifiedError as sys::OSStatus
+    }
+
+    // It's ok to remove listener that is never registered for the system device.
+    assert_eq!(
+        audio_object_remove_property_listener(
+            sys::kAudioObjectSystemObject,
+            &DEVICES_PROPERTY_ADDRESS,
+            listener,
+            ptr::null_mut(),
+        ),
+        0
+    )
+}
+
+#[test]
 fn test_audio_object_add_then_remove_property_listener() {
     use super::DEVICES_PROPERTY_ADDRESS;
 
@@ -268,32 +294,6 @@ fn test_audio_object_add_then_remove_property_listener() {
         ),
         0
     );
-}
-
-#[test]
-fn test_audio_object_remove_property_listener_without_adding_any_listener() {
-    use super::DEVICES_PROPERTY_ADDRESS;
-
-    extern fn listener(
-        _: sys::AudioObjectID,
-        _: u32,
-        _: *const sys::AudioObjectPropertyAddress,
-        _: *mut c_void
-    ) -> sys::OSStatus {
-        assert!(false, "Should not be called.");
-        sys::kAudioHardwareUnspecifiedError as sys::OSStatus
-    }
-
-    // It's ok to remove listener that is never registered for the system device.
-    assert_eq!(
-        audio_object_remove_property_listener(
-            sys::kAudioObjectSystemObject,
-            &DEVICES_PROPERTY_ADDRESS,
-            listener,
-            ptr::null_mut(),
-        ),
-        0
-    )
 }
 
 #[test]
