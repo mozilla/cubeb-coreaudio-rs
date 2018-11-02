@@ -574,7 +574,8 @@ fn test_get_default_device_datasource() {
 #[test]
 fn test_get_default_device_name() {
     let ctx = AudioUnitContext::new();
-    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`.
+    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
+    // or `ctx.init()`.
     let stream = AudioUnitStream::new(
         &ctx,
         ptr::null_mut(),
