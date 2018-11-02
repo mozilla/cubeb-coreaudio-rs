@@ -1174,7 +1174,7 @@ impl ContextOps for AudioUnitContext {
             assert!(!stream_params_ref.as_ptr().is_null());
             boxed_stream.input_stream_params = unsafe { *(stream_params_ref.as_ptr()) };
             if let Err(r) = audiounit_set_device_info(boxed_stream.as_mut(), input_device as AudioDeviceID, io_side::INPUT) {
-                cubeb_log!("{:p} Fail to set device info for input.", boxed_stream.as_ref());
+                cubeb_log!("({:p}) Fail to set device info for input.", boxed_stream.as_ref());
                 return Err(r);
             }
         }
@@ -1182,10 +1182,11 @@ impl ContextOps for AudioUnitContext {
             assert!(!stream_params_ref.as_ptr().is_null());
             boxed_stream.output_stream_params = unsafe { *(stream_params_ref.as_ptr()) };
             if let Err(r) = audiounit_set_device_info(boxed_stream.as_mut(), output_device as AudioDeviceID, io_side::OUTPUT) {
-                cubeb_log!("{:p} Fail to set device info for output.", boxed_stream.as_ref());
+                cubeb_log!("({:p}) Fail to set device info for output.", boxed_stream.as_ref());
                 return Err(r);
             }
         }
+
         println!("<Initialize> stream @ {:p}\nstream.context @ {:p}\n{:?}",
                  boxed_stream.as_ref(), boxed_stream.context, boxed_stream.as_ref());
         let cubeb_stream = unsafe {
