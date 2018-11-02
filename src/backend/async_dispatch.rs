@@ -1,11 +1,13 @@
 // Reference:
 // https://gist.github.com/ChunMinChang/8d13946ebc6c95b2622466c89a0c9bcc
+// http://rustaudio.github.io/coreaudio-rs/coreaudio_sys/audio_unit/fn.dispatch_queue_create.html
+// http://rustaudio.github.io/coreaudio-rs/coreaudio_sys/audio_unit/fn.dispatch_async_f.html
+// https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.13.sdk/usr/include/dispatch/queue.h#L472
 
 extern crate coreaudio_sys as sys;
 
 use std::os::raw::{c_char, c_void};
 
-// https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.13.sdk/usr/include/dispatch/queue.h#L472
 pub const DISPATCH_QUEUE_SERIAL: sys::dispatch_queue_attr_t = 0 as sys::dispatch_queue_attr_t;
 
 pub fn create_dispatch_queue(
@@ -65,7 +67,6 @@ fn create_closure_and_executor<F>(
 fn test_dispatch_async_f() {
     let label = "Run with native dispatch apis";
 
-    // http://rustaudio.github.io/coreaudio-rs/coreaudio_sys/audio_unit/fn.dispatch_queue_create.html
     let queue = unsafe {
         sys::dispatch_queue_create(
             label.as_ptr() as *const c_char,
@@ -87,7 +88,6 @@ fn test_dispatch_async_f() {
         // `context` is released after finishing this function call.
     }
 
-    // http://rustaudio.github.io/coreaudio-rs/coreaudio_sys/audio_unit/fn.dispatch_async_f.html
     unsafe {
         sys::dispatch_async_f(
             queue,
