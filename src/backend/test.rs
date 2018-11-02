@@ -1232,7 +1232,7 @@ fn test_add_device_listener_with_none_callback() {
     let _lock = AutoLock::new(&mut ctx.mutex);
 
     // If it's ok to register `none` as callback, we should pass the following
-    // test. Otherwise, we should get a panic!
+    // test. Otherwise, we should get a panic or error!
     // See implementation in audiounit_add_device_listener for more detail.
     // TODO: Update this test after C version is updated!
 
@@ -1263,6 +1263,19 @@ fn test_add_device_listener_with_none_callback() {
         ctx.output_collection_changed_callback,
         None
     );
+
+    // If it's not ok to register `none` as callback, we should pass the following test.
+    // for devtype in &[DeviceType::INPUT, DeviceType::OUTPUT] {
+    //     assert_ne!(
+    //         audiounit_add_device_listener(
+    //             ctx_ptr,
+    //             *devtype,
+    //             None,
+    //             ptr::null_mut()
+    //         ),
+    //         0
+    //     );
+    // }
 }
 
 #[test]
