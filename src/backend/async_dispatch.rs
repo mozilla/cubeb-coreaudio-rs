@@ -1,3 +1,6 @@
+// Reference:
+// https://gist.github.com/ChunMinChang/8d13946ebc6c95b2622466c89a0c9bcc
+
 extern crate coreaudio_sys as sys;
 
 use std::os::raw::{c_char, c_void};
@@ -18,8 +21,6 @@ pub fn create_dispatch_queue(
     }
 }
 
-// Reference:
-// https://gist.github.com/ChunMinChang/8d13946ebc6c95b2622466c89a0c9bcc
 // Send: Types that can be transferred across thread boundaries.
 // FnOnce: One-time function.
 pub fn async_dispatch<F>(queue: sys::dispatch_queue_t, work: F)
