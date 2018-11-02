@@ -7,6 +7,7 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
 - Create tests for later refactoring
 
 ## TODO
+- Move issues below to github issues.
 - Test aggregate devices
 - Test for stream operations
 - Clean up the tests. Merge the duplicated pieces in to a function.
