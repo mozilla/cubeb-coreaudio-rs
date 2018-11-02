@@ -48,7 +48,7 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
 [c-ext-block]: https://en.wikipedia.org/wiki/Blocks_(C_language_extension) "Blocks: C language extension"
 [apple-block]: https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ProgrammingWithObjectiveC/WorkingwithBlocks/WorkingwithBlocks.html "Working with Blocks"
 [rs-closure]: https://doc.rust-lang.org/book/second-edition/ch13-01-closures.html "Closures"
-[async-dis]: src/backend/utils.rs
+[async-dis]: src/backend/async_dispatch.rs
 [async-dis-gist]: https://gist.github.com/ChunMinChang/8d13946ebc6c95b2622466c89a0c9bcc "gist"
 
 [cubeb-au-ptr-across-threads]: https://github.com/kinetiknz/cubeb/blob/9a7a55153e7f9b9e0036ab023909c7bc4a41688b/src/cubeb_audiounit.cpp#L3454-L3480 "Pass pointers across threads"

@@ -6,6 +6,7 @@
 extern crate coreaudio_sys;
 extern crate libc;
 
+mod async_dispatch;
 mod utils;
 mod owned_critical_section;
 
@@ -26,6 +27,7 @@ mod owned_critical_section;
 use cubeb_backend::{ffi, Context, ContextOps, DeviceCollectionRef, DeviceId,
                     DeviceRef, DeviceType, Error, Ops, Result, Stream,
                     StreamOps, StreamParams, StreamParamsRef};
+use self::async_dispatch::*;
 use self::coreaudio_sys::*;
 use self::utils::*;
 use self::owned_critical_section::*;
