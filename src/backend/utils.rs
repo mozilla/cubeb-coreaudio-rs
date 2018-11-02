@@ -232,6 +232,6 @@ fn test_manual_audio_object_add_property_listener() {
     );
     assert_eq!(r, 0);
 
-    // Since this function never ends, we can make sure `context` exists
+    // Since this function never ends, we can make sure `called` exists
     // when listener is called!
 }
