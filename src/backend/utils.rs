@@ -215,10 +215,10 @@ fn test_audio_object_remove_property_listener_for_unknown_device() {
     use super::DEVICES_PROPERTY_ADDRESS;
 
     extern fn listener(
-        id: sys::AudioObjectID,
-        number_of_addresses :u32,
-        addresses: *const sys::AudioObjectPropertyAddress,
-        data: *mut c_void
+        _: sys::AudioObjectID,
+        _: u32,
+        _: *const sys::AudioObjectPropertyAddress,
+        _: *mut c_void
     ) -> sys::OSStatus {
         assert!(false, "Should not be called.");
         sys::kAudioHardwareUnspecifiedError as sys::OSStatus
@@ -240,10 +240,10 @@ fn test_audio_object_add_then_remove_property_listener() {
     use super::DEVICES_PROPERTY_ADDRESS;
 
     extern fn listener(
-        id: sys::AudioObjectID,
-        number_of_addresses :u32,
-        addresses: *const sys::AudioObjectPropertyAddress,
-        data: *mut c_void
+        _: sys::AudioObjectID,
+        _: u32,
+        _: *const sys::AudioObjectPropertyAddress,
+        _: *mut c_void
     ) -> sys::OSStatus {
         assert!(false, "Should not be called.");
         sys::kAudioHardwareUnspecifiedError as sys::OSStatus
@@ -275,10 +275,10 @@ fn test_audio_object_remove_property_listener_without_adding_any_listener() {
     use super::DEVICES_PROPERTY_ADDRESS;
 
     extern fn listener(
-        id: sys::AudioObjectID,
-        number_of_addresses :u32,
-        addresses: *const sys::AudioObjectPropertyAddress,
-        data: *mut c_void
+        _: sys::AudioObjectID,
+        _: u32,
+        _: *const sys::AudioObjectPropertyAddress,
+        _: *mut c_void
     ) -> sys::OSStatus {
         assert!(false, "Should not be called.");
         sys::kAudioHardwareUnspecifiedError as sys::OSStatus
@@ -306,7 +306,7 @@ fn test_manual_audio_object_add_property_listener() {
 
     extern fn listener(
         id: sys::AudioObjectID,
-        number_of_addresses :u32,
+        number_of_addresses: u32,
         addresses: *const sys::AudioObjectPropertyAddress,
         data: *mut c_void
     ) -> sys::OSStatus {
