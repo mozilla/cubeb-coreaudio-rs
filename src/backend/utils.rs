@@ -186,7 +186,7 @@ fn test_create_static_cfstring_ref() {
 }
 
 #[test]
-fn test_audio_object_add_property_listener_with_unknown_device() {
+fn test_audio_object_add_property_listener_for_unknown_device() {
     use super::DEVICES_PROPERTY_ADDRESS;
 
     extern fn listener(
@@ -211,7 +211,7 @@ fn test_audio_object_add_property_listener_with_unknown_device() {
 }
 
 #[test]
-fn test_audio_object_remove_property_listener_with_unknown_device() {
+fn test_audio_object_remove_property_listener_for_unknown_device() {
     use super::DEVICES_PROPERTY_ADDRESS;
 
     extern fn listener(
