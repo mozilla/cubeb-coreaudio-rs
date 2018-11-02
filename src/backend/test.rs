@@ -424,6 +424,10 @@ fn test_increment_active_streams() {
     }
 }
 
+// set_device_info
+// ------------------------------------
+// TODO: Add test after C version is updated.
+
 // get_acceptable_latency_range
 // ------------------------------------
 #[test]
