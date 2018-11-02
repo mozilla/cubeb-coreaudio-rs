@@ -119,6 +119,27 @@ impl Default for device_info {
     }
 }
 
+struct property_listener<'addr, 'stm, 'ctx> {
+    device_id: AudioDeviceID,
+    property_address: &'addr AudioObjectPropertyAddress,
+    callback: audio_object_property_listener_proc,
+    stream: &'stm mut AudioUnitStream<'ctx>,
+}
+
+impl<'addr, 'stm, 'ctx> property_listener<'addr, 'stm, 'ctx> {
+    fn new(id: AudioDeviceID,
+           address: &'addr AudioObjectPropertyAddress,
+           listener: audio_object_property_listener_proc,
+           stm: &'stm mut AudioUnitStream<'ctx>) -> Self {
+        property_listener {
+            device_id: id,
+            property_address: address,
+            callback: listener,
+            stream: stm
+        }
+    }
+}
+
 fn audiounit_increment_active_streams(context: &mut AudioUnitContext)
 {
     context.mutex.assert_current_thread_owns();
@@ -227,6 +248,22 @@ fn audiounit_set_device_info(stm: &mut AudioUnitStream, id: AudioDeviceID, side:
 
 //     Ok(())
 // }
+
+fn audiounit_add_listener(listener: &mut property_listener) -> OSStatus
+{
+    audio_object_add_property_listener(listener.device_id,
+                                       listener.property_address,
+                                       listener.callback,
+                                       listener.stream as *mut AudioUnitStream as *mut c_void)
+}
+
+fn audiounit_remove_listener(listener: &mut property_listener) -> OSStatus
+{
+    audio_object_remove_property_listener(listener.device_id,
+                                          listener.property_address,
+                                          listener.callback,
+                                          listener.stream as *mut AudioUnitStream as *mut c_void)
+}
 
 fn audiounit_get_acceptable_latency_range(latency_range: &mut AudioValueRange) -> Result<()>
 {

@@ -128,7 +128,7 @@ pub fn audio_object_set_property_data<T>(
 
 // Referece:
 // https://gist.github.com/ChunMinChang/f0f4a71f78d1e1c6390493ab1c9d10d3
-type audio_object_property_listener_proc = extern fn(
+pub type audio_object_property_listener_proc = extern fn(
     sys::AudioObjectID,
     u32,
     *const sys::AudioObjectPropertyAddress,

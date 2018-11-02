@@ -428,6 +428,159 @@ fn test_increment_active_streams() {
 // ------------------------------------
 // TODO: Add test after C version is updated.
 
+// add_listener
+// ------------------------------------
+#[test]
+fn test_add_listener_for_unknown_device() {
+    extern fn listener(
+        _: AudioObjectID,
+        _: u32,
+        _: *const AudioObjectPropertyAddress,
+        _: *mut c_void
+    ) -> OSStatus {
+        assert!(false, "Should not be called.");
+        kAudioHardwareUnspecifiedError as OSStatus
+    }
+
+    let ctx = AudioUnitContext::new();
+    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
+    // or `ctx.init()`.
+    let mut stream = AudioUnitStream::new(
+        &ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+
+    let mut listener = property_listener::new(
+        kAudioObjectUnknown,
+        &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+        listener,
+        &mut stream
+    );
+
+    assert_eq!(
+        audiounit_add_listener(&mut listener),
+        kAudioHardwareBadObjectError as OSStatus
+    );
+}
+
+// remove_listener
+// ------------------------------------
+#[test]
+fn test_remove_listener_for_unknown_device() {
+    extern fn listener(
+        _: AudioObjectID,
+        _: u32,
+        _: *const AudioObjectPropertyAddress,
+        _: *mut c_void
+    ) -> OSStatus {
+        assert!(false, "Should not be called.");
+        kAudioHardwareUnspecifiedError as OSStatus
+    }
+
+    let ctx = AudioUnitContext::new();
+    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
+    // or `ctx.init()`.
+    let mut stream = AudioUnitStream::new(
+        &ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+
+    let mut listener = property_listener::new(
+        kAudioObjectUnknown,
+        &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+        listener,
+        &mut stream
+    );
+
+    assert_eq!(
+        audiounit_remove_listener(&mut listener),
+        kAudioHardwareBadObjectError as OSStatus
+    );
+}
+
+#[test]
+fn test_remove_listener_without_adding_any_listener() {
+    extern fn listener(
+        _: AudioObjectID,
+        _: u32,
+        _: *const AudioObjectPropertyAddress,
+        _: *mut c_void
+    ) -> OSStatus {
+        assert!(false, "Should not be called.");
+        kAudioHardwareUnspecifiedError as OSStatus
+    }
+
+    let ctx = AudioUnitContext::new();
+    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
+    // or `ctx.init()`.
+    let mut stream = AudioUnitStream::new(
+        &ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+
+    let mut listener = property_listener::new(
+        kAudioObjectSystemObject,
+        &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+        listener,
+        &mut stream
+    );
+
+    assert_eq!(
+        audiounit_remove_listener(&mut listener),
+        0
+    );
+}
+
+#[test]
+fn test_add_then_remove_listener() {
+    extern fn listener(
+        _: AudioObjectID,
+        _: u32,
+        _: *const AudioObjectPropertyAddress,
+        _: *mut c_void
+    ) -> OSStatus {
+        assert!(false, "Should not be called.");
+        kAudioHardwareUnspecifiedError as OSStatus
+    }
+
+    let ctx = AudioUnitContext::new();
+    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
+    // or `ctx.init()`.
+    let mut stream = AudioUnitStream::new(
+        &ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+
+    let mut listener = property_listener::new(
+        kAudioObjectSystemObject,
+        &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+        listener,
+        &mut stream
+    );
+
+    assert_eq!(
+        audiounit_add_listener(&mut listener),
+        0
+    );
+
+    assert_eq!(
+        audiounit_remove_listener(&mut listener),
+        0
+    );
+}
+
 // get_acceptable_latency_range
 // ------------------------------------
 #[test]
