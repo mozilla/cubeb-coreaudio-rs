@@ -403,6 +403,27 @@ fn test_manual_ops_context_register_device_collection_changed() {
 
 // Private APIs
 // ============================================================================
+// increment_active_streams
+// ------------------------------------
+#[test]
+fn test_increment_active_streams() {
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    let mutex_ptr: *mut OwnedCriticalSection;
+    {
+        mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+    }
+    // The scope of `_lock` is a critical section.
+    let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+
+    assert_eq!(ctx.active_streams, 0);
+    for i in 1..10 {
+        audiounit_increment_active_streams(&mut ctx);
+        assert_eq!(ctx.active_streams, i);
+    }
+}
+
 // get_acceptable_latency_range
 // ------------------------------------
 #[test]
