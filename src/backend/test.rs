@@ -426,7 +426,335 @@ fn test_increment_active_streams() {
 
 // set_device_info
 // ------------------------------------
-// TODO: Add test after C version is updated.
+#[test]
+#[should_panic]
+fn test_set_device_info_with_unknown_type() {
+    let ctx = AudioUnitContext::new();
+    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
+    // or `ctx.init()`.
+    let mut stream = AudioUnitStream::new(
+        &ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+
+    assert!(audiounit_set_device_info(
+        &mut stream,
+        kAudioObjectUnknown,
+        DeviceType::UNKNOWN
+    ).is_err());
+
+    // assert!(audiounit_set_device_info(
+    //     &mut stream,
+    //     kAudioObjectSystemObject,
+    //     DeviceType::UNKNOWN
+    // ).is_err());
+}
+
+#[test]
+#[should_panic]
+fn test_set_device_info_with_inout_type() {
+    let ctx = AudioUnitContext::new();
+    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
+    // or `ctx.init()`.
+    let mut stream = AudioUnitStream::new(
+        &ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+
+    assert!(audiounit_set_device_info(
+        &mut stream,
+        kAudioObjectUnknown,
+        DeviceType::INPUT | DeviceType::OUTPUT
+    ).is_err());
+
+    // assert!(audiounit_set_device_info(
+    //     &mut stream,
+    //     kAudioObjectSystemObject,
+    //     DeviceType::INPUT | DeviceType::OUTPUT
+    // ).is_err());
+}
+
+#[test]
+fn test_set_device_info_for_unknown_input_device() {
+    let ctx = AudioUnitContext::new();
+    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
+    // or `ctx.init()`.
+    let mut stream = AudioUnitStream::new(
+        &ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+
+    assert_eq!(stream.input_device.id, kAudioObjectUnknown);
+    assert_eq!(stream.input_device.flags, device_flags::DEV_UNKNOWN);
+
+    let default_input_id = audiounit_get_default_device_id(DeviceType::INPUT);
+    // Return an error if there is no available device.
+    if !valid_id(default_input_id) {
+        assert_eq!(
+            audiounit_set_device_info(
+                &mut stream,
+                kAudioObjectUnknown,
+                DeviceType::INPUT
+            ).unwrap_err(),
+            Error::error()
+        );
+        return;
+    }
+
+    assert!(
+        audiounit_set_device_info(
+            &mut stream,
+            kAudioObjectUnknown,
+            DeviceType::INPUT
+        ).is_ok()
+    );
+
+    assert_eq!(stream.input_device.id, default_input_id);
+    assert_eq!(
+        stream.input_device.flags,
+        device_flags::DEV_INPUT |
+        device_flags::DEV_SELECTED_DEFAULT |
+        device_flags::DEV_SYSTEM_DEFAULT
+    );
+}
+
+#[test]
+fn test_set_device_info_for_unknown_output_device() {
+    let ctx = AudioUnitContext::new();
+    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
+    // or `ctx.init()`.
+    let mut stream = AudioUnitStream::new(
+        &ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+
+    assert_eq!(stream.output_device.id, kAudioObjectUnknown);
+    assert_eq!(stream.output_device.flags, device_flags::DEV_UNKNOWN);
+
+    let default_output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
+    // Return an error if there is no available device.
+    if !valid_id(default_output_id) {
+        assert_eq!(
+            audiounit_set_device_info(
+                &mut stream,
+                kAudioObjectUnknown,
+                DeviceType::OUTPUT
+            ).unwrap_err(),
+            Error::error()
+        );
+        return;
+    }
+
+    assert!(
+        audiounit_set_device_info(
+            &mut stream,
+            kAudioObjectUnknown,
+            DeviceType::OUTPUT
+        ).is_ok()
+    );
+
+    assert_eq!(stream.output_device.id, default_output_id);
+    assert_eq!(
+        stream.output_device.flags,
+        device_flags::DEV_OUTPUT |
+        device_flags::DEV_SELECTED_DEFAULT |
+        device_flags::DEV_SYSTEM_DEFAULT
+    );
+}
+
+// FIXIT: Should we set {input, output}_device as the default one
+//        if user pass `kAudioObjectSystemObject` as device id ?
+#[test]
+#[ignore]
+fn test_set_device_info_for_system_input_device() {
+    let ctx = AudioUnitContext::new();
+    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
+    // or `ctx.init()`.
+    let mut stream = AudioUnitStream::new(
+        &ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+
+    assert_eq!(stream.input_device.id, kAudioObjectUnknown);
+    assert_eq!(stream.input_device.flags, device_flags::DEV_UNKNOWN);
+
+    let default_input_id = audiounit_get_default_device_id(DeviceType::INPUT);
+    // Return an error if there is no available device.
+    if !valid_id(default_input_id) {
+        assert_eq!(
+            audiounit_set_device_info(
+                &mut stream,
+                kAudioObjectSystemObject,
+                DeviceType::INPUT
+            ).unwrap_err(),
+            Error::error()
+        );
+        return;
+    }
+
+    assert!(
+        audiounit_set_device_info(
+            &mut stream,
+            kAudioObjectSystemObject,
+            DeviceType::INPUT
+        ).is_ok()
+    );
+
+    assert_eq!(stream.input_device.id, default_input_id);
+    assert_eq!(
+        stream.input_device.flags,
+        device_flags::DEV_INPUT |
+        device_flags::DEV_SELECTED_DEFAULT |
+        device_flags::DEV_SYSTEM_DEFAULT
+    );
+}
+
+// FIXIT: Should we set {input, output}_device as the default one
+//        if user pass `kAudioObjectSystemObject` as device id ?
+#[test]
+#[ignore]
+fn test_set_device_info_for_system_output_device() {
+    let ctx = AudioUnitContext::new();
+    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
+    // or `ctx.init()`.
+    let mut stream = AudioUnitStream::new(
+        &ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+
+    assert_eq!(stream.output_device.id, kAudioObjectUnknown);
+    assert_eq!(stream.output_device.flags, device_flags::DEV_UNKNOWN);
+
+    let default_output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
+    // Return an error if there is no available device.
+    if !valid_id(default_output_id) {
+        assert_eq!(
+            audiounit_set_device_info(
+                &mut stream,
+                kAudioObjectSystemObject,
+                DeviceType::OUTPUT
+            ).unwrap_err(),
+            Error::error()
+        );
+        return;
+    }
+
+    assert!(
+        audiounit_set_device_info(
+            &mut stream,
+            kAudioObjectSystemObject,
+            DeviceType::OUTPUT
+        ).is_ok()
+    );
+
+    assert_eq!(stream.output_device.id, default_output_id);
+    assert_eq!(
+        stream.output_device.flags,
+        device_flags::DEV_OUTPUT |
+        device_flags::DEV_SELECTED_DEFAULT |
+        device_flags::DEV_SYSTEM_DEFAULT
+    );
+}
+
+// FIXIT: We should prevent the device from being assigned to a nonexistent
+//        device.
+#[test]
+#[ignore]
+fn test_set_device_info_for_nonexistent_input_device() {
+    let ctx = AudioUnitContext::new();
+    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
+    // or `ctx.init()`.
+    let mut stream = AudioUnitStream::new(
+        &ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+
+    assert_eq!(stream.input_device.id, kAudioObjectUnknown);
+    assert_eq!(stream.input_device.flags, device_flags::DEV_UNKNOWN);
+
+    let input_devices = audiounit_get_devices_of_type(DeviceType::INPUT);
+    if input_devices.is_empty() {
+        return;
+    }
+
+    // Find a nonexistent device. Start from 2, since 0 is kAudioObjectUnknown and
+    // 1 is kAudioObjectSystemObject.
+    let mut id: AudioDeviceID = 2;
+    while input_devices.contains(&id) {
+        id += 1;
+    }
+
+    assert_eq!(
+        audiounit_set_device_info(
+            &mut stream,
+            id,
+            DeviceType::INPUT
+        ).unwrap_err(),
+        Error::error()
+    );
+}
+
+// FIXIT: We should prevent the device from being assigned to a nonexistent
+//        device.
+#[test]
+#[ignore]
+fn test_set_device_info_for_nonexistent_output_device() {
+    let ctx = AudioUnitContext::new();
+    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
+    // or `ctx.init()`.
+    let mut stream = AudioUnitStream::new(
+        &ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+
+    assert_eq!(stream.output_device.id, kAudioObjectUnknown);
+    assert_eq!(stream.output_device.flags, device_flags::DEV_UNKNOWN);
+
+    let output_devices = audiounit_get_devices_of_type(DeviceType::OUTPUT);
+    if output_devices.is_empty() {
+        return;
+    }
+
+    // Find a nonexistent device. Start from 2, since 0 is kAudioObjectUnknown and
+    // 1 is kAudioObjectSystemObject.
+    let mut id: AudioDeviceID = 2;
+    while output_devices.contains(&id) {
+        id += 1;
+    }
+
+    assert_eq!(
+        audiounit_set_device_info(
+            &mut stream,
+            id,
+            DeviceType::OUTPUT
+        ).unwrap_err(),
+        Error::error()
+    );
+}
 
 // add_listener
 // ------------------------------------

@@ -13,6 +13,7 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
 - Clean up the tests. Merge the duplicated pieces in to a function.
 - Find a way to catch memory leaks
   - Try Instrument on OSX
+- Some of bugs are found when adding tests. Search *FIXIT* to find them.
 
 ## Issues
 - Mutex: Find a replacement for [`owned_critical_section`][ocs]

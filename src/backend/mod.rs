@@ -146,42 +146,29 @@ fn audiounit_increment_active_streams(context: &mut AudioUnitContext)
     context.active_streams += 1;
 }
 
-// TODO: The following code may be changed soon. Sync with C version.
-fn audiounit_set_device_info(stm: &mut AudioUnitStream, id: AudioDeviceID, side: io_side) -> Result<()>
+fn audiounit_set_device_info(stm: &mut AudioUnitStream, id: AudioDeviceID, devtype: DeviceType) -> Result<()>
 {
-    assert!(side == io_side::INPUT || side == io_side::OUTPUT);
+    assert!(devtype == DeviceType::INPUT || devtype == DeviceType::OUTPUT);
 
-    let info: &mut device_info;
-    let mut devtype = DeviceType::UNKNOWN;
-
-    // TODO: We use `io_side` to get `DeviceType`.
-    //       Why don't we just pass `DeviceType` instead of `io_side` here?
-    // TODO: Use if-else instead of if-else-if. We only have INPUT and OUTPUT here!
-    if side == io_side::INPUT {
-        info = &mut stm.input_device;
-        devtype = DeviceType::INPUT;
+    let info = if devtype == DeviceType::INPUT {
+        &mut stm.input_device
     } else {
-        info = &mut stm.output_device;
-        devtype = DeviceType::OUTPUT;
-    }
-    // TODO: If info is a null reference, we will fail here.
-    //       Again, we should use if-else above so we can make sure
-    //       `info` must be set when program goes here.
+        &mut stm.output_device
+    };
+
     *info = device_info::default();
     info.id = id;
-
-    if side == io_side::INPUT {
-        info.flags |= device_flags::DEV_INPUT;
+    info.flags |= if devtype == DeviceType::INPUT {
+        device_flags::DEV_INPUT
     } else {
-        info.flags |= device_flags::DEV_OUTPUT;
-    }
+        device_flags::DEV_OUTPUT
+    };
 
-    // TODO: This could be checked at the first of the function,
-    //       so we don't need to execute any instructions if the type is known.
     let default_device_id = audiounit_get_default_device_id(devtype);
     if default_device_id == kAudioObjectUnknown {
         return Err(Error::error());
     }
+
     if id == kAudioObjectUnknown {
         info.id = default_device_id;
         info.flags |= device_flags::DEV_SELECTED_DEFAULT;
@@ -197,57 +184,6 @@ fn audiounit_set_device_info(stm: &mut AudioUnitStream, id: AudioDeviceID, side:
 
     Ok(())
 }
-
-// The code below is what we translate from C verstion. It cannot compile since
-// `info` may be a null reference.
-// fn audiounit_set_device_info(stm: &mut AudioUnitStream, id: AudioDeviceID, side: io_side) -> Result<()>
-// {
-//     let info: &mut device_info;
-//     let mut devtype = DeviceType::UNKNOWN;
-
-//     // TODO: We use `io_side` to get `DeviceType`.
-//     //       Why don't we just pass `DeviceType` instead of `io_side` here?
-//     // TODO: Use if-else instead of if-else-if. We only have INPUT and OUTPUT here!
-//     if side == io_side::INPUT {
-//         info = &mut stm.input_device;
-//         devtype = DeviceType::INPUT;
-//     } else if side == io_side::OUTPUT {
-//         info = &mut stm.output_device;
-//         devtype = DeviceType::OUTPUT;
-//     }
-//     // TODO: If info is a null reference, we will fail here.
-//     //       Again, we should use if-else above so we can make sure
-//     //       `info` must be set when program goes here.
-//     *info = device_info::default();
-//     info.id = id;
-
-//     if side == io_side::INPUT {
-//         info.flags |= device_flags::DEV_INPUT;
-//     } else if side == io_side::OUTPUT {
-//         info.flags |= device_flags::DEV_OUTPUT;
-//     }
-
-//     // TODO: This could be checked at the first of the function,
-//     //       so we don't need to execute any instructions if the type is known.
-//     let default_device_id = audiounit_get_default_device_id(devtype);
-//     if default_device_id == kAudioObjectUnknown {
-//         return Err(Error::error());
-//     }
-//     if id == kAudioObjectUnknown {
-//         info.id = default_device_id;
-//         info.flags |= device_flags::DEV_SELECTED_DEFAULT;
-//     }
-
-//     if info.id == default_device_id {
-//         info.flags |= device_flags::DEV_SYSTEM_DEFAULT;
-//     }
-
-//     assert_ne!(info.id, kAudioObjectUnknown);
-//     assert!(info.flags.contains(device_flags::DEV_INPUT) && !info.flags.contains(device_flags::DEV_OUTPUT) ||
-//             !info.flags.contains(device_flags::DEV_INPUT) && info.flags.contains(device_flags::DEV_OUTPUT));
-
-//     Ok(())
-// }
 
 fn audiounit_add_listener(listener: &mut property_listener) -> OSStatus
 {
@@ -1210,7 +1146,7 @@ impl ContextOps for AudioUnitContext {
         if let Some(stream_params_ref) = input_stream_params {
             assert!(!stream_params_ref.as_ptr().is_null());
             boxed_stream.input_stream_params = unsafe { *(stream_params_ref.as_ptr()) };
-            if let Err(r) = audiounit_set_device_info(boxed_stream.as_mut(), input_device as AudioDeviceID, io_side::INPUT) {
+            if let Err(r) = audiounit_set_device_info(boxed_stream.as_mut(), input_device as AudioDeviceID, DeviceType::INPUT) {
                 cubeb_log!("({:p}) Fail to set device info for input.", boxed_stream.as_ref());
                 return Err(r);
             }
@@ -1218,7 +1154,7 @@ impl ContextOps for AudioUnitContext {
         if let Some(stream_params_ref) = output_stream_params {
             assert!(!stream_params_ref.as_ptr().is_null());
             boxed_stream.output_stream_params = unsafe { *(stream_params_ref.as_ptr()) };
-            if let Err(r) = audiounit_set_device_info(boxed_stream.as_mut(), output_device as AudioDeviceID, io_side::OUTPUT) {
+            if let Err(r) = audiounit_set_device_info(boxed_stream.as_mut(), output_device as AudioDeviceID, DeviceType::OUTPUT) {
                 cubeb_log!("({:p}) Fail to set device info for output.", boxed_stream.as_ref());
                 return Err(r);
             }
