@@ -38,6 +38,18 @@ use std::os::raw::{c_void, c_char};
 use std::ptr;
 use std::slice;
 
+// TODO:
+// 1. We use AudioDeviceID and AudioObjectID at the same time.
+//    They are actually same. Maybe it's better to use only one
+//    of them so code reader don't get confused about their types.
+// 2. Maybe we can merge `io_side` and `DeviceType`.
+// 3. Add assertions like:
+//    `assert!(devtype == DeviceType::INPUT || devtype == DeviceType::OUTPUT)`
+//    if the function is only called for either input or output. Then
+//    `if (devtype == DeviceType::INPUT) { ... } else { ... }`
+//    makes sense. In fact, for those variables depends on DeviceType, we can
+//    implement a `From` trait to get them.
+
 const DISPATCH_QUEUE_LABEL: &'static str = "org.mozilla.cubeb";
 const PRIVATE_AGGREGATE_DEVICE_NAME: &'static str = "CubebAggregateDevice";
 
@@ -47,6 +59,8 @@ const PRIVATE_AGGREGATE_DEVICE_NAME: &'static str = "CubebAggregateDevice";
 const SAFE_MIN_LATENCY_FRAMES: u32 = 256;
 const SAFE_MAX_LATENCY_FRAMES: u32 = 512;
 
+// TODO: Move them into a seperate module, or add an API to generate these
+//       property addressed.
 const DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS: AudioObjectPropertyAddress =
     AudioObjectPropertyAddress {
         mSelector: kAudioHardwarePropertyDefaultInputDevice,
