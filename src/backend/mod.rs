@@ -297,6 +297,12 @@ fn get_device_name(id: AudioDeviceID) -> CFStringRef
 //     audiounit_strref_to_cstr_utf8(UIname)
 // }
 
+fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
+{
+    stm.mutex.assert_current_thread_owns();
+    Ok(())
+}
+
 fn convert_uint32_into_string(data: u32) -> CString
 {
     // Simply create an empty string if no data.
@@ -1147,6 +1153,7 @@ impl ContextOps for AudioUnitContext {
                 latency_frames
             )
         );
+        boxed_stream.init();
         // TODO: Shouldn't this be put at the first so we don't need to perform
         //       any action if the check fails? (Sync with C version)
         assert!(latency_frames > 0);
@@ -1172,6 +1179,28 @@ impl ContextOps for AudioUnitContext {
                 cubeb_log!("({:p}) Fail to set device info for output.", boxed_stream.as_ref());
                 return Err(r);
             }
+        }
+
+        if let Err(r) = {
+            // It's not critical to lock here, because no other thread has been started
+            // yet, but it allows to assert that the lock has been taken in
+            // `audiounit_setup_stream`.
+
+            // Since we cannot borrow boxed_stream as mutable twice
+            // (for boxed_stream.mutex and boxed_stream itself), we store
+            // the pointer to boxed_stream.mutex(it's a value) and convert it
+            // to a reference as the workaround to borrow as mutable twice.
+            // Same as what we did above for AudioUnitContext.mutex.
+            let mutex_ptr: *mut OwnedCriticalSection;
+            {
+                mutex_ptr = &mut boxed_stream.mutex as *mut OwnedCriticalSection;
+            }
+            // The scope of `_lock` is a critical section.
+            let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+            audiounit_setup_stream(boxed_stream.as_mut())
+        } {
+            cubeb_log!("({:p}) Could not setup the audiounit stream.", boxed_stream.as_ref());
+            return Err(r);
         }
 
         println!("<Initialize> stream @ {:p}\nstream.context @ {:p}\n{:?}",
@@ -1222,6 +1251,7 @@ struct AudioUnitStream<'ctx> {
     output_stream_params: StreamParams,
     input_device: device_info,
     output_device: device_info,
+    mutex: OwnedCriticalSection,
     /* Latency requested by the user. */
     latency_frames: u32,
 }
@@ -1259,8 +1289,12 @@ impl<'ctx> AudioUnitStream<'ctx> {
             ),
             input_device: device_info::new(),
             output_device: device_info::new(),
+            mutex: OwnedCriticalSection::new(),
             latency_frames
         }
+    }
+    fn init(&mut self) {
+        self.mutex.init();
     }
 }
 
