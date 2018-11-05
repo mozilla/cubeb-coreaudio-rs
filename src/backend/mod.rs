@@ -1159,7 +1159,7 @@ impl ContextOps for AudioUnitContext {
         // TODO: Add a method `to_owned` in `StreamParamsRef`.
         if let Some(stream_params_ref) = input_stream_params {
             assert!(!stream_params_ref.as_ptr().is_null());
-            boxed_stream.input_stream_params = unsafe { *(stream_params_ref.as_ptr()) };
+            boxed_stream.input_stream_params = StreamParams::from(unsafe { (*stream_params_ref.as_ptr()) });
             if let Err(r) = audiounit_set_device_info(boxed_stream.as_mut(), input_device as AudioDeviceID, DeviceType::INPUT) {
                 cubeb_log!("({:p}) Fail to set device info for input.", boxed_stream.as_ref());
                 return Err(r);
@@ -1167,7 +1167,7 @@ impl ContextOps for AudioUnitContext {
         }
         if let Some(stream_params_ref) = output_stream_params {
             assert!(!stream_params_ref.as_ptr().is_null());
-            boxed_stream.output_stream_params = unsafe { *(stream_params_ref.as_ptr()) };
+            boxed_stream.output_stream_params = StreamParams::from(unsafe { *(stream_params_ref.as_ptr()) });
             if let Err(r) = audiounit_set_device_info(boxed_stream.as_mut(), output_device as AudioDeviceID, DeviceType::OUTPUT) {
                 cubeb_log!("({:p}) Fail to set device info for output.", boxed_stream.as_ref());
                 return Err(r);
@@ -1218,8 +1218,8 @@ struct AudioUnitStream<'ctx> {
     data_callback: ffi::cubeb_data_callback,
     state_callback: ffi::cubeb_state_callback,
     /* Stream creation parameters */
-    input_stream_params: ffi::cubeb_stream_params,
-    output_stream_params: ffi::cubeb_stream_params,
+    input_stream_params: StreamParams,
+    output_stream_params: StreamParams,
     input_device: device_info,
     output_device: device_info,
     /* Latency requested by the user. */
@@ -1239,20 +1239,24 @@ impl<'ctx> AudioUnitStream<'ctx> {
             user_ptr,
             data_callback,
             state_callback,
-            input_stream_params: ffi::cubeb_stream_params {
-                format: ffi::CUBEB_SAMPLE_FLOAT32NE,
-                rate: 0,
-                channels: 0,
-                layout: ffi::CUBEB_LAYOUT_UNDEFINED,
-                prefs: ffi::CUBEB_STREAM_PREF_NONE
-            },
-            output_stream_params: ffi::cubeb_stream_params {
-                format: ffi::CUBEB_SAMPLE_FLOAT32NE,
-                rate: 0,
-                channels: 0,
-                layout: ffi::CUBEB_LAYOUT_UNDEFINED,
-                prefs: ffi::CUBEB_STREAM_PREF_NONE
-            },
+            input_stream_params: StreamParams::from(
+                ffi::cubeb_stream_params {
+                    format: ffi::CUBEB_SAMPLE_FLOAT32NE,
+                    rate: 0,
+                    channels: 0,
+                    layout: ffi::CUBEB_LAYOUT_UNDEFINED,
+                    prefs: ffi::CUBEB_STREAM_PREF_NONE
+                }
+            ),
+            output_stream_params: StreamParams::from(
+                ffi::cubeb_stream_params {
+                    format: ffi::CUBEB_SAMPLE_FLOAT32NE,
+                    rate: 0,
+                    channels: 0,
+                    layout: ffi::CUBEB_LAYOUT_UNDEFINED,
+                    prefs: ffi::CUBEB_STREAM_PREF_NONE
+                }
+            ),
             input_device: device_info::new(),
             output_device: device_info::new(),
             latency_frames
