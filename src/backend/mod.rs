@@ -1234,29 +1234,29 @@ impl<'ctx> AudioUnitStream<'ctx> {
         state_callback: ffi::cubeb_state_callback,
         latency_frames: u32,
     ) -> Self {
-         AudioUnitStream {
-             context,
-             user_ptr,
-             data_callback,
-             state_callback,
-             input_stream_params: ffi::cubeb_stream_params {
-                 format: ffi::CUBEB_SAMPLE_FLOAT32NE,
-                 rate: 0,
-                 channels: 0,
-                 layout: ffi::CUBEB_LAYOUT_UNDEFINED,
-                 prefs: ffi::CUBEB_STREAM_PREF_NONE
-             },
-             output_stream_params: ffi::cubeb_stream_params {
-                 format: ffi::CUBEB_SAMPLE_FLOAT32NE,
-                 rate: 0,
-                 channels: 0,
-                 layout: ffi::CUBEB_LAYOUT_UNDEFINED,
-                 prefs: ffi::CUBEB_STREAM_PREF_NONE
-             },
-             input_device: device_info::new(),
-             output_device: device_info::new(),
-             latency_frames
-         }
+        AudioUnitStream {
+            context,
+            user_ptr,
+            data_callback,
+            state_callback,
+            input_stream_params: ffi::cubeb_stream_params {
+                format: ffi::CUBEB_SAMPLE_FLOAT32NE,
+                rate: 0,
+                channels: 0,
+                layout: ffi::CUBEB_LAYOUT_UNDEFINED,
+                prefs: ffi::CUBEB_STREAM_PREF_NONE
+            },
+            output_stream_params: ffi::cubeb_stream_params {
+                format: ffi::CUBEB_SAMPLE_FLOAT32NE,
+                rate: 0,
+                channels: 0,
+                layout: ffi::CUBEB_LAYOUT_UNDEFINED,
+                prefs: ffi::CUBEB_STREAM_PREF_NONE
+            },
+            input_device: device_info::new(),
+            output_device: device_info::new(),
+            latency_frames
+        }
     }
 }
 
