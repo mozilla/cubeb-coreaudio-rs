@@ -1084,14 +1084,14 @@ fn test_new_unit_instance_twice() {
 #[test]
 #[should_panic]
 fn test_enable_unit_scope_with_null_unit() {
-    let mut unit: AudioUnit = ptr::null_mut();
+    let unit: AudioUnit = ptr::null_mut();
 
     // audiounit_enable_unit_scope will get a panic immediately
     // when it's called, so the `assert_eq` and the code after
     // that won't be executed.
     assert_eq!(
         audiounit_enable_unit_scope(
-            &mut unit,
+            &unit,
             io_side::INPUT,
             enable_state::DISABLE
         ).unwrap_err(),
@@ -1100,7 +1100,7 @@ fn test_enable_unit_scope_with_null_unit() {
 
     assert_eq!(
         audiounit_enable_unit_scope(
-            &mut unit,
+            &unit,
             io_side::INPUT,
             enable_state::ENABLE
         ).unwrap_err(),
@@ -1109,7 +1109,7 @@ fn test_enable_unit_scope_with_null_unit() {
 
     assert_eq!(
         audiounit_enable_unit_scope(
-            &mut unit,
+            &unit,
             io_side::OUTPUT,
             enable_state::DISABLE
         ).unwrap_err(),
@@ -1118,7 +1118,7 @@ fn test_enable_unit_scope_with_null_unit() {
 
     assert_eq!(
         audiounit_enable_unit_scope(
-            &mut unit,
+            &unit,
             io_side::OUTPUT,
             enable_state::ENABLE
         ).unwrap_err(),
@@ -1152,7 +1152,7 @@ fn test_enable_unit_output_scope_for_default_output_unit() {
 
         assert_eq!(
             audiounit_enable_unit_scope(
-                &mut unit,
+                &unit,
                 io_side::OUTPUT,
                 enable_state::ENABLE
             ).unwrap_err(),
@@ -1161,7 +1161,7 @@ fn test_enable_unit_output_scope_for_default_output_unit() {
 
         assert_eq!(
             audiounit_enable_unit_scope(
-                &mut unit,
+                &unit,
                 io_side::OUTPUT,
                 enable_state::DISABLE
             ).unwrap_err(),
@@ -1170,7 +1170,7 @@ fn test_enable_unit_output_scope_for_default_output_unit() {
 
         assert_eq!(
             audiounit_enable_unit_scope(
-                &mut unit,
+                &unit,
                 io_side::INPUT,
                 enable_state::ENABLE
             ).unwrap_err(),
@@ -1179,7 +1179,7 @@ fn test_enable_unit_output_scope_for_default_output_unit() {
 
         assert_eq!(
             audiounit_enable_unit_scope(
-                &mut unit,
+                &unit,
                 io_side::INPUT,
                 enable_state::DISABLE
             ).unwrap_err(),
@@ -1219,7 +1219,7 @@ fn test_enable_unit_scope() {
 
         assert!(
             audiounit_enable_unit_scope(
-                &mut unit,
+                &unit,
                 io_side::OUTPUT,
                 enable_state::ENABLE
             ).is_ok()
@@ -1227,7 +1227,7 @@ fn test_enable_unit_scope() {
 
         assert!(
             audiounit_enable_unit_scope(
-                &mut unit,
+                &unit,
                 io_side::OUTPUT,
                 enable_state::DISABLE
             ).is_ok()
@@ -1235,7 +1235,7 @@ fn test_enable_unit_scope() {
 
         assert!(
             audiounit_enable_unit_scope(
-                &mut unit,
+                &unit,
                 io_side::INPUT,
                 enable_state::ENABLE
             ).is_ok()
@@ -1243,7 +1243,7 @@ fn test_enable_unit_scope() {
 
         assert!(
             audiounit_enable_unit_scope(
-                &mut unit,
+                &unit,
                 io_side::INPUT,
                 enable_state::DISABLE
             ).is_ok()

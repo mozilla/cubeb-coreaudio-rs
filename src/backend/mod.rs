@@ -383,7 +383,7 @@ enum enable_state {
   ENABLE,
 }
 
-fn audiounit_enable_unit_scope(unit: &mut AudioUnit, side: io_side, state: enable_state) -> Result<()>
+fn audiounit_enable_unit_scope(unit: &AudioUnit, side: io_side, state: enable_state) -> Result<()>
 {
     assert_ne!(*unit, ptr::null_mut());
 
