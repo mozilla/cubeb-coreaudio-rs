@@ -1963,7 +1963,7 @@ fn test_get_devices_of_type() {
     if valid_id(output_id) {
         assert!(!all_devs.is_empty());
         assert!(!out_devs.is_empty());
-        assert!(all_devs.contains(&input_id));
+        assert!(all_devs.contains(&output_id));
         assert!(out_devs.contains(&output_id));
     }
 }
