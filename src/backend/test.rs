@@ -464,17 +464,19 @@ fn test_set_device_info_with_unknown_type() {
         0
     );
 
+    // The first audiounit_set_device_info will get a panic immediately
+    // when it's called, so the second calling won't be executed.
     assert!(audiounit_set_device_info(
         &mut stream,
         kAudioObjectUnknown,
         DeviceType::UNKNOWN
     ).is_err());
 
-    // assert!(audiounit_set_device_info(
-    //     &mut stream,
-    //     kAudioObjectSystemObject,
-    //     DeviceType::UNKNOWN
-    // ).is_err());
+    assert!(audiounit_set_device_info(
+        &mut stream,
+        kAudioObjectSystemObject,
+        DeviceType::UNKNOWN
+    ).is_err());
 }
 
 #[test]
@@ -491,17 +493,19 @@ fn test_set_device_info_with_inout_type() {
         0
     );
 
+    // The first audiounit_set_device_info will get a panic immediately
+    // when it's called, so the second calling won't be executed.
     assert!(audiounit_set_device_info(
         &mut stream,
         kAudioObjectUnknown,
         DeviceType::INPUT | DeviceType::OUTPUT
     ).is_err());
 
-    // assert!(audiounit_set_device_info(
-    //     &mut stream,
-    //     kAudioObjectSystemObject,
-    //     DeviceType::INPUT | DeviceType::OUTPUT
-    // ).is_err());
+    assert!(audiounit_set_device_info(
+        &mut stream,
+        kAudioObjectSystemObject,
+        DeviceType::INPUT | DeviceType::OUTPUT
+    ).is_err());
 }
 
 #[test]
@@ -1192,6 +1196,10 @@ fn test_enable_unit_output_scope_for_default_output_unit() {
 
 #[test]
 fn test_enable_unit_scope() {
+    // It's ok to enable and disable the scopes of input or output
+    // for those units whose subtype are kAudioUnitSubType_HALOutput
+    // even when there is no available input or output devices.
+
     let flags_list = [
         device_flags::DEV_UNKNOWN,
         device_flags::DEV_INPUT,
