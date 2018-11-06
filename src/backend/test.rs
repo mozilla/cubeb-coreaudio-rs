@@ -403,6 +403,14 @@ fn test_manual_ops_context_register_device_collection_changed() {
 
 // Private APIs
 // ============================================================================
+// has_input
+// ------------------------------------
+// TODO
+
+// has_output
+// ------------------------------------
+// TODO
+
 // increment_active_streams
 // ------------------------------------
 #[test]
@@ -985,6 +993,40 @@ fn test_get_device_name() {
     }
 }
 
+// new_unit_instance
+// ------------------------------------
+#[test]
+fn test_new_unit_instance() {
+    let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
+    if !valid_id(output_id) {
+        return
+    }
+
+    let mut devies = vec![device_info::new()];
+    let mut system_defaut_output_device = device_info::new();
+    system_defaut_output_device.flags |= device_flags::DEV_SYSTEM_DEFAULT |
+                                         device_flags::DEV_OUTPUT;
+    devies.push(system_defaut_output_device);
+
+    for device in devies.iter() {
+        let mut unit: AudioUnit = ptr::null_mut();
+        assert!(audiounit_new_unit_instance(&mut unit, device).is_ok());
+        assert_ne!(unit, ptr::null_mut());
+        // TODO: Destroy AudioUnit.
+    }
+}
+
+// enable_unit_scope
+// ------------------------------------
+// TODO
+
+// create_unit
+// ------------------------------------
+// TODO
+
+// setup_stream
+// ------------------------------------
+// TODO
 
 // convert_uint32_into_string
 // ------------------------------------

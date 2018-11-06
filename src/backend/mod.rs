@@ -26,7 +26,7 @@ mod owned_critical_section;
 // - StreamParamsRef    : pub struct StreamParamsRef        (cubeb-core/stream.rs)
 use cubeb_backend::{ffi, Context, ContextOps, DeviceCollectionRef, DeviceId,
                     DeviceRef, DeviceType, Error, Ops, Result, Stream,
-                    StreamOps, StreamParams, StreamParamsRef};
+                    StreamOps, StreamParams, StreamParamsRef, StreamPrefs};
 use self::async_dispatch::*;
 use self::coreaudio_sys::*;
 use self::utils::*;
@@ -49,6 +49,9 @@ use std::slice;
 //    `if (devtype == DeviceType::INPUT) { ... } else { ... }`
 //    makes sense. In fact, for those variables depends on DeviceType, we can
 //    implement a `From` trait to get them.
+
+const AU_OUT_BUS: AudioUnitElement = 0;
+const AU_IN_BUS: AudioUnitElement = 1;
 
 const DISPATCH_QUEUE_LABEL: &'static str = "org.mozilla.cubeb";
 const PRIVATE_AGGREGATE_DEVICE_NAME: &'static str = "CubebAggregateDevice";
@@ -112,7 +115,7 @@ enum io_side {
   OUTPUT,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct device_info {
     id: AudioDeviceID,
     flags: device_flags
@@ -152,6 +155,16 @@ impl<'addr, 'stm, 'ctx> property_listener<'addr, 'stm, 'ctx> {
             stream: stm
         }
     }
+}
+
+fn has_input(stm: &AudioUnitStream) -> bool
+{
+    stm.input_stream_params.rate() > 0
+}
+
+fn has_output(stm: &AudioUnitStream) -> bool
+{
+    stm.output_stream_params.rate() > 0
 }
 
 fn audiounit_increment_active_streams(context: &mut AudioUnitContext)
@@ -297,9 +310,171 @@ fn get_device_name(id: AudioDeviceID) -> CFStringRef
 //     audiounit_strref_to_cstr_utf8(UIname)
 // }
 
+#[cfg(target_os = "ios")]
+fn audiounit_new_unit_instance(unit: &mut AudioUnit, _: &device_info) -> Result<()>
+{
+    let mut desc = AudioComponentDescription::default();
+    let mut comp: AudioComponent;
+    let mut rv: OSStatus = 0;
+
+    desc.componentType = kAudioUnitType_Output;
+    desc.componentSubType = kAudioUnitSubType_RemoteIO;
+
+    desc.componentManufacturer = kAudioUnitManufacturer_Apple;
+    desc.componentFlags = 0;
+    desc.componentFlagsMask = 0;
+    comp = unsafe { AudioComponentFindNext(ptr::null_mut(), &desc) };
+    if comp.is_null() {
+        cubeb_log!("Could not find matching audio hardware.");
+        return Err(Error::error());
+    }
+
+    rv = unsafe { AudioComponentInstanceNew(comp, unit) };
+    if rv != 0 {
+        cubeb_log!("AudioComponentInstanceNew rv={}", rv);
+        return Err(Error::error());
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "ios"))]
+fn audiounit_new_unit_instance(unit: &mut AudioUnit, device: &device_info) -> Result<()>
+{
+    let mut desc = AudioComponentDescription::default();
+    let mut comp: AudioComponent;
+    let mut rv: OSStatus = 0;
+
+    desc.componentType = kAudioUnitType_Output;
+    // Use the DefaultOutputUnit for output when no device is specified
+    // so we retain automatic output device switching when the default
+    // changes.  Once we have complete support for device notifications
+    // and switching, we can use the AUHAL for everything.
+    if device.flags.contains(device_flags::DEV_SYSTEM_DEFAULT |
+                             device_flags::DEV_OUTPUT) {
+        desc.componentSubType = kAudioUnitSubType_DefaultOutput;
+    } else {
+        desc.componentSubType = kAudioUnitSubType_HALOutput;
+    }
+
+    desc.componentManufacturer = kAudioUnitManufacturer_Apple;
+    desc.componentFlags = 0;
+    desc.componentFlagsMask = 0;
+    comp = unsafe { AudioComponentFindNext(ptr::null_mut(), &desc) };
+    if comp.is_null() {
+        cubeb_log!("Could not find matching audio hardware.");
+        return Err(Error::error());
+    }
+
+    rv = unsafe { AudioComponentInstanceNew(comp, unit) };
+    if rv != 0 {
+        cubeb_log!("AudioComponentInstanceNew rv={}", rv);
+        return Err(Error::error());
+    }
+    Ok(())
+}
+
+#[derive(PartialEq)]
+enum enable_state {
+  DISABLE,
+  ENABLE,
+}
+
+fn audiounit_enable_unit_scope(unit: &mut AudioUnit, side: io_side, state: enable_state) -> Result<()>
+{
+    let mut rv: OSStatus = 0;
+    let enable: u32 = if state == enable_state::DISABLE { 0 } else { 1 };
+    rv = audio_unit_set_property(unit, kAudioOutputUnitProperty_EnableIO,
+                                 if side == io_side::INPUT { kAudioUnitScope_Input } else { kAudioUnitScope_Output },
+                                 if side == io_side::INPUT { AU_IN_BUS } else { AU_OUT_BUS },
+                                 &enable,
+                                 mem::size_of::<u32>());
+    if rv != 0 {
+        cubeb_log!("AudioUnitSetProperty/kAudioOutputUnitProperty_EnableIO rv={}", rv);
+        return Err(Error::error());
+    }
+    Ok(())
+}
+
+fn audiounit_create_unit(unit: &mut AudioUnit, device: &device_info) -> Result<()>
+{
+    assert_eq!(*unit, ptr::null_mut());
+
+    let mut rv: OSStatus = 0;
+    audiounit_new_unit_instance(unit, device)?;
+    assert_ne!(*unit, ptr::null_mut());
+
+    if device.flags.contains(device_flags::DEV_SYSTEM_DEFAULT | device_flags::DEV_OUTPUT) {
+        return Ok(());
+    }
+
+    if device.flags.contains(device_flags::DEV_INPUT) {
+        if let Err(r) = audiounit_enable_unit_scope(unit, io_side::INPUT, enable_state::ENABLE) {
+            cubeb_log!("Failed to enable audiounit input scope ");
+            return Err(r);
+        }
+        if let Err(r) = audiounit_enable_unit_scope(unit, io_side::OUTPUT, enable_state::DISABLE) {
+            cubeb_log!("Failed to disable audiounit output scope ");
+            return Err(r);
+        }
+    } else if device.flags.contains(device_flags::DEV_OUTPUT) {
+        if let Err(r) = audiounit_enable_unit_scope(unit, io_side::OUTPUT, enable_state::ENABLE) {
+            cubeb_log!("Failed to enable audiounit output scope ");
+            return Err(r);
+        }
+        if let Err(r) = audiounit_enable_unit_scope(unit, io_side::INPUT, enable_state::DISABLE) {
+            cubeb_log!("Failed to disable audiounit input scope ");
+            return Err(r);
+        }
+    } else {
+        assert!(false);
+    }
+
+    rv = audio_unit_set_property(unit,
+                                 kAudioOutputUnitProperty_CurrentDevice,
+                                 kAudioUnitScope_Global,
+                                 0,
+                                 &device.id,
+                                 mem::size_of::<AudioDeviceID>());
+    if rv != 0 {
+        cubeb_log!("AudioUnitSetProperty/kAudioOutputUnitProperty_CurrentDevice rv={}", rv);
+        return Err(Error::error());
+    }
+
+    Ok(())
+}
+
 fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
 {
     stm.mutex.assert_current_thread_owns();
+
+    if stm.input_stream_params.prefs().contains(StreamPrefs::LOOPBACK) ||
+       stm.output_stream_params.prefs().contains(StreamPrefs::LOOPBACK) {
+        cubeb_log!("({:p}) Loopback not supported for audiounit.", stm);
+        return Err(Error::not_supported());
+    }
+
+    let in_dev_info = stm.input_device.clone();
+    let out_dev_info = stm.output_device.clone();
+
+    if has_input(stm) && has_output(stm) &&
+       stm.input_device.id != stm.output_device.id {
+        // Create aggregate device ...
+    }
+
+    if has_input(stm) {
+        if let Err(r) = audiounit_create_unit(&mut stm.input_unit, &in_dev_info) {
+            cubeb_log!("({:p}) AudioUnit creation for input failed.", stm);
+            return Err(r);
+        }
+    }
+
+    if has_output(stm) {
+        if let Err(r) = audiounit_create_unit(&mut stm.output_unit, &out_dev_info) {
+            cubeb_log!("({:p}) AudioUnit creation for output failed.", stm);
+            return Err(r);
+        }
+    }
+
     Ok(())
 }
 
@@ -1251,6 +1426,9 @@ struct AudioUnitStream<'ctx> {
     output_stream_params: StreamParams,
     input_device: device_info,
     output_device: device_info,
+    /* I/O AudioUnits */
+    input_unit: AudioUnit,
+    output_unit: AudioUnit,
     mutex: OwnedCriticalSection,
     /* Latency requested by the user. */
     latency_frames: u32,
@@ -1289,6 +1467,8 @@ impl<'ctx> AudioUnitStream<'ctx> {
             ),
             input_device: device_info::new(),
             output_device: device_info::new(),
+            input_unit: ptr::null_mut(),
+            output_unit: ptr::null_mut(),
             mutex: OwnedCriticalSection::new(),
             latency_frames
         }

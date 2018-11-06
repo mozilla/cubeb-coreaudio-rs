@@ -167,6 +167,26 @@ pub fn audio_object_remove_property_listener(
     }
 }
 
+pub fn audio_unit_set_property<T>(
+    unit: &sys::AudioUnit,
+    property: sys::AudioUnitPropertyID,
+    scope: sys::AudioUnitScope,
+    element: sys::AudioUnitElement,
+    data: *const T,
+    size: usize,
+) -> sys::OSStatus {
+    unsafe {
+        sys::AudioUnitSetProperty(
+            *unit,
+            property,
+            scope,
+            element,
+            data as *const c_void,
+            size as sys::UInt32,
+        )
+    }
+}
+
 #[test]
 fn test_create_static_cfstring_ref() {
     use super::*;
