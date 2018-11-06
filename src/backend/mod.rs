@@ -313,6 +313,8 @@ fn get_device_name(id: AudioDeviceID) -> CFStringRef
 #[cfg(target_os = "ios")]
 fn audiounit_new_unit_instance(unit: &mut AudioUnit, _: &device_info) -> Result<()>
 {
+    assert_eq!(*unit, ptr::null_mut());
+
     let mut desc = AudioComponentDescription::default();
     let mut comp: AudioComponent;
     let mut rv: OSStatus = 0;
@@ -340,8 +342,10 @@ fn audiounit_new_unit_instance(unit: &mut AudioUnit, _: &device_info) -> Result<
 #[cfg(not(target_os = "ios"))]
 fn audiounit_new_unit_instance(unit: &mut AudioUnit, device: &device_info) -> Result<()>
 {
+    assert_eq!(*unit, ptr::null_mut());
+
     let mut desc = AudioComponentDescription::default();
-    let mut comp: AudioComponent;
+    let mut comp: AudioComponent = ptr::null_mut();
     let mut rv: OSStatus = 0;
 
     desc.componentType = kAudioUnitType_Output;
@@ -381,6 +385,8 @@ enum enable_state {
 
 fn audiounit_enable_unit_scope(unit: &mut AudioUnit, side: io_side, state: enable_state) -> Result<()>
 {
+    assert_ne!(*unit, ptr::null_mut());
+
     let mut rv: OSStatus = 0;
     let enable: u32 = if state == enable_state::DISABLE { 0 } else { 1 };
     rv = audio_unit_set_property(unit, kAudioOutputUnitProperty_EnableIO,
