@@ -23,7 +23,11 @@ fn test_ops_context_max_channel_count() {
     let mut max_channel_count = u32::max_value();
     assert_eq!(
         unsafe { OPS.get_max_channel_count.unwrap()(c, &mut max_channel_count) },
-        ffi::CUBEB_OK
+        if valid_id(audiounit_get_default_device_id(DeviceType::OUTPUT)) {
+            ffi::CUBEB_OK
+        } else {
+            ffi::CUBEB_ERROR
+        }
     );
     assert!(max_channel_count > 0);
 }
@@ -33,12 +37,20 @@ fn test_ops_context_min_latency() {
     let c: *mut ffi::cubeb = ptr::null_mut();
     let params: ffi::cubeb_stream_params = unsafe { ::std::mem::zeroed() };
     let mut latency = u32::max_value();
-    assert_eq!(
-        unsafe { OPS.get_min_latency.unwrap()(c, params, &mut latency) },
-        ffi::CUBEB_OK
-    );
-    assert!(latency >= SAFE_MIN_LATENCY_FRAMES);
-    assert!(SAFE_MAX_LATENCY_FRAMES >= latency);
+    if valid_id(audiounit_get_default_device_id(DeviceType::OUTPUT)) {
+        assert_eq!(
+            unsafe { OPS.get_min_latency.unwrap()(c, params, &mut latency) },
+            ffi::CUBEB_OK
+        );
+        assert!(latency >= SAFE_MIN_LATENCY_FRAMES);
+        assert!(SAFE_MAX_LATENCY_FRAMES >= latency);
+    } else {
+        assert_eq!(
+            unsafe { OPS.get_min_latency.unwrap()(c, params, &mut latency) },
+            ffi::CUBEB_ERROR
+        );
+        assert_eq!(latency, u32::max_value());
+    }
 }
 
 #[test]
@@ -47,7 +59,11 @@ fn test_ops_context_preferred_sample_rate() {
     let mut rate = u32::max_value();
     assert_eq!(
         unsafe { OPS.get_preferred_sample_rate.unwrap()(c, &mut rate) },
-        ffi::CUBEB_OK
+        if valid_id(audiounit_get_default_device_id(DeviceType::OUTPUT)) {
+            ffi::CUBEB_OK
+        } else {
+            ffi::CUBEB_ERROR
+        }
     );
     assert!(rate > 0);
 }
@@ -922,6 +938,19 @@ fn test_add_then_remove_listener() {
 #[test]
 fn test_get_acceptable_latency_range() {
     let mut latency_range = AudioValueRange::default();
+
+    // Get an error if there is no avaiable output device.
+    let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
+    if !valid_id(output_id) {
+        assert_eq!(
+            audiounit_get_acceptable_latency_range(
+                &mut latency_range
+            ).unwrap_err(),
+            Error::error()
+        );
+        return;
+    }
+
     assert!(
         audiounit_get_acceptable_latency_range(
             &mut latency_range
