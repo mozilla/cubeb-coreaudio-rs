@@ -167,6 +167,26 @@ pub fn audio_object_remove_property_listener(
     }
 }
 
+pub fn audio_unit_get_property<T>(
+    unit: &sys::AudioUnit,
+    property: sys::AudioUnitPropertyID,
+    scope: sys::AudioUnitScope,
+    element: sys::AudioUnitElement,
+    data: *mut T,
+    size: *mut usize,
+) -> sys::OSStatus {
+    unsafe {
+        sys::AudioUnitGetProperty(
+            *unit,
+            property,
+            scope,
+            element,
+            data as *mut c_void,
+            size as *mut sys::UInt32
+        )
+    }
+}
+
 pub fn audio_unit_set_property<T>(
     unit: &sys::AudioUnit,
     property: sys::AudioUnitPropertyID,
