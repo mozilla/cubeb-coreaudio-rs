@@ -997,28 +997,228 @@ fn test_get_device_name() {
 // ------------------------------------
 #[test]
 fn test_new_unit_instance() {
-    let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-    if !valid_id(output_id) {
-        return
-    }
+    let flags_list = [
+        device_flags::DEV_UNKNOWN,
+        device_flags::DEV_INPUT,
+        device_flags::DEV_OUTPUT,
+        device_flags::DEV_INPUT | device_flags::DEV_OUTPUT,
+        device_flags::DEV_INPUT | device_flags::DEV_SYSTEM_DEFAULT,
+        device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT,
+        device_flags::DEV_INPUT | device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT,
+    ];
 
-    let mut devies = vec![device_info::new()];
-    let mut system_defaut_output_device = device_info::new();
-    system_defaut_output_device.flags |= device_flags::DEV_SYSTEM_DEFAULT |
-                                         device_flags::DEV_OUTPUT;
-    devies.push(system_defaut_output_device);
-
-    for device in devies.iter() {
+    for flags in flags_list.iter() {
+        let device = device_info {
+            id: kAudioObjectUnknown,
+            flags: *flags
+        };
         let mut unit: AudioUnit = ptr::null_mut();
-        assert!(audiounit_new_unit_instance(&mut unit, device).is_ok());
+        assert!(audiounit_new_unit_instance(&mut unit, &device).is_ok());
         assert_ne!(unit, ptr::null_mut());
-        // TODO: Destroy AudioUnit.
+        // Destroy the AudioUnits
+        unsafe {
+            AudioUnitUninitialize(unit);
+            AudioComponentInstanceDispose(unit);
+        }
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_new_unit_instance_twice() {
+    let device = device_info::new();
+    let mut unit: AudioUnit = ptr::null_mut();
+    assert!(audiounit_new_unit_instance(&mut unit, &device).is_ok());
+    assert_ne!(unit, ptr::null_mut());
+
+    // audiounit_new_unit_instance will get a panic immediately
+    // when it's called, so the `assert_eq` and the code after
+    // that won't be executed.
+    assert_eq!(
+        audiounit_new_unit_instance(&mut unit, &device).unwrap_err(),
+        Error::error()
+    );
+
+    // Destroy the AudioUnits
+    unsafe {
+        AudioUnitUninitialize(unit);
+        AudioComponentInstanceDispose(unit);
     }
 }
 
 // enable_unit_scope
 // ------------------------------------
-// TODO
+#[test]
+#[should_panic]
+fn test_enable_unit_scope_with_null_unit() {
+    let mut unit: AudioUnit = ptr::null_mut();
+
+    // audiounit_enable_unit_scope will get a panic immediately
+    // when it's called, so the `assert_eq` and the code after
+    // that won't be executed.
+    assert_eq!(
+        audiounit_enable_unit_scope(
+            &mut unit,
+            io_side::INPUT,
+            enable_state::DISABLE
+        ).unwrap_err(),
+        Error::error()
+    );
+
+    assert_eq!(
+        audiounit_enable_unit_scope(
+            &mut unit,
+            io_side::INPUT,
+            enable_state::ENABLE
+        ).unwrap_err(),
+        Error::error()
+    );
+
+    assert_eq!(
+        audiounit_enable_unit_scope(
+            &mut unit,
+            io_side::OUTPUT,
+            enable_state::DISABLE
+        ).unwrap_err(),
+        Error::error()
+    );
+
+    assert_eq!(
+        audiounit_enable_unit_scope(
+            &mut unit,
+            io_side::OUTPUT,
+            enable_state::ENABLE
+        ).unwrap_err(),
+        Error::error()
+    );
+}
+
+#[test]
+fn test_enable_unit_output_scope_for_default_output_unit() {
+    // For those units whose subtype is kAudioUnitSubType_DefaultOutput,
+    // their input or output scopes cannot be enabled or disabled.
+
+    let devices = [
+        device_info {
+            id: kAudioObjectUnknown,
+            flags: device_flags::DEV_OUTPUT |
+                   device_flags::DEV_SYSTEM_DEFAULT
+        },
+        device_info {
+            id: kAudioObjectUnknown,
+            flags: device_flags::DEV_INPUT |
+                   device_flags::DEV_OUTPUT |
+                   device_flags::DEV_SYSTEM_DEFAULT
+        },
+    ];
+
+    for device in devices.iter() {
+        let mut unit: AudioUnit = ptr::null_mut();
+        assert!(audiounit_new_unit_instance(&mut unit, &device).is_ok());
+        assert_ne!(unit, ptr::null_mut());
+
+        assert_eq!(
+            audiounit_enable_unit_scope(
+                &mut unit,
+                io_side::OUTPUT,
+                enable_state::ENABLE
+            ).unwrap_err(),
+            Error::error()
+        );
+
+        assert_eq!(
+            audiounit_enable_unit_scope(
+                &mut unit,
+                io_side::OUTPUT,
+                enable_state::DISABLE
+            ).unwrap_err(),
+            Error::error()
+        );
+
+        assert_eq!(
+            audiounit_enable_unit_scope(
+                &mut unit,
+                io_side::INPUT,
+                enable_state::ENABLE
+            ).unwrap_err(),
+            Error::error()
+        );
+
+        assert_eq!(
+            audiounit_enable_unit_scope(
+                &mut unit,
+                io_side::INPUT,
+                enable_state::DISABLE
+            ).unwrap_err(),
+            Error::error()
+        );
+
+        // Destroy the AudioUnits
+        unsafe {
+            AudioUnitUninitialize(unit);
+            AudioComponentInstanceDispose(unit);
+        }
+    }
+}
+
+#[test]
+fn test_enable_unit_scope() {
+    let flags_list = [
+        device_flags::DEV_UNKNOWN,
+        device_flags::DEV_INPUT,
+        device_flags::DEV_OUTPUT,
+        device_flags::DEV_INPUT | device_flags::DEV_OUTPUT,
+        device_flags::DEV_INPUT | device_flags::DEV_SYSTEM_DEFAULT,
+    ];
+
+    for flags in flags_list.iter() {
+        let device = device_info {
+            id: kAudioObjectUnknown,
+            flags: *flags
+        };
+        let mut unit: AudioUnit = ptr::null_mut();
+        assert!(audiounit_new_unit_instance(&mut unit, &device).is_ok());
+        assert_ne!(unit, ptr::null_mut());
+
+        assert!(
+            audiounit_enable_unit_scope(
+                &mut unit,
+                io_side::OUTPUT,
+                enable_state::ENABLE
+            ).is_ok()
+        );
+
+        assert!(
+            audiounit_enable_unit_scope(
+                &mut unit,
+                io_side::OUTPUT,
+                enable_state::DISABLE
+            ).is_ok()
+        );
+
+        assert!(
+            audiounit_enable_unit_scope(
+                &mut unit,
+                io_side::INPUT,
+                enable_state::ENABLE
+            ).is_ok()
+        );
+
+        assert!(
+            audiounit_enable_unit_scope(
+                &mut unit,
+                io_side::INPUT,
+                enable_state::DISABLE
+            ).is_ok()
+        );
+
+        // Destroy the AudioUnits
+        unsafe {
+            AudioUnitUninitialize(unit);
+            AudioComponentInstanceDispose(unit);
+        }
+    }
+}
 
 // create_unit
 // ------------------------------------
