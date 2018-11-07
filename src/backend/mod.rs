@@ -173,6 +173,25 @@ fn audiounit_increment_active_streams(context: &mut AudioUnitContext)
     context.active_streams += 1;
 }
 
+fn audiounit_decrement_active_streams(context: &mut AudioUnitContext)
+{
+    context.mutex.assert_current_thread_owns();
+    context.active_streams -= 1;
+}
+
+fn audiounit_active_streams(context: &mut AudioUnitContext) -> i32
+{
+    context.mutex.assert_current_thread_owns();
+    context.active_streams
+}
+
+fn audiounit_set_global_latency(context: &mut AudioUnitContext, latency_frames: u32)
+{
+    context.mutex.assert_current_thread_owns();
+    assert_eq!(audiounit_active_streams(context), 1);
+    context.global_latency_frames = latency_frames;
+}
+
 fn audiounit_set_device_info(stm: &mut AudioUnitStream, id: AudioDeviceID, devtype: DeviceType) -> Result<()>
 {
     assert!(devtype == DeviceType::INPUT || devtype == DeviceType::OUTPUT);
@@ -449,6 +468,79 @@ fn audiounit_create_unit(unit: &mut AudioUnit, device: &device_info) -> Result<(
     Ok(())
 }
 
+// TODO: 1. Change to audiounit_clamp_latency(stm: &mut AudioUnitStream)
+//          latency_frames is actually equal to stm.latency_frames.
+//       2. Merge the value clamp for boundary.
+fn audiounit_clamp_latency(stm: &mut AudioUnitStream, latency_frames: u32) -> u32
+{
+    // For the 1st stream set anything within safe min-max
+    assert!(audiounit_active_streams(stm.context) > 0);
+    if audiounit_active_streams(stm.context) == 1 {
+        return cmp::max(cmp::min(latency_frames, SAFE_MAX_LATENCY_FRAMES),
+                        SAFE_MIN_LATENCY_FRAMES);
+    }
+    // TODO: Should we check this even for 1 stream case ?
+    //       Do we need to set latency if there is no output unit ?
+    assert_ne!(stm.output_unit, ptr::null_mut());
+
+    // If more than one stream operates in parallel
+    // allow only lower values of latency
+    let mut r: OSStatus = 0;
+    let mut output_buffer_size: UInt32 = 0;
+    let mut size = mem::size_of_val(&output_buffer_size);
+    // TODO: Why we check `output_unit` here? We already have an assertions above!
+    if stm.output_unit != ptr::null_mut() {
+        r = audio_unit_get_property(&stm.output_unit,
+                                    kAudioDevicePropertyBufferFrameSize,
+                                    kAudioUnitScope_Output,
+                                    AU_OUT_BUS,
+                                    &mut output_buffer_size,
+                                    &mut size);
+        if r != 0 {
+            cubeb_log!("AudioUnitGetProperty/output/kAudioDevicePropertyBufferFrameSize rv={}", r);
+            // TODO: Shouldn't it return something in range between
+            //       SAFE_MIN_LATENCY_FRAMES and SAFE_MAX_LATENCY_FRAMES ?
+            return 0;
+        }
+
+        output_buffer_size = cmp::max(cmp::min(output_buffer_size, SAFE_MAX_LATENCY_FRAMES),
+                                      SAFE_MIN_LATENCY_FRAMES);
+    }
+
+    let mut input_buffer_size: UInt32 = 0;
+    if stm.input_unit != ptr::null_mut() {
+        r = audio_unit_get_property(&stm.input_unit,
+                                    kAudioDevicePropertyBufferFrameSize,
+                                    kAudioUnitScope_Input,
+                                    AU_IN_BUS,
+                                    &mut input_buffer_size,
+                                    &mut size);
+        if r != 0 {
+            cubeb_log!("AudioUnitGetProperty/input/kAudioDevicePropertyBufferFrameSize rv={}", r);
+            // TODO: Shouldn't it return something in range between
+            //       SAFE_MIN_LATENCY_FRAMES and SAFE_MAX_LATENCY_FRAMES ?
+            return 0;
+        }
+
+        input_buffer_size = cmp::max(cmp::min(input_buffer_size, SAFE_MAX_LATENCY_FRAMES),
+                                     SAFE_MIN_LATENCY_FRAMES);
+    }
+
+    // Every following active streams can only set smaller latency
+    let upper_latency_limit = if input_buffer_size != 0 && output_buffer_size != 0 {
+        cmp::min(input_buffer_size, output_buffer_size)
+    } else if input_buffer_size != 0 {
+        input_buffer_size
+    } else if output_buffer_size != 0 {
+        output_buffer_size
+    } else {
+        SAFE_MAX_LATENCY_FRAMES
+    };
+
+    cmp::max(cmp::min(latency_frames, upper_latency_limit),
+             SAFE_MIN_LATENCY_FRAMES)
+}
+
 fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
 {
     stm.mutex.assert_current_thread_owns();
@@ -479,6 +571,23 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
             cubeb_log!("({:p}) AudioUnit creation for output failed.", stm);
             return Err(r);
         }
+    }
+
+    /* Latency cannot change if another stream is operating in parallel. In this case
+     * latecy is set to the other stream value. */
+    if audiounit_active_streams(stm.context) > 1 {
+        cubeb_log!("({:p}) More than one active stream, use global latency.", stm);
+        stm.latency_frames = stm.context.global_latency_frames;
+    } else {
+        /* Silently clamp the latency down to the platform default, because we
+         * synthetize the clock from the callbacks, and we want the clock to update
+         * often. */
+        // Create a `latency_frames` here to avoid the borrowing issue.
+        let latency_frames = stm.latency_frames;
+        // TODO: Change `audiounit_clamp_latency` to audiounit_clamp_latency(stm)!
+        stm.latency_frames = audiounit_clamp_latency(stm, latency_frames);
+        assert!(stm.latency_frames > 0); // Ungly error check
+        audiounit_set_global_latency(stm.context, stm.latency_frames);
     }
 
     Ok(())
@@ -1076,6 +1185,7 @@ pub struct AudioUnitContext {
     _ops: *const Ops,
     mutex: OwnedCriticalSection,
     active_streams: i32, // TODO: Shouldn't it be u32?
+    global_latency_frames: u32,
     input_collection_changed_callback: ffi::cubeb_device_collection_changed_callback,
     input_collection_changed_user_ptr: *mut c_void,
     output_collection_changed_callback: ffi::cubeb_device_collection_changed_callback,
@@ -1093,6 +1203,7 @@ impl AudioUnitContext {
             _ops: &OPS as *const _,
             mutex: OwnedCriticalSection::new(),
             active_streams: 0,
+            global_latency_frames: 0,
             input_collection_changed_callback: None,
             input_collection_changed_user_ptr: ptr::null_mut(),
             output_collection_changed_callback: None,
@@ -1422,7 +1533,7 @@ impl ContextOps for AudioUnitContext {
 
 #[derive(Debug)]
 struct AudioUnitStream<'ctx> {
-    context: &'ctx AudioUnitContext,
+    context: &'ctx mut AudioUnitContext,
     user_ptr: *mut c_void,
 
     data_callback: ffi::cubeb_data_callback,
@@ -1442,7 +1553,7 @@ struct AudioUnitStream<'ctx> {
 
 impl<'ctx> AudioUnitStream<'ctx> {
     fn new(
-        context: &'ctx AudioUnitContext,
+        context: &'ctx mut AudioUnitContext,
         user_ptr: *mut c_void,
         data_callback: ffi::cubeb_data_callback,
         state_callback: ffi::cubeb_state_callback,

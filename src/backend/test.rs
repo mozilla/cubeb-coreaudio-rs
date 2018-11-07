@@ -428,9 +428,11 @@ fn test_manual_ops_context_register_device_collection_changed() {
 // TODO
 
 // increment_active_streams
+// decrement_active_streams
+// active_streams
 // ------------------------------------
 #[test]
-fn test_increment_active_streams() {
+fn test_increase_and_decrease_active_streams() {
     let mut ctx = AudioUnitContext::new();
     ctx.init();
 
@@ -445,6 +447,36 @@ fn test_increment_active_streams() {
     for i in 1..10 {
         audiounit_increment_active_streams(&mut ctx);
         assert_eq!(ctx.active_streams, i);
+        assert_eq!(audiounit_active_streams(&mut ctx), i);
+    }
+
+    for i in (0..9).rev() {
+        audiounit_decrement_active_streams(&mut ctx);
+        assert_eq!(ctx.active_streams, i);
+        assert_eq!(audiounit_active_streams(&mut ctx), i);
+    }
+}
+
+// set_global_latency
+// ------------------------------------
+fn test_set_global_latency() {
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    let mutex_ptr: *mut OwnedCriticalSection;
+    {
+        mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+    }
+    // The scope of `_lock` is a critical section.
+    let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+
+    assert_eq!(ctx.active_streams, 0);
+    audiounit_increment_active_streams(&mut ctx);
+    assert_eq!(ctx.active_streams, 1);
+
+    for i in 0..10 {
+        audiounit_set_global_latency(&mut ctx, i);
+        assert_eq!(ctx.global_latency_frames, i);
     }
 }
 
@@ -453,11 +485,11 @@ fn test_increment_active_streams() {
 #[test]
 #[should_panic]
 fn test_set_device_info_with_unknown_type() {
-    let ctx = AudioUnitContext::new();
+    let mut ctx = AudioUnitContext::new();
     // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
     // or `ctx.init()`.
     let mut stream = AudioUnitStream::new(
-        &ctx,
+        &mut ctx,
         ptr::null_mut(),
         None,
         None,
@@ -482,11 +514,11 @@ fn test_set_device_info_with_unknown_type() {
 #[test]
 #[should_panic]
 fn test_set_device_info_with_inout_type() {
-    let ctx = AudioUnitContext::new();
+    let mut ctx = AudioUnitContext::new();
     // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
     // or `ctx.init()`.
     let mut stream = AudioUnitStream::new(
-        &ctx,
+        &mut ctx,
         ptr::null_mut(),
         None,
         None,
@@ -510,11 +542,11 @@ fn test_set_device_info_with_inout_type() {
 
 #[test]
 fn test_set_device_info_for_unknown_input_device() {
-    let ctx = AudioUnitContext::new();
+    let mut ctx = AudioUnitContext::new();
     // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
     // or `ctx.init()`.
     let mut stream = AudioUnitStream::new(
-        &ctx,
+        &mut ctx,
         ptr::null_mut(),
         None,
         None,
@@ -557,11 +589,11 @@ fn test_set_device_info_for_unknown_input_device() {
 
 #[test]
 fn test_set_device_info_for_unknown_output_device() {
-    let ctx = AudioUnitContext::new();
+    let mut ctx = AudioUnitContext::new();
     // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
     // or `ctx.init()`.
     let mut stream = AudioUnitStream::new(
-        &ctx,
+        &mut ctx,
         ptr::null_mut(),
         None,
         None,
@@ -607,11 +639,11 @@ fn test_set_device_info_for_unknown_output_device() {
 #[test]
 #[ignore]
 fn test_set_device_info_for_system_input_device() {
-    let ctx = AudioUnitContext::new();
+    let mut ctx = AudioUnitContext::new();
     // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
     // or `ctx.init()`.
     let mut stream = AudioUnitStream::new(
-        &ctx,
+        &mut ctx,
         ptr::null_mut(),
         None,
         None,
@@ -657,11 +689,11 @@ fn test_set_device_info_for_system_input_device() {
 #[test]
 #[ignore]
 fn test_set_device_info_for_system_output_device() {
-    let ctx = AudioUnitContext::new();
+    let mut ctx = AudioUnitContext::new();
     // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
     // or `ctx.init()`.
     let mut stream = AudioUnitStream::new(
-        &ctx,
+        &mut ctx,
         ptr::null_mut(),
         None,
         None,
@@ -707,11 +739,11 @@ fn test_set_device_info_for_system_output_device() {
 #[test]
 #[ignore]
 fn test_set_device_info_for_nonexistent_input_device() {
-    let ctx = AudioUnitContext::new();
+    let mut ctx = AudioUnitContext::new();
     // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
     // or `ctx.init()`.
     let mut stream = AudioUnitStream::new(
-        &ctx,
+        &mut ctx,
         ptr::null_mut(),
         None,
         None,
@@ -748,11 +780,11 @@ fn test_set_device_info_for_nonexistent_input_device() {
 #[test]
 #[ignore]
 fn test_set_device_info_for_nonexistent_output_device() {
-    let ctx = AudioUnitContext::new();
+    let mut ctx = AudioUnitContext::new();
     // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
     // or `ctx.init()`.
     let mut stream = AudioUnitStream::new(
-        &ctx,
+        &mut ctx,
         ptr::null_mut(),
         None,
         None,
@@ -798,11 +830,11 @@ fn test_add_listener_for_unknown_device() {
         kAudioHardwareUnspecifiedError as OSStatus
     }
 
-    let ctx = AudioUnitContext::new();
+    let mut ctx = AudioUnitContext::new();
     // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
     // or `ctx.init()`.
     let mut stream = AudioUnitStream::new(
-        &ctx,
+        &mut ctx,
         ptr::null_mut(),
         None,
         None,
@@ -836,11 +868,11 @@ fn test_remove_listener_for_unknown_device() {
         kAudioHardwareUnspecifiedError as OSStatus
     }
 
-    let ctx = AudioUnitContext::new();
+    let mut ctx = AudioUnitContext::new();
     // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
     // or `ctx.init()`.
     let mut stream = AudioUnitStream::new(
-        &ctx,
+        &mut ctx,
         ptr::null_mut(),
         None,
         None,
@@ -872,11 +904,11 @@ fn test_remove_listener_without_adding_any_listener() {
         kAudioHardwareUnspecifiedError as OSStatus
     }
 
-    let ctx = AudioUnitContext::new();
+    let mut ctx = AudioUnitContext::new();
     // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
     // or `ctx.init()`.
     let mut stream = AudioUnitStream::new(
-        &ctx,
+        &mut ctx,
         ptr::null_mut(),
         None,
         None,
@@ -908,11 +940,11 @@ fn test_add_then_remove_listener() {
         kAudioHardwareUnspecifiedError as OSStatus
     }
 
-    let ctx = AudioUnitContext::new();
+    let mut ctx = AudioUnitContext::new();
     // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
     // or `ctx.init()`.
     let mut stream = AudioUnitStream::new(
-        &ctx,
+        &mut ctx,
         ptr::null_mut(),
         None,
         None,
@@ -1381,6 +1413,182 @@ fn test_create_unit() {
     }
 }
 
+// clamp_latency
+// ------------------------------------
+#[test]
+#[should_panic]
+fn test_clamp_latency_without_any_active_stream() {
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
+    let mutex_ptr: *mut OwnedCriticalSection;
+    {
+        mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+    }
+    // The scope of `_lock` is a critical section.
+    let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+
+    let mut stream = AudioUnitStream::new(
+        &mut ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+
+    // Get a panic since there is no stream.
+    let _ = audiounit_clamp_latency(&mut stream, 0);
+}
+
+#[test]
+fn test_clamp_latency_with_one_active_stream() {
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
+    let mutex_ptr: *mut OwnedCriticalSection;
+    {
+        mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+    }
+    // The scope of `_lock` is a critical section.
+    let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+
+    // Add a stream to the context.
+    audiounit_increment_active_streams(&mut ctx);
+
+    let mut stream = AudioUnitStream::new(
+        &mut ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+
+    // TODO: It works even when there is no output unit(AudioUnit).
+    //       Should we throw an error or panic in this case ?
+
+    let range = 0..2 * SAFE_MAX_LATENCY_FRAMES;
+    assert!(range.start < SAFE_MIN_LATENCY_FRAMES);
+    // assert!(range.end < SAFE_MAX_LATENCY_FRAMES);
+    for latency in range {
+        let clamp = audiounit_clamp_latency(&mut stream, latency);
+        assert_eq!(
+            clamp,
+            if latency < SAFE_MIN_LATENCY_FRAMES {
+                SAFE_MIN_LATENCY_FRAMES
+            } else if latency > SAFE_MAX_LATENCY_FRAMES {
+                SAFE_MAX_LATENCY_FRAMES
+            } else {
+                latency
+            }
+        );
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_clamp_latency_with_more_than_one_active_streams_without_output_unit() {
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
+    let mutex_ptr: *mut OwnedCriticalSection;
+    {
+        mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+    }
+    // The scope of `_lock` is a critical section.
+    let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+
+    // Add two streams to the context.
+    audiounit_increment_active_streams(&mut ctx);
+    audiounit_increment_active_streams(&mut ctx);
+
+    let mut stream = AudioUnitStream::new(
+        &mut ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+
+    // TODO: We only check this when we have more than one streams.
+    //       Should we also check this when we have only one stream ?
+    // Get a panic since we don't have valid output AudioUnit.
+    let _ = audiounit_clamp_latency(&mut stream, 0);
+}
+
+#[test]
+fn test_clamp_latency_with_more_than_one_active_streams() {
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
+    let mutex_ptr: *mut OwnedCriticalSection;
+    {
+        mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+    }
+    // The scope of `_lock` is a critical section.
+    let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+
+    // Add two streams to the context.
+    audiounit_increment_active_streams(&mut ctx);
+    audiounit_increment_active_streams(&mut ctx);
+
+    let mut stream = AudioUnitStream::new(
+        &mut ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+
+    // Initialize the output unit to default output device.
+    let device = device_info {
+        id: kAudioObjectUnknown,
+        flags: device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT
+    };
+    assert!(audiounit_create_unit(&mut stream.output_unit, &device).is_ok());
+    assert_ne!(stream.output_unit, ptr::null_mut());
+    let maybe_buffer_size = {
+        let mut buffer_size: u32 = 0;
+        if audio_unit_get_property(
+            &stream.output_unit,
+            kAudioDevicePropertyBufferFrameSize,
+            kAudioUnitScope_Output,
+            AU_OUT_BUS,
+            &mut buffer_size,
+            &mut mem::size_of_val(&buffer_size)
+        ) == 0 {
+            Some(buffer_size)
+        } else {
+            None
+        }
+    };
+
+    let range = 0..2 * SAFE_MAX_LATENCY_FRAMES;
+    assert!(range.start < SAFE_MIN_LATENCY_FRAMES);
+    // assert!(range.end < SAFE_MAX_LATENCY_FRAMES);
+    for latency in range {
+        let clamp = audiounit_clamp_latency(&mut stream, latency);
+        assert_eq!(
+            clamp,
+            clamp_values(
+                if let Some(buffer_size) = maybe_buffer_size {
+                    cmp::min(buffer_size, latency)
+                } else {
+                    latency
+                }
+            )
+        );
+    }
+
+    fn clamp_values(value: u32) -> u32 {
+        cmp::max(cmp::min(value, SAFE_MAX_LATENCY_FRAMES),
+                 SAFE_MIN_LATENCY_FRAMES)
+    }
+}
+
 // setup_stream
 // ------------------------------------
 // TODO
@@ -1453,11 +1661,11 @@ fn test_get_default_device_datasource() {
 // ------------------------------------
 #[test]
 fn test_get_default_device_name() {
-    let ctx = AudioUnitContext::new();
+    let mut ctx = AudioUnitContext::new();
     // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
     // or `ctx.init()`.
     let stream = AudioUnitStream::new(
-        &ctx,
+        &mut ctx,
         ptr::null_mut(),
         None,
         None,
