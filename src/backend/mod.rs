@@ -167,29 +167,29 @@ fn has_output(stm: &AudioUnitStream) -> bool
     stm.output_stream_params.rate() > 0
 }
 
-fn audiounit_increment_active_streams(context: &mut AudioUnitContext)
+fn audiounit_increment_active_streams(ctx: &mut AudioUnitContext)
 {
-    context.mutex.assert_current_thread_owns();
-    context.active_streams += 1;
+    ctx.mutex.assert_current_thread_owns();
+    ctx.active_streams += 1;
 }
 
-fn audiounit_decrement_active_streams(context: &mut AudioUnitContext)
+fn audiounit_decrement_active_streams(ctx: &mut AudioUnitContext)
 {
-    context.mutex.assert_current_thread_owns();
-    context.active_streams -= 1;
+    ctx.mutex.assert_current_thread_owns();
+    ctx.active_streams -= 1;
 }
 
-fn audiounit_active_streams(context: &mut AudioUnitContext) -> i32
+fn audiounit_active_streams(ctx: &mut AudioUnitContext) -> i32
 {
-    context.mutex.assert_current_thread_owns();
-    context.active_streams
+    ctx.mutex.assert_current_thread_owns();
+    ctx.active_streams
 }
 
-fn audiounit_set_global_latency(context: &mut AudioUnitContext, latency_frames: u32)
+fn audiounit_set_global_latency(ctx: &mut AudioUnitContext, latency_frames: u32)
 {
-    context.mutex.assert_current_thread_owns();
-    assert_eq!(audiounit_active_streams(context), 1);
-    context.global_latency_frames = latency_frames;
+    ctx.mutex.assert_current_thread_owns();
+    assert_eq!(audiounit_active_streams(ctx), 1);
+    ctx.global_latency_frames = latency_frames;
 }
 
 fn audiounit_set_device_info(stm: &mut AudioUnitStream, id: AudioDeviceID, devtype: DeviceType) -> Result<()>
