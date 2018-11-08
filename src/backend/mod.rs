@@ -247,6 +247,25 @@ fn audiounit_remove_listener(listener: &mut property_listener) -> OSStatus
                                           listener.stream as *mut AudioUnitStream as *mut c_void)
 }
 
+fn audiounit_install_system_changed_callback(stm: &mut AudioUnitStream) -> Result<()>
+{
+    let mut r: OSStatus = 0;
+
+    if stm.output_unit != ptr::null_mut() {
+        /* This event will notify us when the default audio device changes,
+         * for example when the user plugs in a USB headset and the system chooses it
+         * automatically as the default, or when another device is chosen in the
+         * dropdown list. */
+        // stm.default_output_listener =
+    }
+
+    if stm.input_unit != ptr::null_mut() {
+        /* This event will notify us when the default input device changes. */
+    }
+
+    Ok(())
+}
+
 fn audiounit_get_acceptable_latency_range(latency_range: &mut AudioValueRange) -> Result<()>
 {
     let mut size: usize = 0;
@@ -1492,6 +1511,11 @@ impl ContextOps for AudioUnitContext {
             audiounit_setup_stream(boxed_stream.as_mut())
         } {
             cubeb_log!("({:p}) Could not setup the audiounit stream.", boxed_stream.as_ref());
+            return Err(r);
+        }
+
+        if let Err(r) = audiounit_install_system_changed_callback(boxed_stream.as_mut()) {
+            cubeb_log!("({:p}) Could not install the device change callback.", boxed_stream.as_ref());
             return Err(r);
         }
 
