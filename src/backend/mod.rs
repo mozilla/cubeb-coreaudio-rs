@@ -137,16 +137,16 @@ impl Default for device_info {
 }
 
 // 'ctx: 'stm means 'ctx outlives 'stm
-struct property_listener<'addr, 'stm, 'ctx: 'stm> {
+struct property_listener<'stm, 'ctx: 'stm> {
     device_id: AudioDeviceID,
-    property_address: &'addr AudioObjectPropertyAddress,
+    property_address: AudioObjectPropertyAddress,
     callback: audio_object_property_listener_proc,
     stream: &'stm mut AudioUnitStream<'ctx>,
 }
 
-impl<'addr, 'stm, 'ctx> property_listener<'addr, 'stm, 'ctx> {
+impl<'stm, 'ctx> property_listener<'stm, 'ctx> {
     fn new(id: AudioDeviceID,
-           address: &'addr AudioObjectPropertyAddress,
+           address: AudioObjectPropertyAddress,
            listener: audio_object_property_listener_proc,
            stm: &'stm mut AudioUnitStream<'ctx>) -> Self {
         property_listener {
@@ -235,7 +235,7 @@ fn audiounit_set_device_info(stm: &mut AudioUnitStream, id: AudioDeviceID, devty
 fn audiounit_add_listener(listener: &mut property_listener) -> OSStatus
 {
     audio_object_add_property_listener(listener.device_id,
-                                       listener.property_address,
+                                       &listener.property_address,
                                        listener.callback,
                                        listener.stream as *mut AudioUnitStream as *mut c_void)
 }
@@ -243,7 +243,7 @@ fn audiounit_add_listener(listener: &mut property_listener) -> OSStatus
 fn audiounit_remove_listener(listener: &mut property_listener) -> OSStatus
 {
     audio_object_remove_property_listener(listener.device_id,
-                                          listener.property_address,
+                                          &listener.property_address,
                                           listener.callback,
                                           listener.stream as *mut AudioUnitStream as *mut c_void)
 }

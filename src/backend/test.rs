@@ -843,7 +843,7 @@ fn test_add_listener_for_unknown_device() {
 
     let mut listener = property_listener::new(
         kAudioObjectUnknown,
-        &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+        DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
         listener,
         &mut stream
     );
@@ -881,7 +881,7 @@ fn test_remove_listener_for_unknown_device() {
 
     let mut listener = property_listener::new(
         kAudioObjectUnknown,
-        &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+        DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
         listener,
         &mut stream
     );
@@ -917,7 +917,7 @@ fn test_remove_listener_without_adding_any_listener() {
 
     let mut listener = property_listener::new(
         kAudioObjectSystemObject,
-        &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+        DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
         listener,
         &mut stream
     );
@@ -953,7 +953,7 @@ fn test_add_then_remove_listener() {
 
     let mut listener = property_listener::new(
         kAudioObjectSystemObject,
-        &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+        DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
         listener,
         &mut stream
     );
