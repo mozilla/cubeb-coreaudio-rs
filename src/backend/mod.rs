@@ -136,7 +136,7 @@ impl Default for device_info {
     }
 }
 
-// 'ctx: 'stm means 'ctx outlives stm
+// 'ctx: 'stm means 'ctx outlives 'stm
 struct property_listener<'addr, 'stm, 'ctx: 'stm> {
     device_id: AudioDeviceID,
     property_address: &'addr AudioObjectPropertyAddress,
