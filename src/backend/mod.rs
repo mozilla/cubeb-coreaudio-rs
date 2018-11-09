@@ -408,7 +408,7 @@ fn audiounit_new_unit_instance(unit: &mut AudioUnit, device: &device_info) -> Re
         return Err(Error::error());
     }
 
-    rv = unsafe { AudioComponentInstanceNew(comp, unit) };
+    rv = unsafe { AudioComponentInstanceNew(comp, unit as *mut AudioUnit) };
     if rv != 0 {
         cubeb_log!("AudioComponentInstanceNew rv={}", rv);
         return Err(Error::error());
