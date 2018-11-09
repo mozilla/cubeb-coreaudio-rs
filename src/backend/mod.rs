@@ -252,7 +252,7 @@ fn audiounit_install_system_changed_callback(stm: &mut AudioUnitStream) -> Resul
 {
     let mut r: OSStatus = 0;
 
-    if stm.output_unit != ptr::null_mut() {
+    if !stm.output_unit.is_null() {
         /* This event will notify us when the default audio device changes,
          * for example when the user plugs in a USB headset and the system chooses it
          * automatically as the default, or when another device is chosen in the
@@ -260,7 +260,7 @@ fn audiounit_install_system_changed_callback(stm: &mut AudioUnitStream) -> Resul
         // stm.default_output_listener =
     }
 
-    if stm.input_unit != ptr::null_mut() {
+    if !stm.input_unit.is_null() {
         /* This event will notify us when the default input device changes. */
     }
 
@@ -509,7 +509,7 @@ fn audiounit_clamp_latency(stm: &mut AudioUnitStream, latency_frames: u32) -> u3
     let mut output_buffer_size: UInt32 = 0;
     let mut size = mem::size_of_val(&output_buffer_size);
     // TODO: Why we check `output_unit` here? We already have an assertions above!
-    if stm.output_unit != ptr::null_mut() {
+    if !stm.output_unit.is_null() {
         r = audio_unit_get_property(&stm.output_unit,
                                     kAudioDevicePropertyBufferFrameSize,
                                     kAudioUnitScope_Output,
@@ -528,7 +528,7 @@ fn audiounit_clamp_latency(stm: &mut AudioUnitStream, latency_frames: u32) -> u3
     }
 
     let mut input_buffer_size: UInt32 = 0;
-    if stm.input_unit != ptr::null_mut() {
+    if !stm.input_unit.is_null() {
         r = audio_unit_get_property(&stm.input_unit,
                                     kAudioDevicePropertyBufferFrameSize,
                                     kAudioUnitScope_Input,
