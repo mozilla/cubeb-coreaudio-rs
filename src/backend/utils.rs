@@ -231,7 +231,7 @@ fn test_audio_object_add_property_listener_for_unknown_device() {
 
     extern fn listener(
         id: sys::AudioObjectID,
-        number_of_addresses :u32,
+        number_of_addresses: u32,
         addresses: *const sys::AudioObjectPropertyAddress,
         data: *mut c_void
     ) -> sys::OSStatus {
