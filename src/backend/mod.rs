@@ -266,13 +266,17 @@ fn audiounit_install_system_changed_callback(stm: &mut AudioUnitStream) -> Resul
          * for example when the user plugs in a USB headset and the system chooses it
          * automatically as the default, or when another device is chosen in the
          * dropdown list. */
-        // stm.default_output_listener =
     }
 
     if !stm.input_unit.is_null() {
         /* This event will notify us when the default input device changes. */
     }
 
+    Ok(())
+}
+
+fn audiounit_uninstall_system_changed_callback(stm: &mut AudioUnitStream) -> Result<()>
+{
     Ok(())
 }
 
@@ -620,6 +624,16 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
     }
 
     Ok(())
+}
+
+fn audiounit_stream_destroy_internal(stm: &mut AudioUnitStream)
+{
+    audiounit_uninstall_system_changed_callback(stm);
+}
+
+fn audiounit_stream_destroy(stm: &mut AudioUnitStream)
+{
+    audiounit_stream_destroy_internal(stm);
 }
 
 fn convert_uint32_into_string(data: u32) -> CString
@@ -1629,13 +1643,19 @@ impl<'ctx> AudioUnitStream<'ctx> {
             default_output_listener: None,
         }
     }
+
     fn init(&mut self) {
         self.mutex.init();
+    }
+
+    fn destroy(&mut self) {
+        audiounit_stream_destroy(self);
     }
 }
 
 impl<'ctx> Drop for AudioUnitStream<'ctx> {
     fn drop(&mut self) {
+        self.destroy();
         println!("<Drop> stream @ {:p}\nstream.context @ {:p}\n{:?}",
                  self, self.context, self);
     }
