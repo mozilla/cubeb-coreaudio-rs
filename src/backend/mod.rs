@@ -136,19 +136,28 @@ impl Default for device_info {
     }
 }
 
-// 'ctx: 'stm means 'ctx outlives 'stm
-struct property_listener<'stm, 'ctx: 'stm> {
+// Since we need to add `property_listener` as one of the members of
+// `AudioUnitStream`, so we store `stream` as a raw pointer to avoid
+// the `lifetime` check issues for structs that mutual references rather
+// than store it as reference with lifetime.
+// TODO: A safer way to do is
+// 1. either we use Rc<RefCell<AudioUnitStream<'ctx>>> for `stream`
+//    to get run-time check for this nullable pointer
+// 2. or refactor the code to avoid the mutual references and guarantee
+//    the `stream` is alive when `property_listener` is called.
+#[derive(Debug)]
+struct property_listener<'ctx> {
     device_id: AudioDeviceID,
     property_address: AudioObjectPropertyAddress,
     callback: audio_object_property_listener_proc,
-    stream: &'stm mut AudioUnitStream<'ctx>,
+    stream: *mut AudioUnitStream<'ctx>,
 }
 
-impl<'stm, 'ctx> property_listener<'stm, 'ctx> {
+impl<'ctx> property_listener<'ctx> {
     fn new(id: AudioDeviceID,
            address: AudioObjectPropertyAddress,
            listener: audio_object_property_listener_proc,
-           stm: &'stm mut AudioUnitStream<'ctx>) -> Self {
+           stm: *mut AudioUnitStream<'ctx>) -> Self {
         property_listener {
             device_id: id,
             property_address: address,
@@ -232,20 +241,20 @@ fn audiounit_set_device_info(stm: &mut AudioUnitStream, id: AudioDeviceID, devty
     Ok(())
 }
 
-fn audiounit_add_listener(listener: &mut property_listener) -> OSStatus
+fn audiounit_add_listener(listener: &property_listener) -> OSStatus
 {
     audio_object_add_property_listener(listener.device_id,
                                        &listener.property_address,
                                        listener.callback,
-                                       listener.stream as *mut AudioUnitStream as *mut c_void)
+                                       listener.stream as *mut c_void)
 }
 
-fn audiounit_remove_listener(listener: &mut property_listener) -> OSStatus
+fn audiounit_remove_listener(listener: &property_listener) -> OSStatus
 {
     audio_object_remove_property_listener(listener.device_id,
                                           &listener.property_address,
                                           listener.callback,
-                                          listener.stream as *mut AudioUnitStream as *mut c_void)
+                                          listener.stream as *mut c_void)
 }
 
 fn audiounit_install_system_changed_callback(stm: &mut AudioUnitStream) -> Result<()>
@@ -1574,6 +1583,9 @@ struct AudioUnitStream<'ctx> {
     mutex: OwnedCriticalSection,
     /* Latency requested by the user. */
     latency_frames: u32,
+    /* Listeners indicating what system events are monitored. */
+    default_input_listener: Option<property_listener<'ctx>>,
+    default_output_listener: Option<property_listener<'ctx>>,
 }
 
 impl<'ctx> AudioUnitStream<'ctx> {
@@ -1612,7 +1624,9 @@ impl<'ctx> AudioUnitStream<'ctx> {
             input_unit: ptr::null_mut(),
             output_unit: ptr::null_mut(),
             mutex: OwnedCriticalSection::new(),
-            latency_frames
+            latency_frames,
+            default_input_listener: None,
+            default_output_listener: None,
         }
     }
     fn init(&mut self) {
