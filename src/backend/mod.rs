@@ -241,6 +241,13 @@ fn audiounit_set_device_info(stm: &mut AudioUnitStream, id: AudioDeviceID, devty
     Ok(())
 }
 
+extern fn audiounit_property_listener_callback(id: AudioObjectID, address_count: u32,
+                                               addresses: *const AudioObjectPropertyAddress,
+                                               user: *mut c_void) -> OSStatus
+{
+    0
+}
+
 fn audiounit_add_listener(listener: &property_listener) -> OSStatus
 {
     audio_object_add_property_listener(listener.device_id,
@@ -266,10 +273,28 @@ fn audiounit_install_system_changed_callback(stm: &mut AudioUnitStream) -> Resul
          * for example when the user plugs in a USB headset and the system chooses it
          * automatically as the default, or when another device is chosen in the
          * dropdown list. */
+        stm.default_output_listener = Some(property_listener::new(
+            kAudioObjectSystemObject, DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+            audiounit_property_listener_callback, stm));
+        r = audiounit_add_listener(stm.default_output_listener.as_ref().unwrap());
+        if r != 0 {
+            stm.default_output_listener = None;
+            cubeb_log!("AudioObjectAddPropertyListener/output/kAudioHardwarePropertyDefaultOutputDevice rv={}", r);
+            return Err(Error::error());
+        }
     }
 
     if !stm.input_unit.is_null() {
         /* This event will notify us when the default input device changes. */
+        stm.default_input_listener = Some(property_listener::new(
+            kAudioObjectSystemObject, DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS,
+            audiounit_property_listener_callback, stm));
+        r = audiounit_add_listener(stm.default_input_listener.as_ref().unwrap());
+        if r != 0 {
+            stm.default_input_listener = None;
+            cubeb_log!("AudioObjectAddPropertyListener/input/kAudioHardwarePropertyDefaultInputDevice rv={}", r);
+            return Err(Error::error());
+        }
     }
 
     Ok(())
@@ -277,6 +302,24 @@ fn audiounit_install_system_changed_callback(stm: &mut AudioUnitStream) -> Resul
 
 fn audiounit_uninstall_system_changed_callback(stm: &mut AudioUnitStream) -> Result<()>
 {
+    let mut r: OSStatus = 0;
+
+    if stm.default_output_listener.is_some() {
+        r = audiounit_remove_listener(stm.default_output_listener.as_ref().unwrap());
+        if r != 0 {
+            return Err(Error::error());
+        }
+        stm.default_output_listener = None;
+    }
+
+    if stm.default_input_listener.is_some() {
+        r = audiounit_remove_listener(stm.default_input_listener.as_ref().unwrap());
+        if r != 0 {
+            return Err(Error::error());
+        }
+        stm.default_input_listener = None;
+    }
+
     Ok(())
 }
 
