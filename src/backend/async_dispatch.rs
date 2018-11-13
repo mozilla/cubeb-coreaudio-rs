@@ -34,6 +34,17 @@ pub fn async_dispatch<F>(queue: sys::dispatch_queue_t, work: F)
     }
 }
 
+// Send: Types that can be transferred across thread boundaries.
+// FnOnce: One-time function.
+pub fn sync_dispatch<F>(queue: sys::dispatch_queue_t, work: F)
+  where F: 'static + Send + FnOnce()
+{
+    let (closure, executor) = create_closure_and_executor(work);
+    unsafe {
+        sys::dispatch_sync_f(queue, closure, executor);
+    }
+}
+
 // Return an raw pointer to a (unboxed) closure and an executor that
 // will run the closure (after re-boxing the closure) when it's called.
 fn create_closure_and_executor<F>(
@@ -62,10 +73,9 @@ fn create_closure_and_executor<F>(
     )
 }
 
-
 #[test]
 fn test_dispatch_async_f() {
-    let label = "Run with native dispatch apis";
+    let label = "Run with native async dispatch apis";
 
     let queue = unsafe {
         sys::dispatch_queue_create(
@@ -98,8 +108,41 @@ fn test_dispatch_async_f() {
 }
 
 #[test]
+fn test_dispatch_sync_f() {
+    let label = "Run with native sync dispatch apis";
+
+    let queue = unsafe {
+        sys::dispatch_queue_create(
+            label.as_ptr() as *const c_char,
+            DISPATCH_QUEUE_SERIAL
+        )
+    };
+
+    let mut context: i32 = 20;
+
+    extern fn work(context_ptr: *mut c_void) {
+        let ctx_mut_ref = unsafe {
+            &mut (*(context_ptr as *mut i32))
+        };
+
+        assert_eq!(ctx_mut_ref, &20);
+        *ctx_mut_ref = 30;
+    }
+
+    unsafe {
+        sys::dispatch_sync_f(
+            queue,
+            &mut context as *mut i32 as *mut c_void,
+            Some(work)
+        );
+    }
+
+    assert_eq!(context, 30);
+}
+
+#[test]
 fn test_async_dispatch() {
-    let label = "Run with dispatch api wrappers";
+    let label = "Run with async dispatch api wrappers";
 
     let queue = create_dispatch_queue(
         label,
@@ -166,6 +209,69 @@ fn test_async_dispatch() {
 
     // Make sure the resource won't be freed before the tasks are finished.
     while resource.touched_count < 2 {};
+    assert!(resource.last_touched.is_some());
+    assert_eq!(resource.last_touched.unwrap(), 2);
+}
+
+#[test]
+fn test_sync_dispatch() {
+    let label = "Run with sync dispatch api wrappers";
+
+    let queue = create_dispatch_queue(
+        label,
+        DISPATCH_QUEUE_SERIAL
+    );
+
+    struct Resource {
+        last_touched: Option<u32>,
+        touched_count: u32,
+    }
+
+    impl Resource {
+        fn new() -> Self {
+            Resource {
+                last_touched: None,
+                touched_count: 0,
+            }
+        }
+    }
+
+    let mut resource = Resource::new();
+
+    // Rust compilter doesn't allow a pointer to be passed across threads.
+    // A hacky way to do that is to cast the pointer into a value, then
+    // the value, which is actually an address, can be copied into threads.
+    let resource_ptr = &mut resource as *mut Resource as usize;
+
+    // The program will wait here until finishing the closure below.
+    sync_dispatch(queue, move || {
+        let res: &mut Resource = unsafe {
+            let ptr = resource_ptr as *mut Resource;
+            &mut (*ptr)
+        };
+        assert_eq!(res as *mut Resource as usize, resource_ptr);
+        assert_eq!(res.last_touched, None);
+        assert_eq!(res.touched_count, 0);
+
+        res.last_touched = Some(1);
+        res.touched_count += 1;
+    });
+
+    // The program will wait here until finishing the closure below.
+    sync_dispatch(queue, move || {
+        let res: &mut Resource = unsafe {
+            let ptr = resource_ptr as *mut Resource;
+            &mut (*ptr)
+        };
+        assert_eq!(res as *mut Resource as usize, resource_ptr);
+        assert!(res.last_touched.is_some());
+        assert_eq!(res.last_touched.unwrap(), 1);
+        assert_eq!(res.touched_count, 1);
+
+        res.last_touched = Some(2);
+        res.touched_count += 1;
+    });
+
     assert!(resource.last_touched.is_some());
     assert_eq!(resource.last_touched.unwrap(), 2);
 }
