@@ -798,6 +798,7 @@ fn audiounit_stream_destroy_internal(stm: &mut AudioUnitStream)
         cubeb_log!("({:p}) Could not uninstall the device changed callback", stm);
     }
 
+    // The scope of `_lock` is a critical section.
     let _lock = AutoLock::new(&mut stm.mutex);
     // TODO: close stream ...
     assert!(audiounit_active_streams(&mut stm.context) >= 1);
