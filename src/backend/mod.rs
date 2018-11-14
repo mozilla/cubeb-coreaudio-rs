@@ -709,6 +709,9 @@ fn audiounit_stream_destroy(stm: &mut AudioUnitStream)
     }
 
     *stm.destroy_pending.get_mut() = true;
+    // Rust compilter doesn't allow a pointer to be passed across threads.
+    // A hacky way to do that is to cast the pointer into a value, then
+    // the value, which is actually an address, can be copied into threads.
     let stm_ptr = stm as *mut AudioUnitStream as usize;
     // Execute close in serial queue to avoid collision
     // with reinit when un/plug devices
