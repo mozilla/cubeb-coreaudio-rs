@@ -1593,6 +1593,14 @@ fn test_clamp_latency_with_more_than_one_active_streams() {
 // ------------------------------------
 // TODO
 
+// stream_destroy_internal
+// ------------------------------------
+// TODO
+
+// stream_destroy
+// ------------------------------------
+// TODO
+
 // convert_uint32_into_string
 // ------------------------------------
 #[test]
