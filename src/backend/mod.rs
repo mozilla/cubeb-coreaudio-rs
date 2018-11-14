@@ -246,7 +246,7 @@ fn audiounit_reinit_stream_async(stm: &mut AudioUnitStream, flags: device_flags)
 {
     if stm.reinit_pending.swap(true, Ordering::SeqCst) {
         // A reinit task is already pending, nothing more to do.
-        // TODO: Style! Sync with C version.
+        // TODO: redundant space! Sync with C version.
         cubeb_log!("({:p}) re-init stream task already pending, cancelling request ", stm);
         return;
     }
@@ -623,19 +623,23 @@ fn audiounit_create_unit(unit: &mut AudioUnit, device: &device_info) -> Result<(
 
     if device.flags.contains(device_flags::DEV_INPUT) {
         if let Err(r) = audiounit_enable_unit_scope(unit, io_side::INPUT, enable_state::ENABLE) {
+            // TODO: redundant space! Sync with C version.
             cubeb_log!("Failed to enable audiounit input scope ");
             return Err(r);
         }
         if let Err(r) = audiounit_enable_unit_scope(unit, io_side::OUTPUT, enable_state::DISABLE) {
+            // TODO: redundant space! Sync with C version.
             cubeb_log!("Failed to disable audiounit output scope ");
             return Err(r);
         }
     } else if device.flags.contains(device_flags::DEV_OUTPUT) {
         if let Err(r) = audiounit_enable_unit_scope(unit, io_side::OUTPUT, enable_state::ENABLE) {
+            // TODO: redundant space! Sync with C version.
             cubeb_log!("Failed to enable audiounit output scope ");
             return Err(r);
         }
         if let Err(r) = audiounit_enable_unit_scope(unit, io_side::INPUT, enable_state::DISABLE) {
+            // TODO: redundant space! Sync with C version.
             cubeb_log!("Failed to disable audiounit input scope ");
             return Err(r);
         }
