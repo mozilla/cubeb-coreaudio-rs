@@ -489,9 +489,12 @@ fn test_set_global_latency() {
 #[test]
 #[should_panic]
 fn test_set_device_info_with_unknown_type() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
     let mut ctx = AudioUnitContext::new();
-    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
-    // or `ctx.init()`.
+    ctx.init();
+
     let mut stream = AudioUnitStream::new(
         &mut ctx,
         ptr::null_mut(),
@@ -499,6 +502,7 @@ fn test_set_device_info_with_unknown_type() {
         None,
         0
     );
+    stream.init();
 
     // The first audiounit_set_device_info will get a panic immediately
     // when it's called, so the second calling won't be executed.
@@ -518,9 +522,12 @@ fn test_set_device_info_with_unknown_type() {
 #[test]
 #[should_panic]
 fn test_set_device_info_with_inout_type() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
     let mut ctx = AudioUnitContext::new();
-    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
-    // or `ctx.init()`.
+    ctx.init();
+
     let mut stream = AudioUnitStream::new(
         &mut ctx,
         ptr::null_mut(),
@@ -528,6 +535,7 @@ fn test_set_device_info_with_inout_type() {
         None,
         0
     );
+    stream.init();
 
     // The first audiounit_set_device_info will get a panic immediately
     // when it's called, so the second calling won't be executed.
@@ -546,9 +554,12 @@ fn test_set_device_info_with_inout_type() {
 
 #[test]
 fn test_set_device_info_for_unknown_input_device() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
     let mut ctx = AudioUnitContext::new();
-    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
-    // or `ctx.init()`.
+    ctx.init();
+
     let mut stream = AudioUnitStream::new(
         &mut ctx,
         ptr::null_mut(),
@@ -556,6 +567,7 @@ fn test_set_device_info_for_unknown_input_device() {
         None,
         0
     );
+    stream.init();
 
     assert_eq!(stream.input_device.id, kAudioObjectUnknown);
     assert_eq!(stream.input_device.flags, device_flags::DEV_UNKNOWN);
@@ -593,9 +605,12 @@ fn test_set_device_info_for_unknown_input_device() {
 
 #[test]
 fn test_set_device_info_for_unknown_output_device() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
     let mut ctx = AudioUnitContext::new();
-    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
-    // or `ctx.init()`.
+    ctx.init();
+
     let mut stream = AudioUnitStream::new(
         &mut ctx,
         ptr::null_mut(),
@@ -603,6 +618,7 @@ fn test_set_device_info_for_unknown_output_device() {
         None,
         0
     );
+    stream.init();
 
     assert_eq!(stream.output_device.id, kAudioObjectUnknown);
     assert_eq!(stream.output_device.flags, device_flags::DEV_UNKNOWN);
@@ -643,9 +659,12 @@ fn test_set_device_info_for_unknown_output_device() {
 #[test]
 #[ignore]
 fn test_set_device_info_for_system_input_device() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
     let mut ctx = AudioUnitContext::new();
-    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
-    // or `ctx.init()`.
+    ctx.init();
+
     let mut stream = AudioUnitStream::new(
         &mut ctx,
         ptr::null_mut(),
@@ -653,6 +672,7 @@ fn test_set_device_info_for_system_input_device() {
         None,
         0
     );
+    stream.init();
 
     assert_eq!(stream.input_device.id, kAudioObjectUnknown);
     assert_eq!(stream.input_device.flags, device_flags::DEV_UNKNOWN);
@@ -693,9 +713,12 @@ fn test_set_device_info_for_system_input_device() {
 #[test]
 #[ignore]
 fn test_set_device_info_for_system_output_device() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
     let mut ctx = AudioUnitContext::new();
-    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
-    // or `ctx.init()`.
+    ctx.init();
+
     let mut stream = AudioUnitStream::new(
         &mut ctx,
         ptr::null_mut(),
@@ -703,6 +726,7 @@ fn test_set_device_info_for_system_output_device() {
         None,
         0
     );
+    stream.init();
 
     assert_eq!(stream.output_device.id, kAudioObjectUnknown);
     assert_eq!(stream.output_device.flags, device_flags::DEV_UNKNOWN);
@@ -743,9 +767,12 @@ fn test_set_device_info_for_system_output_device() {
 #[test]
 #[ignore]
 fn test_set_device_info_for_nonexistent_input_device() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
     let mut ctx = AudioUnitContext::new();
-    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
-    // or `ctx.init()`.
+    ctx.init();
+
     let mut stream = AudioUnitStream::new(
         &mut ctx,
         ptr::null_mut(),
@@ -753,6 +780,7 @@ fn test_set_device_info_for_nonexistent_input_device() {
         None,
         0
     );
+    stream.init();
 
     assert_eq!(stream.input_device.id, kAudioObjectUnknown);
     assert_eq!(stream.input_device.flags, device_flags::DEV_UNKNOWN);
@@ -784,9 +812,12 @@ fn test_set_device_info_for_nonexistent_input_device() {
 #[test]
 #[ignore]
 fn test_set_device_info_for_nonexistent_output_device() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
     let mut ctx = AudioUnitContext::new();
-    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
-    // or `ctx.init()`.
+    ctx.init();
+
     let mut stream = AudioUnitStream::new(
         &mut ctx,
         ptr::null_mut(),
@@ -794,6 +825,7 @@ fn test_set_device_info_for_nonexistent_output_device() {
         None,
         0
     );
+    stream.init();
 
     assert_eq!(stream.output_device.id, kAudioObjectUnknown);
     assert_eq!(stream.output_device.flags, device_flags::DEV_UNKNOWN);
@@ -846,9 +878,12 @@ fn test_add_listener_for_unknown_device() {
         kAudioHardwareUnspecifiedError as OSStatus
     }
 
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
     let mut ctx = AudioUnitContext::new();
-    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
-    // or `ctx.init()`.
+    ctx.init();
+
     let mut stream = AudioUnitStream::new(
         &mut ctx,
         ptr::null_mut(),
@@ -856,6 +891,7 @@ fn test_add_listener_for_unknown_device() {
         None,
         0
     );
+    stream.init();
 
     let mut listener = property_listener::new(
         kAudioObjectUnknown,
@@ -884,9 +920,12 @@ fn test_remove_listener_for_unknown_device() {
         kAudioHardwareUnspecifiedError as OSStatus
     }
 
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
     let mut ctx = AudioUnitContext::new();
-    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
-    // or `ctx.init()`.
+    ctx.init();
+
     let mut stream = AudioUnitStream::new(
         &mut ctx,
         ptr::null_mut(),
@@ -894,6 +933,7 @@ fn test_remove_listener_for_unknown_device() {
         None,
         0
     );
+    stream.init();
 
     let mut listener = property_listener::new(
         kAudioObjectUnknown,
@@ -920,9 +960,12 @@ fn test_remove_listener_without_adding_any_listener() {
         kAudioHardwareUnspecifiedError as OSStatus
     }
 
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
     let mut ctx = AudioUnitContext::new();
-    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
-    // or `ctx.init()`.
+    ctx.init();
+
     let mut stream = AudioUnitStream::new(
         &mut ctx,
         ptr::null_mut(),
@@ -930,6 +973,7 @@ fn test_remove_listener_without_adding_any_listener() {
         None,
         0
     );
+    stream.init();
 
     let mut listener = property_listener::new(
         kAudioObjectSystemObject,
@@ -956,9 +1000,12 @@ fn test_add_then_remove_listener() {
         kAudioHardwareUnspecifiedError as OSStatus
     }
 
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
     let mut ctx = AudioUnitContext::new();
-    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
-    // or `ctx.init()`.
+    ctx.init();
+
     let mut stream = AudioUnitStream::new(
         &mut ctx,
         ptr::null_mut(),
@@ -966,6 +1013,7 @@ fn test_add_then_remove_listener() {
         None,
         0
     );
+    stream.init();
 
     let mut listener = property_listener::new(
         kAudioObjectSystemObject,
@@ -1442,6 +1490,9 @@ fn test_create_unit() {
 #[test]
 #[should_panic]
 fn test_clamp_latency_without_any_active_stream() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
     let mut ctx = AudioUnitContext::new();
     ctx.init();
 
@@ -1460,6 +1511,7 @@ fn test_clamp_latency_without_any_active_stream() {
         None,
         0
     );
+    stream.init();
 
     // Get a panic since there is no stream.
     let _ = audiounit_clamp_latency(&mut stream, 0);
@@ -1467,6 +1519,9 @@ fn test_clamp_latency_without_any_active_stream() {
 
 #[test]
 fn test_clamp_latency_with_one_active_stream() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
     let mut ctx = AudioUnitContext::new();
     ctx.init();
 
@@ -1488,6 +1543,7 @@ fn test_clamp_latency_with_one_active_stream() {
         None,
         0
     );
+    stream.init();
 
     // TODO: It works even when there is no output unit(AudioUnit).
     //       Should we throw an error or panic in this case ?
@@ -1513,6 +1569,9 @@ fn test_clamp_latency_with_one_active_stream() {
 #[test]
 #[should_panic]
 fn test_clamp_latency_with_more_than_one_active_streams_without_output_unit() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
     let mut ctx = AudioUnitContext::new();
     ctx.init();
 
@@ -1535,6 +1594,7 @@ fn test_clamp_latency_with_more_than_one_active_streams_without_output_unit() {
         None,
         0
     );
+    stream.init();
 
     // TODO: We only check this when we have more than one streams.
     //       Should we also check this when we have only one stream ?
@@ -1544,6 +1604,9 @@ fn test_clamp_latency_with_more_than_one_active_streams_without_output_unit() {
 
 #[test]
 fn test_clamp_latency_with_more_than_one_active_streams() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
     let mut ctx = AudioUnitContext::new();
     ctx.init();
 
@@ -1566,6 +1629,7 @@ fn test_clamp_latency_with_more_than_one_active_streams() {
         None,
         0
     );
+    stream.init();
 
     // Initialize the output unit to default output device.
     let device = device_info {
@@ -1693,16 +1757,21 @@ fn test_get_default_device_datasource() {
 // ------------------------------------
 #[test]
 fn test_get_default_device_name() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
     let mut ctx = AudioUnitContext::new();
-    // We don't use mutex here, so there is no need to call `ctx.mutex.init()`
-    // or `ctx.init()`.
-    let stream = AudioUnitStream::new(
+    ctx.init();
+
+    let mut stream = AudioUnitStream::new(
         &mut ctx,
         ptr::null_mut(),
         None,
         None,
         0
     );
+    stream.init();
+
     let mut device = ffi::cubeb_device::default();
 
     // unknown type:
