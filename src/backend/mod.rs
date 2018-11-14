@@ -242,6 +242,21 @@ fn audiounit_set_device_info(stm: &mut AudioUnitStream, id: AudioDeviceID, devty
     Ok(())
 }
 
+fn event_addr_to_string(selector: AudioObjectPropertySelector) -> &'static str
+{
+    match selector {
+        coreaudio_sys::kAudioHardwarePropertyDefaultOutputDevice =>
+            "kAudioHardwarePropertyDefaultOutputDevice",
+        coreaudio_sys::kAudioHardwarePropertyDefaultInputDevice =>
+            "kAudioHardwarePropertyDefaultInputDevice",
+        coreaudio_sys::kAudioDevicePropertyDeviceIsAlive =>
+            "kAudioDevicePropertyDeviceIsAlive",
+        coreaudio_sys::kAudioDevicePropertyDataSource =>
+            "kAudioDevicePropertyDataSource",
+        _ => "Unknown"
+    }
+}
+
 extern fn audiounit_property_listener_callback(id: AudioObjectID, address_count: u32,
                                                addresses: *const AudioObjectPropertyAddress,
                                                user: *mut c_void) -> OSStatus
