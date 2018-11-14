@@ -351,7 +351,11 @@ extern fn audiounit_property_listener_callback(id: AudioObjectID, address_count:
             // kAudioDevicePropertyDataSource
             // then this function will early return in the match block above.
             _ => {
-                // TODO: Fire device_changed_callback ...
+                // The scope of `_dev_cb_lock` is a critical section.
+                let _dev_cb_lock = AutoLock::new(&mut stm.device_changed_callback_lock);
+                if let Some(device_changed_callback) = stm.device_changed_callback {
+                    unsafe { device_changed_callback(stm.user_ptr); }
+                }
             }
         }
     }
@@ -1780,6 +1784,8 @@ struct AudioUnitStream<'ctx> {
 
     data_callback: ffi::cubeb_data_callback,
     state_callback: ffi::cubeb_state_callback,
+    device_changed_callback: ffi::cubeb_device_changed_callback,
+    device_changed_callback_lock: OwnedCriticalSection,
     /* Stream creation parameters */
     input_stream_params: StreamParams,
     output_stream_params: StreamParams,
@@ -1814,6 +1820,8 @@ impl<'ctx> AudioUnitStream<'ctx> {
             user_ptr,
             data_callback,
             state_callback,
+            device_changed_callback: None,
+            device_changed_callback_lock: OwnedCriticalSection::new(),
             input_stream_params: StreamParams::from(
                 ffi::cubeb_stream_params {
                     format: ffi::CUBEB_SAMPLE_FLOAT32NE,
@@ -1848,6 +1856,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
     }
 
     fn init(&mut self) {
+        self.device_changed_callback_lock.init();
         self.mutex.init();
     }
 
@@ -1925,8 +1934,21 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     }
     fn register_device_changed_callback(
         &mut self,
-        _: ffi::cubeb_device_changed_callback,
+        device_changed_callback: ffi::cubeb_device_changed_callback,
     ) -> Result<()> {
+        // The scope of `_dev_cb_lock` is a critical section.
+        let _dev_cb_lock = AutoLock::new(&mut self.device_changed_callback_lock);
+        /* Note: second register without unregister first causes 'nope' error.
+         * Current implementation requires unregister before register a new cb. */
+        // TODO: The above comment is wrong. We cannot unregister the original
+        //       callback since we will hit the following assertion!
+        //       A less strict assertion works as what the comment want is
+        //       something like:
+        // assert!(device_changed_callback.is_none() ||
+        //         (device_changed_callback.is_some() &&
+        //          self.device_changed_callback.is_none()));
+        assert_eq!(self.device_changed_callback, None);
+        self.device_changed_callback = device_changed_callback;
         Ok(())
     }
 }

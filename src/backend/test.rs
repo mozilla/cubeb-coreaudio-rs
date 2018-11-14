@@ -417,6 +417,10 @@ fn test_manual_ops_context_register_device_collection_changed() {
 //     }
 // }
 
+// #[test]
+// fn test_ops_register_device_changed_callback() {
+// }
+
 // Private APIs
 // ============================================================================
 // has_input

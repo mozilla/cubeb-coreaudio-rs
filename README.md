@@ -9,6 +9,12 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
 ## TODO
 - [cubeb-rs][cubeb-rs]
   - Implement `to_owned` in [`StreamParamsRef`][cubeb-rs-stmparamsref]
+  - Implement [`stream_register_device_changed_callback` in `capi_new`][cubeb-rs-capi-stm-reg-dev-chg-callback]
+    - Land [this][cubeb-backend-stm-reg-dev-chg-cb] on [cubeb-backend][cubeb-backend]
+    - Land [this][cubeb-pulse-rs-reg-dev-chg-cb] on [cubeb-pulse-rs][cubeb-pulse-rs]
+- Integration Tests
+  - Add a test-only API to change the default audio devices
+  - Use above API to test the device-changed callback
 - Move issues below to github issues.
 - Test aggregate devices
 - Test for stream operations
@@ -65,3 +71,9 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
 
 [cubeb-rs]: https://github.com/djg/cubeb-rs "cubeb-rs"
 [cubeb-rs-stmparamsref]: https://github.com/djg/cubeb-rs/blob/78ed9459b8ac2ca50ea37bb72f8a06847eb8d379/cubeb-core/src/stream.rs#L61 "StreamParamsRef"
+[cubeb-rs-capi-stm-reg-dev-chg-callback]: https://github.com/djg/cubeb-rs/blob/78ed9459b8ac2ca50ea37bb72f8a06847eb8d379/cubeb-backend/src/capi.rs#L56 "stream_register_device_changed_callback"
+[cubeb-backend]: https://github.com/djg/cubeb-rs/tree/master/cubeb-backend "cubeb-backend"
+[cubeb-pulse-rs]: https://github.com/djg/cubeb-pulse-rs "cubeb-pulse-rs"
+
+[cubeb-backend-stm-reg-dev-chg-cb]: cubeb-backend-stream_register_device_changed_callback.diff "Implementation of stream_register_device_changed_callback"
+[cubeb-pulse-rs-reg-dev-chg-cb]: cubeb-pulse-rs-register_device_changed_callback.diff "Impelement of register_device_changed_callback"
