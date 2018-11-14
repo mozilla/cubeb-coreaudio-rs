@@ -7,6 +7,8 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
 - Create tests for later refactoring
 
 ## TODO
+- [cubeb-rs][cubeb-rs]
+  - Implement `to_owned` in [`StreamParamsRef`][cubeb-rs-stmparamsref]
 - Move issues below to github issues.
 - Test aggregate devices
 - Test for stream operations
@@ -60,3 +62,6 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
 
 [cubeb-au-ptr-across-threads]: https://github.com/kinetiknz/cubeb/blob/9a7a55153e7f9b9e0036ab023909c7bc4a41688b/src/cubeb_audiounit.cpp#L3454-L3480 "Pass pointers across threads"
 [cubeb-au-init-stream]: https://github.com/kinetiknz/cubeb/blob/9a7a55153e7f9b9e0036ab023909c7bc4a41688b/src/cubeb_audiounit.cpp#L2745-L2748 "Init stream"
+
+[cubeb-rs]: https://github.com/djg/cubeb-rs "cubeb-rs"
+[cubeb-rs-stmparamsref]: https://github.com/djg/cubeb-rs/blob/78ed9459b8ac2ca50ea37bb72f8a06847eb8d379/cubeb-core/src/stream.rs#L61 "StreamParamsRef"
