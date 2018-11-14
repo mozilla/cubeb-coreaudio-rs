@@ -672,7 +672,16 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
 
 fn audiounit_stream_destroy_internal(stm: &mut AudioUnitStream)
 {
-    audiounit_uninstall_system_changed_callback(stm);
+    stm.context.mutex.assert_current_thread_owns();
+
+    if let Err(_) = audiounit_uninstall_system_changed_callback(stm) {
+        cubeb_log!("({:p}) Could not uninstall the device changed callback", stm);
+    }
+
+    let _lock = AutoLock::new(&mut stm.mutex);
+    // TODO: close stream ...
+    assert!(audiounit_active_streams(&mut stm.context) >= 1);
+    audiounit_decrement_active_streams(&mut stm.context);
 }
 
 fn audiounit_stream_destroy(stm: &mut AudioUnitStream)
