@@ -816,6 +816,18 @@ fn test_set_device_info_for_nonexistent_output_device() {
     );
 }
 
+// reinit_stream_async
+// ------------------------------------
+// TODO
+
+// event_addr_to_string
+// ------------------------------------
+// TODO
+
+// property_listener_callback
+// ------------------------------------
+// TODO
+
 // add_listener
 // ------------------------------------
 #[test]

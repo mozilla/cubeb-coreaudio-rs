@@ -242,6 +242,35 @@ fn audiounit_set_device_info(stm: &mut AudioUnitStream, id: AudioDeviceID, devty
     Ok(())
 }
 
+fn audiounit_reinit_stream_async(stm: &mut AudioUnitStream, flags: device_flags)
+{
+    if stm.reinit_pending.swap(true, Ordering::SeqCst) {
+        // A reinit task is already pending, nothing more to do.
+        // TODO: Style! Sync with C version.
+        cubeb_log!("({:p}) re-init stream task already pending, cancelling request ", stm);
+        return;
+    }
+
+    // Rust compilter doesn't allow a pointer to be passed across threads.
+    // A hacky way to do that is to cast the pointer into a value, then
+    // the value, which is actually an address, can be copied into threads.
+    let stm_ptr = stm as *mut AudioUnitStream as usize;
+    // Use a new thread, through the queue, to avoid deadlock when calling
+    // Get/SetProperties method from inside notify callback
+    async_dispatch(stm.context.serial_queue, move || {
+        let stm = unsafe { &mut *(stm_ptr as *mut AudioUnitStream) };
+        if *stm.destroy_pending.get_mut() {
+            cubeb_log!("({:p}) stream pending destroy, cancelling reinit task", stm);
+            return;
+        }
+
+        // TODO: Reinit stream ...
+
+        *stm.switching_device.get_mut() = false;
+        *stm.reinit_pending.get_mut() = false;
+    });
+}
+
 fn event_addr_to_string(selector: AudioObjectPropertySelector) -> &'static str
 {
     match selector {
@@ -261,6 +290,74 @@ extern fn audiounit_property_listener_callback(id: AudioObjectID, address_count:
                                                addresses: *const AudioObjectPropertyAddress,
                                                user: *mut c_void) -> OSStatus
 {
+    let stm = unsafe { &mut *(user as *mut AudioUnitStream) };
+    let addrs = unsafe { slice::from_raw_parts(addresses, address_count as usize) };
+    if *stm.switching_device.get_mut() {
+        cubeb_log!("Switching is already taking place. Skip Event {} for id={}", event_addr_to_string(addrs[0].mSelector), id);
+        return 0;
+    }
+    *stm.switching_device.get_mut() = true;
+
+    cubeb_log!("({:p}) Audio device changed, {} events.", stm, address_count);
+    for (i, addr) in addrs.iter().enumerate() {
+        match addr.mSelector {
+            coreaudio_sys::kAudioHardwarePropertyDefaultOutputDevice => {
+                cubeb_log!("Event[{}] - mSelector == kAudioHardwarePropertyDefaultOutputDevice for id={}", i, id);
+            },
+            coreaudio_sys::kAudioHardwarePropertyDefaultInputDevice => {
+                cubeb_log!("Event[{}] - mSelector == kAudioHardwarePropertyDefaultInputDevice for id={}", i, id);
+            },
+            coreaudio_sys::kAudioDevicePropertyDeviceIsAlive => {
+                cubeb_log!("Event[{}] - mSelector == kAudioDevicePropertyDeviceIsAlive for id={}", i, id);
+                // If this is the default input device ignore the event,
+                // kAudioHardwarePropertyDefaultInputDevice will take care of the switch
+                if stm.input_device.flags.contains(device_flags::DEV_SYSTEM_DEFAULT) {
+                    cubeb_log!("It's the default input device, ignore the event");
+                    *stm.switching_device.get_mut() = false;
+                    return 0;
+                }
+            },
+            coreaudio_sys::kAudioDevicePropertyDataSource => {
+                // TODO: Why we use kAudioHardwarePropertyDataSource instead of kAudioDevicePropertyDataSource ?
+                cubeb_log!("Event[{}] - mSelector == kAudioHardwarePropertyDataSource for id={}", i, id);
+            },
+            _ => {
+                cubeb_log!("Event[{}] - mSelector == Unexpected Event id {}, return", i, addr.mSelector);
+                *stm.switching_device.get_mut() = false;
+                return 0;
+            }
+        }
+    }
+
+    // Allow restart to choose the new default
+    let mut switch_side = device_flags::DEV_UNKNOWN;
+    if has_input(stm) {
+        switch_side |= device_flags::DEV_INPUT;
+    }
+    if has_output(stm) {
+        switch_side |= device_flags::DEV_OUTPUT;
+    }
+    // TODO: Assert it's either input or output here ?
+    //       or early return if it's not input and it's not output ?
+
+    for addr in addrs.iter() {
+        // TODO: Since match only use `_` here, why don't we remove the match ?
+        //       It will be called anyway (Sync with C version).
+        match addr.mSelector {
+            // If addr.mSelector is not
+            // kAudioHardwarePropertyDefaultOutputDevice or
+            // kAudioHardwarePropertyDefaultInputDevice or
+            // kAudioDevicePropertyDeviceIsAlive or
+            // kAudioDevicePropertyDataSource
+            // then this function will early return in the match block above.
+            _ => {
+                // TODO: Fire device_changed_callback ...
+            }
+        }
+    }
+
+    audiounit_reinit_stream_async(stm, switch_side);
+
     0
 }
 
@@ -1689,9 +1786,12 @@ struct AudioUnitStream<'ctx> {
     output_unit: AudioUnit,
     mutex: OwnedCriticalSection,
     shutdown: AtomicBool,
+    reinit_pending: AtomicBool,
     destroy_pending: AtomicBool,
     /* Latency requested by the user. */
     latency_frames: u32,
+    /* This is true if a device change callback is currently running.  */
+    switching_device: AtomicBool,
     /* Listeners indicating what system events are monitored. */
     default_input_listener: Option<property_listener<'ctx>>,
     default_output_listener: Option<property_listener<'ctx>>,
@@ -1734,8 +1834,10 @@ impl<'ctx> AudioUnitStream<'ctx> {
             output_unit: ptr::null_mut(),
             mutex: OwnedCriticalSection::new(),
             shutdown: AtomicBool::new(true),
+            reinit_pending: AtomicBool::new(false),
             destroy_pending: AtomicBool::new(false),
             latency_frames,
+            switching_device: AtomicBool::new(false),
             default_input_listener: None,
             default_output_listener: None,
         }
