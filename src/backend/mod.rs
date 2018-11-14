@@ -37,6 +37,7 @@ use std::mem;
 use std::os::raw::{c_void, c_char};
 use std::ptr;
 use std::slice;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 // TODO:
 // 1. We use AudioDeviceID and AudioObjectID at the same time.
@@ -676,7 +677,29 @@ fn audiounit_stream_destroy_internal(stm: &mut AudioUnitStream)
 
 fn audiounit_stream_destroy(stm: &mut AudioUnitStream)
 {
-    audiounit_stream_destroy_internal(stm);
+    if !stm.shutdown.load(Ordering::SeqCst) {
+        // The scope of `_context_lock` is a critical section.
+        let _context_lock = AutoLock::new(&mut stm.context.mutex);
+        // TODO: Stop stream ...
+        *stm.shutdown.get_mut() = true;
+    }
+
+    *stm.destroy_pending.get_mut() = true;
+    let stm_ptr = stm as *mut AudioUnitStream as usize;
+    // Execute close in serial queue to avoid collision
+    // with reinit when un/plug devices
+    sync_dispatch(stm.context.serial_queue, move || {
+        let stm = unsafe { &mut (*(stm_ptr as *mut AudioUnitStream)) };
+        let mutex_ptr: *mut OwnedCriticalSection;
+        {
+            mutex_ptr = &mut stm.context.mutex as *mut OwnedCriticalSection;
+        }
+        // The scope of `_context_lock` is a critical section.
+        let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        audiounit_stream_destroy_internal(stm);
+    });
+
+    cubeb_log!("Cubeb stream ({:p}) destroyed successful.", stm);
 }
 
 fn convert_uint32_into_string(data: u32) -> CString
@@ -1638,6 +1661,8 @@ struct AudioUnitStream<'ctx> {
     input_unit: AudioUnit,
     output_unit: AudioUnit,
     mutex: OwnedCriticalSection,
+    shutdown: AtomicBool,
+    destroy_pending: AtomicBool,
     /* Latency requested by the user. */
     latency_frames: u32,
     /* Listeners indicating what system events are monitored. */
@@ -1681,6 +1706,8 @@ impl<'ctx> AudioUnitStream<'ctx> {
             input_unit: ptr::null_mut(),
             output_unit: ptr::null_mut(),
             mutex: OwnedCriticalSection::new(),
+            shutdown: AtomicBool::new(true),
+            destroy_pending: AtomicBool::new(false),
             latency_frames,
             default_input_listener: None,
             default_output_listener: None,
