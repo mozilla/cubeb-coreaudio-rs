@@ -985,6 +985,14 @@ fn test_add_then_remove_listener() {
     );
 }
 
+// install_system_changed_callback
+// ------------------------------------
+// TODO
+
+// uninstall_system_changed_callback
+// ------------------------------------
+// TODO
+
 // get_acceptable_latency_range
 // ------------------------------------
 #[test]
