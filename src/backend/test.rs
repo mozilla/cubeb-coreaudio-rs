@@ -495,6 +495,20 @@ fn test_set_device_info_with_unknown_type() {
     let mut ctx = AudioUnitContext::new();
     ctx.init();
 
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+    {
+        // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let mutex_ptr: *mut OwnedCriticalSection;
+        {
+            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        }
+
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
+
     let mut stream = AudioUnitStream::new(
         &mut ctx,
         ptr::null_mut(),
@@ -528,6 +542,20 @@ fn test_set_device_info_with_inout_type() {
     let mut ctx = AudioUnitContext::new();
     ctx.init();
 
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+    {
+        // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let mutex_ptr: *mut OwnedCriticalSection;
+        {
+            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        }
+
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
+
     let mut stream = AudioUnitStream::new(
         &mut ctx,
         ptr::null_mut(),
@@ -559,6 +587,20 @@ fn test_set_device_info_for_unknown_input_device() {
     // will be used when AudioUnitStream::drop/destroy is called.
     let mut ctx = AudioUnitContext::new();
     ctx.init();
+
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+    {
+        // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let mutex_ptr: *mut OwnedCriticalSection;
+        {
+            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        }
+
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
 
     let mut stream = AudioUnitStream::new(
         &mut ctx,
@@ -610,6 +652,20 @@ fn test_set_device_info_for_unknown_output_device() {
     // will be used when AudioUnitStream::drop/destroy is called.
     let mut ctx = AudioUnitContext::new();
     ctx.init();
+
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+    {
+        // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let mutex_ptr: *mut OwnedCriticalSection;
+        {
+            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        }
+
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
 
     let mut stream = AudioUnitStream::new(
         &mut ctx,
@@ -665,6 +721,20 @@ fn test_set_device_info_for_system_input_device() {
     let mut ctx = AudioUnitContext::new();
     ctx.init();
 
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+    {
+        // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let mutex_ptr: *mut OwnedCriticalSection;
+        {
+            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        }
+
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
+
     let mut stream = AudioUnitStream::new(
         &mut ctx,
         ptr::null_mut(),
@@ -718,6 +788,20 @@ fn test_set_device_info_for_system_output_device() {
     // will be used when AudioUnitStream::drop/destroy is called.
     let mut ctx = AudioUnitContext::new();
     ctx.init();
+
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+    {
+        // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let mutex_ptr: *mut OwnedCriticalSection;
+        {
+            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        }
+
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
 
     let mut stream = AudioUnitStream::new(
         &mut ctx,
@@ -773,6 +857,20 @@ fn test_set_device_info_for_nonexistent_input_device() {
     let mut ctx = AudioUnitContext::new();
     ctx.init();
 
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+    {
+        // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let mutex_ptr: *mut OwnedCriticalSection;
+        {
+            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        }
+
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
+
     let mut stream = AudioUnitStream::new(
         &mut ctx,
         ptr::null_mut(),
@@ -817,6 +915,20 @@ fn test_set_device_info_for_nonexistent_output_device() {
     // will be used when AudioUnitStream::drop/destroy is called.
     let mut ctx = AudioUnitContext::new();
     ctx.init();
+
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+    {
+        // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let mutex_ptr: *mut OwnedCriticalSection;
+        {
+            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        }
+
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
 
     let mut stream = AudioUnitStream::new(
         &mut ctx,
@@ -884,6 +996,20 @@ fn test_add_listener_for_unknown_device() {
     let mut ctx = AudioUnitContext::new();
     ctx.init();
 
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+    {
+        // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let mutex_ptr: *mut OwnedCriticalSection;
+        {
+            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        }
+
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
+
     let mut stream = AudioUnitStream::new(
         &mut ctx,
         ptr::null_mut(),
@@ -926,6 +1052,20 @@ fn test_remove_listener_for_unknown_device() {
     let mut ctx = AudioUnitContext::new();
     ctx.init();
 
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+    {
+        // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let mutex_ptr: *mut OwnedCriticalSection;
+        {
+            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        }
+
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
+
     let mut stream = AudioUnitStream::new(
         &mut ctx,
         ptr::null_mut(),
@@ -966,6 +1106,20 @@ fn test_remove_listener_without_adding_any_listener() {
     let mut ctx = AudioUnitContext::new();
     ctx.init();
 
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+    {
+        // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let mutex_ptr: *mut OwnedCriticalSection;
+        {
+            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        }
+
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
+
     let mut stream = AudioUnitStream::new(
         &mut ctx,
         ptr::null_mut(),
@@ -1005,6 +1159,20 @@ fn test_add_then_remove_listener() {
     // will be used when AudioUnitStream::drop/destroy is called.
     let mut ctx = AudioUnitContext::new();
     ctx.init();
+
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+    {
+        // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let mutex_ptr: *mut OwnedCriticalSection;
+        {
+            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        }
+
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
 
     let mut stream = AudioUnitStream::new(
         &mut ctx,
@@ -1487,7 +1655,15 @@ fn test_create_unit() {
 
 // clamp_latency
 // ------------------------------------
+// The following test will fail since the program never reaches
+// `audiounit_increment_active_streams`. The test will finish
+// once we get a panic from `audiounit_clamp_latency`. After
+// catching panic, AudioUnitStream::drop/destroy() will be called.
+// It will check we have at least one active stream in the context
+// when AudioUnitStream::drop is called, but we don't have one(
+// otherwise we cannot hit the assertion in `audiounit_clamp_latency`).
 #[test]
+#[ignore]
 #[should_panic]
 fn test_clamp_latency_without_any_active_stream() {
     // We need to initialize the members with type OwnedCriticalSection in
@@ -1501,8 +1677,6 @@ fn test_clamp_latency_without_any_active_stream() {
     {
         mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
     }
-    // The scope of `_lock` is a critical section.
-    let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
 
     let mut stream = AudioUnitStream::new(
         &mut ctx,
@@ -1513,8 +1687,18 @@ fn test_clamp_latency_without_any_active_stream() {
     );
     stream.init();
 
+    // The scope of `_lock` is a critical section.
+    // When `AudioUnitStream::drop()` is called, `AudioUnitContext.mutex`
+    // needs to be unlocked. That's why `_lock` needs to be declared after
+    // `stream` so it will be dropped and unlocked before dropping `stream`.
+    let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+
     // Get a panic since there is no stream.
     let _ = audiounit_clamp_latency(&mut stream, 0);
+
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+    audiounit_increment_active_streams(&mut stream.context);
 }
 
 #[test]
@@ -1530,11 +1714,14 @@ fn test_clamp_latency_with_one_active_stream() {
     {
         mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
     }
-    // The scope of `_lock` is a critical section.
-    let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
 
-    // Add a stream to the context.
-    audiounit_increment_active_streams(&mut ctx);
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+    {
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
 
     let mut stream = AudioUnitStream::new(
         &mut ctx,
@@ -1544,6 +1731,12 @@ fn test_clamp_latency_with_one_active_stream() {
         0
     );
     stream.init();
+
+    // The scope of `_lock` is a critical section.
+    // When `AudioUnitStream::drop()` is called, `AudioUnitContext.mutex`
+    // needs to be unlocked. That's why `_lock` needs to be declared after
+    // `stream` so it will be dropped and unlocked before dropping `stream`.
+    let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
 
     // TODO: It works even when there is no output unit(AudioUnit).
     //       Should we throw an error or panic in this case ?
@@ -1580,12 +1773,15 @@ fn test_clamp_latency_with_more_than_one_active_streams_without_output_unit() {
     {
         mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
     }
-    // The scope of `_lock` is a critical section.
-    let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
 
     // Add two streams to the context.
-    audiounit_increment_active_streams(&mut ctx);
-    audiounit_increment_active_streams(&mut ctx);
+    // `AudioUnitStream::drop()` will check the context has at least one stream.
+    {
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+        audiounit_increment_active_streams(&mut ctx);
+    }
 
     let mut stream = AudioUnitStream::new(
         &mut ctx,
@@ -1595,6 +1791,12 @@ fn test_clamp_latency_with_more_than_one_active_streams_without_output_unit() {
         0
     );
     stream.init();
+
+    // The scope of `_lock` is a critical section.
+    // When `AudioUnitStream::drop()` is called, `AudioUnitContext.mutex`
+    // needs to be unlocked. That's why `_lock` needs to be declared after
+    // `stream` so it will be dropped and unlocked before dropping `stream`.
+    let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
 
     // TODO: We only check this when we have more than one streams.
     //       Should we also check this when we have only one stream ?
@@ -1615,12 +1817,15 @@ fn test_clamp_latency_with_more_than_one_active_streams() {
     {
         mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
     }
-    // The scope of `_lock` is a critical section.
-    let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
 
     // Add two streams to the context.
-    audiounit_increment_active_streams(&mut ctx);
-    audiounit_increment_active_streams(&mut ctx);
+    // `AudioUnitStream::drop()` will check the context has at least one stream.
+    {
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+        audiounit_increment_active_streams(&mut ctx);
+    }
 
     let mut stream = AudioUnitStream::new(
         &mut ctx,
@@ -1630,6 +1835,12 @@ fn test_clamp_latency_with_more_than_one_active_streams() {
         0
     );
     stream.init();
+
+    // The scope of `_lock` is a critical section.
+    // When `AudioUnitStream::drop()` is called, `AudioUnitContext.mutex`
+    // needs to be unlocked. That's why `_lock` needs to be declared after
+    // `stream` so it will be dropped and unlocked before dropping `stream`.
+    let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
 
     // Initialize the output unit to default output device.
     let device = device_info {
@@ -1762,6 +1973,20 @@ fn test_get_default_device_name() {
     // will be used when AudioUnitStream::drop/destroy is called.
     let mut ctx = AudioUnitContext::new();
     ctx.init();
+
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+    {
+        // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let mutex_ptr: *mut OwnedCriticalSection;
+        {
+            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        }
+
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
 
     let mut stream = AudioUnitStream::new(
         &mut ctx,

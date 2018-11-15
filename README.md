@@ -7,14 +7,6 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
 - Create tests for later refactoring
 
 ## TODO
-- **Crashes** when running `$ cargo test`
-  - Need to check the orderes of calling `OwnedCriticalSection` in `AudioUnitStream` and `AudioUnitContext` when `AudioUnitStream::drop` is called.
-    - When `AudioUnitStream::drop()` is called, we will [lock `AudioUnitContext.mutex` in `audiounit_stream_destroy`](https://github.com/ChunMinChang/cubeb-coreaudio-rs/blob/53dc6f03ec8e21e3574e6abd5edbd4e68ec7cb83/src/backend/mod.rs#L831)
-    - While `AudioUnitContext.mutex` is locked when `AudioUnitStream::drop()` is called in the [tests](https://github.com/ChunMinChang/cubeb-coreaudio-rs/blob/53dc6f03ec8e21e3574e6abd5edbd4e68ec7cb83/src/backend/test.rs#L1479)
-      - Rust variables are dropped in the opposite order they are declared
-      - `_lock` is created before `stream`, so `stream` will be dropped before `_lock`
-    - `AudioUnitContext.mutex` need to be unlocked when `AudioUnitStream::drop()` is called!
-  - Need to add one `active_streams` when `stream` is created!
 - [cubeb-rs][cubeb-rs]
   - Implement `to_owned` in [`StreamParamsRef`][cubeb-rs-stmparamsref]
   - Implement [`stream_register_device_changed_callback` in `capi_new`][cubeb-rs-capi-stm-reg-dev-chg-callback]
