@@ -1267,7 +1267,7 @@ fn test_new_unit_instance() {
         };
         let mut unit: AudioUnit = ptr::null_mut();
         assert!(audiounit_new_unit_instance(&mut unit, &device).is_ok());
-        assert_ne!(unit, ptr::null_mut());
+        assert!(!unit.is_null());
         // Destroy the AudioUnits
         unsafe {
             AudioUnitUninitialize(unit);
@@ -1282,7 +1282,7 @@ fn test_new_unit_instance_twice() {
     let device = device_info::new();
     let mut unit: AudioUnit = ptr::null_mut();
     assert!(audiounit_new_unit_instance(&mut unit, &device).is_ok());
-    assert_ne!(unit, ptr::null_mut());
+    assert!(!unit.is_null());
 
     // audiounit_new_unit_instance will get a panic immediately
     // when it's called, so the `assert_eq` and the code after
@@ -1368,7 +1368,7 @@ fn test_enable_unit_output_scope_for_default_output_unit() {
     for device in devices.iter() {
         let mut unit: AudioUnit = ptr::null_mut();
         assert!(audiounit_new_unit_instance(&mut unit, &device).is_ok());
-        assert_ne!(unit, ptr::null_mut());
+        assert!(!unit.is_null());
 
         let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
         if valid_id(output_id) {
@@ -1449,7 +1449,7 @@ fn test_enable_unit_scope() {
         };
         let mut unit: AudioUnit = ptr::null_mut();
         assert!(audiounit_new_unit_instance(&mut unit, &device).is_ok());
-        assert_ne!(unit, ptr::null_mut());
+        assert!(!unit.is_null());
 
         assert!(
             audiounit_enable_unit_scope(
@@ -1499,7 +1499,7 @@ fn test_create_unit_with_unknown_scope() {
     let device = device_info::new();
     let mut unit: AudioUnit = ptr::null_mut();
     assert!(audiounit_create_unit(&mut unit, &device).is_ok());
-    assert_ne!(unit, ptr::null_mut());
+    assert!(!unit.is_null());
 }
 
 #[test]
@@ -1521,7 +1521,7 @@ fn test_create_unit_twice() {
         device.flags |= *flags;
         let mut unit: AudioUnit = ptr::null_mut();
         assert!(audiounit_create_unit(&mut unit, &device).is_ok());
-        assert_ne!(unit, ptr::null_mut());
+        assert!(!unit.is_null());
         assert_eq!(
             audiounit_create_unit(&mut unit, &device).unwrap_err(),
             Error::error()
@@ -1553,7 +1553,7 @@ fn test_create_unit() {
                 device.id = device_id;
                 let mut unit: AudioUnit = ptr::null_mut();
                 assert!(audiounit_create_unit(&mut unit, &device).is_ok());
-                assert_ne!(unit, ptr::null_mut());
+                assert!(!unit.is_null());
                 assert!(unit_scope_is_enabled(&unit, false));
 
                 // For default output device, the input scope is enabled
@@ -1589,7 +1589,7 @@ fn test_create_unit() {
                 device.id = device_id;
                 let mut unit: AudioUnit = ptr::null_mut();
                 assert!(audiounit_create_unit(&mut unit, &device).is_ok());
-                assert_ne!(unit, ptr::null_mut());
+                assert!(!unit.is_null());
                 assert!(unit_scope_is_enabled(&unit, true));
                 // Destroy the audioUnit.
                 unsafe {
@@ -1751,7 +1751,7 @@ fn test_clamp_latency_with_more_than_one_active_streams() {
         flags: device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT
     };
     assert!(audiounit_create_unit(&mut stream.output_unit, &device).is_ok());
-    assert_ne!(stream.output_unit, ptr::null_mut());
+    assert!(!stream.output_unit.is_null());
     let maybe_buffer_size = {
         let mut buffer_size: u32 = 0;
         if audio_unit_get_property(
@@ -1921,8 +1921,8 @@ fn test_get_default_device_name() {
             DeviceType::INPUT
         ).is_ok()
     );
-    assert_ne!(device.input_name, ptr::null_mut());
-    assert_eq!(device.output_name, ptr::null_mut());
+    assert!(!device.input_name.is_null());
+    assert!(device.output_name.is_null());
 
     // output:
     device = ffi::cubeb_device::default();
@@ -1933,8 +1933,8 @@ fn test_get_default_device_name() {
             DeviceType::OUTPUT
         ).is_ok()
     );
-    assert_eq!(device.input_name, ptr::null_mut());
-    assert_ne!(device.output_name, ptr::null_mut());
+    assert!(device.input_name.is_null());
+    assert!(!device.output_name.is_null());
 
     // in-out:
     device = ffi::cubeb_device::default();
@@ -1946,8 +1946,8 @@ fn test_get_default_device_name() {
         ).unwrap_err(),
         Error::error()
     );
-    assert_eq!(device.input_name, ptr::null_mut());
-    assert_eq!(device.output_name, ptr::null_mut());
+    assert!(device.input_name.is_null());
+    assert!(device.output_name.is_null());
 
 }
 
@@ -2352,11 +2352,11 @@ fn test_create_device_from_hwdev_input() {
             DeviceType::INPUT,
         ).is_ok()
     );
-    assert_ne!(info.devid, ptr::null_mut());
-    assert_ne!(info.device_id, ptr::null_mut());
+    assert!(!info.devid.is_null());
+    assert!(!info.device_id.is_null());
     assert_eq!(info.group_id, info.device_id);
-    assert_ne!(info.friendly_name, ptr::null_mut());
-    assert_ne!(info.vendor_name, ptr::null_mut());
+    assert!(!info.friendly_name.is_null());
+    assert!(!info.vendor_name.is_null());
     assert_eq!(info.device_type, ffi::CUBEB_DEVICE_TYPE_INPUT);
     assert_eq!(info.state, ffi::CUBEB_DEVICE_STATE_ENABLED);
     assert_eq!(info.preferred, ffi::CUBEB_DEVICE_PREF_ALL);
@@ -2379,11 +2379,11 @@ fn test_create_device_from_hwdev_input() {
                 DeviceType::OUTPUT,
             ).is_ok()
         );
-        assert_ne!(info.devid, ptr::null_mut());
-        assert_ne!(info.device_id, ptr::null_mut());
+        assert!(!info.devid.is_null());
+        assert!(info.device_id.is_null());
         assert_eq!(info.group_id, info.device_id);
-        assert_ne!(info.friendly_name, ptr::null_mut());
-        assert_ne!(info.vendor_name, ptr::null_mut());
+        assert!(!info.friendly_name.is_null());
+        assert!(!info.vendor_name.is_null());
         assert_eq!(info.device_type, ffi::CUBEB_DEVICE_TYPE_OUTPUT);
         assert_eq!(info.state, ffi::CUBEB_DEVICE_STATE_ENABLED);
         let default_output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
@@ -2454,11 +2454,11 @@ fn test_create_device_from_hwdev_output() {
                 DeviceType::INPUT,
             ).is_ok()
         );
-        assert_ne!(info.devid, ptr::null_mut());
-        assert_ne!(info.device_id, ptr::null_mut());
+        assert!(!info.devid.is_null());
+        assert!(!info.device_id.is_null());
         assert_eq!(info.group_id, info.device_id);
-        assert_ne!(info.friendly_name, ptr::null_mut());
-        assert_ne!(info.vendor_name, ptr::null_mut());
+        assert!(!info.friendly_name.is_null());
+        assert!(!info.vendor_name.is_null());
         assert_eq!(info.device_type, ffi::CUBEB_DEVICE_TYPE_INPUT);
         assert_eq!(info.state, ffi::CUBEB_DEVICE_STATE_ENABLED);
         let default_input_id = audiounit_get_default_device_id(DeviceType::INPUT);
@@ -2498,11 +2498,11 @@ fn test_create_device_from_hwdev_output() {
             DeviceType::OUTPUT,
         ).is_ok()
     );
-    assert_ne!(info.devid, ptr::null_mut());
-    assert_ne!(info.device_id, ptr::null_mut());
+    assert!(!info.devid.is_null());
+    assert!(!info.device_id.is_null());
     assert_eq!(info.group_id, info.device_id);
-    assert_ne!(info.friendly_name, ptr::null_mut());
-    assert_ne!(info.vendor_name, ptr::null_mut());
+    assert!(!info.friendly_name.is_null());
+    assert!(!info.vendor_name.is_null());
     assert_eq!(info.device_type, ffi::CUBEB_DEVICE_TYPE_OUTPUT);
     assert_eq!(info.state, ffi::CUBEB_DEVICE_STATE_ENABLED);
     assert_eq!(info.preferred, ffi::CUBEB_DEVICE_PREF_ALL);
@@ -3041,7 +3041,7 @@ fn is_output(id: AudioObjectID) -> bool {
 }
 
 fn unit_scope_is_enabled(unit: &AudioUnit, is_input: bool) -> bool {
-    assert_ne!(*unit, ptr::null_mut());
+    assert!(!(*unit).is_null());
     let mut has_io: UInt32 = 0;
     assert_eq!(
         audio_unit_get_property(
