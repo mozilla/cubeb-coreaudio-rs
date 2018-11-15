@@ -1655,51 +1655,15 @@ fn test_create_unit() {
 
 // clamp_latency
 // ------------------------------------
-// The following test will fail since the program never reaches
-// `audiounit_increment_active_streams`. The test will finish
-// once we get a panic from `audiounit_clamp_latency`. After
-// catching panic, AudioUnitStream::drop/destroy() will be called.
-// It will check we have at least one active stream in the context
-// when AudioUnitStream::drop is called, but we don't have one(
-// otherwise we cannot hit the assertion in `audiounit_clamp_latency`).
-#[test]
-#[ignore]
-#[should_panic]
-fn test_clamp_latency_without_any_active_stream() {
-    // We need to initialize the members with type OwnedCriticalSection in
-    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
-    // will be used when AudioUnitStream::drop/destroy is called.
-    let mut ctx = AudioUnitContext::new();
-    ctx.init();
-
-    // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
-    let mutex_ptr: *mut OwnedCriticalSection;
-    {
-        mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-    }
-
-    let mut stream = AudioUnitStream::new(
-        &mut ctx,
-        ptr::null_mut(),
-        None,
-        None,
-        0
-    );
-    stream.init();
-
-    // The scope of `_lock` is a critical section.
-    // When `AudioUnitStream::drop()` is called, `AudioUnitContext.mutex`
-    // needs to be unlocked. That's why `_lock` needs to be declared after
-    // `stream` so it will be dropped and unlocked before dropping `stream`.
-    let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-
-    // Get a panic since there is no stream.
-    let _ = audiounit_clamp_latency(&mut stream, 0);
-
-    // Add a stream to the context. `AudioUnitStream::drop()` will check
-    // the context has at least one stream.
-    audiounit_increment_active_streams(&mut stream.context);
-}
+// TODO: Add a test to test the behavior of clamp_latency without any
+//       active stream.
+//       We are unable to test it right now. If we add a test that should get
+//       a panic when hitting the assertion in audiounit_clamp_latency since
+//       there is no active stream, then we will get another panic when
+//       AudioUnitStream::drop/destroy is called. AudioUnitStream::drop/destroy
+//       will check we have at least one active stream when destroying
+//       AudioUnitStream. Maybe we can add this test after refactoring.
+//       Simply add a note here for now.
 
 #[test]
 fn test_clamp_latency_with_one_active_stream() {
