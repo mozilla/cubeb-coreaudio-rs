@@ -823,10 +823,11 @@ fn audiounit_stream_destroy(stm: &mut AudioUnitStream)
     // with reinit when un/plug devices
     sync_dispatch(stm.context.serial_queue, move || {
         let stm = unsafe { &mut (*(stm_ptr as *mut AudioUnitStream)) };
-        let mutex_ptr: *mut OwnedCriticalSection;
-        {
-            mutex_ptr = &mut stm.context.mutex as *mut OwnedCriticalSection;
-        }
+        // Since we cannot call `AutoLock::new(&mut stm.context.mutex)` and
+        // `audiounit_stream_destroy_internal(stm)` at the same time,
+        // We take the pointer to `stm.context.mutex` first and then dereference
+        // it to the mutex to avoid this problem for now.
+        let mutex_ptr = &mut stm.context.mutex as *mut OwnedCriticalSection;
         // The scope of `_context_lock` is a critical section.
         let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
         audiounit_stream_destroy_internal(stm);
@@ -1671,10 +1672,7 @@ impl ContextOps for AudioUnitContext {
         // (`self` cannot be borrowed immutably after it's borrowed as mutable.),
         // we take the pointer to `self.mutex` first and then dereference it to
         // the mutex to avoid this problem for now.
-        let mutex_ptr: *mut OwnedCriticalSection;
-        {
-            mutex_ptr = &mut self.mutex as *mut OwnedCriticalSection;
-        }
+        let mutex_ptr = &mut self.mutex as *mut OwnedCriticalSection;
         // The scope of `_context_lock` is a critical section.
         let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
         audiounit_increment_active_streams(self);
@@ -1725,10 +1723,7 @@ impl ContextOps for AudioUnitContext {
             // the pointer to boxed_stream.mutex(it's a value) and convert it
             // to a reference as the workaround to borrow as mutable twice.
             // Same as what we did above for AudioUnitContext.mutex.
-            let mutex_ptr: *mut OwnedCriticalSection;
-            {
-                mutex_ptr = &mut boxed_stream.mutex as *mut OwnedCriticalSection;
-            }
+            let mutex_ptr = &mut boxed_stream.mutex as *mut OwnedCriticalSection;
             // The scope of `_lock` is a critical section.
             let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
             audiounit_setup_stream(boxed_stream.as_mut())

@@ -440,10 +440,8 @@ fn test_increase_and_decrease_active_streams() {
     let mut ctx = AudioUnitContext::new();
     ctx.init();
 
-    let mutex_ptr: *mut OwnedCriticalSection;
-    {
-        mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-    }
+    // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
+    let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
     // The scope of `_lock` is a critical section.
     let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
 
@@ -467,10 +465,8 @@ fn test_set_global_latency() {
     let mut ctx = AudioUnitContext::new();
     ctx.init();
 
-    let mutex_ptr: *mut OwnedCriticalSection;
-    {
-        mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-    }
+    // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
+    let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
     // The scope of `_lock` is a critical section.
     let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
 
@@ -499,11 +495,7 @@ fn test_set_device_info_with_unknown_type() {
     // the context has at least one stream.
     {
         // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
-        let mutex_ptr: *mut OwnedCriticalSection;
-        {
-            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-        }
-
+        let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
         // The scope of `_lock` is a critical section.
         let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
         audiounit_increment_active_streams(&mut ctx);
@@ -546,11 +538,7 @@ fn test_set_device_info_with_inout_type() {
     // the context has at least one stream.
     {
         // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
-        let mutex_ptr: *mut OwnedCriticalSection;
-        {
-            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-        }
-
+        let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
         // The scope of `_lock` is a critical section.
         let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
         audiounit_increment_active_streams(&mut ctx);
@@ -592,11 +580,7 @@ fn test_set_device_info_for_unknown_input_device() {
     // the context has at least one stream.
     {
         // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
-        let mutex_ptr: *mut OwnedCriticalSection;
-        {
-            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-        }
-
+        let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
         // The scope of `_lock` is a critical section.
         let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
         audiounit_increment_active_streams(&mut ctx);
@@ -657,11 +641,7 @@ fn test_set_device_info_for_unknown_output_device() {
     // the context has at least one stream.
     {
         // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
-        let mutex_ptr: *mut OwnedCriticalSection;
-        {
-            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-        }
-
+        let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
         // The scope of `_lock` is a critical section.
         let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
         audiounit_increment_active_streams(&mut ctx);
@@ -725,11 +705,7 @@ fn test_set_device_info_for_system_input_device() {
     // the context has at least one stream.
     {
         // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
-        let mutex_ptr: *mut OwnedCriticalSection;
-        {
-            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-        }
-
+        let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
         // The scope of `_lock` is a critical section.
         let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
         audiounit_increment_active_streams(&mut ctx);
@@ -793,11 +769,7 @@ fn test_set_device_info_for_system_output_device() {
     // the context has at least one stream.
     {
         // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
-        let mutex_ptr: *mut OwnedCriticalSection;
-        {
-            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-        }
-
+        let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
         // The scope of `_lock` is a critical section.
         let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
         audiounit_increment_active_streams(&mut ctx);
@@ -861,11 +833,7 @@ fn test_set_device_info_for_nonexistent_input_device() {
     // the context has at least one stream.
     {
         // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
-        let mutex_ptr: *mut OwnedCriticalSection;
-        {
-            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-        }
-
+        let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
         // The scope of `_lock` is a critical section.
         let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
         audiounit_increment_active_streams(&mut ctx);
@@ -920,11 +888,7 @@ fn test_set_device_info_for_nonexistent_output_device() {
     // the context has at least one stream.
     {
         // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
-        let mutex_ptr: *mut OwnedCriticalSection;
-        {
-            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-        }
-
+        let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
         // The scope of `_lock` is a critical section.
         let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
         audiounit_increment_active_streams(&mut ctx);
@@ -1000,11 +964,7 @@ fn test_add_listener_for_unknown_device() {
     // the context has at least one stream.
     {
         // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
-        let mutex_ptr: *mut OwnedCriticalSection;
-        {
-            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-        }
-
+        let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
         // The scope of `_lock` is a critical section.
         let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
         audiounit_increment_active_streams(&mut ctx);
@@ -1056,11 +1016,7 @@ fn test_remove_listener_for_unknown_device() {
     // the context has at least one stream.
     {
         // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
-        let mutex_ptr: *mut OwnedCriticalSection;
-        {
-            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-        }
-
+        let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
         // The scope of `_lock` is a critical section.
         let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
         audiounit_increment_active_streams(&mut ctx);
@@ -1110,11 +1066,7 @@ fn test_remove_listener_without_adding_any_listener() {
     // the context has at least one stream.
     {
         // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
-        let mutex_ptr: *mut OwnedCriticalSection;
-        {
-            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-        }
-
+        let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
         // The scope of `_lock` is a critical section.
         let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
         audiounit_increment_active_streams(&mut ctx);
@@ -1164,11 +1116,7 @@ fn test_add_then_remove_listener() {
     // the context has at least one stream.
     {
         // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
-        let mutex_ptr: *mut OwnedCriticalSection;
-        {
-            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-        }
-
+        let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
         // The scope of `_lock` is a critical section.
         let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
         audiounit_increment_active_streams(&mut ctx);
@@ -1674,10 +1622,7 @@ fn test_clamp_latency_with_one_active_stream() {
     ctx.init();
 
     // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
-    let mutex_ptr: *mut OwnedCriticalSection;
-    {
-        mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-    }
+    let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
 
     // Add a stream to the context. `AudioUnitStream::drop()` will check
     // the context has at least one stream.
@@ -1733,10 +1678,7 @@ fn test_clamp_latency_with_more_than_one_active_streams_without_output_unit() {
     ctx.init();
 
     // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
-    let mutex_ptr: *mut OwnedCriticalSection;
-    {
-        mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-    }
+    let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
 
     // Add two streams to the context.
     // `AudioUnitStream::drop()` will check the context has at least one stream.
@@ -1777,10 +1719,7 @@ fn test_clamp_latency_with_more_than_one_active_streams() {
     ctx.init();
 
     // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
-    let mutex_ptr: *mut OwnedCriticalSection;
-    {
-        mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-    }
+    let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
 
     // Add two streams to the context.
     // `AudioUnitStream::drop()` will check the context has at least one stream.
@@ -1942,10 +1881,7 @@ fn test_get_default_device_name() {
     // the context has at least one stream.
     {
         // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
-        let mutex_ptr: *mut OwnedCriticalSection;
-        {
-            mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-        }
+        let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
 
         // The scope of `_lock` is a critical section.
         let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
