@@ -525,7 +525,7 @@ fn get_device_name(id: AudioDeviceID) -> CFStringRef
 #[cfg(target_os = "ios")]
 fn audiounit_new_unit_instance(unit: &mut AudioUnit, _: &device_info) -> Result<()>
 {
-    assert_eq!(*unit, ptr::null_mut());
+    assert!((*unit).is_null());
 
     let mut desc = AudioComponentDescription::default();
     let mut comp: AudioComponent;
@@ -554,7 +554,7 @@ fn audiounit_new_unit_instance(unit: &mut AudioUnit, _: &device_info) -> Result<
 #[cfg(not(target_os = "ios"))]
 fn audiounit_new_unit_instance(unit: &mut AudioUnit, device: &device_info) -> Result<()>
 {
-    assert_eq!(*unit, ptr::null_mut());
+    assert!((*unit).is_null());
 
     let mut desc = AudioComponentDescription::default();
     let mut comp: AudioComponent = ptr::null_mut();
@@ -597,7 +597,7 @@ enum enable_state {
 
 fn audiounit_enable_unit_scope(unit: &AudioUnit, side: io_side, state: enable_state) -> Result<()>
 {
-    assert_ne!(*unit, ptr::null_mut());
+    assert!(!(*unit).is_null());
 
     let mut rv: OSStatus = 0;
     let enable: u32 = if state == enable_state::DISABLE { 0 } else { 1 };
@@ -615,11 +615,11 @@ fn audiounit_enable_unit_scope(unit: &AudioUnit, side: io_side, state: enable_st
 
 fn audiounit_create_unit(unit: &mut AudioUnit, device: &device_info) -> Result<()>
 {
-    assert_eq!(*unit, ptr::null_mut());
+    assert!((*unit).is_null());
 
     let mut rv: OSStatus = 0;
     audiounit_new_unit_instance(unit, device)?;
-    assert_ne!(*unit, ptr::null_mut());
+    assert!(!(*unit).is_null());
 
     if device.flags.contains(device_flags::DEV_SYSTEM_DEFAULT | device_flags::DEV_OUTPUT) {
         return Ok(());
@@ -678,7 +678,7 @@ fn audiounit_clamp_latency(stm: &mut AudioUnitStream, latency_frames: u32) -> u3
     }
     // TODO: Should we check this even for 1 stream case ?
     //       Do we need to set latency if there is no output unit ?
-    assert_ne!(stm.output_unit, ptr::null_mut());
+    assert!(!stm.output_unit.is_null());
 
     // If more than one stream operates in parallel
     // allow only lower values of latency
