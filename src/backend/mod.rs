@@ -459,6 +459,7 @@ fn audiounit_get_acceptable_latency_range(latency_range: &mut AudioValueRange) -
 
     /* Get the buffer size range this device supports */
     size = mem::size_of_val(latency_range);
+    assert_eq!(size, mem::size_of::<AudioValueRange>());
 
     r = audio_object_get_property_data(output_device_id,
                                        &output_device_buffer_size_range,
@@ -685,6 +686,7 @@ fn audiounit_clamp_latency(stm: &mut AudioUnitStream, latency_frames: u32) -> u3
     let mut r: OSStatus = 0;
     let mut output_buffer_size: UInt32 = 0;
     let mut size = mem::size_of_val(&output_buffer_size);
+    assert_eq!(size, mem::size_of::<UInt32>());
     // TODO: Why we check `output_unit` here? We already have an assertions above!
     if !stm.output_unit.is_null() {
         r = audio_unit_get_property(&stm.output_unit,
@@ -868,6 +870,7 @@ fn audiounit_get_default_device_datasource(devtype: DeviceType,
     }
 
     let mut size = mem::size_of_val(data);
+    assert_eq!(size, mem::size_of::<u32>());
     // TODO: devtype includes input, output, in-out, and unknown. This is a
     //       bad style to check type, although this function will early return
     //       for in-out and unknown type since audiounit_get_default_device_id
@@ -1499,6 +1502,7 @@ impl ContextOps for AudioUnitContext {
         }
 
         size = mem::size_of_val(&stream_format);
+        assert_eq!(size, mem::size_of::<AudioStreamBasicDescription>());
 
         r = audio_object_get_property_data(output_device_id,
                                            &stream_format_address,
@@ -1549,6 +1553,7 @@ impl ContextOps for AudioUnitContext {
         }
 
         size = mem::size_of_val(&fsamplerate);
+        assert_eq!(size, mem::size_of::<f64>());
         r = audio_object_get_property_data(output_device_id,
                                            &samplerate_address,
                                            &mut size,
