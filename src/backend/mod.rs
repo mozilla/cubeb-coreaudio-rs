@@ -1055,7 +1055,7 @@ fn audiounit_get_device_presentation_latency(devid: AudioObjectID, scope: AudioO
     let mut size: usize = 0;
     let mut dev: u32 = 0;
     let mut stream: u32 = 0;
-    let mut sid: Vec<AudioStreamID> = allocate_array(1);
+    let mut sid: [AudioStreamID; 1] = [kAudioObjectUnknown];
 
     adr.mSelector = kAudioDevicePropertyLatency;
     size = mem::size_of::<u32>();
@@ -1065,6 +1065,7 @@ fn audiounit_get_device_presentation_latency(devid: AudioObjectID, scope: AudioO
 
     adr.mSelector = kAudioDevicePropertyStreams;
     size = mem::size_of_val(&sid);
+    assert_eq!(size, mem::size_of::<AudioStreamID>());
     if audio_object_get_property_data(devid, &adr, &mut size, sid.as_mut_ptr()) == 0 {
         adr.mSelector = kAudioStreamPropertyLatency;
         size = mem::size_of::<u32>();
