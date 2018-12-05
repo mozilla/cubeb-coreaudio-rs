@@ -1802,6 +1802,7 @@ struct AudioUnitStream<'ctx> {
     destroy_pending: AtomicBool,
     /* Latency requested by the user. */
     latency_frames: u32,
+    panning: atomic::Atomic<f32>,
     /* This is true if a device change callback is currently running.  */
     switching_device: AtomicBool,
     /* Listeners indicating what system events are monitored. */
@@ -1851,6 +1852,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             reinit_pending: AtomicBool::new(false),
             destroy_pending: AtomicBool::new(false),
             latency_frames,
+            panning: atomic::Atomic::new(0.0_f32),
             switching_device: AtomicBool::new(false),
             default_input_listener: None,
             default_output_listener: None,
@@ -1905,7 +1907,8 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         Ok(())
     }
     fn set_panning(&mut self, panning: f32) -> Result<()> {
-        assert_eq!(panning, 0.5);
+        // TODO: Return error when channels per frame is greater than 2.
+        self.panning.store(panning, Ordering::Relaxed);
         Ok(())
     }
     #[cfg(target_os = "ios")]

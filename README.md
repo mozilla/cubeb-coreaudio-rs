@@ -29,7 +29,7 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
   - We implement a [`OwnedCriticalSection` around `pthread_mutex_t`][ocs-rust] like what we do in [_C_ version][ocs] for now.
 - Atomic:
   - The stable atomic types only support `bool`, `usize`, `isize`, and `ptr`, but we need `u64`, `i64`, and `f32`.
-  - Consider using [atomic-rs](https://github.com/Amanieu/atomic-rs)
+  - Using [atomic-rs](https://github.com/Amanieu/atomic-rs) instead.
 - Unworkable API: [`dispatch_async`][dis-async] and [`dispatch_sync`][dis-sync]
   - The second parameter of [`dispatch_async`][dis-async] and [`dispatch_sync`][dis-sync] is [`dispatch_block_t`][dis-block], which is defined by `typedef void (^dispatch_block_t)(void)`.
   - The caret symbol `^` defines a [block][c-ext-block].

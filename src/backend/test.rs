@@ -427,6 +427,30 @@ fn test_stream_set_volume() {
 //     }
 // }
 
+#[test]
+fn test_stream_set_panning() {
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    let name = CString::new("test set panning").expect("CString::new failed");
+    let stream = ctx.stream_init(
+        Some(&name),
+        ptr::null(),
+        None,
+        ptr::null(),
+        None,
+        4096,
+        None,
+        None,
+        ptr::null_mut()
+    ).unwrap();
+
+    assert!(stream.set_panning(0.5).is_ok());
+
+    // stream should be dropped autmatically.
+    // See the implementation of the ffi_type_heap macro.
+}
+
 // #[test]
 // fn test_ops_stream_current_device() {
 //     let s: *mut ffi::cubeb_stream = ptr::null_mut();

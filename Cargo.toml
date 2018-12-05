@@ -12,6 +12,7 @@ core_audio = ["coreaudio-sys/core_audio"]
 audio_unit = ["coreaudio-sys/audio_unit"]
 
 [dependencies]
+atomic = "0.4"
 bitflags = "1.0"
 cubeb-backend = "0.5"
 coreaudio-sys = { version = "0.2", default-features = false }
