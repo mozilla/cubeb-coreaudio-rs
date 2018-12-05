@@ -207,6 +207,26 @@ pub fn audio_unit_set_property<T>(
     }
 }
 
+pub fn audio_unit_set_parameter(
+    unit: &sys::AudioUnit,
+    id: sys:: AudioUnitParameterID,
+    scope: sys::AudioUnitScope,
+    element: sys::AudioUnitElement,
+    value: sys::AudioUnitParameterValue,
+    buffer_offset_in_frames: sys::UInt32,
+) -> sys::OSStatus {
+    unsafe {
+        sys::AudioUnitSetParameter(
+            *unit,
+            id,
+            scope,
+            element,
+            value,
+            buffer_offset_in_frames
+        )
+    }
+}
+
 #[test]
 fn test_create_static_cfstring_ref() {
     use super::*;

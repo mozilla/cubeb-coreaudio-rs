@@ -389,6 +389,35 @@ fn test_manual_ops_context_register_device_collection_changed() {
 //         OPS.stream_set_volume.unwrap()(s, 0.5);
 //     }
 // }
+#[test]
+fn test_stream_set_volume() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    let name = CString::new("test set valume").expect("CString::new failed");
+    let mut ffi_params: ffi::cubeb_stream_params = unsafe { ::std::mem::zeroed() };
+    ffi_params.rate = 44100;
+    let params = StreamParams::from(ffi_params);
+    let stream = ctx.stream_init(
+        Some(&name),
+        ptr::null(),
+        None,
+        ptr::null(),
+        Some(&&params),
+        4096,
+        None,
+        None,
+        ptr::null_mut()
+    ).unwrap();
+
+    assert!(stream.set_volume(0.5).is_ok());
+
+    // stream should be dropped autmatically.
+    // See the implementation of the ffi_type_heap macro.
+}
 
 // #[test]
 // fn test_ops_stream_set_panning() {

@@ -1892,7 +1892,16 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         Ok(0u32)
     }
     fn set_volume(&mut self, volume: f32) -> Result<()> {
-        assert_eq!(volume, 0.5);
+        assert!(!self.output_unit.is_null());
+        let mut r: OSStatus = 0;
+        r = audio_unit_set_parameter(&self.output_unit,
+                                     kHALOutputParam_Volume,
+                                     kAudioUnitScope_Global,
+                                     0, volume, 0);
+        if r != 0 {
+            cubeb_log!("AudioUnitSetParameter/kHALOutputParam_Volume rv={}", r);
+            return Err(Error::error());
+        }
         Ok(())
     }
     fn set_panning(&mut self, panning: f32) -> Result<()> {
