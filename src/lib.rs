@@ -4,9 +4,9 @@
 // accompanying file LICENSE for details.
 extern crate atomic;
 #[macro_use]
-extern crate cubeb_backend;
-#[macro_use]
 extern crate bitflags;
+#[macro_use]
+extern crate cubeb_backend;
 
 mod backend;
 mod capi;
