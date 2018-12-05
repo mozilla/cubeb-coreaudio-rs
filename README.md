@@ -27,6 +27,8 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
 - Mutex: Find a replacement for [`owned_critical_section`][ocs]
   - A dummy mutex like `Mutex<()>` should work (see [`test_dummy_mutex_multithread`][ocs]) as what `owned_critical_section` does in [_C_ version][ocs], but it doens't has equivalent API for `assert_current_thread_owns`.
   - We implement a [`OwnedCriticalSection` around `pthread_mutex_t`][ocs-rust] like what we do in [_C_ version][ocs] for now.
+- Atomic:
+  - The stable atomic types only support `bool`, `usize`, `isize`, and `ptr`, but we need `u64`, `i64`, and `f32`.
 - Unworkable API: [`dispatch_async`][dis-async] and [`dispatch_sync`][dis-sync]
   - The second parameter of [`dispatch_async`][dis-async] and [`dispatch_sync`][dis-sync] is [`dispatch_block_t`][dis-block], which is defined by `typedef void (^dispatch_block_t)(void)`.
   - The caret symbol `^` defines a [block][c-ext-block].
