@@ -742,6 +742,9 @@ fn audiounit_clamp_latency(stm: &mut AudioUnitStream, latency_frames: u32) -> u3
 
 fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
 {
+    // TODO: Add stm.context.mutex.assert_current_thread_owns() ?
+    //       audiounit_active_streams will require to own the mutex in
+    //       stm.context.
     stm.mutex.assert_current_thread_owns();
 
     if stm.input_stream_params.prefs().contains(StreamPrefs::LOOPBACK) ||

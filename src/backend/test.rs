@@ -1893,6 +1893,10 @@ fn test_stream_get_volume() {
     raw.prefs = ffi::CUBEB_STREAM_PREF_NONE;
     stream.output_stream_params = StreamParams::from(raw);
 
+    // It's crucial to call to audiounit_set_device_info to set
+    // stream.output_device to output device type, or we will hit the
+    // assertion in audiounit_create_unit.
+
     let default_output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
     // Return an error if there is no available device.
     if !valid_id(default_output_id) {
