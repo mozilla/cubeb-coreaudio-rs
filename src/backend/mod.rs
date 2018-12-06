@@ -838,6 +838,20 @@ fn audiounit_stream_destroy(stm: &mut AudioUnitStream)
     cubeb_log!("Cubeb stream ({:p}) destroyed successful.", stm);
 }
 
+fn audiounit_stream_get_volume(stm: &AudioUnitStream, volume: &mut f32) -> Result<()>
+{
+    assert!(!stm.output_unit.is_null());
+    let r = audio_unit_get_parameter(&stm.output_unit,
+                                     kHALOutputParam_Volume,
+                                     kAudioUnitScope_Global,
+                                     0, volume);
+    if r != 0 {
+        cubeb_log!("AudioUnitGetParameter/kHALOutputParam_Volume rv={}", r);
+        return Err(Error::error());
+    }
+    Ok(())
+}
+
 fn convert_uint32_into_string(data: u32) -> CString
 {
     // Simply create an empty string if no data.

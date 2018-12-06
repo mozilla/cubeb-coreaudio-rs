@@ -207,6 +207,24 @@ pub fn audio_unit_set_property<T>(
     }
 }
 
+pub fn audio_unit_get_parameter(
+    unit: &sys::AudioUnit,
+    id: sys:: AudioUnitParameterID,
+    scope: sys::AudioUnitScope,
+    element: sys::AudioUnitElement,
+    value: &mut sys::AudioUnitParameterValue,
+) -> sys::OSStatus {
+    unsafe {
+        sys::AudioUnitGetParameter(
+            *unit,
+            id,
+            scope,
+            element,
+            value as *mut sys::AudioUnitParameterValue
+        )
+    }
+}
+
 pub fn audio_unit_set_parameter(
     unit: &sys::AudioUnit,
     id: sys:: AudioUnitParameterID,

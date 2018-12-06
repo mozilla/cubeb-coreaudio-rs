@@ -1856,6 +1856,84 @@ fn test_clamp_latency_with_more_than_one_active_streams() {
 // ------------------------------------
 // TODO
 
+// stream_get_volume
+// ------------------------------------
+#[test]
+fn test_stream_get_volume() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+
+    // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
+    let ctx_mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+
+    // The scope of `_lock` is a critical section.
+    let ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
+    audiounit_increment_active_streams(&mut ctx);
+
+    let mut stream = AudioUnitStream::new(
+        &mut ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+    stream.init();
+
+    let mut raw = ffi::cubeb_stream_params::default();
+    raw.format = ffi::CUBEB_SAMPLE_FLOAT32BE;
+    raw.rate = 96_000;
+    raw.channels = 32;
+    raw.layout = ffi::CUBEB_LAYOUT_3F1_LFE;
+    raw.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+    stream.output_stream_params = StreamParams::from(raw);
+
+    let default_output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
+    // Return an error if there is no available device.
+    if !valid_id(default_output_id) {
+        return;
+    }
+
+    assert!(
+        audiounit_set_device_info(
+            &mut stream,
+            kAudioObjectUnknown,
+            DeviceType::OUTPUT
+        ).is_ok()
+    );
+
+    assert_eq!(stream.output_device.id, default_output_id);
+    assert_eq!(
+        stream.output_device.flags,
+        device_flags::DEV_OUTPUT |
+        device_flags::DEV_SELECTED_DEFAULT |
+        device_flags::DEV_SYSTEM_DEFAULT
+    );
+
+    {
+        let stm_mutex_ptr = &mut stream.mutex as *mut OwnedCriticalSection;
+        let _stm_lock = AutoLock::new(unsafe { &mut (*stm_mutex_ptr) });
+        audiounit_setup_stream(&mut stream);
+    }
+
+    let expected_volume: f32 = 0.5;
+    stream.set_volume(expected_volume);
+
+    let mut actual_volume: f32 = 0.0;
+    audiounit_stream_get_volume(&stream, &mut actual_volume);
+
+    assert_eq!(expected_volume, actual_volume);
+
+    // Force to drop the context lock before stream is dropped, since
+    // AudioUnitStream::Drop() will lock the context mutex.
+    drop(ctx_lock);
+}
+
 // convert_uint32_into_string
 // ------------------------------------
 #[test]
