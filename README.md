@@ -22,6 +22,7 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
 - Find a way to catch memory leaks
   - Try Instrument on OSX
 - Some of bugs are found when adding tests. Search *FIXIT* to find them.
+- Maybe it's better to move all `fn some_func(stm: &AudioUnitStream, ...)` functions into `impl AudioUnitStream`.
 
 ## Issues
 - Mutex: Find a replacement for [`owned_critical_section`][ocs]
