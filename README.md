@@ -28,8 +28,7 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
 - Mutex: Find a replacement for [`owned_critical_section`][ocs]
   - A dummy mutex like `Mutex<()>` should work (see [`test_dummy_mutex_multithread`][ocs]) as what `owned_critical_section` does in [_C_ version][ocs], but it doens't has equivalent API for `assert_current_thread_owns`.
   - We implement a [`OwnedCriticalSection` around `pthread_mutex_t`][ocs-rust] like what we do in [_C_ version][ocs] for now.
-  - It's hard to debug withe the variables using `OwnedCriticalSection`. I don't know how the rust code
-    be compiled to machine code. But when I have some errors and assertion fails that are unrelated to `OwnedCriticalSection`, the _lldb_ will lead me to `OwnedCriticalSection`. For example, when the _AudioUnitStream_ that using `OwnedCriticalSection` call an API _X_ that simply calls an `assert!(false)`, the lldb lead me to `OwnedCriticalSection` instead of the line calling `assert!(false)`. That makes me hard to debug.
+  - It's hard to debug with the variables using `OwnedCriticalSection`. Within a test with a variable using `OwnedCriticalSection` that will get a panic, if the `OwnedCriticalSection` used in the test isn't be dropped **before** where the code get a panic, then the test is probably fails in `OwnedCriticalSection` rather than the line having a panic. One example is [`test_stream_get_panic_before_releasing_mutex`](src/backend/test.rs).
 - Atomic:
   - The stable atomic types only support `bool`, `usize`, `isize`, and `ptr`, but we need `u64`, `i64`, and `f32`.
   - Using [atomic-rs](https://github.com/Amanieu/atomic-rs) instead.
