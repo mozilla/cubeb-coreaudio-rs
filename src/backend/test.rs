@@ -7,6 +7,7 @@ use super::*;
 
 // Note
 // ============================================================================
+#[test]
 #[ignore]
 fn test_stream_get_panic_before_releasing_mutex() {
     // We need to initialize the members with type OwnedCriticalSection in
@@ -74,17 +75,14 @@ fn test_stream_get_panic_before_releasing_mutex() {
         audiounit_setup_stream(&mut stream);
     }
 
-    // If the following `drop` is commented,
-    // the AudioUnitStream::drop() will lock the AudioUnitStream.context.mutex
-    // without releasing the AudioUnitStream.context.mutex in use
-    // (`ctx_lock` here) first and cause a deadlock, when hitting the
-    // `assert!(false)` at the end of this test.
-    // When hitting `assert!(false)`, this test is marked failed, and the code
-    // stops executing. Thus, `ctx_lock` won't be dropped automatically (it's
-    // supposed to be dropped when going out the '}' scope in this test).
-    // However, the variables's drop function will still be executed as long as
-    // it implements Drop trait. That's why `ctx_lock` won't be dropped but
-    // `AudioUnitStream::drop()` will be called.
+    // If the following `drop` is commented, the AudioUnitStream::drop()
+    // will lock the AudioUnitStream.context.mutex without releasing the
+    // AudioUnitStream.context.mutex in use (`ctx_lock` here) first and
+    // cause a deadlock, when hitting the `assert!(false)` at the end of
+    // this test.
+    // The `ctx_lock` is created before `stream`
+    // (whose type is AudioUnitStream), so `stream.drop()` will be called
+    // before `ctx_lock.drop()`
 
     // Force to drop the context lock before stream is dropped, since
     // AudioUnitStream::Drop() will lock the context mutex.
@@ -1957,12 +1955,13 @@ fn test_stream_get_volume() {
     // Add a stream to the context. `AudioUnitStream::drop()` will check
     // the context has at least one stream.
 
-    // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
-    let ctx_mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-
-    // The scope of `_lock` is a critical section.
-    let ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
-    audiounit_increment_active_streams(&mut ctx);
+    {
+        // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let ctx_mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        // The scope of `_lock` is a critical section.
+        let ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
 
     let mut stream = AudioUnitStream::new(
         &mut ctx,
@@ -2008,6 +2007,8 @@ fn test_stream_get_volume() {
     );
 
     {
+        let ctx_mutex_ptr = &mut stream.context.mutex as *mut OwnedCriticalSection;
+        let _ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
         let stm_mutex_ptr = &mut stream.mutex as *mut OwnedCriticalSection;
         let _stm_lock = AutoLock::new(unsafe { &mut (*stm_mutex_ptr) });
         audiounit_setup_stream(&mut stream);
@@ -2020,10 +2021,6 @@ fn test_stream_get_volume() {
     audiounit_stream_get_volume(&stream, &mut actual_volume);
 
     assert_eq!(expected_volume, actual_volume);
-
-    // Force to drop the context lock before stream is dropped, since
-    // AudioUnitStream::Drop() will lock the context mutex.
-    drop(ctx_lock);
 }
 
 // convert_uint32_into_string
