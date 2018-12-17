@@ -23,6 +23,8 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
   - Try Instrument on OSX
 - Some of bugs are found when adding tests. Search *FIXIT* to find them.
 - Maybe it's better to move all `fn some_func(stm: &AudioUnitStream, ...)` functions into `impl AudioUnitStream`.
+- Define `noErr` to `0`
+- Add comments for APIs in `utils`
 
 ## Issues
 - Mutex: Find a replacement for [`owned_critical_section`][ocs]
