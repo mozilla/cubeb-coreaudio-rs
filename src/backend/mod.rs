@@ -815,6 +815,27 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
     Ok(())
 }
 
+fn audiounit_close_stream(stm: &mut AudioUnitStream)
+{
+    stm.mutex.assert_current_thread_owns();
+
+    if !stm.input_unit.is_null() {
+        audio_unit_uninitialize(&stm.input_unit);
+        dispose_audio_unit(&stm.input_unit);
+        stm.input_unit = ptr::null_mut();
+    }
+
+    if !stm.output_unit.is_null() {
+        audio_unit_uninitialize(&stm.output_unit);
+        dispose_audio_unit(&stm.output_unit);
+        stm.output_unit = ptr::null_mut();
+    }
+
+    // TODO:
+    //   1. Reset resampler and mixer ...
+    //   2. Destroy aggregate devices ...
+}
+
 fn audiounit_stream_destroy_internal(stm: &mut AudioUnitStream)
 {
     stm.context.mutex.assert_current_thread_owns();
@@ -824,8 +845,9 @@ fn audiounit_stream_destroy_internal(stm: &mut AudioUnitStream)
     }
 
     // The scope of `_lock` is a critical section.
-    let _lock = AutoLock::new(&mut stm.mutex);
-    // TODO: close stream ...
+    let mutex_ptr = &mut stm.mutex as *mut OwnedCriticalSection;
+    let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+    audiounit_close_stream(stm);
     assert!(audiounit_active_streams(&mut stm.context) >= 1);
     audiounit_decrement_active_streams(&mut stm.context);
 }

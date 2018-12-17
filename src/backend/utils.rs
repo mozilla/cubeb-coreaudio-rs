@@ -253,6 +253,26 @@ pub fn audio_unit_initialize(
     }
 }
 
+// TODO: Maybe we can merge the following two functions into something like
+//       `destroy_audio_unit(unit: &sys::AudioUnit)` and call
+//        `AudioUnitUninitialize`, `AudioComponentInstanceDispose` in this
+//        function.
+pub fn audio_unit_uninitialize(
+    unit: &sys::AudioUnit,
+) -> sys::OSStatus {
+    unsafe {
+        sys::AudioUnitUninitialize(*unit)
+    }
+}
+
+pub fn dispose_audio_unit(
+    unit: &sys::AudioUnit,
+) -> sys::OSStatus {
+    unsafe {
+        sys::AudioComponentInstanceDispose(*unit)
+    }
+}
+
 #[test]
 fn test_create_static_cfstring_ref() {
     use super::*;
