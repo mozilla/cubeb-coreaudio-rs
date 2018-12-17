@@ -25,6 +25,7 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
 - Maybe it's better to move all `fn some_func(stm: &AudioUnitStream, ...)` functions into `impl AudioUnitStream`.
 - Define `noErr` to `0`
 - Add comments for APIs in `utils`
+- Use `static` reference for `AudioObjectPropertyAddress` in `property_listener`.
 
 ## Issues
 - Mutex: Find a replacement for [`owned_critical_section`][ocs]
