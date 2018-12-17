@@ -37,7 +37,7 @@ use std::mem;
 use std::os::raw::{c_void, c_char};
 use std::ptr;
 use std::slice;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 
 // TODO:
 // 1. We use AudioDeviceID and AudioObjectID at the same time.
@@ -1818,6 +1818,8 @@ struct AudioUnitStream<'ctx> {
     input_unit: AudioUnit,
     output_unit: AudioUnit,
     mutex: OwnedCriticalSection,
+    /* Frame counters */
+    frames_played: AtomicU64,
     shutdown: AtomicBool,
     reinit_pending: AtomicBool,
     destroy_pending: AtomicBool,
@@ -1870,6 +1872,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             input_unit: ptr::null_mut(),
             output_unit: ptr::null_mut(),
             mutex: OwnedCriticalSection::new(),
+            frames_played: AtomicU64::new(0),
             shutdown: AtomicBool::new(true),
             reinit_pending: AtomicBool::new(false),
             destroy_pending: AtomicBool::new(false),
@@ -1911,7 +1914,12 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         Ok(())
     }
     fn position(&mut self) -> Result<u64> {
-        Ok(0u64)
+        let position = if *self.current_latency_frames.get_mut() as u64 > *self.frames_played.get_mut() {
+            0
+        } else {
+            *self.frames_played.get_mut() - *self.current_latency_frames.get_mut() as u64
+        };
+        Ok(position)
     }
     #[cfg(target_os = "ios")]
     fn latency(&mut self) -> Result<u32> {
