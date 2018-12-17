@@ -792,8 +792,24 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
         audiounit_set_global_latency(stm.context, stm.latency_frames);
     }
 
+    if !stm.input_unit.is_null() {
+        let r = audio_unit_initialize(&stm.input_unit);
+        if r != 0 {
+            cubeb_log!("AudioUnitInitialize/input rv={}", r);
+            return Err(Error::error());
+        }
+    }
+
     if !stm.output_unit.is_null() {
+        let r = audio_unit_initialize(&stm.output_unit);
+        if r != 0 {
+            cubeb_log!("AudioUnitInitialize/output rv={}", r);
+            return Err(Error::error());
+        }
+
         *stm.current_latency_frames.get_mut() = audiounit_get_device_presentation_latency(stm.output_device.id, kAudioDevicePropertyScopeOutput);
+
+        // TODO: Update current latency ...
     }
 
     Ok(())

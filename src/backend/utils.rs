@@ -245,6 +245,14 @@ pub fn audio_unit_set_parameter(
     }
 }
 
+pub fn audio_unit_initialize(
+    unit: &sys::AudioUnit,
+) -> sys::OSStatus {
+    unsafe {
+        sys::AudioUnitInitialize(*unit)
+    }
+}
+
 #[test]
 fn test_create_static_cfstring_ref() {
     use super::*;
