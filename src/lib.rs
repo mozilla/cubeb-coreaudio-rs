@@ -2,6 +2,10 @@
 //
 // This program is made available under an ISC-style license.  See the
 // accompanying file LICENSE for details.
+
+// TODO: Remove `integer_atomics` after `AtomicU32` is stable.
+#![feature(integer_atomics)]
+
 extern crate atomic;
 #[macro_use]
 extern crate bitflags;

@@ -37,7 +37,7 @@ use std::mem;
 use std::os::raw::{c_void, c_char};
 use std::ptr;
 use std::slice;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 // TODO:
 // 1. We use AudioDeviceID and AudioObjectID at the same time.
@@ -790,6 +790,10 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
         stm.latency_frames = audiounit_clamp_latency(stm, latency_frames);
         assert!(stm.latency_frames > 0); // Ungly error check
         audiounit_set_global_latency(stm.context, stm.latency_frames);
+    }
+
+    if !stm.output_unit.is_null() {
+        *stm.current_latency_frames.get_mut() = audiounit_get_device_presentation_latency(stm.output_device.id, kAudioDevicePropertyScopeOutput);
     }
 
     Ok(())
@@ -1819,6 +1823,7 @@ struct AudioUnitStream<'ctx> {
     destroy_pending: AtomicBool,
     /* Latency requested by the user. */
     latency_frames: u32,
+    current_latency_frames: AtomicU32,
     panning: atomic::Atomic<f32>,
     /* This is true if a device change callback is currently running.  */
     switching_device: AtomicBool,
@@ -1869,6 +1874,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             reinit_pending: AtomicBool::new(false),
             destroy_pending: AtomicBool::new(false),
             latency_frames,
+            current_latency_frames: AtomicU32::new(0),
             panning: atomic::Atomic::new(0.0_f32),
             switching_device: AtomicBool::new(false),
             default_input_listener: None,
@@ -1907,8 +1913,13 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     fn position(&mut self) -> Result<u64> {
         Ok(0u64)
     }
+    #[cfg(target_os = "ios")]
     fn latency(&mut self) -> Result<u32> {
-        Ok(0u32)
+        Err(not_supported())
+    }
+    #[cfg(not(target_os = "ios"))]
+    fn latency(&mut self) -> Result<u32> {
+        Ok(self.current_latency_frames.load(Ordering::SeqCst))
     }
     fn set_volume(&mut self, volume: f32) -> Result<()> {
         assert!(!self.output_unit.is_null());
