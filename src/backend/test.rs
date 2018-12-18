@@ -560,6 +560,107 @@ fn test_stream_set_panning() {
 // fn test_ops_register_device_changed_callback() {
 // }
 
+#[test]
+#[ignore]
+fn test_manual_stream_register_device_changed_callback() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+
+    {
+        // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let ctx_mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        // The scope of `_lock` is a critical section.
+        let ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
+
+    const USER_PTR: *mut c_void = 0xDEAD_BEEF as *mut c_void;
+    let mut stream = AudioUnitStream::new(
+        &mut ctx,
+        USER_PTR,
+        None,
+        None,
+        0
+    );
+    stream.init();
+
+    let mut raw = ffi::cubeb_stream_params::default();
+    raw.format = ffi::CUBEB_SAMPLE_FLOAT32BE;
+    raw.rate = 96_000;
+    raw.channels = 32;
+    raw.layout = ffi::CUBEB_LAYOUT_3F1_LFE;
+    raw.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+    stream.output_stream_params = StreamParams::from(raw);
+    stream.input_stream_params = StreamParams::from(raw);
+
+    // It's crucial to call to audiounit_set_device_info to set
+    // stream.input_device stream.output_device to input and output device
+    // type, or we will hit the assertion in audiounit_create_unit.
+
+    let default_input_id = audiounit_get_default_device_id(DeviceType::INPUT);
+    let default_output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
+    // Return an error if there is no available device.
+    if  !valid_id(default_input_id) || !valid_id(default_output_id) {
+        return;
+    }
+
+    assert!(
+        audiounit_set_device_info(
+            &mut stream,
+            kAudioObjectUnknown,
+            DeviceType::OUTPUT
+        ).is_ok()
+    );
+
+    assert_eq!(stream.output_device.id, default_output_id);
+    assert_eq!(
+        stream.output_device.flags,
+        device_flags::DEV_OUTPUT |
+        device_flags::DEV_SELECTED_DEFAULT |
+        device_flags::DEV_SYSTEM_DEFAULT
+    );
+
+    assert!(
+        audiounit_set_device_info(
+            &mut stream,
+            kAudioObjectUnknown,
+            DeviceType::INPUT
+        ).is_ok()
+    );
+
+    assert_eq!(stream.input_device.id, default_input_id);
+    assert_eq!(
+        stream.input_device.flags,
+        device_flags::DEV_INPUT |
+        device_flags::DEV_SELECTED_DEFAULT |
+        device_flags::DEV_SYSTEM_DEFAULT
+    );
+
+
+    {
+        let ctx_mutex_ptr = &mut stream.context.mutex as *mut OwnedCriticalSection;
+        let _ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
+        let stm_mutex_ptr = &mut stream.mutex as *mut OwnedCriticalSection;
+        let _stm_lock = AutoLock::new(unsafe { &mut (*stm_mutex_ptr) });
+        audiounit_setup_stream(&mut stream);
+    }
+
+    extern "C" fn on_device_changed(user: *mut c_void) {
+        assert_eq!(user, USER_PTR);
+        println!("on_device_changed: user_ptr = {:p}", user);
+    }
+
+    stream.register_device_changed_callback(Some(on_device_changed));
+
+    loop {}
+}
+
 // Private APIs
 // ============================================================================
 // has_input
