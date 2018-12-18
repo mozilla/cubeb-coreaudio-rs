@@ -51,6 +51,8 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 //    makes sense. In fact, for those variables depends on DeviceType, we can
 //    implement a `From` trait to get them.
 
+const NO_ERR: OSStatus = 0;
+
 const AU_OUT_BUS: AudioUnitElement = 0;
 const AU_IN_BUS: AudioUnitElement = 1;
 
@@ -390,7 +392,7 @@ fn audiounit_remove_listener(listener: &property_listener) -> OSStatus
 
 fn audiounit_install_device_changed_callback(stm: &mut AudioUnitStream) -> Result<()>
 {
-    let mut rv: OSStatus = 0;
+    let mut rv = NO_ERR;
     let mut r = Ok(());
 
     if !stm.output_unit.is_null() {
@@ -406,7 +408,7 @@ fn audiounit_install_device_changed_callback(stm: &mut AudioUnitStream) -> Resul
             stm.output_device.id, OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS,
             audiounit_property_listener_callback, stm));
         rv = audiounit_add_listener(stm.output_source_listener.as_ref().unwrap());
-        if rv != 0 {
+        if rv != NO_ERR {
             stm.output_source_listener = None;
             cubeb_log!("AudioObjectAddPropertyListener/output/kAudioDevicePropertyDataSource rv={}, device id={}", rv, stm.output_device.id);
             r = Err(Error::error());
@@ -424,7 +426,7 @@ fn audiounit_install_device_changed_callback(stm: &mut AudioUnitStream) -> Resul
             stm.input_device.id, INPUT_DATA_SOURCE_PROPERTY_ADDRESS,
             audiounit_property_listener_callback, stm));
         rv = audiounit_add_listener(stm.input_source_listener.as_ref().unwrap());
-        if rv != 0 {
+        if rv != NO_ERR {
             stm.input_source_listener = None;
             cubeb_log!("AudioObjectAddPropertyListener/input/kAudioDevicePropertyDataSource rv={}, device id={}", rv, stm.input_device.id);
             r = Err(Error::error());
@@ -435,7 +437,7 @@ fn audiounit_install_device_changed_callback(stm: &mut AudioUnitStream) -> Resul
             stm.input_device.id, DEVICE_IS_ALIVE_PROPERTY_ADDRESS,
             audiounit_property_listener_callback, stm));
         rv = audiounit_add_listener(stm.input_alive_listener.as_ref().unwrap());
-        if rv != 0 {
+        if rv != NO_ERR {
             stm.input_alive_listener = None;
             cubeb_log!("AudioObjectAddPropertyListener/input/kAudioDevicePropertyDeviceIsAlive rv={}, device id ={}", rv, stm.input_device.id);
             r = Err(Error::error());
@@ -447,7 +449,7 @@ fn audiounit_install_device_changed_callback(stm: &mut AudioUnitStream) -> Resul
 
 fn audiounit_install_system_changed_callback(stm: &mut AudioUnitStream) -> Result<()>
 {
-    let mut r: OSStatus = 0;
+    let mut r = NO_ERR;
 
     if !stm.output_unit.is_null() {
         /* This event will notify us when the default audio device changes,
@@ -458,7 +460,7 @@ fn audiounit_install_system_changed_callback(stm: &mut AudioUnitStream) -> Resul
             kAudioObjectSystemObject, DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
             audiounit_property_listener_callback, stm));
         r = audiounit_add_listener(stm.default_output_listener.as_ref().unwrap());
-        if r != 0 {
+        if r != NO_ERR {
             stm.default_output_listener = None;
             cubeb_log!("AudioObjectAddPropertyListener/output/kAudioHardwarePropertyDefaultOutputDevice rv={}", r);
             return Err(Error::error());
@@ -471,7 +473,7 @@ fn audiounit_install_system_changed_callback(stm: &mut AudioUnitStream) -> Resul
             kAudioObjectSystemObject, DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS,
             audiounit_property_listener_callback, stm));
         r = audiounit_add_listener(stm.default_input_listener.as_ref().unwrap());
-        if r != 0 {
+        if r != NO_ERR {
             stm.default_input_listener = None;
             cubeb_log!("AudioObjectAddPropertyListener/input/kAudioHardwarePropertyDefaultInputDevice rv={}", r);
             return Err(Error::error());
@@ -483,13 +485,13 @@ fn audiounit_install_system_changed_callback(stm: &mut AudioUnitStream) -> Resul
 
 fn audiounit_uninstall_device_changed_callback(stm: &mut AudioUnitStream) -> Result<()>
 {
-    let mut rv: OSStatus = 0;
+    let mut rv = NO_ERR;
     // Failing to uninstall listeners is not a fatal error.
     let mut r = Ok(());
 
     if stm.output_source_listener.is_some() {
         rv = audiounit_remove_listener(stm.output_source_listener.as_ref().unwrap());
-        if rv != 0 {
+        if rv != NO_ERR {
             cubeb_log!("AudioObjectRemovePropertyListener/output/kAudioDevicePropertyDataSource rv={}, device id={}", rv, stm.output_device.id);
             r = Err(Error::error());
         }
@@ -498,7 +500,7 @@ fn audiounit_uninstall_device_changed_callback(stm: &mut AudioUnitStream) -> Res
 
     if stm.input_source_listener.is_some() {
         rv = audiounit_remove_listener(stm.input_source_listener.as_ref().unwrap());
-        if rv != 0 {
+        if rv != NO_ERR {
             cubeb_log!("AudioObjectRemovePropertyListener/input/kAudioDevicePropertyDataSource rv={}, device id={}", rv, stm.input_device.id);
             r = Err(Error::error());
         }
@@ -507,7 +509,7 @@ fn audiounit_uninstall_device_changed_callback(stm: &mut AudioUnitStream) -> Res
 
     if stm.input_alive_listener.is_some() {
         rv = audiounit_remove_listener(stm.input_alive_listener.as_ref().unwrap());
-        if rv != 0 {
+        if rv != NO_ERR {
             cubeb_log!("AudioObjectRemovePropertyListener/input/kAudioDevicePropertyDeviceIsAlive rv={}, device id={}", rv, stm.input_device.id);
             r = Err(Error::error());
         }
@@ -519,11 +521,11 @@ fn audiounit_uninstall_device_changed_callback(stm: &mut AudioUnitStream) -> Res
 
 fn audiounit_uninstall_system_changed_callback(stm: &mut AudioUnitStream) -> Result<()>
 {
-    let mut r: OSStatus = 0;
+    let mut r = NO_ERR;
 
     if stm.default_output_listener.is_some() {
         r = audiounit_remove_listener(stm.default_output_listener.as_ref().unwrap());
-        if r != 0 {
+        if r != NO_ERR {
             return Err(Error::error());
         }
         stm.default_output_listener = None;
@@ -531,7 +533,7 @@ fn audiounit_uninstall_system_changed_callback(stm: &mut AudioUnitStream) -> Res
 
     if stm.default_input_listener.is_some() {
         r = audiounit_remove_listener(stm.default_input_listener.as_ref().unwrap());
-        if r != 0 {
+        if r != NO_ERR {
             return Err(Error::error());
         }
         stm.default_input_listener = None;
@@ -543,7 +545,7 @@ fn audiounit_uninstall_system_changed_callback(stm: &mut AudioUnitStream) -> Res
 fn audiounit_get_acceptable_latency_range(latency_range: &mut AudioValueRange) -> Result<()>
 {
     let mut size: usize = 0;
-    let mut r: OSStatus = 0;
+    let mut r = NO_ERR;
     let mut output_device_id: AudioDeviceID = kAudioObjectUnknown;
     let output_device_buffer_size_range = AudioObjectPropertyAddress {
         mSelector: kAudioDevicePropertyBufferFrameSizeRange,
@@ -565,7 +567,7 @@ fn audiounit_get_acceptable_latency_range(latency_range: &mut AudioValueRange) -
                                        &output_device_buffer_size_range,
                                        &mut size,
                                        latency_range);
-    if r != 0 {
+    if r != NO_ERR {
         cubeb_log!("AudioObjectGetPropertyData/buffer size range rv={}", r);
         return Err(Error::error());
     }
@@ -587,7 +589,7 @@ fn audiounit_get_default_device_id(devtype: DeviceType) -> AudioObjectID
     let mut devid: AudioDeviceID = kAudioObjectUnknown;
     let mut size = mem::size_of::<AudioDeviceID>();
     if audio_object_get_property_data(kAudioObjectSystemObject,
-                                      adr, &mut size, &mut devid) != 0 {
+                                      adr, &mut size, &mut devid) != NO_ERR {
         return kAudioObjectUnknown;
     }
 
@@ -604,7 +606,7 @@ fn get_device_name(id: AudioDeviceID) -> CFStringRef
         mElement: kAudioObjectPropertyElementMaster
     };
     let err = audio_object_get_property_data(id, &address_uuid, &mut size, &mut UIname);
-    if err == 0 { UIname } else { ptr::null() }
+    if err == NO_ERR { UIname } else { ptr::null() }
 }
 
 // fn get_device_name(id: AudioDeviceID) -> CString
@@ -617,7 +619,7 @@ fn get_device_name(id: AudioDeviceID) -> CFStringRef
 //         mElement: kAudioObjectPropertyElementMaster
 //     };
 //     let err = audio_object_get_property_data(id, &address_uuid, &mut size, &mut UIname);
-//     if err != 0 {
+//     if err != NO_ERR {
 //         UIname = ptr::null();
 //     }
 //     audiounit_strref_to_cstr_utf8(UIname)
@@ -630,7 +632,7 @@ fn audiounit_new_unit_instance(unit: &mut AudioUnit, _: &device_info) -> Result<
 
     let mut desc = AudioComponentDescription::default();
     let mut comp: AudioComponent;
-    let mut rv: OSStatus = 0;
+    let mut rv = NO_ERR;
 
     desc.componentType = kAudioUnitType_Output;
     desc.componentSubType = kAudioUnitSubType_RemoteIO;
@@ -645,7 +647,7 @@ fn audiounit_new_unit_instance(unit: &mut AudioUnit, _: &device_info) -> Result<
     }
 
     rv = unsafe { AudioComponentInstanceNew(comp, unit) };
-    if rv != 0 {
+    if rv != NO_ERR {
         cubeb_log!("AudioComponentInstanceNew rv={}", rv);
         return Err(Error::error());
     }
@@ -659,7 +661,7 @@ fn audiounit_new_unit_instance(unit: &mut AudioUnit, device: &device_info) -> Re
 
     let mut desc = AudioComponentDescription::default();
     let mut comp: AudioComponent = ptr::null_mut();
-    let mut rv: OSStatus = 0;
+    let mut rv = NO_ERR;
 
     desc.componentType = kAudioUnitType_Output;
     // Use the DefaultOutputUnit for output when no device is specified
@@ -683,7 +685,7 @@ fn audiounit_new_unit_instance(unit: &mut AudioUnit, device: &device_info) -> Re
     }
 
     rv = unsafe { AudioComponentInstanceNew(comp, unit as *mut AudioUnit) };
-    if rv != 0 {
+    if rv != NO_ERR {
         cubeb_log!("AudioComponentInstanceNew rv={}", rv);
         return Err(Error::error());
     }
@@ -700,14 +702,14 @@ fn audiounit_enable_unit_scope(unit: &AudioUnit, side: io_side, state: enable_st
 {
     assert!(!(*unit).is_null());
 
-    let mut rv: OSStatus = 0;
+    let mut rv = NO_ERR;
     let enable: u32 = if state == enable_state::DISABLE { 0 } else { 1 };
     rv = audio_unit_set_property(unit, kAudioOutputUnitProperty_EnableIO,
                                  if side == io_side::INPUT { kAudioUnitScope_Input } else { kAudioUnitScope_Output },
                                  if side == io_side::INPUT { AU_IN_BUS } else { AU_OUT_BUS },
                                  &enable,
                                  mem::size_of::<u32>());
-    if rv != 0 {
+    if rv != NO_ERR {
         cubeb_log!("AudioUnitSetProperty/kAudioOutputUnitProperty_EnableIO rv={}", rv);
         return Err(Error::error());
     }
@@ -718,7 +720,7 @@ fn audiounit_create_unit(unit: &mut AudioUnit, device: &device_info) -> Result<(
 {
     assert!((*unit).is_null());
 
-    let mut rv: OSStatus = 0;
+    let mut rv = NO_ERR;
     audiounit_new_unit_instance(unit, device)?;
     assert!(!(*unit).is_null());
 
@@ -758,7 +760,7 @@ fn audiounit_create_unit(unit: &mut AudioUnit, device: &device_info) -> Result<(
                                  0,
                                  &device.id,
                                  mem::size_of::<AudioDeviceID>());
-    if rv != 0 {
+    if rv != NO_ERR {
         cubeb_log!("AudioUnitSetProperty/kAudioOutputUnitProperty_CurrentDevice rv={}", rv);
         return Err(Error::error());
     }
@@ -783,7 +785,7 @@ fn audiounit_clamp_latency(stm: &mut AudioUnitStream, latency_frames: u32) -> u3
 
     // If more than one stream operates in parallel
     // allow only lower values of latency
-    let mut r: OSStatus = 0;
+    let mut r = NO_ERR;
     let mut output_buffer_size: UInt32 = 0;
     let mut size = mem::size_of_val(&output_buffer_size);
     assert_eq!(size, mem::size_of::<UInt32>());
@@ -795,7 +797,7 @@ fn audiounit_clamp_latency(stm: &mut AudioUnitStream, latency_frames: u32) -> u3
                                     AU_OUT_BUS,
                                     &mut output_buffer_size,
                                     &mut size);
-        if r != 0 {
+        if r != NO_ERR {
             cubeb_log!("AudioUnitGetProperty/output/kAudioDevicePropertyBufferFrameSize rv={}", r);
             // TODO: Shouldn't it return something in range between
             //       SAFE_MIN_LATENCY_FRAMES and SAFE_MAX_LATENCY_FRAMES ?
@@ -814,7 +816,7 @@ fn audiounit_clamp_latency(stm: &mut AudioUnitStream, latency_frames: u32) -> u3
                                     AU_IN_BUS,
                                     &mut input_buffer_size,
                                     &mut size);
-        if r != 0 {
+        if r != NO_ERR {
             cubeb_log!("AudioUnitGetProperty/input/kAudioDevicePropertyBufferFrameSize rv={}", r);
             // TODO: Shouldn't it return something in range between
             //       SAFE_MIN_LATENCY_FRAMES and SAFE_MAX_LATENCY_FRAMES ?
@@ -894,7 +896,7 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
 
     if !stm.input_unit.is_null() {
         let r = audio_unit_initialize(&stm.input_unit);
-        if r != 0 {
+        if r != NO_ERR {
             cubeb_log!("AudioUnitInitialize/input rv={}", r);
             return Err(Error::error());
         }
@@ -902,7 +904,7 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
 
     if !stm.output_unit.is_null() {
         let r = audio_unit_initialize(&stm.output_unit);
-        if r != 0 {
+        if r != NO_ERR {
             cubeb_log!("AudioUnitInitialize/output rv={}", r);
             return Err(Error::error());
         }
@@ -998,7 +1000,7 @@ fn audiounit_stream_get_volume(stm: &AudioUnitStream, volume: &mut f32) -> Resul
                                      kHALOutputParam_Volume,
                                      kAudioUnitScope_Global,
                                      0, volume);
-    if r != 0 {
+    if r != NO_ERR {
         cubeb_log!("AudioUnitGetParameter/kHALOutputParam_Volume rv={}", r);
         return Err(Error::error());
     }
@@ -1048,7 +1050,7 @@ fn audiounit_get_default_device_datasource(devtype: DeviceType,
                                                } else {
                                                    &OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS
                                                }, &mut size, data);
-    if r != 0 {
+    if r != NO_ERR {
         *data = 0;
     }
 
@@ -1141,10 +1143,10 @@ fn audiounit_get_channel_count(devid: AudioObjectID, scope: AudioObjectPropertyS
         mElement: kAudioObjectPropertyElementMaster
     };
 
-    if audio_object_get_property_data_size(devid, &adr, &mut size) == 0 && size > 0 {
+    if audio_object_get_property_data_size(devid, &adr, &mut size) == NO_ERR && size > 0 {
         let mut data: Vec<u8> = allocate_array_by_size(size);
         let ptr = data.as_mut_ptr() as *mut AudioBufferList;
-        if audio_object_get_property_data(devid, &adr, &mut size, ptr) == 0 {
+        if audio_object_get_property_data(devid, &adr, &mut size, ptr) == NO_ERR {
             // Cannot dereference *ptr to a AudioBufferList directly
             // since it's a variable-size struct: https://bit.ly/2CYFhJ0
             // `let list: = unsafe { *ptr }` will copy the `*ptr` whose type
@@ -1184,7 +1186,7 @@ fn audiounit_get_available_samplerate(devid: AudioObjectID, scope: AudioObjectPr
     if audio_object_has_property(devid, &adr) {
         let mut size = mem::size_of::<f64>();
         let mut fvalue: f64 = 0.0;
-        if audio_object_get_property_data(devid, &adr, &mut size, &mut fvalue) == 0 {
+        if audio_object_get_property_data(devid, &adr, &mut size, &mut fvalue) == NO_ERR {
             *def = fvalue as u32;
         }
     }
@@ -1193,11 +1195,11 @@ fn audiounit_get_available_samplerate(devid: AudioObjectID, scope: AudioObjectPr
     let mut size = 0;
     let mut range = AudioValueRange::default();
     if audio_object_has_property(devid, &adr) &&
-       audio_object_get_property_data_size(devid, &adr, &mut size) == 0 {
+       audio_object_get_property_data_size(devid, &adr, &mut size) == NO_ERR {
         let mut ranges: Vec<AudioValueRange> = allocate_array_by_size(size);
         range.mMinimum = 9999999999.0; // TODO: why not f64::MAX?
         range.mMaximum = 0.0; // TODO: why not f64::MIN?
-        if audio_object_get_property_data(devid, &adr, &mut size, ranges.as_mut_ptr()) == 0 {
+        if audio_object_get_property_data(devid, &adr, &mut size, ranges.as_mut_ptr()) == NO_ERR {
             for rng in &ranges {
                 if rng.mMaximum > range.mMaximum {
                     range.mMaximum = rng.mMaximum;
@@ -1229,14 +1231,14 @@ fn audiounit_get_device_presentation_latency(devid: AudioObjectID, scope: AudioO
 
     adr.mSelector = kAudioDevicePropertyLatency;
     size = mem::size_of::<u32>();
-    if audio_object_get_property_data(devid, &adr, &mut size, &mut dev) != 0 {
+    if audio_object_get_property_data(devid, &adr, &mut size, &mut dev) != NO_ERR {
         dev = 0;
     }
 
     adr.mSelector = kAudioDevicePropertyStreams;
     size = mem::size_of_val(&sid);
     assert_eq!(size, mem::size_of::<AudioStreamID>());
-    if audio_object_get_property_data(devid, &adr, &mut size, sid.as_mut_ptr()) == 0 {
+    if audio_object_get_property_data(devid, &adr, &mut size, sid.as_mut_ptr()) == NO_ERR {
         adr.mSelector = kAudioStreamPropertyLatency;
         size = mem::size_of::<u32>();
         audio_object_get_property_data(sid[0], &adr, &mut size, &mut stream);
@@ -1275,7 +1277,7 @@ fn audiounit_create_device_from_hwdev(dev_info: &mut ffi::cubeb_device_info, dev
     size = mem::size_of::<CFStringRef>();
     adr.mSelector = kAudioDevicePropertyDeviceUID;
     let mut ret = audio_object_get_property_data(devid, &adr, &mut size, &mut device_id_str);
-    if ret == 0 && !device_id_str.is_null() {
+    if ret == NO_ERR && !device_id_str.is_null() {
         let c_string = audiounit_strref_to_cstr_utf8(device_id_str);
         // Leak the memory to the external code.
         dev_info.device_id = c_string.into_raw();
@@ -1299,7 +1301,7 @@ fn audiounit_create_device_from_hwdev(dev_info: &mut ffi::cubeb_device_info, dev
     size = mem::size_of::<u32>();
     adr.mSelector = kAudioDevicePropertyDataSource;
     ret = audio_object_get_property_data(devid, &adr, &mut size, &mut ds);
-    if ret == 0 {
+    if ret == NO_ERR {
         let mut trl = AudioValueTranslation {
             mInputData: &mut ds as *mut u32 as *mut c_void,
             mInputDataSize: mem::size_of_val(&ds) as u32,
@@ -1339,7 +1341,7 @@ fn audiounit_create_device_from_hwdev(dev_info: &mut ffi::cubeb_device_info, dev
     size = mem::size_of::<CFStringRef>();
     adr.mSelector = kAudioObjectPropertyManufacturer;
     ret = audio_object_get_property_data(devid, &adr, &mut size, &mut vendor_name_str);
-    if ret == 0 && !vendor_name_str.is_null() {
+    if ret == NO_ERR && !vendor_name_str.is_null() {
         let c_string = audiounit_strref_to_cstr_utf8(vendor_name_str);
         // Leak the memory to the external code.
         dev_info.vendor_name = c_string.into_raw();
@@ -1377,7 +1379,7 @@ fn audiounit_create_device_from_hwdev(dev_info: &mut ffi::cubeb_device_info, dev
     adr.mSelector = kAudioDevicePropertyBufferFrameSizeRange;
     size = mem::size_of::<AudioValueRange>();
     ret = audio_object_get_property_data(devid, &adr, &mut size, &mut range);
-    if ret == 0 {
+    if ret == NO_ERR {
         dev_info.latency_lo = latency + range.mMinimum as u32;
         dev_info.latency_hi = latency + range.mMaximum as u32;
     } else {
@@ -1407,7 +1409,7 @@ fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID>
                                                       &DEVICES_PROPERTY_ADDRESS,
                                                       &mut size
     );
-    if ret != 0 {
+    if ret != NO_ERR {
         return Vec::new();
     }
     /* Total number of input and output devices. */
@@ -1417,7 +1419,7 @@ fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID>
                                          &mut size,
                                          devices.as_mut_ptr(),
     );
-    if ret != 0 {
+    if ret != NO_ERR {
         return Vec::new();
     }
 
@@ -1534,7 +1536,7 @@ fn audiounit_add_device_listener(context: *mut AudioUnitContext,
                                                          &DEVICES_PROPERTY_ADDRESS,
                                                          audiounit_collection_changed_callback,
                                                          context as *mut c_void);
-            if ret != 0 {
+            if ret != NO_ERR {
                 return ret;
             }
         }
@@ -1654,7 +1656,7 @@ impl ContextOps for AudioUnitContext {
     #[cfg(not(target_os = "ios"))]
     fn max_channel_count(&mut self) -> Result<u32> {
         let mut size: usize = 0;
-        let mut r: OSStatus = 0;
+        let mut r = NO_ERR;
         let mut output_device_id: AudioDeviceID = kAudioObjectUnknown;
         let mut stream_format = AudioStreamBasicDescription::default();
         let stream_format_address = AudioObjectPropertyAddress {
@@ -1676,7 +1678,7 @@ impl ContextOps for AudioUnitContext {
                                            &mut size,
                                            &mut stream_format);
 
-        if r != 0 {
+        if r != NO_ERR {
             cubeb_log!("AudioObjectPropertyAddress/StreamFormat rv={}", r);
             return Err(Error::error());
         }
@@ -1705,7 +1707,7 @@ impl ContextOps for AudioUnitContext {
     #[cfg(not(target_os = "ios"))]
     fn preferred_sample_rate(&mut self) -> Result<u32> {
         let mut size: usize = 0;
-        let mut r: OSStatus = 0;
+        let mut r = NO_ERR;
         let mut fsamplerate: f64 = 0.0;
         let mut output_device_id: AudioDeviceID = kAudioObjectUnknown;
         let samplerate_address = AudioObjectPropertyAddress {
@@ -1726,7 +1728,7 @@ impl ContextOps for AudioUnitContext {
                                            &mut size,
                                            &mut fsamplerate);
 
-        if r != 0 {
+        if r != NO_ERR {
             return Err(Error::error());
         }
 
@@ -1926,7 +1928,7 @@ impl ContextOps for AudioUnitContext {
         if devtype == DeviceType::UNKNOWN {
             return Err(Error::invalid_parameter());
         }
-        let mut ret = 0; // noErr.
+        let mut ret = NO_ERR;
         let ctx_ptr = self as *mut AudioUnitContext;
         // The scope of `lock` is a critical section.
         let _lock = AutoLock::new(&mut self.mutex);
@@ -1938,7 +1940,7 @@ impl ContextOps for AudioUnitContext {
         } else {
             ret = audiounit_remove_device_listener(ctx_ptr, devtype);
         }
-        if ret == 0 {
+        if ret == NO_ERR {
             Ok(())
         } else {
             Err(Error::error())
@@ -2083,12 +2085,12 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     }
     fn set_volume(&mut self, volume: f32) -> Result<()> {
         assert!(!self.output_unit.is_null());
-        let mut r: OSStatus = 0;
+        let mut r = NO_ERR;
         r = audio_unit_set_parameter(&self.output_unit,
                                      kHALOutputParam_Volume,
                                      kAudioUnitScope_Global,
                                      0, volume, 0);
-        if r != 0 {
+        if r != NO_ERR {
             cubeb_log!("AudioUnitSetParameter/kHALOutputParam_Volume rv={}", r);
             return Err(Error::error());
         }
