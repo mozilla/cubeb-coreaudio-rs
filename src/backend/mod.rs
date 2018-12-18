@@ -158,14 +158,14 @@ impl Default for device_info {
 #[derive(Debug)]
 struct property_listener<'ctx> {
     device_id: AudioDeviceID,
-    property_address: AudioObjectPropertyAddress,
+    property_address: &'static AudioObjectPropertyAddress,
     callback: audio_object_property_listener_proc,
     stream: *mut AudioUnitStream<'ctx>,
 }
 
 impl<'ctx> property_listener<'ctx> {
     fn new(id: AudioDeviceID,
-           address: AudioObjectPropertyAddress,
+           address: &'static AudioObjectPropertyAddress,
            listener: audio_object_property_listener_proc,
            stm: *mut AudioUnitStream<'ctx>) -> Self {
         property_listener {
@@ -377,7 +377,7 @@ extern fn audiounit_property_listener_callback(id: AudioObjectID, address_count:
 fn audiounit_add_listener(listener: &property_listener) -> OSStatus
 {
     audio_object_add_property_listener(listener.device_id,
-                                       &listener.property_address,
+                                       listener.property_address,
                                        listener.callback,
                                        listener.stream as *mut c_void)
 }
@@ -385,7 +385,7 @@ fn audiounit_add_listener(listener: &property_listener) -> OSStatus
 fn audiounit_remove_listener(listener: &property_listener) -> OSStatus
 {
     audio_object_remove_property_listener(listener.device_id,
-                                          &listener.property_address,
+                                          listener.property_address,
                                           listener.callback,
                                           listener.stream as *mut c_void)
 }
@@ -405,7 +405,7 @@ fn audiounit_install_device_changed_callback(stm: &mut AudioUnitStream) -> Resul
         assert_ne!(stm.output_device.id, kAudioObjectSystemObject);
 
         stm.output_source_listener = Some(property_listener::new(
-            stm.output_device.id, OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS,
+            stm.output_device.id, &OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS,
             audiounit_property_listener_callback, stm));
         rv = audiounit_add_listener(stm.output_source_listener.as_ref().unwrap());
         if rv != NO_ERR {
@@ -423,7 +423,7 @@ fn audiounit_install_device_changed_callback(stm: &mut AudioUnitStream) -> Resul
         assert_ne!(stm.input_device.id, kAudioObjectSystemObject);
 
         stm.input_source_listener = Some(property_listener::new(
-            stm.input_device.id, INPUT_DATA_SOURCE_PROPERTY_ADDRESS,
+            stm.input_device.id, &INPUT_DATA_SOURCE_PROPERTY_ADDRESS,
             audiounit_property_listener_callback, stm));
         rv = audiounit_add_listener(stm.input_source_listener.as_ref().unwrap());
         if rv != NO_ERR {
@@ -434,7 +434,7 @@ fn audiounit_install_device_changed_callback(stm: &mut AudioUnitStream) -> Resul
 
         /* Event to notify when the input is going away. */
         stm.input_alive_listener = Some(property_listener::new(
-            stm.input_device.id, DEVICE_IS_ALIVE_PROPERTY_ADDRESS,
+            stm.input_device.id, &DEVICE_IS_ALIVE_PROPERTY_ADDRESS,
             audiounit_property_listener_callback, stm));
         rv = audiounit_add_listener(stm.input_alive_listener.as_ref().unwrap());
         if rv != NO_ERR {
@@ -457,7 +457,7 @@ fn audiounit_install_system_changed_callback(stm: &mut AudioUnitStream) -> Resul
          * automatically as the default, or when another device is chosen in the
          * dropdown list. */
         stm.default_output_listener = Some(property_listener::new(
-            kAudioObjectSystemObject, DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+            kAudioObjectSystemObject, &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
             audiounit_property_listener_callback, stm));
         r = audiounit_add_listener(stm.default_output_listener.as_ref().unwrap());
         if r != NO_ERR {
@@ -470,7 +470,7 @@ fn audiounit_install_system_changed_callback(stm: &mut AudioUnitStream) -> Resul
     if !stm.input_unit.is_null() {
         /* This event will notify us when the default input device changes. */
         stm.default_input_listener = Some(property_listener::new(
-            kAudioObjectSystemObject, DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS,
+            kAudioObjectSystemObject, &DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS,
             audiounit_property_listener_callback, stm));
         r = audiounit_add_listener(stm.default_input_listener.as_ref().unwrap());
         if r != NO_ERR {
