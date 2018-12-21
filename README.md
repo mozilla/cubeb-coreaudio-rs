@@ -9,9 +9,6 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
 ## TODO
 - [cubeb-rs][cubeb-rs]
   - Implement `to_owned` in [`StreamParamsRef`][cubeb-rs-stmparamsref]
-  - Implement [`stream_register_device_changed_callback` in `capi_new`][cubeb-rs-capi-stm-reg-dev-chg-callback]
-    - Land [this][cubeb-backend-stm-reg-dev-chg-cb] on [cubeb-backend][cubeb-backend]
-    - Land [this][cubeb-pulse-rs-reg-dev-chg-cb] on [cubeb-pulse-rs][cubeb-pulse-rs]
 - Integration Tests
   - Add a test-only API to change the default audio devices
   - Use above API to test the device-changed callback
