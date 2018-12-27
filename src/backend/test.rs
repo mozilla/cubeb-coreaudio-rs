@@ -661,6 +661,45 @@ fn test_manual_stream_register_device_changed_callback() {
     loop {}
 }
 
+#[test]
+#[ignore]
+fn test_manual_ctx_stream_register_device_changed_callback() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    const USER_PTR: *mut c_void = 0xDEAD_BEEF as *mut c_void;
+    let name = CString::new("test register device changed callback").expect("CString::new failed");
+    let mut ffi_params: ffi::cubeb_stream_params = unsafe { ::std::mem::zeroed() };
+    ffi_params.rate = 44100;
+    let params = StreamParams::from(ffi_params);
+    let stream = ctx.stream_init(
+        Some(&name),
+        ptr::null(),
+        Some(&&params),
+        ptr::null(),
+        Some(&&params),
+        4096,
+        None,
+        None,
+        USER_PTR
+    ).unwrap();
+
+    extern "C" fn on_device_changed(user: *mut c_void) {
+        assert_eq!(user, USER_PTR);
+        println!("on_device_changed: user_ptr = {:p}", user);
+    }
+
+    assert!(stream.register_device_changed_callback(Some(on_device_changed)).is_ok());
+
+    loop {}
+
+    // stream should be dropped autmatically.
+    // See the implementation of the ffi_type_heap macro.
+}
+
 // Private APIs
 // ============================================================================
 // has_input
@@ -1221,7 +1260,7 @@ fn test_add_listener_for_unknown_device() {
 
     let mut listener = property_listener::new(
         kAudioObjectUnknown,
-        DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+        &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
         listener,
         &mut stream
     );
@@ -1273,7 +1312,7 @@ fn test_remove_listener_for_unknown_device() {
 
     let mut listener = property_listener::new(
         kAudioObjectUnknown,
-        DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+        &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
         listener,
         &mut stream
     );
@@ -1323,7 +1362,7 @@ fn test_remove_listener_without_adding_any_listener() {
 
     let mut listener = property_listener::new(
         kAudioObjectSystemObject,
-        DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+        &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
         listener,
         &mut stream
     );
@@ -1373,7 +1412,7 @@ fn test_add_then_remove_listener() {
 
     let mut listener = property_listener::new(
         kAudioObjectSystemObject,
-        DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+        &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
         listener,
         &mut stream
     );
