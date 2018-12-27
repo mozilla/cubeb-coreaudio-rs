@@ -1490,6 +1490,10 @@ fn test_get_default_device_id() {
     )
 }
 
+// create_blank_aggregate_device
+// ------------------------------------
+// TODO
+
 // get_device_name
 // ------------------------------------
 #[test]
@@ -1524,6 +1528,30 @@ fn test_get_device_name() {
         }
     }
 }
+
+// set_aggregate_sub_device_list
+// ------------------------------------
+// TODO
+
+// set_master_aggregate_device
+// ------------------------------------
+// TODO
+
+// activate_clock_drift_compensation
+// ------------------------------------
+// TODO
+
+// workaround_for_airpod
+// ------------------------------------
+// TODO
+
+// create_aggregate_device
+// ------------------------------------
+// TODO
+
+// destroy_aggregate_device
+// ------------------------------------
+// TODO
 
 // new_unit_instance
 // ------------------------------------
