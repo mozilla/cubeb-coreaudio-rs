@@ -2148,10 +2148,8 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         //       callback since we will hit the following assertion!
         //       A less strict assertion works as what the comment want is
         //       something like:
-        // assert!(device_changed_callback.is_none() ||
-        //         (device_changed_callback.is_some() &&
-        //          self.device_changed_callback.is_none()));
-        assert_eq!(self.device_changed_callback, None);
+        // assert!(device_changed_callback.is_none() || self.device_changed_callback.is_none());
+        // assert_eq!(self.device_changed_callback, None);
         self.device_changed_callback = device_changed_callback;
         Ok(())
     }
