@@ -1681,6 +1681,7 @@ extern fn audiounit_collection_changed_callback(_inObjectID: AudioObjectID,
                                                 _inAddresses: *const AudioObjectPropertyAddress,
                                                 inClientData: *mut c_void) -> OSStatus
 {
+    show_callback_info(_inObjectID, _inNumberAddresses, _inAddresses, inClientData);
     let context = inClientData as *mut AudioUnitContext;
 
     // Rust compilter doesn't allow a pointer to be passed across threads.

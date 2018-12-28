@@ -290,6 +290,23 @@ pub fn dispose_audio_unit(
     }
 }
 
+pub fn show_callback_info(
+    id: sys::AudioObjectID,
+    number_of_addresses: u32,
+    addresses: *const sys::AudioObjectPropertyAddress,
+    data: *mut c_void) {
+
+    println!("\n\n---------------------\ndevice: {}, data @ {:p}", id, data);
+    let addrs = unsafe {
+        std::slice::from_raw_parts(addresses, number_of_addresses as usize)
+    };
+    for (i, addr) in addrs.iter().enumerate() {
+        println!("address {}\n\tselector {}\n\tscope {}\n\telement {}",
+                 i, addr.mSelector, addr.mScope, addr.mElement);
+    }
+    println!("---------------------\n\n");
+}
+
 #[test]
 fn test_create_static_cfstring_ref() {
     use super::*;
@@ -423,7 +440,6 @@ fn test_audio_object_add_then_remove_property_listener() {
 #[ignore]
 fn test_manual_audio_object_add_property_listener() {
     use super::DEVICES_PROPERTY_ADDRESS;
-    use std::slice;
 
     let mut called: u32 = 0;
 
@@ -433,14 +449,7 @@ fn test_manual_audio_object_add_property_listener() {
         addresses: *const sys::AudioObjectPropertyAddress,
         data: *mut c_void
     ) -> sys::OSStatus {
-        let addrs = unsafe {
-            slice::from_raw_parts(addresses, number_of_addresses as usize)
-        };
-        // TODO: Find a way to test the case for number_of_addresses > 1.
-        for (i, addr) in addrs.iter().enumerate() {
-            println!("device {} > address {}: selector {}, scope {}, element {}",
-                      id, i, addr.mSelector, addr.mScope, addr.mElement);
-        }
+        show_callback_info(id, number_of_addresses, addresses, data);
         let called = unsafe {
             &mut (*(data as *mut u32))
         };
