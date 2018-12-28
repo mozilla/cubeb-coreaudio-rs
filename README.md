@@ -21,6 +21,8 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
 - Some of bugs are found when adding tests. Search *FIXIT* to find them.
 - Maybe it's better to move all `fn some_func(stm: &AudioUnitStream, ...)` functions into `impl AudioUnitStream`.
 - Add comments for APIs in `utils`
+- Fail to run `test_create_blank_aggregate_device` with `test_add_device_listeners_dont_affect_other_scopes_with_*` at the same time
+  - I guess `audiounit_create_blank_aggregate_device` will fire the callbacks in `test_add_device_listeners_dont_affect_other_scopes_with_*`
 
 ## Issues
 - Mutex: Find a replacement for [`owned_critical_section`][ocs]
