@@ -1492,7 +1492,20 @@ fn test_get_default_device_id() {
 
 // create_blank_aggregate_device
 // ------------------------------------
-// TODO
+#[test]
+fn test_create_blank_aggregate_device() {
+    // TODO: Test this when there is no available devices.
+    let mut plugin_id = kAudioObjectUnknown;
+    let mut aggregate_device_id = kAudioObjectUnknown;
+    assert!(audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok());
+    assert_ne!(plugin_id, kAudioObjectUnknown);
+    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
+
+    // TODO: Investigate how to get the created aggregate device from audiounit_get_devices_of_type
+    // let all_devs = audiounit_get_devices_of_type(DeviceType::INPUT | DeviceType::OUTPUT);
+    // assert!(!all_devs.is_empty());
+    // assert!(all_devs.contains(&aggregate_device_id));
+}
 
 // get_device_name
 // ------------------------------------

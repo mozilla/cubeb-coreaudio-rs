@@ -59,6 +59,22 @@ const AU_IN_BUS: AudioUnitElement = 1;
 const DISPATCH_QUEUE_LABEL: &'static str = "org.mozilla.cubeb";
 const PRIVATE_AGGREGATE_DEVICE_NAME: &'static str = "CubebAggregateDevice";
 
+// A compile-time static string mapped to kAudioAggregateDeviceNameKey
+// https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.12.sdk/System/Library/Frameworks/CoreAudio.framework/Versions/A/Headers/AudioHardware.h#L1513
+const AGGREGATE_DEVICE_NAME_KEY: &'static str = "name";
+
+// A compile-time static string mapped to kAudioAggregateDeviceUIDKey
+// https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.12.sdk/System/Library/Frameworks/CoreAudio.framework/Versions/A/Headers/AudioHardware.h#L1505
+const AGGREGATE_DEVICE_UID: &'static str = "uid";
+
+// A compile-time static string mapped to kAudioAggregateDeviceIsPrivateKey
+// https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.12.sdk/System/Library/Frameworks/CoreAudio.framework/Versions/A/Headers/AudioHardware.h#L1553
+const AGGREGATE_DEVICE_PRIVATE_KEY: &'static str = "private";
+
+// A compile-time static string mapped to kAudioAggregateDeviceIsStackedKey
+// https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.12.sdk/System/Library/Frameworks/CoreAudio.framework/Versions/A/Headers/AudioHardware.h#L1562
+const AGGREGATE_DEVICE_STACKED_KEY: &'static str = "stacked";
+
 /* Testing empirically, some headsets report a minimal latency that is very
  * low, but this does not work in practice. Lie and say the minimum is 256
  * frames. */
@@ -596,8 +612,113 @@ fn audiounit_get_default_device_id(devtype: DeviceType) -> AudioObjectID
     return devid;
 }
 
-fn audiounit_create_blank_aggregate_device() -> Result<()>
+fn audiounit_create_blank_aggregate_device(plugin_id: &mut AudioObjectID, aggregate_device_id: &mut AudioDeviceID) -> Result<()>
 {
+    let address_plugin_bundle_id = AudioObjectPropertyAddress {
+        mSelector: kAudioHardwarePropertyPlugInForBundleID,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMaster
+    };
+
+    let mut size: usize = 0;
+    let mut r = audio_object_get_property_data_size(kAudioObjectSystemObject,
+                                                    &address_plugin_bundle_id,
+                                                    &mut size);
+    if r != NO_ERR {
+        // TODO: Replace `AudioHardwareGetPropertyInfo` by `AudioObjectGetPropertyDataSize` ?
+        cubeb_log!("AudioHardwareGetPropertyInfo/kAudioHardwarePropertyPlugInForBundleID, rv={}", r);
+        return Err(Error::error());
+    }
+    // TODO: Check if size is larger than 0 ?
+    // assert_ne!(size, 0);
+
+    let mut in_bundle_ref = cfstringref_from_static_string("com.apple.audio.CoreAudio");
+    let mut translation_value = AudioValueTranslation {
+        mInputData: &mut in_bundle_ref as *mut CFStringRef as *mut c_void,
+        mInputDataSize: mem::size_of_val(&in_bundle_ref) as u32,
+        mOutputData: plugin_id as *mut AudioObjectID as *mut c_void,
+        mOutputDataSize: mem::size_of_val(plugin_id) as u32,
+    };
+    // assert_eq!(translation_value.mInputDataSize as usize, mem::size_of::<CFStringRef>());
+    // assert_eq!(translation_value.mOutputDataSize as usize, mem::size_of::<AudioObjectID>());
+
+    r = audio_object_get_property_data(kAudioObjectSystemObject,
+                                       &address_plugin_bundle_id,
+                                       &mut size,
+                                       &mut translation_value);
+    if r != NO_ERR {
+        // TODO: Replace `AudioHardwareGetProperty` by `AudioObjectGetPropertyData` ?
+        cubeb_log!("AudioHardwareGetProperty/kAudioHardwarePropertyPlugInForBundleID, rv={}", r);
+        return Err(Error::error());
+    }
+    // TODO: Check if plugin_id is different from the initial value (kAudioObjectUnknown) ?
+    // assert_ne!(*plugin_id, 0 /* kAudioObjectUnknown */);
+
+    let create_aggregate_device_address = AudioObjectPropertyAddress {
+        mSelector: kAudioPlugInCreateAggregateDevice,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMaster
+    };
+
+    r = audio_object_get_property_data_size(*plugin_id,
+                                            &create_aggregate_device_address,
+                                            &mut size);
+    if r != NO_ERR {
+        cubeb_log!("AudioObjectGetPropertyDataSize/kAudioPlugInCreateAggregateDevice, rv={}", r);
+        return Err(Error::error());
+    }
+    // TODO: Check if size is larger than 0 ?
+    // assert_ne!(size, 0);
+
+    unsafe {
+        let aggregate_device_dict = CFDictionaryCreateMutable(kCFAllocatorDefault, 0,
+                                                              &kCFTypeDictionaryKeyCallBacks,
+                                                              &kCFTypeDictionaryValueCallBacks);
+        let mut timestamp = libc::timeval {
+            tv_sec: 0,
+            tv_usec: 0,
+        };
+        libc::gettimeofday(&mut timestamp, ptr::null_mut());
+        let time_id = timestamp.tv_sec as i64 * 1000000 + timestamp.tv_usec as i64;
+        // TODO: Check if time_id is larger than 0 ?
+        // assert!(time_id > 0);
+
+        let device_name_string = format!("{}_{}", PRIVATE_AGGREGATE_DEVICE_NAME, time_id);
+        let aggregate_device_name = cfstringref_from_string(&device_name_string);
+        CFDictionaryAddValue(aggregate_device_dict, cfstringref_from_static_string(AGGREGATE_DEVICE_NAME_KEY) as *const c_void, aggregate_device_name as *const c_void);
+        CFRelease(aggregate_device_name as *const c_void);
+
+        let device_uid_string = format!("org.mozilla.{}_{}", PRIVATE_AGGREGATE_DEVICE_NAME, time_id);
+        let aggregate_device_UID = cfstringref_from_string(&device_uid_string);
+        CFDictionaryAddValue(aggregate_device_dict, cfstringref_from_static_string(AGGREGATE_DEVICE_UID) as *const c_void, aggregate_device_UID as *const c_void);
+        CFRelease(aggregate_device_UID as *const c_void);
+
+        let private_value: i32 = 1;
+        let aggregate_device_private_key = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType as i64, &private_value as *const i32 as *const c_void);
+        CFDictionaryAddValue(aggregate_device_dict, cfstringref_from_static_string(AGGREGATE_DEVICE_PRIVATE_KEY) as *const c_void, aggregate_device_private_key as *const c_void);
+        CFRelease(aggregate_device_private_key as *const c_void);
+
+        let stacked_value: i32 = 0;
+        let aggregate_device_stacked_key = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType as i64, &stacked_value as *const i32 as *const c_void);
+        CFDictionaryAddValue(aggregate_device_dict, cfstringref_from_static_string(AGGREGATE_DEVICE_STACKED_KEY) as *const c_void, aggregate_device_stacked_key as *const c_void);
+        CFRelease(aggregate_device_stacked_key as *const c_void);
+
+        r = AudioObjectGetPropertyData(*plugin_id,
+                                       &create_aggregate_device_address,
+                                       mem::size_of_val(&aggregate_device_dict) as u32,
+                                       &aggregate_device_dict as *const CFMutableDictionaryRef as *const c_void,
+                                       &mut size as *mut usize as *mut u32,
+                                       aggregate_device_id as *mut AudioDeviceID as *mut c_void);
+        CFRelease(aggregate_device_dict as *const c_void);
+        if r != NO_ERR {
+            cubeb_log!("AudioObjectGetPropertyData/kAudioPlugInCreateAggregateDevice, rv={}", r);
+            return Err(Error::error());
+        }
+        // TODO: Check if aggregate_device_id is different from the initial value (kAudioObjectUnknown) ?
+        // assert_ne!(*aggregate_device_id, 0 /* kAudioObjectUnknown */);
+        cubeb_log!("New aggregate device {}", *aggregate_device_id);
+    }
+
     Ok(())
 }
 
@@ -670,7 +791,7 @@ fn audiounit_workaround_for_airpod()
  * */
 fn audiounit_create_aggregate_device(stm: &mut AudioUnitStream) -> Result<()>
 {
-    if let Err(r) = audiounit_create_blank_aggregate_device() {
+    if let Err(r) = audiounit_create_blank_aggregate_device(&mut stm.plugin_id, &mut stm.aggregate_device_id) {
         cubeb_log!("({:p}) Failed to create blank aggregate device", stm);
         return Err(r);
     }
@@ -2062,6 +2183,8 @@ struct AudioUnitStream<'ctx> {
     panning: atomic::Atomic<f32>,
     /* This is true if a device change callback is currently running.  */
     switching_device: AtomicBool,
+    aggregate_device_id: AudioDeviceID, // the aggregate device id
+    plugin_id: AudioObjectID,           // used to create aggregate device
     /* Listeners indicating what system events are monitored. */
     default_input_listener: Option<property_listener<'ctx>>,
     default_output_listener: Option<property_listener<'ctx>>,
@@ -2116,6 +2239,9 @@ impl<'ctx> AudioUnitStream<'ctx> {
             current_latency_frames: AtomicU32::new(0),
             panning: atomic::Atomic::new(0.0_f32),
             switching_device: AtomicBool::new(false),
+            // TODO: Use kAudioObjectUnknown instead ?
+            aggregate_device_id: 0,
+            plugin_id: 0,
             default_input_listener: None,
             default_output_listener: None,
             input_alive_listener: None,

@@ -62,6 +62,23 @@ pub fn cfstringref_from_static_string(string: &'static str) -> sys::CFStringRef 
     }
 }
 
+pub fn cfstringref_from_string(string: &str) -> sys::CFStringRef {
+    // References:
+    // https://developer.apple.com/documentation/corefoundation/1543419-cfstringcreatewithbytes?language=objc
+    // https://github.com/opensource-apple/CF/blob/3cc41a76b1491f50813e28a4ec09954ffa359e6f/CFString.c#L1597
+    // https://github.com/servo/core-foundation-rs/blob/2aac8fb85b5b114673280e273c04219c0c360e54/core-foundation/src/string.rs#L111
+    // https://github.com/servo/core-foundation-rs/blob/2aac8fb85b5b114673280e273c04219c0c360e54/io-surface/src/lib.rs#L48
+    unsafe {
+        sys::CFStringCreateWithBytes(
+            sys::kCFAllocatorDefault,
+            string.as_ptr(),
+            string.len() as sys::CFIndex,
+            sys::kCFStringEncodingUTF8,
+            false as sys::Boolean
+        )
+    }
+}
+
 pub fn audio_object_has_property(
     id: sys::AudioObjectID,
     address: &sys::AudioObjectPropertyAddress,
