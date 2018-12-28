@@ -706,6 +706,7 @@ fn audiounit_create_blank_aggregate_device(plugin_id: &mut AudioObjectID, aggreg
         CFRelease(aggregate_device_stacked_key as *const c_void);
 
         // assert_eq!(mem::size_of_val(&aggregate_device_dict), mem::size_of::<CFMutableDictionaryRef>());
+        // NOTE: This call will fire `audiounit_collection_changed_callback`!
         r = AudioObjectGetPropertyData(*plugin_id,
                                        &create_aggregate_device_address,
                                        mem::size_of_val(&aggregate_device_dict) as u32,

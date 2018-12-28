@@ -1492,7 +1492,28 @@ fn test_get_default_device_id() {
 
 // create_blank_aggregate_device
 // ------------------------------------
+// This is marked as `ignore` by default since it cannot run with those
+// tests calling `audiounit_add_device_listener` at the same time.
+// The `audiounit_collection_changed_callback` will be fired upon
+// `audiounit_create_blank_aggregate_device` is called. The cubeb contexts
+// within those tests will be locked in asynchronous functions to fire
+// the device-collection-changed callbacks (dispatched via `async_dispatch`).
+// Most of the time, those tests will be ended before finishing those
+// asynchronous functions. Therefore, the cubeb contexts within those tests
+// will be destroyed while they are supposed to be locked by those asynchronous
+// functions. That is, those tests try destroying their mutexes
+// (OwnedCriticalSections) while the mutexes are currently locked by those
+// asynchronous functions. Thus, we will get panics in
+// `OwnedCriticalSection::drop/destroy` since `pthread_mutex_destroy` returns
+// `EBUSY(16)` rather than 0.
+//
+// A simple way to verify this is to add two logs in the beginning and the end
+// of `async_dispatch` in `audiounit_collection_changed_callback` and some logs
+// in the beginning and the end of those tests calling
+// `audiounit_add_device_listener`. You will find those tests fail when they end
+// while those asynchronous functions are still running.
 #[test]
+#[ignore]
 fn test_create_blank_aggregate_device() {
     // TODO: Test this when there is no available devices.
     let mut plugin_id = kAudioObjectUnknown;
