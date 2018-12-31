@@ -326,6 +326,25 @@ fn test_create_static_cfstring_ref() {
 }
 
 #[test]
+fn test_create_cfstring_ref() {
+    use super::*;
+
+    let test_string = "Rustaceans 🦀";
+    let cfstrref = cfstringref_from_string(test_string);
+    let cstring = audiounit_strref_to_cstr_utf8(cfstrref);
+    unsafe {
+        CFRelease(cfstrref as *const c_void);
+    }
+
+    assert_eq!(
+        test_string,
+        cstring.to_string_lossy()
+    );
+
+    // TODO: Find a way to check the string's inner pointer is same.
+}
+
+#[test]
 fn test_audio_object_add_property_listener_for_unknown_device() {
     use super::DEVICES_PROPERTY_ADDRESS;
 
