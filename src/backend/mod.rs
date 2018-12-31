@@ -632,6 +632,8 @@ fn audiounit_create_blank_aggregate_device(plugin_id: &mut AudioObjectID, aggreg
     // TODO: Check if size is larger than 0 ?
     // assert_ne!(size, 0);
 
+    // `rust-bindgen` doesn't support `macro`
+    // so we replace `CFSTR` by `cfstringref_from_static_string`.
     let mut in_bundle_ref = cfstringref_from_static_string("com.apple.audio.CoreAudio");
     let mut translation_value = AudioValueTranslation {
         mInputData: &mut in_bundle_ref as *mut CFStringRef as *mut c_void,
@@ -1641,6 +1643,8 @@ fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID>
         if name.is_null() {
             return true;
         }
+        // `rust-bindgen` doesn't support `macro`
+        // so we replace `CFSTR` by `cfstringref_from_static_string`.
         let private_device = cfstringref_from_static_string(PRIVATE_AGGREGATE_DEVICE_NAME);
         unsafe {
             let found = CFStringFind(name, private_device, 0).location;
