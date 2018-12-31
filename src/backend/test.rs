@@ -1523,10 +1523,59 @@ fn test_create_blank_aggregate_device() {
     assert_ne!(plugin_id, kAudioObjectUnknown);
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
 
-    // TODO: Investigate how to get the created aggregate device from audiounit_get_devices_of_type
-    // let all_devs = audiounit_get_devices_of_type(DeviceType::INPUT | DeviceType::OUTPUT);
-    // assert!(!all_devs.is_empty());
-    // assert!(all_devs.contains(&aggregate_device_id));
+    let all_devices = get_all_devices();
+    assert!(!all_devices.is_empty());
+    assert!(all_devices.contains(&aggregate_device_id));
+
+    let all_devices_names = into_devices_names(all_devices);
+    assert!(!all_devices_names.is_empty());
+    let mut aggregate_device_found = false;
+
+    for name_opt in all_devices_names {
+        if let Some(name) = name_opt {
+            if name.contains(PRIVATE_AGGREGATE_DEVICE_NAME) {
+                aggregate_device_found = true;
+            }
+        }
+    }
+    assert!(aggregate_device_found);
+
+    fn get_all_devices() -> Vec<AudioObjectID> {
+        let mut size: usize = 0;
+        let mut ret = audio_object_get_property_data_size(kAudioObjectSystemObject,
+                                                        &DEVICES_PROPERTY_ADDRESS,
+                                                        &mut size
+        );
+        if ret != NO_ERR {
+            return Vec::new();
+        }
+        /* Total number of input and output devices. */
+        let mut devices: Vec<AudioObjectID> = allocate_array_by_size(size);
+        ret = audio_object_get_property_data(kAudioObjectSystemObject,
+                                            &DEVICES_PROPERTY_ADDRESS,
+                                            &mut size,
+                                            devices.as_mut_ptr(),
+        );
+        if ret != NO_ERR {
+            return Vec::new();
+        }
+        devices.sort();
+        devices
+    }
+
+    fn into_devices_names(devices: Vec<AudioObjectID>) -> Vec<Option<String>> {
+        let mut names = Vec::new();
+        for device in devices {
+            let name = get_device_name(device);
+            names.push(if name.is_null() {
+                None
+            } else {
+                let cstring = audiounit_strref_to_cstr_utf8(name);
+                Some(cstring.to_string_lossy().into_owned())
+            });
+        }
+        names
+    }
 }
 
 // get_device_name
