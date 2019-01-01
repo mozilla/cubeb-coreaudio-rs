@@ -1490,6 +1490,49 @@ fn test_get_default_device_id() {
     )
 }
 
+// get_sub_devices
+// ------------------------------------
+// FIXIT: It doesn't make any sense to return the sub devices for an unknown
+//        device! It should either get a panic or return an empty list!
+#[test]
+// #[should_panic]
+#[ignore]
+fn test_get_sub_devices_for_a_unknown_device() {
+    let devices = audiounit_get_sub_devices(kAudioObjectUnknown);
+    assert!(devices.is_empty());
+}
+
+// You can check this by creating an aggregate device in `Audio MIDI Setup`
+// application and print out the sub devices of them!
+#[test]
+fn test_get_sub_devices() {
+    let devices = audiounit_get_devices_of_type(DeviceType::INPUT | DeviceType::OUTPUT);
+    for device in devices {
+        assert!(valid_id(device));
+        // `audiounit_get_sub_devices(device)` will return a one-element vector
+        //  containing `device` itself if it's not an aggregate device.
+        let sub_devices = audiounit_get_sub_devices(device);
+        // TODO: If device is a blank aggregate device, then the assertion fails!
+        assert!(!sub_devices.is_empty());
+    }
+}
+
+// Ignore this by default. The reason is same as below.
+#[test]
+#[ignore]
+fn test_get_sub_devices_for_blank_aggregate_devices() {
+    // TODO: Test this when there is no available devices.
+    let mut plugin_id = kAudioObjectUnknown;
+    let mut aggregate_device_id = kAudioObjectUnknown;
+    assert!(audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok());
+    assert_ne!(plugin_id, kAudioObjectUnknown);
+    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
+    println!("aggregate_device_id: {}", aggregate_device_id);
+    // There is no sub devices for a blank aggregate device!
+    let devices = audiounit_get_sub_devices(aggregate_device_id);
+    assert!(devices.is_empty());
+}
+
 // create_blank_aggregate_device
 // ------------------------------------
 // This is marked as `ignore` by default since it cannot run with those

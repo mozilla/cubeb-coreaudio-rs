@@ -612,6 +612,59 @@ fn audiounit_get_default_device_id(devtype: DeviceType) -> AudioObjectID
     return devid;
 }
 
+fn audiounit_get_sub_devices(device_id: AudioDeviceID) -> Vec<AudioObjectID>
+{
+    // FIXIT: Add a check ? We will fail to get data size if `device_id`
+    //        is `kAudioObjectUnknown`!
+    // assert_ne!(device_id, kAudioObjectUnknown);
+
+    let mut sub_devices = Vec::new();
+    let property_address = AudioObjectPropertyAddress {
+        mSelector: kAudioAggregateDevicePropertyActiveSubDeviceList,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMaster
+    };
+    let mut size: usize = 0;
+    let mut rv = audio_object_get_property_data_size(
+        device_id,
+        &property_address,
+        &mut size
+    );
+
+    // NOTE: Hit this if `device_id` is not an aggregate device!
+    if rv != NO_ERR {
+        sub_devices.push(device_id);
+        return sub_devices;
+    }
+
+    // TODO: Add a check ? If device_id is a blank aggregate device,
+    //       the size is 0! We should just return an empty directly
+    //       or get a panic!
+    // assert_ne!(size, 0);
+    // if size == 0 {
+    //     return sub_devices;
+    // }
+
+    let count = size / mem::size_of::<AudioObjectID>();
+    sub_devices = allocate_array(count);
+    // assert_eq!(count, sub_devices.len());
+    // assert_eq!(size, sub_devices.len() * mem::size_of::<AudioObjectID>());
+    rv = audio_object_get_property_data(
+        device_id,
+        &property_address,
+        &mut size,
+        sub_devices.as_mut_ptr()
+    );
+
+    if rv != NO_ERR {
+        sub_devices.clear();
+        sub_devices.push(device_id);
+    } else {
+        cubeb_log!("Found {} sub-devices", count);
+    }
+    sub_devices
+}
+
 fn audiounit_create_blank_aggregate_device(plugin_id: &mut AudioObjectID, aggregate_device_id: &mut AudioDeviceID) -> Result<()>
 {
     let address_plugin_bundle_id = AudioObjectPropertyAddress {
