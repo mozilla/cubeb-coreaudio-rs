@@ -1792,7 +1792,95 @@ fn test_set_aggregate_sub_device_list() {
 
 // set_master_aggregate_device
 // ------------------------------------
-// TODO
+#[test]
+#[should_panic]
+fn test_set_master_aggregate_device_for_a_unknown_aggregate_device() {
+    assert_eq!(
+        audiounit_set_master_aggregate_device(
+            kAudioObjectUnknown
+        ).unwrap_err(),
+        Error::error()
+    );
+}
+
+// Ignore this by default. The reason is same as test_create_blank_aggregate_device.
+#[test]
+#[ignore]
+fn test_set_master_aggregate_device_for_a_blank_aggregate_device() {
+    let mut plugin_id = kAudioObjectUnknown;
+    let mut aggregate_device_id = kAudioObjectUnknown;
+    assert!(
+        audiounit_create_blank_aggregate_device(
+            &mut plugin_id,
+            &mut aggregate_device_id
+        ).is_ok()
+    );
+    assert_ne!(plugin_id, kAudioObjectUnknown);
+    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
+
+    // TODO: If there is no available device, we will set master device
+    //       to a device whose name is a NULL CFStringRef (see implementation)
+    //       but surprisingly it's ok! On the other hand, it's also ok to set
+    //       the default ouput device(if any) for a blank aggregate device.
+    //       That is, it's ok to set the default ouput device to an aggregate
+    //       device whose sub devices list doesn't include default ouput device!
+    //       This is weird to me. Maybe we should return errors when above
+    //       conditions are met.
+    assert!(
+        audiounit_set_master_aggregate_device(
+            aggregate_device_id
+        ).is_ok()
+    );
+
+    // TODO: Get the master device and see if it's what we set.
+}
+
+// Ignore this by default. The reason is same as test_create_blank_aggregate_device.
+#[test]
+#[ignore]
+fn test_set_master_aggregate_device() {
+    let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
+    let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
+    if !valid_id(input_id) || !valid_id(output_id) /* || input_id == output_id */ {
+        return;
+    }
+
+    let output_sub_devices = audiounit_get_sub_devices(output_id);
+    if output_sub_devices.is_empty() {
+        return;
+    }
+
+    // Create a blank aggregate device.
+    let mut plugin_id = kAudioObjectUnknown;
+    let mut aggregate_device_id = kAudioObjectUnknown;
+    assert!(
+        audiounit_create_blank_aggregate_device(
+            &mut plugin_id,
+            &mut aggregate_device_id
+        ).is_ok()
+    );
+    assert_ne!(plugin_id, kAudioObjectUnknown);
+    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
+
+    // Set the sub devices into the created aggregate device.
+    assert!(
+        audiounit_set_aggregate_sub_device_list(
+            aggregate_device_id,
+            input_id,
+            output_id
+        ).is_ok()
+    );
+
+    // Set the master device.
+    assert!(
+        audiounit_set_master_aggregate_device(
+            aggregate_device_id
+        ).is_ok()
+    );
+
+    // TODO: Get the master device and see if it's what we set.
+}
+
 
 // activate_clock_drift_compensation
 // ------------------------------------

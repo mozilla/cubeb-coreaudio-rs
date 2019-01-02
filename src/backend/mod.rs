@@ -870,8 +870,40 @@ fn audiounit_set_aggregate_sub_device_list(aggregate_device_id: AudioDeviceID,
     Ok(())
 }
 
-fn audiounit_set_master_aggregate_device() -> Result<()>
+fn audiounit_set_master_aggregate_device(aggregate_device_id: AudioDeviceID) -> Result<()>
 {
+    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
+    let master_aggregate_sub_device = AudioObjectPropertyAddress {
+        mSelector: kAudioAggregateDevicePropertyMasterSubDevice,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMaster
+    };
+
+    // Master become the 1st output sub device
+    let output_device_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
+    // TODO: Add a check ?
+    // assert_ne!(output_device_id, kAudioObjectUnknown);
+    let output_sub_devices = audiounit_get_sub_devices(output_device_id);
+    // TODO: Add a check ? or use first instead ?
+    // assert!(!output_sub_devices.is_empty());
+    // let master_sub_device = get_device_name(output_sub_devices.first().unwrap().clone());
+    let master_sub_device = get_device_name(output_sub_devices[0]);
+    // TODO: Check if output_sub_devices[0] is in the sub devices list of
+    //       the aggregate device ?
+    // TODO: Check if this is a NULL CFStringRef ?
+    // assert!(!master_sub_device.is_null());
+
+    // NOTE: It's ok if this device is not in the sub devices list,
+    //       even if the CFStringRef is a NULL CFStringRef!
+    let size = mem::size_of::<CFStringRef>();
+    let rv = audio_object_set_property_data(aggregate_device_id,
+                                            &master_aggregate_sub_device,
+                                            size,
+                                            &master_sub_device);
+    if rv != NO_ERR {
+        cubeb_log!("AudioObjectSetPropertyData/kAudioAggregateDevicePropertyMasterSubDevice, rv={}", rv);
+        return Err(Error::error());
+    }
     Ok(())
 }
 
@@ -917,7 +949,7 @@ fn audiounit_create_aggregate_device(stm: &mut AudioUnitStream) -> Result<()>
         return Err(r);
     }
 
-    if let Err(r) = audiounit_set_master_aggregate_device() {
+    if let Err(r) = audiounit_set_master_aggregate_device(stm.aggregate_device_id) {
         cubeb_log!("({:p}) Failed to set master sub-device for aggregate device", stm);
         // TODO: Check if aggregate device is destroyed or not ?
         audiounit_destroy_aggregate_device();
