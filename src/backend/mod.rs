@@ -810,8 +810,63 @@ fn get_device_name(id: AudioDeviceID) -> CFStringRef
 //     audiounit_strref_to_cstr_utf8(UIname)
 // }
 
-fn audiounit_set_aggregate_sub_device_list() -> Result<()>
+fn audiounit_set_aggregate_sub_device_list(aggregate_device_id: AudioDeviceID,
+                                           input_device_id: AudioDeviceID,
+                                           output_device_id: AudioDeviceID) -> Result<()>
 {
+    // TODO: Check the devices are known ?
+    // assert_ne!(aggregate_device_id, kAudioObjectUnknown);
+    // assert_ne!(input_device_id, kAudioObjectUnknown);
+    // assert_ne!(output_device_id, kAudioObjectUnknown);
+    // assert_ne!(input_device_id, output_device_id);
+
+    cubeb_log!("Add devices input {} and output {} into aggregate device {}",
+               input_device_id, output_device_id, aggregate_device_id);
+    let output_sub_devices = audiounit_get_sub_devices(output_device_id);
+    let input_sub_devices = audiounit_get_sub_devices(input_device_id);
+
+    unsafe {
+        let aggregate_sub_devices_array = CFArrayCreateMutable(ptr::null(), 0, &kCFTypeArrayCallBacks);
+        /* The order of the items in the array is significant and is used to determine the order of the streams
+           of the AudioAggregateDevice. */
+        // TODO: We will add duplicate devices into the array if there are
+        //       common devices in output_sub_devices and input_sub_devices!
+        //       (if they are same device or
+        //        if either one of them or both of them are aggregate devices)
+        //       Should we remove the duplicate devices ?
+        for device in output_sub_devices {
+            let strref = get_device_name(device);
+            if strref.is_null() {
+                CFRelease(aggregate_sub_devices_array as *const c_void);
+                return Err(Error::error());
+            }
+            CFArrayAppendValue(aggregate_sub_devices_array, strref as *const c_void);
+        }
+
+        for device in input_sub_devices {
+            let strref = get_device_name(device);
+            if strref.is_null() {
+                CFRelease(aggregate_sub_devices_array as *const c_void);
+                return Err(Error::error());
+            }
+            CFArrayAppendValue(aggregate_sub_devices_array, strref as *const c_void);
+        }
+
+        let aggregate_sub_device_list = AudioObjectPropertyAddress {
+            mSelector: kAudioAggregateDevicePropertyFullSubDeviceList,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMaster
+        };
+
+        let size = mem::size_of::<CFMutableArrayRef>();
+        let rv = audio_object_set_property_data(aggregate_device_id, &aggregate_sub_device_list, size, &aggregate_sub_devices_array);
+        CFRelease(aggregate_sub_devices_array as *const c_void);
+        if rv != NO_ERR {
+            cubeb_log!("AudioObjectSetPropertyData/kAudioAggregateDevicePropertyFullSubDeviceList, rv={}", rv);
+            return Err(Error::error());
+        }
+    }
+
     Ok(())
 }
 
@@ -855,7 +910,7 @@ fn audiounit_create_aggregate_device(stm: &mut AudioUnitStream) -> Result<()>
         return Err(r);
     }
 
-    if let Err(r) = audiounit_set_aggregate_sub_device_list() {
+    if let Err(r) = audiounit_set_aggregate_sub_device_list(stm.aggregate_device_id, stm.input_device.id, stm.output_device.id) {
         cubeb_log!("({:p}) Failed to set aggregate sub-device list", stm);
         // TODO: Check if aggregate device is destroyed or not ?
         audiounit_destroy_aggregate_device();

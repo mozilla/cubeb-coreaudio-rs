@@ -1658,7 +1658,137 @@ fn test_get_device_name() {
 
 // set_aggregate_sub_device_list
 // ------------------------------------
-// TODO
+#[test]
+fn test_set_aggregate_sub_device_list_for_a_unknown_aggregate_device() {
+    // If aggregate device id is kAudioObjectUnknown, we won't be able to
+    // set device list.
+    assert_eq!(
+        audiounit_set_aggregate_sub_device_list(
+            kAudioObjectUnknown,
+            kAudioObjectUnknown,
+            kAudioObjectUnknown
+        ).unwrap_err(),
+        Error::error()
+    );
+
+    let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
+    let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
+
+    if !valid_id(input_id) || !valid_id(output_id) /* || input_id == output_id */ {
+        return;
+    }
+
+    assert_eq!(
+        audiounit_set_aggregate_sub_device_list(
+            kAudioObjectUnknown,
+            input_id,
+            output_id
+        ).unwrap_err(),
+        Error::error()
+    );
+}
+
+// Ignore this by default. The reason is same as test_create_blank_aggregate_device.
+#[test]
+#[ignore]
+fn test_set_aggregate_sub_device_list_for_unknown_input_output_devices() {
+    let mut plugin_id = kAudioObjectUnknown;
+    let mut aggregate_device_id = kAudioObjectUnknown;
+    assert!(
+        audiounit_create_blank_aggregate_device(
+            &mut plugin_id,
+            &mut aggregate_device_id
+        ).is_ok()
+    );
+    assert_ne!(plugin_id, kAudioObjectUnknown);
+    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
+
+    // NOTE: We will get errors and pass the test here since get_device_name()
+    //       return a NULL CFStringRef for a unknown devicie. Instead of
+    //       replying on get_device_name(). We should check this in the
+    //       beginning of the audiounit_set_aggregate_sub_device_list().
+
+    // Both input and output are unknown.
+    assert_eq!(
+        audiounit_set_aggregate_sub_device_list(
+            aggregate_device_id,
+            kAudioObjectUnknown,
+            kAudioObjectUnknown
+        ).unwrap_err(),
+        Error::error()
+    );
+
+    let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
+    let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
+
+    // Only input is unknown.
+    if valid_id(output_id) {
+        assert_eq!(
+            audiounit_set_aggregate_sub_device_list(
+                aggregate_device_id,
+                kAudioObjectUnknown,
+                output_id
+            ).unwrap_err(),
+            Error::error()
+        );
+    }
+
+    // Only output is unknown.
+    if valid_id(input_id) {
+        assert_eq!(
+            audiounit_set_aggregate_sub_device_list(
+                aggregate_device_id,
+                input_id,
+                kAudioObjectUnknown
+            ).unwrap_err(),
+            Error::error()
+        );
+    }
+}
+
+// Ignore this by default. The reason is same as test_create_blank_aggregate_device.
+#[test]
+#[ignore]
+fn test_set_aggregate_sub_device_list() {
+    let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
+    let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
+    if !valid_id(input_id) || !valid_id(output_id) /* || input_id == output_id */ {
+        return;
+    }
+
+    let input_sub_devices = audiounit_get_sub_devices(input_id);
+    let output_sub_devices = audiounit_get_sub_devices(output_id);
+
+    let mut plugin_id = kAudioObjectUnknown;
+    let mut aggregate_device_id = kAudioObjectUnknown;
+    assert!(
+        audiounit_create_blank_aggregate_device(
+            &mut plugin_id,
+            &mut aggregate_device_id
+        ).is_ok()
+    );
+    assert_ne!(plugin_id, kAudioObjectUnknown);
+    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
+
+    assert!(
+        audiounit_set_aggregate_sub_device_list(
+            aggregate_device_id,
+            input_id,
+            output_id
+        ).is_ok()
+    );
+    let sub_devices = audiounit_get_sub_devices(aggregate_device_id);
+
+    assert!(sub_devices.len() <= input_sub_devices.len() + output_sub_devices.len());
+
+    for device in input_sub_devices {
+        assert!(sub_devices.contains(&device));
+    }
+
+    for device in output_sub_devices {
+        assert!(sub_devices.contains(&device));
+    }
+}
 
 // set_master_aggregate_device
 // ------------------------------------
