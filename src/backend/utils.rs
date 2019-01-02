@@ -62,22 +62,22 @@ pub fn cfstringref_from_static_string(string: &'static str) -> sys::CFStringRef 
     }
 }
 
-pub fn cfstringref_from_string(string: &str) -> sys::CFStringRef {
-    // References:
-    // https://developer.apple.com/documentation/corefoundation/1543419-cfstringcreatewithbytes?language=objc
-    // https://github.com/opensource-apple/CF/blob/3cc41a76b1491f50813e28a4ec09954ffa359e6f/CFString.c#L1597
-    // https://github.com/servo/core-foundation-rs/blob/2aac8fb85b5b114673280e273c04219c0c360e54/core-foundation/src/string.rs#L111
-    // https://github.com/servo/core-foundation-rs/blob/2aac8fb85b5b114673280e273c04219c0c360e54/io-surface/src/lib.rs#L48
-    unsafe {
-        sys::CFStringCreateWithBytes(
-            sys::kCFAllocatorDefault,
-            string.as_ptr(),
-            string.len() as sys::CFIndex,
-            sys::kCFStringEncodingUTF8,
-            false as sys::Boolean
-        )
-    }
-}
+// pub fn cfstringref_from_string(string: &str) -> sys::CFStringRef {
+//     // References:
+//     // https://developer.apple.com/documentation/corefoundation/1543419-cfstringcreatewithbytes?language=objc
+//     // https://github.com/opensource-apple/CF/blob/3cc41a76b1491f50813e28a4ec09954ffa359e6f/CFString.c#L1597
+//     // https://github.com/servo/core-foundation-rs/blob/2aac8fb85b5b114673280e273c04219c0c360e54/core-foundation/src/string.rs#L111
+//     // https://github.com/servo/core-foundation-rs/blob/2aac8fb85b5b114673280e273c04219c0c360e54/io-surface/src/lib.rs#L48
+//     unsafe {
+//         sys::CFStringCreateWithBytes(
+//             sys::kCFAllocatorDefault,
+//             string.as_ptr(),
+//             string.len() as sys::CFIndex,
+//             sys::kCFStringEncodingUTF8,
+//             false as sys::Boolean
+//         )
+//     }
+// }
 
 pub fn audio_object_has_property(
     id: sys::AudioObjectID,
@@ -325,24 +325,24 @@ fn test_create_static_cfstring_ref() {
     // TODO: Find a way to check the string's inner pointer is same.
 }
 
-#[test]
-fn test_create_cfstring_ref() {
-    use super::*;
+// #[test]
+// fn test_create_cfstring_ref() {
+//     use super::*;
 
-    let test_string = "Rustaceans 🦀";
-    let cfstrref = cfstringref_from_string(test_string);
-    let cstring = audiounit_strref_to_cstr_utf8(cfstrref);
-    unsafe {
-        CFRelease(cfstrref as *const c_void);
-    }
+//     let test_string = "Rustaceans 🦀";
+//     let cfstrref = cfstringref_from_string(test_string);
+//     let cstring = audiounit_strref_to_cstr_utf8(cfstrref);
+//     unsafe {
+//         CFRelease(cfstrref as *const c_void);
+//     }
 
-    assert_eq!(
-        test_string,
-        cstring.to_string_lossy()
-    );
+//     assert_eq!(
+//         test_string,
+//         cstring.to_string_lossy()
+//     );
 
-    // TODO: Find a way to check the string's inner pointer is same.
-}
+//     // TODO: Find a way to check the string's inner pointer is different.
+// }
 
 #[test]
 fn test_audio_object_add_property_listener_for_unknown_device() {

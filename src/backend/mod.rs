@@ -738,17 +738,15 @@ fn audiounit_create_blank_aggregate_device(plugin_id: &mut AudioObjectID, aggreg
         // TODO: Check if time_id is larger than 0 ?
         // assert!(time_id > 0);
 
-        // In C version, we use `CFStringCreateWithFormat(...)` to create a formatted string.
-        // The `CFStringCreateWithFormat(...)` takes variable arguments. However, Rust doesn't
-        // support variable arguments. We simply format the strings and then convert them into
-        // the `CFStringRef`s to do the same jobs.
-        let device_name_string = format!("{}_{}", PRIVATE_AGGREGATE_DEVICE_NAME, time_id);
-        let aggregate_device_name = cfstringref_from_string(&device_name_string);
+        // let device_name_string = format!("{}_{}", PRIVATE_AGGREGATE_DEVICE_NAME, time_id);
+        // let aggregate_device_name = cfstringref_from_string(&device_name_string);
+        let aggregate_device_name = CFStringCreateWithFormat(ptr::null(), ptr::null(), cfstringref_from_static_string("%s_%llx"), CString::new(PRIVATE_AGGREGATE_DEVICE_NAME).expect("Fail on creating an aggregate device name").as_ptr(), time_id);
         CFDictionaryAddValue(aggregate_device_dict, cfstringref_from_static_string(AGGREGATE_DEVICE_NAME_KEY) as *const c_void, aggregate_device_name as *const c_void);
         CFRelease(aggregate_device_name as *const c_void);
 
-        let device_uid_string = format!("org.mozilla.{}_{}", PRIVATE_AGGREGATE_DEVICE_NAME, time_id);
-        let aggregate_device_UID = cfstringref_from_string(&device_uid_string);
+        // let device_uid_string = format!("org.mozilla.{}_{}", PRIVATE_AGGREGATE_DEVICE_NAME, time_id);
+        // let aggregate_device_UID = cfstringref_from_string(&device_uid_string);
+        let aggregate_device_UID = CFStringCreateWithFormat(ptr::null(), ptr::null(), cfstringref_from_static_string("org.mozilla.%s_%llx"), CString::new(PRIVATE_AGGREGATE_DEVICE_NAME).expect("Fail on creating an aggregate device uid").as_ptr(), time_id);
         CFDictionaryAddValue(aggregate_device_dict, cfstringref_from_static_string(AGGREGATE_DEVICE_UID) as *const c_void, aggregate_device_UID as *const c_void);
         CFRelease(aggregate_device_UID as *const c_void);
 
