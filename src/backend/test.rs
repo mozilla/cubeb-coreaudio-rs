@@ -1524,10 +1524,20 @@ fn test_get_sub_devices_for_blank_aggregate_devices() {
     // TODO: Test this when there is no available devices.
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;
-    assert!(audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok());
-    assert_ne!(plugin_id, kAudioObjectUnknown);
-    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
-    println!("aggregate_device_id: {}", aggregate_device_id);
+    assert!(
+        audiounit_create_blank_aggregate_device(
+            &mut plugin_id,
+            &mut aggregate_device_id
+        ).is_ok()
+    );
+    assert_ne!(
+        plugin_id,
+        kAudioObjectUnknown
+    );
+    assert_ne!(
+        aggregate_device_id,
+        kAudioObjectUnknown
+    );
     // There is no sub devices for a blank aggregate device!
     let devices = audiounit_get_sub_devices(aggregate_device_id);
     assert!(devices.is_empty());
@@ -1562,9 +1572,20 @@ fn test_create_blank_aggregate_device() {
     // TODO: Test this when there is no available devices.
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;
-    assert!(audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok());
-    assert_ne!(plugin_id, kAudioObjectUnknown);
-    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
+    assert!(
+        audiounit_create_blank_aggregate_device(
+            &mut plugin_id,
+            &mut aggregate_device_id
+        ).is_ok()
+    );
+    assert_ne!(
+        plugin_id,
+        kAudioObjectUnknown
+    );
+    assert_ne!(
+        aggregate_device_id,
+        kAudioObjectUnknown
+    );
 
     let all_devices = get_all_devices();
     assert!(!all_devices.is_empty());
@@ -1585,19 +1606,21 @@ fn test_create_blank_aggregate_device() {
 
     fn get_all_devices() -> Vec<AudioObjectID> {
         let mut size: usize = 0;
-        let mut ret = audio_object_get_property_data_size(kAudioObjectSystemObject,
-                                                        &DEVICES_PROPERTY_ADDRESS,
-                                                        &mut size
+        let mut ret = audio_object_get_property_data_size(
+            kAudioObjectSystemObject,
+            &DEVICES_PROPERTY_ADDRESS,
+            &mut size
         );
         if ret != NO_ERR {
             return Vec::new();
         }
         /* Total number of input and output devices. */
         let mut devices: Vec<AudioObjectID> = allocate_array_by_size(size);
-        ret = audio_object_get_property_data(kAudioObjectSystemObject,
-                                            &DEVICES_PROPERTY_ADDRESS,
-                                            &mut size,
-                                            devices.as_mut_ptr(),
+        ret = audio_object_get_property_data(
+            kAudioObjectSystemObject,
+            &DEVICES_PROPERTY_ADDRESS,
+            &mut size,
+            devices.as_mut_ptr()
         );
         if ret != NO_ERR {
             return Vec::new();
