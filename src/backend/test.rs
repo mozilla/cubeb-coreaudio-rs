@@ -1591,14 +1591,14 @@ fn test_create_blank_aggregate_device() {
     assert!(!all_devices.is_empty());
     assert!(all_devices.contains(&aggregate_device_id));
 
-    let all_devices_names = into_devices_names(all_devices);
+    let all_devices_names = to_devices_names(&all_devices);
     assert!(!all_devices_names.is_empty());
     let mut aggregate_device_found = false;
-
     for name_opt in all_devices_names {
         if let Some(name) = name_opt {
             if name.contains(PRIVATE_AGGREGATE_DEVICE_NAME) {
                 aggregate_device_found = true;
+                break;
             }
         }
     }
@@ -1627,20 +1627,6 @@ fn test_create_blank_aggregate_device() {
         }
         devices.sort();
         devices
-    }
-
-    fn into_devices_names(devices: Vec<AudioObjectID>) -> Vec<Option<String>> {
-        let mut names = Vec::new();
-        for device in devices {
-            let name = get_device_name(device);
-            names.push(if name.is_null() {
-                None
-            } else {
-                let cstring = audiounit_strref_to_cstr_utf8(name);
-                Some(cstring.to_string_lossy().into_owned())
-            });
-        }
-        names
     }
 }
 
@@ -1911,7 +1897,7 @@ fn test_set_master_aggregate_device() {
 
     // Check if master is set to default output device.
     let master_device = get_master_device(aggregate_device_id);
-    let default_output_device = to_device_name(output_id);
+    let default_output_device = to_device_name(output_id).unwrap();
     assert_eq!(
         master_device,
         default_output_device
@@ -4121,13 +4107,27 @@ fn unit_scope_is_enabled(unit: &AudioUnit, is_input: bool) -> bool {
     has_io != 0
 }
 
-fn to_device_name(id: AudioObjectID) -> String {
+fn to_devices_names(devices: &Vec<AudioObjectID>) -> Vec<Option<String>> {
+    let mut names = Vec::new();
+    for device in devices {
+        names.push(
+            to_device_name(*device)
+        );
+    }
+    names
+}
+
+fn to_device_name(id: AudioObjectID) -> Option<String> {
     let name_ref = get_device_name(id);
+    if name_ref.is_null() {
+        return None;
+    }
+
     let name = strref_to_string(name_ref);
     unsafe {
         CFRelease(name_ref as *const c_void);
     }
-    name
+    Some(name)
 }
 
 fn strref_to_string(strref: CFStringRef) -> String {
