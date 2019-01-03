@@ -2148,7 +2148,6 @@ fn test_activate_clock_drift_compensation() {
     );
 
     // Check the compensations.
-    println!("input: {}, output: {}, aggregate: {}", input_id, output_id, aggregate_device_id);
     let devices = get_onwed_devices(aggregate_device_id);
     assert!(!devices.is_empty());
     let compensations = get_drift_compensations(&devices);
