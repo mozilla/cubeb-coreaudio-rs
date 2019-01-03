@@ -1768,6 +1768,7 @@ fn test_set_aggregate_sub_device_list() {
     let input_sub_devices = audiounit_get_sub_devices(input_id);
     let output_sub_devices = audiounit_get_sub_devices(output_id);
 
+    // Create a blank aggregate device.
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;
     assert!(
@@ -1779,6 +1780,7 @@ fn test_set_aggregate_sub_device_list() {
     assert_ne!(plugin_id, kAudioObjectUnknown);
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
 
+    // Set sub devices for the created aggregate device.
     assert!(
         audiounit_set_aggregate_sub_device_list(
             aggregate_device_id,
@@ -1790,12 +1792,43 @@ fn test_set_aggregate_sub_device_list() {
 
     assert!(sub_devices.len() <= input_sub_devices.len() + output_sub_devices.len());
 
-    for device in input_sub_devices {
-        assert!(sub_devices.contains(&device));
+    // Make sure all the sub devices of the default input and output devices
+    // are also the sub devices of the aggregate device.
+    for device in &input_sub_devices {
+        assert!(sub_devices.contains(device));
     }
 
-    for device in output_sub_devices {
-        assert!(sub_devices.contains(&device));
+    for device in &output_sub_devices {
+        assert!(sub_devices.contains(device));
+    }
+
+    let onwed_devices = get_onwed_devices(aggregate_device_id);
+    assert!(!onwed_devices.is_empty());
+    let owned_devices_names = to_devices_names(&onwed_devices);
+    show_devices_names("aggregate owning devices", &owned_devices_names);
+
+    let input_sub_devices_names = to_devices_names(&input_sub_devices);
+    show_devices_names("input sub devices", &owned_devices_names);
+
+    let output_sub_devices_names = to_devices_names(&output_sub_devices);
+    show_devices_names("output sub devices", &owned_devices_names);
+
+    for name_opt in &input_sub_devices_names {
+        assert!(owned_devices_names.contains(name_opt));
+    }
+
+    for name_opt in &output_sub_devices_names {
+        assert!(owned_devices_names.contains(name_opt));
+    }
+
+    fn show_devices_names(title: &'static str, names: &Vec<Option<String>>) {
+        println!("\n{}\n-----------", title);
+        for name_opt in names {
+            if let Some(name) = name_opt {
+                println!("{}", name);
+            }
+        }
+        println!();
     }
 }
 
@@ -1901,6 +1934,21 @@ fn test_set_master_aggregate_device() {
     assert_eq!(
         master_device,
         default_output_device
+    );
+
+    // Check the first owning device is the default output device.
+    let onwed_devices = get_onwed_devices(aggregate_device_id);
+    assert!(!onwed_devices.is_empty());
+    let mut first_output_device = None;
+    for device in &onwed_devices {
+        if is_output(*device) {
+            first_output_device = Some(*device);
+        }
+    }
+    assert!(first_output_device.is_some());
+    assert_eq!(
+        to_device_name(first_output_device.unwrap()),
+        to_device_name(output_id)
     );
 }
 
