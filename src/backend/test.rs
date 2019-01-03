@@ -1855,7 +1855,15 @@ fn test_set_master_aggregate_device_for_a_blank_aggregate_device() {
         ).is_ok()
     );
 
-    // TODO: Get the master device and see if it's what we set.
+    // Make sure this blank aggregate device owns nothing.
+    // TODO: it's really weird it actually own nothing but
+    //       it can set master device successfully!
+    let owned_sub_devices = get_onwed_devices(aggregate_device_id);
+    assert!(owned_sub_devices.is_empty());
+
+    // Check if master is nothing.
+    let master_device = get_master_device(aggregate_device_id);
+    assert!(master_device.is_empty());
 }
 
 // Ignore this by default. The reason is same as test_create_blank_aggregate_device.
@@ -1901,9 +1909,45 @@ fn test_set_master_aggregate_device() {
         ).is_ok()
     );
 
-    // TODO: Get the master device and see if it's what we set.
+    // Check if master is set to default output device.
+    let master_device = get_master_device(aggregate_device_id);
+    let default_output_device = to_device_name(output_id);
+    assert_eq!(
+        master_device,
+        default_output_device
+    );
 }
 
+fn get_master_device(aggregate_device_id: AudioObjectID) -> String {
+    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
+
+    let master_aggregate_sub_device = AudioObjectPropertyAddress {
+        mSelector: kAudioAggregateDevicePropertyMasterSubDevice,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMaster
+    };
+
+    let mut master_sub_device: CFStringRef = ptr::null_mut();
+    let mut size = mem::size_of::<CFStringRef>();
+    assert_eq!(
+        audio_object_get_property_data(
+            aggregate_device_id,
+            &master_aggregate_sub_device,
+            &mut size,
+            &mut master_sub_device
+        ),
+        NO_ERR
+    );
+    assert!(!master_sub_device.is_null());
+
+    let master_device = strref_to_string(master_sub_device);
+
+    unsafe {
+        CFRelease(master_sub_device as *const c_void);
+    }
+
+    master_device
+}
 
 // activate_clock_drift_compensation
 // ------------------------------------
@@ -4075,4 +4119,18 @@ fn unit_scope_is_enabled(unit: &AudioUnit, is_input: bool) -> bool {
         0
     );
     has_io != 0
+}
+
+fn to_device_name(id: AudioObjectID) -> String {
+    let name_ref = get_device_name(id);
+    let name = strref_to_string(name_ref);
+    unsafe {
+        CFRelease(name_ref as *const c_void);
+    }
+    name
+}
+
+fn strref_to_string(strref: CFStringRef) -> String {
+    let cstring = audiounit_strref_to_cstr_utf8(strref);
+    cstring.into_string().unwrap()
 }
