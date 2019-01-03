@@ -907,8 +907,71 @@ fn audiounit_set_master_aggregate_device(aggregate_device_id: AudioDeviceID) -> 
     Ok(())
 }
 
-fn audiounit_activate_clock_drift_compensation() -> Result<()>
+fn audiounit_activate_clock_drift_compensation(aggregate_device_id: AudioDeviceID) -> Result<()>
 {
+    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
+    let address_owned = AudioObjectPropertyAddress {
+        mSelector: kAudioObjectPropertyOwnedObjects,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMaster
+    };
+
+    let qualifier_data_size = mem::size_of::<AudioObjectID>();
+    let class_id: AudioClassID = kAudioSubDeviceClassID;
+    let qualifier_data = &class_id;
+    let mut size: usize = 0;
+
+    let mut rv = unsafe {
+        AudioObjectGetPropertyDataSize(aggregate_device_id,
+                                       &address_owned,
+                                       qualifier_data_size as u32,
+                                       qualifier_data as *const u32 as *const c_void,
+                                       &mut size as *mut usize as *mut u32)
+    };
+
+    if rv != NO_ERR {
+        cubeb_log!("AudioObjectGetPropertyDataSize/kAudioObjectPropertyOwnedObjects, rv={}", rv);
+        return Err(Error::error());
+    }
+
+    let subdevices_num = size / mem::size_of::<AudioObjectID>();
+    let mut sub_devices: Vec<AudioObjectID> = allocate_array(subdevices_num);
+
+    rv = unsafe {
+        AudioObjectGetPropertyData(aggregate_device_id,
+                                   &address_owned,
+                                   qualifier_data_size as u32,
+                                   qualifier_data as *const u32 as *const c_void,
+                                   &mut size as *mut usize as *mut u32,
+                                   sub_devices.as_mut_ptr() as *mut c_void)
+    };
+
+    if rv != NO_ERR {
+        cubeb_log!("AudioObjectGetPropertyData/kAudioObjectPropertyOwnedObjects, rv={}", rv);
+        return Err(Error::error());
+    }
+
+    let address_drift = AudioObjectPropertyAddress {
+        mSelector: kAudioSubDevicePropertyDriftCompensation,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMaster
+    };
+
+    // Start from the second device since the first is the master clock
+    // TODO: Check the list is longer than 1 ?
+    // assert!(sub_devices.len() > 1);
+    for device in &sub_devices[1..] {
+        let drift_compensation_value: u32 = 1;
+        rv = audio_object_set_property_data(*device,
+                                            &address_drift,
+                                            mem::size_of::<u32>(),
+                                            &drift_compensation_value);
+        if rv != NO_ERR {
+            cubeb_log!("AudioObjectSetPropertyData/kAudioSubDevicePropertyDriftCompensation, rv={}", rv);
+            return Ok(());
+        }
+    }
+
     Ok(())
 }
 
@@ -956,7 +1019,7 @@ fn audiounit_create_aggregate_device(stm: &mut AudioUnitStream) -> Result<()>
         return Err(r);
     }
 
-    if let Err(r) = audiounit_activate_clock_drift_compensation() {
+    if let Err(r) = audiounit_activate_clock_drift_compensation(stm.aggregate_device_id) {
         cubeb_log!("({:p}) Failed to activate clock drift compensation for aggregate device", stm);
         // TODO: Check if aggregate device is destroyed or not ?
         audiounit_destroy_aggregate_device();
