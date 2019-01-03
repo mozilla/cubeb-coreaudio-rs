@@ -1946,6 +1946,7 @@ fn test_set_master_aggregate_device() {
         }
     }
     assert!(first_output_device.is_some());
+    // TODO: Does this check work if output_id is an aggregate device ?
     assert_eq!(
         to_device_name(first_output_device.unwrap()),
         to_device_name(output_id)
@@ -2057,8 +2058,15 @@ fn test_activate_clock_drift_compensation_for_an_aggregate_device_without_master
         ).is_ok()
     );
 
-    // TODO: Is the master device the first output device by default if we
-    //       don't set that ?
+    // TODO: Is the master device the first output sub device by default if we
+    //       don't set that ? Is it because we add the output sub device list
+    //       before the input's one ? (See implementation of
+    //       audiounit_set_aggregate_sub_device_list).
+    // TODO: Does this check work if output_id is an aggregate device ?
+    assert_eq!(
+        get_master_device(aggregate_device_id),
+        to_device_name(output_id).unwrap()
+    );
 
     // Set clock drift compensation.
     assert!(
