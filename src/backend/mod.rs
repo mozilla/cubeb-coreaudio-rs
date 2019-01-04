@@ -1008,21 +1008,21 @@ fn audiounit_create_aggregate_device(stm: &mut AudioUnitStream) -> Result<()>
     if let Err(r) = audiounit_set_aggregate_sub_device_list(stm.aggregate_device_id, stm.input_device.id, stm.output_device.id) {
         cubeb_log!("({:p}) Failed to set aggregate sub-device list", stm);
         // TODO: Check if aggregate device is destroyed or not ?
-        audiounit_destroy_aggregate_device();
+        audiounit_destroy_aggregate_device(stm.plugin_id, &mut stm.aggregate_device_id);
         return Err(r);
     }
 
     if let Err(r) = audiounit_set_master_aggregate_device(stm.aggregate_device_id) {
         cubeb_log!("({:p}) Failed to set master sub-device for aggregate device", stm);
         // TODO: Check if aggregate device is destroyed or not ?
-        audiounit_destroy_aggregate_device();
+        audiounit_destroy_aggregate_device(stm.plugin_id, &mut stm.aggregate_device_id);
         return Err(r);
     }
 
     if let Err(r) = audiounit_activate_clock_drift_compensation(stm.aggregate_device_id) {
         cubeb_log!("({:p}) Failed to activate clock drift compensation for aggregate device", stm);
         // TODO: Check if aggregate device is destroyed or not ?
-        audiounit_destroy_aggregate_device();
+        audiounit_destroy_aggregate_device(stm.plugin_id, &mut stm.aggregate_device_id);
         return Err(r);
     }
 
@@ -1031,8 +1031,42 @@ fn audiounit_create_aggregate_device(stm: &mut AudioUnitStream) -> Result<()>
     Ok(())
 }
 
-fn audiounit_destroy_aggregate_device() -> Result<()>
+fn audiounit_destroy_aggregate_device(plugin_id: AudioObjectID, aggregate_device_id: &mut AudioDeviceID) -> Result<()>
 {
+    assert_ne!(plugin_id, kAudioObjectUnknown);
+    assert_ne!(*aggregate_device_id, kAudioObjectUnknown);
+
+    let destroy_aggregate_device_addr = AudioObjectPropertyAddress {
+        mSelector: kAudioPlugInDestroyAggregateDevice,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMaster
+    };
+
+    let mut size: usize = 0;
+    let mut rv = audio_object_get_property_data_size(plugin_id,
+                                                     &destroy_aggregate_device_addr,
+                                                     &mut size);
+    if rv != NO_ERR {
+        cubeb_log!("AudioObjectGetPropertyDataSize/kAudioPlugInDestroyAggregateDevice, rv={}", rv);
+        return Err(Error::error());
+    }
+
+    // TODO: Add a check ?
+    // assert!(size > 0);
+
+    rv = audio_object_get_property_data(plugin_id,
+                                        &destroy_aggregate_device_addr,
+                                        &mut size,
+                                        aggregate_device_id);
+    if rv != NO_ERR {
+        cubeb_log!("AudioObjectGetPropertyData/kAudioPlugInDestroyAggregateDevice, rv={}", rv);
+        return Err(Error::error());
+    }
+
+    cubeb_log!("Destroyed aggregate device {}", *aggregate_device_id);
+    // TODO: Use kAudioObjectUnknown instead ?
+    *aggregate_device_id = 0;
+
     Ok(())
 }
 

@@ -1541,6 +1541,13 @@ fn test_get_sub_devices_for_blank_aggregate_devices() {
     // There is no sub devices for a blank aggregate device!
     let devices = audiounit_get_sub_devices(aggregate_device_id);
     assert!(devices.is_empty());
+
+    assert!(
+        audiounit_destroy_aggregate_device(
+            plugin_id,
+            &mut aggregate_device_id
+        ).is_ok()
+    );
 }
 
 // create_blank_aggregate_device
@@ -1603,6 +1610,13 @@ fn test_create_blank_aggregate_device() {
         }
     }
     assert!(aggregate_device_found);
+
+    assert!(
+        audiounit_destroy_aggregate_device(
+            plugin_id,
+            &mut aggregate_device_id
+        ).is_ok()
+    );
 
     fn get_all_devices() -> Vec<AudioObjectID> {
         let mut size: usize = 0;
@@ -1753,6 +1767,13 @@ fn test_set_aggregate_sub_device_list_for_unknown_input_output_devices() {
             Error::error()
         );
     }
+
+    assert!(
+        audiounit_destroy_aggregate_device(
+            plugin_id,
+            &mut aggregate_device_id
+        ).is_ok()
+    );
 }
 
 // Ignore this by default. The reason is same as test_create_blank_aggregate_device.
@@ -1821,6 +1842,13 @@ fn test_set_aggregate_sub_device_list() {
         assert!(owned_devices_names.contains(name_opt));
     }
 
+    assert!(
+        audiounit_destroy_aggregate_device(
+            plugin_id,
+            &mut aggregate_device_id
+        ).is_ok()
+    );
+
     fn show_devices_names(title: &'static str, names: &Vec<Option<String>>) {
         println!("\n{}\n-----------", title);
         for name_opt in names {
@@ -1883,6 +1911,13 @@ fn test_set_master_aggregate_device_for_a_blank_aggregate_device() {
     // Check if master is nothing.
     let master_device = get_master_device(aggregate_device_id);
     assert!(master_device.is_empty());
+
+    assert!(
+        audiounit_destroy_aggregate_device(
+            plugin_id,
+            &mut aggregate_device_id
+        ).is_ok()
+    );
 }
 
 // Ignore this by default. The reason is same as test_create_blank_aggregate_device.
@@ -1950,6 +1985,14 @@ fn test_set_master_aggregate_device() {
     assert_eq!(
         to_device_name(first_output_device.unwrap()),
         to_device_name(output_id)
+    );
+
+    // Destroy the aggregate device.
+    assert!(
+        audiounit_destroy_aggregate_device(
+            plugin_id,
+            &mut aggregate_device_id
+        ).is_ok()
     );
 }
 
@@ -2025,6 +2068,14 @@ fn test_activate_clock_drift_compensation_for_a_blank_aggregate_device() {
         ).unwrap_err(),
         Error::error()
     );
+
+    // Destroy the aggregate device. (The program cannot reach here.)
+    assert!(
+        audiounit_destroy_aggregate_device(
+            plugin_id,
+            &mut aggregate_device_id
+        ).is_ok()
+    );
 }
 
 // Ignore this by default. The reason is same as test_create_blank_aggregate_device.
@@ -2095,6 +2146,14 @@ fn test_activate_clock_drift_compensation_for_an_aggregate_device_without_master
             }
         );
     }
+
+    // Destroy the aggregate device.
+    assert!(
+        audiounit_destroy_aggregate_device(
+            plugin_id,
+            &mut aggregate_device_id
+        ).is_ok()
+    );
 }
 
 // Ignore this by default. The reason is same as test_create_blank_aggregate_device.
@@ -2167,6 +2226,14 @@ fn test_activate_clock_drift_compensation() {
             }
         );
     }
+
+    // Destroy the aggregate device.
+    assert!(
+        audiounit_destroy_aggregate_device(
+            plugin_id,
+            &mut aggregate_device_id
+        ).is_ok()
+    );
 }
 
 fn get_onwed_devices(
@@ -2268,7 +2335,99 @@ fn get_drift_compensations(
 
 // destroy_aggregate_device
 // ------------------------------------
-// TODO
+#[test]
+#[should_panic]
+fn test_destroy_aggregate_device_for_unknown_plugin_and_aggregate_devices() {
+    let mut aggregate_device_id = kAudioObjectUnknown;
+    assert_eq!(
+        audiounit_destroy_aggregate_device(
+            kAudioObjectUnknown,
+            &mut aggregate_device_id
+        ).unwrap_err(),
+        Error::error()
+    )
+}
+
+// Ignore this by default. The reason is same as test_create_blank_aggregate_device.
+#[test]
+#[ignore]
+#[should_panic]
+fn test_destroy_aggregate_device_for_a_unknown_plugin_device() {
+    // TODO: Test this when there is no available devices.
+    let mut plugin_id = kAudioObjectUnknown;
+    let mut aggregate_device_id = kAudioObjectUnknown;
+    assert!(
+        audiounit_create_blank_aggregate_device(
+            &mut plugin_id,
+            &mut aggregate_device_id
+        ).is_ok()
+    );
+    assert_ne!(
+        plugin_id,
+        kAudioObjectUnknown
+    );
+    assert_ne!(
+        aggregate_device_id,
+        kAudioObjectUnknown
+    );
+
+    assert_eq!(
+        audiounit_destroy_aggregate_device(
+            kAudioObjectUnknown,
+            &mut aggregate_device_id
+        ).unwrap_err(),
+        Error::error()
+    );
+}
+
+// Ignore this by default. The reason is same as test_create_blank_aggregate_device.
+#[test]
+#[ignore]
+#[should_panic]
+fn test_destroy_aggregate_device_for_a_unknown_aggregate_device() {
+    // TODO: Test this when there is no available devices.
+    let mut plugin_id = kAudioObjectUnknown;
+    let mut aggregate_device_id = kAudioObjectUnknown;
+    assert!(
+        audiounit_create_blank_aggregate_device(
+            &mut plugin_id,
+            &mut aggregate_device_id
+        ).is_ok()
+    );
+    assert_ne!(
+        plugin_id,
+        kAudioObjectUnknown
+    );
+    assert_ne!(
+        aggregate_device_id,
+        kAudioObjectUnknown
+    );
+
+    aggregate_device_id = kAudioObjectUnknown;
+
+    assert_eq!(
+        audiounit_destroy_aggregate_device(
+            plugin_id,
+            &mut aggregate_device_id
+        ).unwrap_err(),
+        Error::error()
+    );
+}
+
+// #[test]
+// fn test_destroy_aggregate_device() {
+// }
+
+// Other tests for audiounit_destroy_aggregate_devic are combined with
+// other tests that call audiounit_create_blank_aggregate_device:
+// - test_get_sub_devices_for_blank_aggregate_devices
+// - test_create_blank_aggregate_device
+// - test_set_aggregate_sub_device_list_for_unknown_input_output_devices
+// - test_set_aggregate_sub_device_list
+// - test_set_master_aggregate_device_for_a_blank_aggregate_device
+// - test_set_master_aggregate_device
+// - test_activate_clock_drift_compensation_for_an_aggregate_device_without_master_device
+// - test_activate_clock_drift_compensation
 
 // new_unit_instance
 // ------------------------------------
