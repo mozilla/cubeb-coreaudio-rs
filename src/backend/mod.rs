@@ -24,6 +24,7 @@ mod owned_critical_section;
 // - StreamOps          : pub trait StreamOps               (cubeb-backend/traits.rs)
 // - StreamParams       : pub struct StreamParams           (cubeb-core/stream.rs)
 // - StreamParamsRef    : pub struct StreamParamsRef        (cubeb-core/stream.rs)
+use atomic;
 use cubeb_backend::{ffi, Context, ContextOps, DeviceCollectionRef, DeviceId,
                     DeviceRef, DeviceType, Error, Ops, Result, Stream,
                     StreamOps, StreamParams, StreamParamsRef, StreamPrefs};

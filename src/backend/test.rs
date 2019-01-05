@@ -2293,6 +2293,7 @@ fn get_onwed_devices(
 fn get_drift_compensations(
     devices: &Vec<AudioObjectID>
 ) -> Vec<u32> {
+    use std::u32;
     assert!(!devices.is_empty());
 
     let address_drift = AudioObjectPropertyAddress {
@@ -2307,7 +2308,7 @@ fn get_drift_compensations(
         assert_ne!(*device, kAudioObjectUnknown);
 
         let mut size = mem::size_of::<u32>();
-        let mut compensation = std::u32::MAX;
+        let mut compensation = u32::MAX;
 
         assert_eq!(
             audio_object_get_property_data(

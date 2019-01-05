@@ -295,10 +295,11 @@ pub fn show_callback_info(
     number_of_addresses: u32,
     addresses: *const sys::AudioObjectPropertyAddress,
     data: *mut c_void) {
+    use std::slice;
 
     println!("\n\n---------------------\ndevice: {}, data @ {:p}", id, data);
     let addrs = unsafe {
-        std::slice::from_raw_parts(addresses, number_of_addresses as usize)
+        slice::from_raw_parts(addresses, number_of_addresses as usize)
     };
     for (i, addr) in addrs.iter().enumerate() {
         println!("address {}\n\tselector {}\n\tscope {}\n\telement {}",
