@@ -14,6 +14,7 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
   - Use above API to test the device-changed callback
 - Move issues below to github issues.
 - Test aggregate devices
+  - Test with AirPods
 - Test for stream operations
 - Clean up the tests. Merge the duplicated pieces in to a function.
 - Find a way to catch memory leaks

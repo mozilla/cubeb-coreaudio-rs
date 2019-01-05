@@ -975,8 +975,90 @@ fn audiounit_activate_clock_drift_compensation(aggregate_device_id: AudioDeviceI
     Ok(())
 }
 
-fn audiounit_workaround_for_airpod()
+// TODO: If this is only called when airpod is part of the aggregate device,
+//       should we add a check for this ?
+fn audiounit_workaround_for_airpod(stm: &AudioUnitStream)
 {
+    let mut input_device_info = ffi::cubeb_device_info::default();
+    // TODO: Check input_device.id ? Check if the call is successful ?
+    assert_ne!(stm.input_device.id, kAudioObjectUnknown);
+    audiounit_create_device_from_hwdev(&mut input_device_info, stm.input_device.id, DeviceType::INPUT);
+
+    let mut output_device_info = ffi::cubeb_device_info::default();
+    assert_ne!(stm.output_device.id, kAudioObjectUnknown);
+    audiounit_create_device_from_hwdev(&mut output_device_info, stm.output_device.id, DeviceType::OUTPUT);
+
+    // NOTE: Retake the leaked friendly_name strings.
+    //       It's better to extract the part of getting name of the data source
+    //       into a function, so we don't need to call
+    //       `audiounit_create_device_from_hwdev` to get this info.
+    // NOTE: C version will leak the memory pointing to input_device_info.friendly_name!
+    let input_name_str = unsafe {
+        CString::from_raw(input_device_info.friendly_name as *mut c_char)
+            .into_string()
+            .expect("Fail to convert input name from CString into String")
+    };
+    let output_name_str = unsafe {
+        CString::from_raw(output_device_info.friendly_name as *mut c_char)
+            .into_string()
+            .expect("Fail to convert output name from CString into String")
+    };
+
+    if input_name_str.contains("AirPods") &&
+       output_name_str.contains("AirPods") {
+        let mut input_min_rate = 0;
+        let mut input_max_rate = 0;
+        let mut input_nominal_rate = 0;
+        audiounit_get_available_samplerate(stm.input_device.id, kAudioObjectPropertyScopeGlobal,
+                                           &mut input_min_rate, &mut input_max_rate, &mut input_nominal_rate);
+        cubeb_log!("({:p}) Input device {}, name: {}, min: {}, max: {}, nominal rate: {}", stm, stm.input_device.id
+        , input_name_str, input_min_rate, input_max_rate, input_nominal_rate);
+
+        let mut output_min_rate = 0;
+        let mut output_max_rate = 0;
+        let mut output_nominal_rate = 0;
+        audiounit_get_available_samplerate(stm.output_device.id, kAudioObjectPropertyScopeGlobal,
+                                           &mut output_min_rate, &mut output_max_rate, &mut output_nominal_rate);
+        cubeb_log!("({:p}) Output device {}, name: {}, min: {}, max: {}, nominal rate: {}", stm, stm.output_device.id
+        , output_name_str, output_min_rate, output_max_rate, output_nominal_rate);
+
+        let rate = input_nominal_rate as f64;
+        let addr = AudioObjectPropertyAddress {
+            mSelector: kAudioDevicePropertyNominalSampleRate,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMaster
+        };
+
+        // TODO: Check the aggregate_device_id ?
+        let rv = audio_object_set_property_data(stm.aggregate_device_id,
+                                                &addr,
+                                                mem::size_of::<f64>(),
+                                                &rate);
+        if rv != NO_ERR {
+            cubeb_log!("Non fatal error, AudioObjectSetPropertyData/kAudioDevicePropertyNominalSampleRate, rv={}", rv);
+        }
+    }
+
+    // Retrieve the rest lost memory.
+    // NOTE: C version will leak the memory!
+    retake_leaked_memory(input_device_info);
+    retake_leaked_memory(output_device_info);
+
+    fn retake_leaked_memory(mut device_info: ffi::cubeb_device_info) {
+        unsafe {
+            if !device_info.device_id.is_null() {
+                // group_id is a mirror to device_id, so we could skip it.
+                assert!(!device_info.group_id.is_null());
+                assert_eq!(device_info.device_id, device_info.group_id);
+                let _ = CString::from_raw(device_info.device_id as *mut c_char);
+                device_info.device_id = ptr::null_mut();
+            }
+            if !device_info.vendor_name.is_null() {
+                let _ = CString::from_raw(device_info.vendor_name as *mut c_char);
+                device_info.vendor_name = ptr::null_mut();
+            }
+        }
+    }
 }
 
 /*
@@ -1026,7 +1108,7 @@ fn audiounit_create_aggregate_device(stm: &mut AudioUnitStream) -> Result<()>
         return Err(r);
     }
 
-    audiounit_workaround_for_airpod();
+    audiounit_workaround_for_airpod(stm);
 
     Ok(())
 }
