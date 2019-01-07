@@ -989,21 +989,24 @@ fn audiounit_workaround_for_airpod(stm: &AudioUnitStream)
     assert_ne!(stm.output_device.id, kAudioObjectUnknown);
     audiounit_create_device_from_hwdev(&mut output_device_info, stm.output_device.id, DeviceType::OUTPUT);
 
+    // TODO: Check input_device_info.friendly_name and
+    //       output_device_info.friendly_name ?
     // NOTE: Retake the leaked friendly_name strings.
     //       It's better to extract the part of getting name of the data source
     //       into a function, so we don't need to call
     //       `audiounit_create_device_from_hwdev` to get this info.
-    // NOTE: C version will leak the memory pointing to input_device_info.friendly_name!
     let input_name_str = unsafe {
         CString::from_raw(input_device_info.friendly_name as *mut c_char)
             .into_string()
             .expect("Fail to convert input name from CString into String")
     };
+    input_device_info.friendly_name = ptr::null();
     let output_name_str = unsafe {
         CString::from_raw(output_device_info.friendly_name as *mut c_char)
             .into_string()
             .expect("Fail to convert output name from CString into String")
     };
+    output_device_info.friendly_name = ptr::null();
 
     if input_name_str.contains("AirPods") &&
        output_name_str.contains("AirPods") {
@@ -1041,25 +1044,12 @@ fn audiounit_workaround_for_airpod(stm: &AudioUnitStream)
     }
 
     // Retrieve the rest lost memory.
-    // NOTE: C version will leak the memory!
-    retake_leaked_memory(input_device_info);
-    retake_leaked_memory(output_device_info);
-
-    fn retake_leaked_memory(mut device_info: ffi::cubeb_device_info) {
-        unsafe {
-            if !device_info.device_id.is_null() {
-                // group_id is a mirror to device_id, so we could skip it.
-                assert!(!device_info.group_id.is_null());
-                assert_eq!(device_info.device_id, device_info.group_id);
-                let _ = CString::from_raw(device_info.device_id as *mut c_char);
-                device_info.device_id = ptr::null_mut();
-            }
-            if !device_info.vendor_name.is_null() {
-                let _ = CString::from_raw(device_info.vendor_name as *mut c_char);
-                device_info.vendor_name = ptr::null_mut();
-            }
-        }
-    }
+    // No need to retrieve the memory of {input,output}_device_info.friendly_name
+    // since they are already retrieved/retaken above.
+    assert!(input_device_info.friendly_name.is_null());
+    audiounit_device_destroy(&mut input_device_info);
+    assert!(output_device_info.friendly_name.is_null());
+    audiounit_device_destroy(&mut output_device_info);
 }
 
 /*
@@ -1934,6 +1924,33 @@ fn is_aggregate_device(device_info: &ffi::cubeb_device_info) -> bool
     }
 }
 
+// Retake the memory of these strings from the external code.
+fn audiounit_device_destroy(device: &mut ffi::cubeb_device_info)
+{
+    // This should be mapped to the memory allocation in
+    // audiounit_create_device_from_hwdev.
+    // Set the pointers to null incase it points to some released
+    // memory. (TODO: C version doesn't do this.)
+    unsafe {
+        if !device.device_id.is_null() {
+            // group_id is a mirror to device_id, so we could skip it.
+            assert!(!device.group_id.is_null());
+            assert_eq!(device.device_id, device.group_id);
+            let _ = CString::from_raw(device.device_id as *mut _);
+            device.device_id = ptr::null();
+            device.group_id = ptr::null();
+        }
+        if !device.friendly_name.is_null() {
+            let _ = CString::from_raw(device.friendly_name as *mut _);
+            device.friendly_name = ptr::null();
+        }
+        if !device.vendor_name.is_null() {
+            let _ = CString::from_raw(device.vendor_name as *mut _);
+            device.vendor_name = ptr::null();
+        }
+    }
+}
+
 fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID>
 {
     let mut size: usize = 0;
@@ -2341,24 +2358,7 @@ impl ContextOps for AudioUnitContext {
         for device in &mut devices {
             // This should be mapped to the memory allocation in
             // audiounit_create_device_from_hwdev.
-            unsafe {
-                // Retake the memory of these strings from the external code.
-                if !device.device_id.is_null() {
-                    // group_id is a mirror to device_id, so we could skip it.
-                    assert!(!device.group_id.is_null());
-                    assert_eq!(device.device_id, device.group_id);
-                    let _ = CString::from_raw(device.device_id as *mut _);
-                    device.device_id = ptr::null_mut();
-                }
-                if !device.friendly_name.is_null() {
-                    let _ = CString::from_raw(device.friendly_name as *mut _);
-                    device.friendly_name = ptr::null_mut();
-                }
-                if !device.vendor_name.is_null() {
-                    let _ = CString::from_raw(device.vendor_name as *mut _);
-                    device.vendor_name = ptr::null_mut();
-                }
-            }
+            audiounit_device_destroy(device);
         }
         drop(devices); // Release the memory.
         coll.device = ptr::null_mut();

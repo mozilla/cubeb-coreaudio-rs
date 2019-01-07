@@ -3848,6 +3848,76 @@ fn test_create_device_from_hwdev_output() {
 // ------------------------------------
 // TODO
 
+// device_destroy
+// ------------------------------------
+#[test]
+fn test_device_destroy_empty_device() {
+    let mut device = ffi::cubeb_device_info::default();
+
+    assert!(device.device_id.is_null());
+    assert!(device.group_id.is_null());
+    assert!(device.friendly_name.is_null());
+    assert!(device.vendor_name.is_null());
+
+    audiounit_device_destroy(&mut device);
+
+    assert!(device.device_id.is_null());
+    assert!(device.group_id.is_null());
+    assert!(device.friendly_name.is_null());
+    assert!(device.vendor_name.is_null());
+}
+
+#[test]
+#[should_panic]
+fn test_device_destroy_with_different_device_id_and_group_id() {
+    let mut device = ffi::cubeb_device_info::default();
+
+    device.device_id = CString::new("device id")
+        .expect("Failed on creating device id")
+        .into_raw();
+    // The result should be same if the group_id is null by comment the
+    // following line.
+    device.group_id = CString::new("group id")
+        .expect("Failed on creating device id")
+        .into_raw();
+    device.friendly_name = CString::new("friendly name")
+        .expect("Failed on creating friendly name")
+        .into_raw();
+    device.vendor_name = CString::new("vendor name")
+        .expect("Failed on creating vendor name")
+        .into_raw();
+
+    audiounit_device_destroy(&mut device);
+
+    assert!(device.device_id.is_null());
+    assert!(device.group_id.is_null());
+    assert!(device.friendly_name.is_null());
+    assert!(device.vendor_name.is_null());
+}
+
+#[test]
+fn test_device_destroy() {
+    let mut device = ffi::cubeb_device_info::default();
+
+    device.device_id = CString::new("device id")
+        .expect("Failed on creating device id")
+        .into_raw();
+    device.group_id = device.device_id;
+    device.friendly_name = CString::new("friendly name")
+        .expect("Failed on creating friendly name")
+        .into_raw();
+    device.vendor_name = CString::new("vendor name")
+        .expect("Failed on creating vendor name")
+        .into_raw();
+
+    audiounit_device_destroy(&mut device);
+
+    assert!(device.device_id.is_null());
+    assert!(device.group_id.is_null());
+    assert!(device.friendly_name.is_null());
+    assert!(device.vendor_name.is_null());
+}
+
 // get_devices_of_type
 // ------------------------------------
 #[test]
