@@ -1373,15 +1373,24 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
         return Err(Error::not_supported());
     }
 
-    let in_dev_info = stm.input_device.clone();
-    let out_dev_info = stm.output_device.clone();
+    let mut in_dev_info = stm.input_device.clone();
+    let mut out_dev_info = stm.output_device.clone();
 
     if has_input(stm) && has_output(stm) &&
        stm.input_device.id != stm.output_device.id {
         if let Err(r) = audiounit_create_aggregate_device(stm) {
-            // TODO: Set aggregate device id ...
+            // TODO: Use kAudioObjectUnknown instead ?
+            stm.aggregate_device_id = 0;
+            cubeb_log!("({:p}) Create aggregate devices failed.", stm);
+            // !!!NOTE: It is not necessary to return here. If it does not
+            // return it will fallback to the old implementation. The intention
+            // is to investigate how often it fails. I plan to remove
+            // it after a couple of weeks.
         } else {
-            // TODO: Set in_dev_info and out_dev_info ...
+            in_dev_info.id = stm.aggregate_device_id;
+            out_dev_info.id = stm.aggregate_device_id;
+            in_dev_info.flags = device_flags::DEV_INPUT;
+            out_dev_info.flags = device_flags::DEV_OUTPUT;
         }
     }
 
