@@ -1360,6 +1360,16 @@ fn audiounit_clamp_latency(stm: &mut AudioUnitStream, latency_frames: u32) -> u3
              SAFE_MIN_LATENCY_FRAMES)
 }
 
+fn audiounit_configure_input(stm: &mut AudioUnitStream) -> Result<()>
+{
+    Ok(())
+}
+
+fn audiounit_configure_output(stm: &mut AudioUnitStream) -> Result<()>
+{
+    Ok(())
+}
+
 fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
 {
     // TODO: Add stm.context.mutex.assert_current_thread_owns() ?
@@ -1423,6 +1433,21 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
         stm.latency_frames = audiounit_clamp_latency(stm, latency_frames);
         assert!(stm.latency_frames > 0); // Ungly error check
         audiounit_set_global_latency(stm.context, stm.latency_frames);
+    }
+
+    /* Configure I/O stream */
+    if has_input(stm) {
+        if let Err(r) = audiounit_configure_input(stm) {
+            cubeb_log!("({:p}) Configure audiounit input failed.", stm);
+            return Err(r);
+        }
+    }
+
+    if has_output(stm) {
+        if let Err(r) = audiounit_configure_input(stm) {
+            cubeb_log!("({:p}) Configure audiounit output failed.", stm);
+            return Err(r);
+        }
     }
 
     if !stm.input_unit.is_null() {
