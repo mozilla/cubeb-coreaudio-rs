@@ -1362,6 +1362,35 @@ fn audiounit_clamp_latency(stm: &mut AudioUnitStream, latency_frames: u32) -> u3
 
 fn audiounit_configure_input(stm: &mut AudioUnitStream) -> Result<()>
 {
+    assert!(!stm.input_unit.is_null());
+
+    let mut r = NO_ERR;
+    let mut size: usize = 0;
+    let mut aurcbs_in = AURenderCallbackStruct::default();
+
+    cubeb_log!("({:p}) Opening input side: rate {}, channels {}, format {:?}, latency in frames {}.",
+        stm, stm.input_stream_params.rate(), stm.input_stream_params.channels(),
+        stm.input_stream_params.format(), stm.latency_frames);
+
+    /* Get input device sample rate. */
+    let mut input_hw_desc = AudioStreamBasicDescription::default();
+    size = mem::size_of::<AudioStreamBasicDescription>();
+
+    r = audio_unit_get_property(&stm.input_unit,
+                                kAudioUnitProperty_StreamFormat,
+                                kAudioUnitScope_Input,
+                                AU_IN_BUS,
+                                &mut input_hw_desc,
+                                &mut size);
+    if r != NO_ERR {
+        cubeb_log!("AudioUnitGetProperty/input/kAudioUnitProperty_StreamFormat rv={}", r);
+        return Err(Error::error());
+    }
+    stm.input_hw_rate = input_hw_desc.mSampleRate;
+    cubeb_log!("({:p}) Input device sampling rate: {}", stm, stm.input_hw_rate);
+
+    // TODO: Set format description, buffer size, ..., etc.
+
     Ok(())
 }
 
@@ -2534,6 +2563,9 @@ struct AudioUnitStream<'ctx> {
     /* I/O AudioUnits */
     input_unit: AudioUnit,
     output_unit: AudioUnit,
+    /* I/O device sample rate */
+    input_hw_rate: f64,
+    output_hw_rate: f64,
     mutex: OwnedCriticalSection,
     /* Frame counters */
     frames_played: AtomicU64,
@@ -2593,6 +2625,8 @@ impl<'ctx> AudioUnitStream<'ctx> {
             output_device: device_info::new(),
             input_unit: ptr::null_mut(),
             output_unit: ptr::null_mut(),
+            input_hw_rate: 0_f64,
+            output_hw_rate: 0_f64,
             mutex: OwnedCriticalSection::new(),
             frames_played: AtomicU64::new(0),
             shutdown: AtomicBool::new(true),
