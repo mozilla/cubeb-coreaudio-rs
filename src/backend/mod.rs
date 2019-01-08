@@ -26,8 +26,9 @@ mod owned_critical_section;
 // - StreamParamsRef    : pub struct StreamParamsRef        (cubeb-core/stream.rs)
 use atomic;
 use cubeb_backend::{ffi, Context, ContextOps, DeviceCollectionRef, DeviceId,
-                    DeviceRef, DeviceType, Error, Ops, Result, Stream,
-                    StreamOps, StreamParams, StreamParamsRef, StreamPrefs};
+                    DeviceRef, DeviceType, Error, Ops, Result, SampleFormat,
+                    Stream, StreamOps, StreamParams, StreamParamsRef,
+                    StreamPrefs};
 use self::dispatch_utils::*;
 use self::coreaudio_sys::*;
 use self::utils::*;
@@ -611,6 +612,47 @@ fn audiounit_get_default_device_id(devtype: DeviceType) -> AudioObjectID
     }
 
     return devid;
+}
+
+fn audio_stream_desc_init(ss: &mut AudioStreamBasicDescription,
+                          stream_params: &StreamParams) -> Result<()>
+{
+    match stream_params.format() {
+        SampleFormat::S16LE => {
+            ss.mBitsPerChannel = 16;
+            ss.mFormatFlags = kAudioFormatFlagIsSignedInteger;
+        },
+        SampleFormat::S16BE => {
+            ss.mBitsPerChannel = 16;
+            ss.mFormatFlags = kAudioFormatFlagIsSignedInteger |
+                kAudioFormatFlagIsBigEndian;
+        },
+        SampleFormat::Float32LE => {
+            ss.mBitsPerChannel = 32;
+            ss.mFormatFlags = kAudioFormatFlagIsFloat;
+        },
+        SampleFormat::Float32BE => {
+            ss.mBitsPerChannel = 32;
+            ss.mFormatFlags = kAudioFormatFlagIsFloat |
+                kAudioFormatFlagIsBigEndian;
+        }
+        _ => {
+            return Err(Error::invalid_format());
+        }
+    }
+
+    ss.mFormatID = kAudioFormatLinearPCM;
+    ss.mFormatFlags |= kLinearPCMFormatFlagIsPacked;
+    ss.mSampleRate = stream_params.rate() as f64;
+    ss.mChannelsPerFrame = stream_params.channels();
+
+    ss.mBytesPerFrame = (ss.mBitsPerChannel / 8) * ss.mChannelsPerFrame;
+    ss.mFramesPerPacket = 1;
+    ss.mBytesPerPacket = ss.mBytesPerFrame * ss.mFramesPerPacket;
+
+    ss.mReserved = 0;
+
+    Ok(())
 }
 
 fn audiounit_get_sub_devices(device_id: AudioDeviceID) -> Vec<AudioObjectID>
