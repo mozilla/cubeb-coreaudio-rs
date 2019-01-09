@@ -6,6 +6,12 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
 - Translate [C code][cubeb-au] line by line into Rust
 - Create tests for later refactoring
 
+## Branches
+- *trailblazer*: Draft *Rust* code without being reviewed. Commits are scribbled.
+- *release*: The offical version. All the commits are reviewed.
+- *dev*: All the commits are cherry-picked from *trailblazer* branch.
+         This branch is used to create pull-requests to *release* branch.
+
 ## TODO
 - [cubeb-rs][cubeb-rs]
   - Implement `to_owned` in [`StreamParamsRef`][cubeb-rs-stmparamsref]
