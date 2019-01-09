@@ -1515,7 +1515,7 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
     }
 
     if has_output(stm) {
-        if let Err(r) = audiounit_configure_input(stm) {
+        if let Err(r) = audiounit_configure_output(stm) {
             cubeb_log!("({:p}) Configure audiounit output failed.", stm);
             return Err(r);
         }

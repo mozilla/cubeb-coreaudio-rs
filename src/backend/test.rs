@@ -387,7 +387,7 @@ fn test_ops_context_register_device_collection_changed() {
     let devtypes: [ffi::cubeb_device_type; 3] = [
         ffi::CUBEB_DEVICE_TYPE_INPUT,
         ffi::CUBEB_DEVICE_TYPE_OUTPUT,
-        ffi::CUBEB_DEVICE_TYPE_INPUT | ffi::CUBEB_DEVICE_TYPE_INPUT
+        ffi::CUBEB_DEVICE_TYPE_INPUT | ffi::CUBEB_DEVICE_TYPE_OUTPUT
     ];
 
     extern "C" fn callback(context: *mut ffi::cubeb, user: *mut c_void) {
@@ -2388,7 +2388,6 @@ fn get_onwed_devices(
 fn get_drift_compensations(
     devices: &Vec<AudioObjectID>
 ) -> Vec<u32> {
-    use std::u32;
     assert!(!devices.is_empty());
 
     let address_drift = AudioObjectPropertyAddress {
@@ -2403,7 +2402,7 @@ fn get_drift_compensations(
         assert_ne!(*device, kAudioObjectUnknown);
 
         let mut size = mem::size_of::<u32>();
-        let mut compensation = u32::MAX;
+        let mut compensation = u32::max_value();
 
         assert_eq!(
             audio_object_get_property_data(
