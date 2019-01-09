@@ -1,6 +1,7 @@
 # cubeb-coreaudio-rs
 
 Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] written in Rust.
+Currently it can only be built by *rust-nightly* since we use *nightly-only* atomic types(`AtomicU32` and `AtomicU64`).
 
 ## Current Goals
 - Translate [C code][cubeb-au] line by line into Rust
@@ -43,6 +44,7 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
 - Atomic:
   - The stable atomic types only support `bool`, `usize`, `isize`, and `ptr`, but we need `u64`, `i64`, and `f32`.
   - Using [atomic-rs](https://github.com/Amanieu/atomic-rs) instead.
+  - *Rust-Nightly* supports `AtomicU32` and `AtomicU64` so we use that.
 - Unworkable API: [`dispatch_async`][dis-async] and [`dispatch_sync`][dis-sync]
   - The second parameter of [`dispatch_async`][dis-async] and [`dispatch_sync`][dis-sync] is [`dispatch_block_t`][dis-block], which is defined by `typedef void (^dispatch_block_t)(void)`.
   - The caret symbol `^` defines a [block][c-ext-block].
