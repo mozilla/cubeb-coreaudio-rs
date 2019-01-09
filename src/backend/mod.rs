@@ -67,9 +67,14 @@ impl ContextOps for AudioUnitContext {
         _latency_frame: u32,
         _data_callback: ffi::cubeb_data_callback,
         _state_callback: ffi::cubeb_state_callback,
-        _user_ptr: *mut c_void,
+        user_ptr: *mut c_void,
     ) -> Result<Stream> {
-        Err(Error::not_supported())
+        // The stream must be boxed since capi_stream_destroy releases the
+        // stream by Box::from_raw.
+        let boxed_stream = Box::new(AudioUnitStream::new(self, user_ptr));
+        let cubeb_stream =
+            unsafe { Stream::from_ptr(Box::into_raw(boxed_stream) as *mut ffi::cubeb_stream) };
+        Ok(cubeb_stream)
     }
     fn register_device_collection_changed(
         &mut self,
@@ -84,9 +89,22 @@ impl ContextOps for AudioUnitContext {
     }
 }
 
-struct AudioUnitStream {}
+// Must keep the members of cubeb_stream in cubeb.c
+struct AudioUnitStream<'ctx> {
+    _context: &'ctx mut AudioUnitContext,
+    _user_ptr: *mut c_void,
+}
 
-impl StreamOps for AudioUnitStream {
+impl<'ctx> AudioUnitStream<'ctx> {
+    fn new(context: &'ctx mut AudioUnitContext, user_ptr: *mut c_void) -> Self {
+        AudioUnitStream {
+            _context: context,
+            _user_ptr: user_ptr,
+        }
+    }
+}
+
+impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     fn start(&mut self) -> Result<()> {
         Err(Error::not_supported())
     }

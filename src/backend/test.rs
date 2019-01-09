@@ -98,8 +98,10 @@ fn test_ops_context_device_collection_destroy() {
     assert_eq!(coll.count, 0);
 }
 
-#[test]
-fn test_ops_context_stream_init() {
+fn test_stream_operation<F>(name: &'static str, operation: F)
+where
+    F: FnOnce(*mut ffi::cubeb_stream),
+{
     use std::ffi::CString;
 
     let mut c: *mut ffi::cubeb = ptr::null_mut();
@@ -109,13 +111,13 @@ fn test_ops_context_stream_init() {
     );
 
     let mut stream: *mut ffi::cubeb_stream = ptr::null_mut();
-    let name = CString::new("test").unwrap().as_ptr();
+    let stream_name = CString::new(name).expect("Failed on creating stream name");
     assert_eq!(
         unsafe {
             OPS.stream_init.unwrap()(
                 c,
                 &mut stream,
-                name,
+                stream_name.as_ptr(),
                 ptr::null(),
                 ptr::null_mut(),
                 ptr::null(),
@@ -126,102 +128,119 @@ fn test_ops_context_stream_init() {
                 ptr::null_mut(),
             )
         },
-        ffi::CUBEB_ERROR_NOT_SUPPORTED
+        ffi::CUBEB_OK
     );
 
+    operation(stream);
+
     unsafe {
+        OPS.stream_destroy.unwrap()(stream);
         OPS.destroy.unwrap()(c);
     };
 }
 
-// The stream must be boxed since capi_stream_destroy releases the stream
-// by Box::from_raw.
-// stream_destroy: Some($crate::capi::capi_stream_destroy::<$stm>),
+#[test]
+fn test_ops_context_stream_init_and_destroy() {
+    test_stream_operation("stream init and destroy", |_stream| {});
+}
 
 #[test]
 fn test_ops_stream_start() {
-    let s: *mut ffi::cubeb_stream = ptr::null_mut();
-    assert_eq!(
-        unsafe { OPS.stream_start.unwrap()(s) },
-        ffi::CUBEB_ERROR_NOT_SUPPORTED
-    );
+    test_stream_operation("stream start", |stream| {
+        assert_eq!(
+            unsafe { OPS.stream_start.unwrap()(stream) },
+            ffi::CUBEB_ERROR_NOT_SUPPORTED
+        );
+    });
 }
 
 #[test]
 fn test_ops_stream_stop() {
-    let s: *mut ffi::cubeb_stream = ptr::null_mut();
-    assert_eq!(
-        unsafe { OPS.stream_stop.unwrap()(s) },
-        ffi::CUBEB_ERROR_NOT_SUPPORTED
-    );
+    test_stream_operation("stream stop", |stream| {
+        assert_eq!(
+            unsafe { OPS.stream_stop.unwrap()(stream) },
+            ffi::CUBEB_ERROR_NOT_SUPPORTED
+        );
+    });
 }
 
 #[test]
 fn test_ops_stream_reset_default_device() {
-    let s: *mut ffi::cubeb_stream = ptr::null_mut();
-    assert_eq!(
-        unsafe { OPS.stream_reset_default_device.unwrap()(s) },
-        ffi::CUBEB_ERROR_NOT_SUPPORTED
-    );
+    test_stream_operation("stream reset default device", |stream| {
+        assert_eq!(
+            unsafe { OPS.stream_reset_default_device.unwrap()(stream) },
+            ffi::CUBEB_ERROR_NOT_SUPPORTED
+        );
+    });
 }
 
 #[test]
 fn test_ops_stream_position() {
-    let s: *mut ffi::cubeb_stream = ptr::null_mut();
-    let mut position = u64::max_value();
-    assert_eq!(
-        unsafe { OPS.stream_get_position.unwrap()(s, &mut position) },
-        ffi::CUBEB_OK
-    );
-    assert_eq!(position, 0);
+    test_stream_operation("stream position", |stream| {
+        let mut position = u64::max_value();
+        assert_eq!(
+            unsafe { OPS.stream_get_position.unwrap()(stream, &mut position) },
+            ffi::CUBEB_OK
+        );
+        assert_eq!(position, 0);
+    });
 }
 
 #[test]
 fn test_ops_stream_latency() {
-    let s: *mut ffi::cubeb_stream = ptr::null_mut();
-    let mut latency = u32::max_value();
-    assert_eq!(
-        unsafe { OPS.stream_get_latency.unwrap()(s, &mut latency) },
-        ffi::CUBEB_OK
-    );
-    assert_eq!(latency, 0);
+    test_stream_operation("stream latency", |stream| {
+        let mut latency = u32::max_value();
+        assert_eq!(
+            unsafe { OPS.stream_get_latency.unwrap()(stream, &mut latency) },
+            ffi::CUBEB_OK
+        );
+        assert_eq!(latency, 0);
+    });
 }
 
 #[test]
 fn test_ops_stream_set_volume() {
-    let s: *mut ffi::cubeb_stream = ptr::null_mut();
-    assert_eq!(
-        unsafe { OPS.stream_set_volume.unwrap()(s, 0.5) },
-        ffi::CUBEB_ERROR_NOT_SUPPORTED
-    );
+    test_stream_operation("stream set volume", |stream| {
+        let mut latency = u32::max_value();
+        assert_eq!(
+            unsafe { OPS.stream_set_volume.unwrap()(stream, 0.5) },
+            ffi::CUBEB_ERROR_NOT_SUPPORTED
+        );
+    });
 }
 
 #[test]
 fn test_ops_stream_set_panning() {
-    let s: *mut ffi::cubeb_stream = ptr::null_mut();
-    assert_eq!(
-        unsafe { OPS.stream_set_panning.unwrap()(s, 0.5) },
-        ffi::CUBEB_ERROR_NOT_SUPPORTED
-    );
+    test_stream_operation("stream set panning", |stream| {
+        assert_eq!(
+            unsafe { OPS.stream_set_panning.unwrap()(stream, 0.5) },
+            ffi::CUBEB_ERROR_NOT_SUPPORTED
+        );
+    });
 }
 
 #[test]
 fn test_ops_stream_current_device() {
-    let s: *mut ffi::cubeb_stream = ptr::null_mut();
-    let mut device: *mut ffi::cubeb_device = ptr::null_mut();
-    assert_eq!(
-        unsafe { OPS.stream_get_current_device.unwrap()(s, &mut device) },
-        ffi::CUBEB_OK
-    );
-    assert_eq!(device, 0xDEAD_BEEF as *mut ffi::cubeb_device);
+    test_stream_operation("stream current device", |stream| {
+        let mut device: *mut ffi::cubeb_device = ptr::null_mut();
+        assert_eq!(
+            unsafe { OPS.stream_get_current_device.unwrap()(stream, &mut device) },
+            ffi::CUBEB_OK
+        );
+        assert_eq!(device, 0xDEAD_BEEF as *mut ffi::cubeb_device);
+    });
 }
 
 #[test]
 fn test_ops_stream_device_destroy() {
-    let s: *mut ffi::cubeb_stream = ptr::null_mut();
-    unsafe {
-        OPS.stream_device_destroy.unwrap()(s, 0xDEAD_BEEF as *mut ffi::cubeb_device);
-    }
+    test_stream_operation("stream current device", |stream| {
+        assert_eq!(
+            unsafe {
+                OPS.stream_device_destroy.unwrap()(stream, 0xDEAD_BEEF as *mut ffi::cubeb_device)
+            },
+            ffi::CUBEB_OK
+        );
+    });
 }
 
 // Enable this after cubeb-rs is updated to the newest version that
