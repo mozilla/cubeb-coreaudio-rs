@@ -242,6 +242,47 @@ pub fn audio_unit_get_parameter(
     }
 }
 
+// https://developer.apple.com/documentation/audiotoolbox/1440111-audiounitaddpropertylistener?language=objc
+pub type audio_unit_property_listener_proc = extern fn(
+    *mut c_void,
+    sys::AudioUnit,
+    sys::AudioUnitPropertyID,
+    sys::AudioUnitScope,
+    sys::AudioUnitElement
+);
+
+pub fn audio_unit_add_property_listener(
+    unit: &sys::AudioUnit,
+    id: sys::AudioUnitPropertyID,
+    listener: audio_unit_property_listener_proc,
+    data: *mut c_void,
+) -> sys::OSStatus {
+    unsafe {
+        sys::AudioUnitAddPropertyListener(
+            *unit,
+            id,
+            Some(listener),
+            data
+        )
+    }
+}
+
+pub fn audio_unit_remove_property_listener_with_user_data(
+    unit: &sys::AudioUnit,
+    id: sys::AudioUnitPropertyID,
+    listener: audio_unit_property_listener_proc,
+    data: *mut c_void,
+) -> sys::OSStatus {
+    unsafe {
+        sys::AudioUnitRemovePropertyListenerWithUserData(
+            *unit,
+            id,
+            Some(listener),
+            data
+        )
+    }
+}
+
 pub fn audio_unit_set_parameter(
     unit: &sys::AudioUnit,
     id: sys:: AudioUnitParameterID,
@@ -498,4 +539,300 @@ fn test_manual_audio_object_add_property_listener() {
 
     // Since this function never ends, we can make sure `called` exists
     // when listener is called!
+}
+
+#[test]
+fn test_audio_unit_add_property_listener_for_null_unit() {
+    extern fn listener(
+        _: *mut c_void,
+        _: sys::AudioUnit,
+        _: sys::AudioUnitPropertyID,
+        _: sys::AudioUnitScope,
+        _: sys::AudioUnitElement
+    ) {
+        assert!(false, "Should not be called.");
+    }
+
+    let unit = ptr::null_mut();
+    assert_eq!(
+        audio_unit_add_property_listener(
+            &unit,
+            sys::kAudioDevicePropertyBufferFrameSize,
+            listener,
+            ptr::null_mut()
+        ),
+        sys::kAudio_ParamError
+    );
+}
+
+
+#[test]
+fn test_audio_unit_remove_property_listener_with_user_data_for_null_unit() {
+    extern fn listener(
+        _: *mut c_void,
+        _: sys::AudioUnit,
+        _: sys::AudioUnitPropertyID,
+        _: sys::AudioUnitScope,
+        _: sys::AudioUnitElement
+    ) {
+        assert!(false, "Should not be called.");
+    }
+
+    let unit = ptr::null_mut();
+    assert_eq!(
+        audio_unit_remove_property_listener_with_user_data(
+            &unit,
+            sys::kAudioDevicePropertyBufferFrameSize,
+            listener,
+            ptr::null_mut()
+        ),
+        sys::kAudio_ParamError
+    );
+}
+
+#[test]
+fn test_audio_unit_remove_property_listener_with_user_data_without_adding_any() {
+    extern fn listener(
+        _: *mut c_void,
+        _: sys::AudioUnit,
+        _: sys::AudioUnitPropertyID,
+        _: sys::AudioUnitScope,
+        _: sys::AudioUnitElement
+    ) {
+        assert!(false, "Should not be called.");
+    }
+
+    let default_device = get_default_input_or_output_device();
+    let mut unit = ptr::null_mut();
+    super::audiounit_create_unit(&mut unit, &default_device).unwrap();
+    assert!(!unit.is_null());
+
+    assert_eq!(
+        audio_unit_remove_property_listener_with_user_data(
+            &unit,
+            sys::kAudioDevicePropertyBufferFrameSize,
+            listener,
+            ptr::null_mut()
+        ),
+        0
+    );
+}
+
+#[test]
+fn test_audio_unit_add_then_remove_property_listener() {
+    extern fn listener(
+        _: *mut c_void,
+        _: sys::AudioUnit,
+        _: sys::AudioUnitPropertyID,
+        _: sys::AudioUnitScope,
+        _: sys::AudioUnitElement
+    ) {
+        assert!(false, "Should not be called.");
+    }
+
+    let default_device = get_default_input_or_output_device();
+    let mut unit = ptr::null_mut();
+    super::audiounit_create_unit(&mut unit, &default_device).unwrap();
+    assert!(!unit.is_null());
+
+    assert_eq!(
+        audio_unit_add_property_listener(
+            &unit,
+            sys::kAudioDevicePropertyBufferFrameSize,
+            listener,
+            ptr::null_mut()
+        ),
+        0
+    );
+
+    assert_eq!(
+        audio_unit_remove_property_listener_with_user_data(
+            &unit,
+            sys::kAudioDevicePropertyBufferFrameSize,
+            listener,
+            ptr::null_mut()
+        ),
+        0
+    );
+}
+
+#[test]
+fn test_audio_unit_add_then_fire_then_remove_property_listener() {
+    // Uncomment the following println to show the logs.
+    macro_rules! debug_println {
+        ($( $args:expr ),*) => {
+            // println!( $( $args ),* );
+        }
+    }
+
+    use super::device_flags;
+    const GLOBAL_ELEMENT: sys::AudioUnitElement = 0;
+    const OUT_ELEMENT: sys::AudioUnitElement = 0;
+    const IN_ELEMENT: sys::AudioUnitElement = 1;
+
+    let mut called: u32 = 0;
+
+    extern fn listener(
+        data: *mut c_void,
+        unit: sys::AudioUnit,
+        id: sys::AudioUnitPropertyID,
+        scope: sys::AudioUnitScope,
+        element: sys::AudioUnitElement
+    ) {
+        // This callback will be fired twice. One for input or output scope,
+        // the other is for global scope.
+        debug_println!("listener > id: {}, unit: {:?}, scope: {}, element: {}, data @ {:p}",
+            id, unit, scope, element, data);
+
+        assert_eq!(
+            id,
+            sys::kAudioDevicePropertyBufferFrameSize
+        );
+
+        assert!((scope == sys::kAudioUnitScope_Output && element == IN_ELEMENT) ||
+                (scope == sys::kAudioUnitScope_Input && element == OUT_ELEMENT) ||
+                (scope == sys::kAudioUnitScope_Global && element == GLOBAL_ELEMENT));
+
+        let mut buffer_frames: u32 = 0;
+        let mut size = mem::size_of::<u32>();
+        assert_eq!(
+            audio_unit_get_property(
+                &unit,
+                id,
+                scope,
+                element,
+                &mut buffer_frames,
+                &mut size
+            ),
+            0
+        );
+
+        debug_println!("updated {} buffer frames: {}",
+            if element == IN_ELEMENT { "input" } else { "output" }, buffer_frames);
+
+        let called = unsafe {
+            &mut (*(data as *mut u32))
+        };
+        *called += 1;
+
+        // It's ok to remove listener here.
+        // assert_eq!(
+        //     audio_unit_remove_property_listener_with_user_data(
+        //         &unit,
+        //         id,
+        //         listener,
+        //         data
+        //     ),
+        //     0
+        // );
+    }
+
+    let default_device = get_default_input_or_output_device();
+    if default_device.id == sys::kAudioObjectUnknown ||
+       default_device.flags == device_flags::DEV_UNKNOWN {
+        return;
+    }
+
+    assert!(default_device.flags.intersects(device_flags::DEV_INPUT | device_flags::DEV_OUTPUT));
+    assert!(!default_device.flags.contains(device_flags::DEV_INPUT | device_flags::DEV_OUTPUT));
+
+    let is_input = if default_device.flags.contains(device_flags::DEV_INPUT) {
+        true
+    } else {
+        false
+    };
+
+    let mut unit = ptr::null_mut();
+    super::audiounit_create_unit(&mut unit, &default_device).unwrap();
+    assert!(!unit.is_null());
+
+    let mut buffer_frames: u32 = 0;
+    let mut size = mem::size_of::<u32>();
+    assert_eq!(
+        audio_unit_get_property(
+            &unit,
+            sys::kAudioDevicePropertyBufferFrameSize,
+            if is_input { sys::kAudioUnitScope_Output } else { sys::kAudioUnitScope_Input },
+            if is_input { IN_ELEMENT } else { OUT_ELEMENT },
+            &mut buffer_frames,
+            &mut size
+        ),
+        0
+    );
+
+    debug_println!("current {} buffer frames: {}",
+        if is_input { "input" } else { "output" }, buffer_frames);
+
+    assert_eq!(
+        audio_unit_add_property_listener(
+            &unit,
+            sys::kAudioDevicePropertyBufferFrameSize,
+            listener,
+            &mut called as *mut u32 as *mut c_void
+        ),
+        0
+    );
+
+    buffer_frames *= 2;
+    debug_println!("target {} buffer frames: {}",
+        if is_input { "input" } else { "output" }, buffer_frames);
+
+    assert_eq!(
+        audio_unit_set_property(
+            &unit,
+            sys::kAudioDevicePropertyBufferFrameSize,
+            if is_input { sys::kAudioUnitScope_Output } else { sys::kAudioUnitScope_Input },
+            if is_input { IN_ELEMENT } else { OUT_ELEMENT },
+            &buffer_frames,
+            size
+        ),
+        0
+    );
+
+    while called < 2 {};
+
+    assert_eq!(
+        audio_unit_remove_property_listener_with_user_data(
+            &unit,
+            sys::kAudioDevicePropertyBufferFrameSize,
+            listener,
+            &mut called as *mut u32 as *mut c_void
+        ),
+        0
+    );
+
+    assert_eq!(called, 2);
+}
+
+fn get_default_input_or_output_device() -> super::device_info {
+    use super::{
+        audiounit_get_default_device_id,
+        device_flags,
+        device_info,
+        DeviceType,
+    };
+
+    let mut device = device_info::new();
+    assert_eq!(
+        device.id,
+        sys::kAudioObjectUnknown
+    );
+    assert_eq!(
+        device.flags,
+        device_flags::DEV_UNKNOWN
+    );
+
+    // let default_output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
+    let default_output_id = sys::kAudioObjectUnknown;
+    let default_input_id = audiounit_get_default_device_id(DeviceType::INPUT);
+
+    if default_output_id != sys::kAudioObjectUnknown {
+        device.flags |= device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT;
+        device.id = default_output_id;
+    } else if default_input_id != sys::kAudioObjectUnknown {
+        device.flags |= device_flags::DEV_INPUT | device_flags::DEV_SYSTEM_DEFAULT;
+        device.id = default_input_id;
+    }
+
+    device
 }
