@@ -143,6 +143,14 @@ enum io_side {
   OUTPUT,
 }
 
+fn to_string(side: io_side) -> &'static str
+{
+    match side {
+        io_side::INPUT => "input",
+        io_side::OUTPUT => "output"
+    }
+}
+
 #[derive(Clone, Debug)]
 struct device_info {
     id: AudioDeviceID,

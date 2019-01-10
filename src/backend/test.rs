@@ -755,6 +755,20 @@ fn test_manual_ctx_stream_register_device_changed_callback() {
 
 // Private APIs
 // ============================================================================
+// to_string
+// ------------------------------------
+#[test]
+fn test_to_string() {
+    assert_eq!(
+        to_string(io_side::INPUT),
+        "input"
+    );
+    assert_eq!(
+        to_string(io_side::OUTPUT),
+        "output"
+    );
+}
+
 // has_input
 // ------------------------------------
 // TODO
