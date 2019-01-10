@@ -3149,7 +3149,6 @@ fn test_configure_input() {
     // assertion in audiounit_create_unit.
 
     let default_input_id = audiounit_get_default_device_id(DeviceType::INPUT);
-    // Return an error if there is no available device.
     if !valid_id(default_input_id) {
         return;
     }
