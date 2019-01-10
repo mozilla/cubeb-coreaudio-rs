@@ -1438,6 +1438,42 @@ fn audiounit_configure_input(stm: &mut AudioUnitStream) -> Result<()>
 
 fn audiounit_configure_output(stm: &mut AudioUnitStream) -> Result<()>
 {
+    assert!(!stm.output_unit.is_null());
+
+    let mut r = NO_ERR;
+    let mut aurcbs_out = AURenderCallbackStruct::default();
+    let mut size: usize = 0;
+
+    cubeb_log!("({:p}) Opening output side: rate {}, channels {}, format {:?}, latency in frames {}.",
+               stm, stm.output_stream_params.rate(), stm.output_stream_params.channels(),
+               stm.output_stream_params.format(), stm.latency_frames);
+
+    if let Err(r) = audio_stream_desc_init(&mut stm.output_desc, &stm.output_stream_params) {
+        cubeb_log!("({:p}) Could not initialize the audio stream description.");
+        return Err(r);
+    }
+
+    /* Get output device sample rate. */
+    let mut output_hw_desc = AudioStreamBasicDescription::default();
+    size = mem::size_of::<AudioStreamBasicDescription>();
+    // C version uses `memset` to set output_hw_desc to an zero value, but
+    // AudioStreamBasicDescription::default() return an zero value already
+    // so we don't need to do anything here.
+    r = audio_unit_get_property(&stm.output_unit,
+                                kAudioUnitProperty_StreamFormat,
+                                kAudioUnitScope_Output,
+                                AU_OUT_BUS,
+                                &mut output_hw_desc,
+                                &mut size);
+    if r != NO_ERR {
+        cubeb_log!("AudioUnitGetProperty/output/kAudioUnitProperty_StreamFormat rv={}", r);
+        return Err(Error::error());
+    }
+    stm.output_hw_rate = output_hw_desc.mSampleRate;
+    cubeb_log!("{:p} Output device sampling rate: {}", stm, output_hw_desc.mSampleRate);
+
+    // TODO: Set channels, layout, ...
+
     Ok(())
 }
 
@@ -2602,6 +2638,9 @@ struct AudioUnitStream<'ctx> {
     output_stream_params: StreamParams,
     input_device: device_info,
     output_device: device_info,
+    /* Format descriptions */
+    input_desc: AudioStreamBasicDescription,
+    output_desc: AudioStreamBasicDescription,
     /* I/O AudioUnits */
     input_unit: AudioUnit,
     output_unit: AudioUnit,
@@ -2665,6 +2704,8 @@ impl<'ctx> AudioUnitStream<'ctx> {
             ),
             input_device: device_info::new(),
             output_device: device_info::new(),
+            input_desc: AudioStreamBasicDescription::default(),
+            output_desc: AudioStreamBasicDescription::default(),
             input_unit: ptr::null_mut(),
             output_unit: ptr::null_mut(),
             input_hw_rate: 0_f64,
