@@ -13,6 +13,40 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 - *dev*: All the commits are cherry-picked from *trailblazer* branch.
          This branch is used to create pull-requests to *release* branch.
 
+## Status
+- 🥚 : Not implemented.
+- 🐣 : Work in progress. May be implemented partially or blocked by dependent APIs.
+- 🐥 : Implemented.
+- 🐓 : Already run on the product.
+
+### Cubeb APIs (Public APIs)
+- 🥚 : 2/20
+- 🐣 : 3/20
+- 🐥 : 15/20
+
+| Cubeb APIs                                    | status |
+| --------------------------------------------- | ------ |
+| cubub_init                                    | 🐥      |
+| cubub_get_backend_id                          | 🐥      |
+| cubub_get_max_channel_count                   | 🐥      |
+| cubub_get_min_latency                         | 🐥      |
+| cubub_get_preferred_sample_rate               | 🐥      |
+| cubub_enumerate_devices                       | 🐥      |
+| cubeb_device_collection_destroy               | 🐥      |
+| cubeb_stream_init                             | 🐣      |
+| cubeb_stream_destroy                          | 🐣      |
+| cubeb_stream_start                            | 🥚      |
+| cubeb_stream_stop                             | 🥚      |
+| cubeb_reset_default_device                    | 🐥      |
+| cubeb_stream_get_position                     | 🐥      |
+| cubeb_stream_get_latency                      | 🐥      |
+| cubeb_stream_set_volume                       | 🐥      |
+| cubeb_stream_set_panning                      | 🐣      |
+| cubeb_stream_get_current_device               | 🐥      |
+| cubeb_stream_device_destroy                   | 🐥      |
+| cubeb_stream_register_device_changed_callback | 🐥      |
+| cubub_register_device_collection_changed      | 🐥      |
+
 ## TODO
 - [cubeb-rs][cubeb-rs]
   - Implement `to_owned` in [`StreamParamsRef`][cubeb-rs-stmparamsref]
