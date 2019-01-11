@@ -69,6 +69,7 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
   - A panic in `capi_register_device_collection_changed` causes `EXC_BAD_INSTRUCTION`.
   - Works fine if replacing `register_device_collection_changed: Option<unsafe extern "C" fn(..,) -> c_int>` to `register_device_collection_changed: unsafe extern "C" fn(..,) -> c_int`
   - Test them in `AudioUnitContext` directly instead of calling them via `OPS` for now.
+- Add a status for internal APIs
 
 ## Issues
 - Mutex: Find a replacement for [`owned_critical_section`][ocs]
