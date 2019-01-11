@@ -47,6 +47,91 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 | cubeb_stream_register_device_changed_callback | 🐥      |
 | cubub_register_device_collection_changed      | 🐥      |
 
+### Interanl APIs
+
+- 🥚 : 22/75
+- 🐣 : 7/75
+- 🐥 : 46/75
+
+| Interanl AudioUnit APIs                     | status |
+| ------------------------------------------- | ------ |
+| make_sized_audio_channel_layout             | 🥚      |
+| to_string                                   | 🐥      |
+| has_input                                   | 🐥      |
+| has_output                                  | 🐥      |
+| channel_label_to_cubeb_channel              | 🥚      |
+| cubeb_channel_to_channel_label              | 🥚      |
+| audiounit_increment_active_streams          | 🐥      |
+| audiounit_decrement_active_streams          | 🐥      |
+| audiounit_active_streams                    | 🐥      |
+| audiounit_set_global_latency                | 🐥      |
+| audiounit_make_silent                       | 🥚      |
+| audiounit_render_input                      | 🥚      |
+| audiounit_input_callback                    | 🥚      |
+| audiounit_mix_output_buffer                 | 🥚      |
+| minimum_resampling_input_frames             | 🥚      |
+| audiounit_output_callback                   | 🥚      |
+| audiounit_set_device_info                   | 🐥      |
+| audiounit_reinit_stream                     | 🥚      |
+| audiounit_reinit_stream_async               | 🐣      |
+| event_addr_to_string                        | 🐥      |
+| audiounit_property_listener_callback        | 🐥      |
+| audiounit_add_listener                      | 🐥      |
+| audiounit_remove_listener                   | 🐥      |
+| audiounit_install_device_changed_callback   | 🐥      |
+| audiounit_install_system_changed_callback   | 🐥      |
+| audiounit_uninstall_device_changed_callback | 🐥      |
+| audiounit_uninstall_system_changed_callback | 🐥      |
+| audiounit_get_acceptable_latency_range      | 🐥      |
+| audiounit_get_default_device_id             | 🐥      |
+| audiounit_convert_channel_layout            | 🥚      |
+| audiounit_get_preferred_channel_layout      | 🥚      |
+| audiounit_get_current_channel_layout        | 🥚      |
+| audiounit_destroy                           | 🥚      |
+| audio_stream_desc_init                      | 🐥      |
+| audiounit_init_mixer                        | 🥚      |
+| audiounit_set_channel_layout                | 🥚      |
+| audiounit_layout_init                       | 🥚      |
+| audiounit_get_sub_devices                   | 🐥      |
+| audiounit_create_blank_aggregate_device     | 🐥      |
+| get_device_name                             | 🐥      |
+| audiounit_set_aggregate_sub_device_list     | 🐥      |
+| audiounit_set_master_aggregate_device       | 🐥      |
+| audiounit_activate_clock_drift_compensation | 🐥      |
+| audiounit_workaround_for_airpod             | 🐥      |
+| audiounit_create_aggregate_device           | 🐥      |
+| audiounit_destroy_aggregate_device          | 🐥      |
+| audiounit_new_unit_instance                 | 🐥      |
+| audiounit_enable_unit_scope                 | 🐥      |
+| audiounit_create_unit                       | 🐥      |
+| audiounit_init_input_linear_buffer          | 🥚      |
+| audiounit_clamp_latency                     | 🐥      |
+| buffer_size_changed_callback                | 🥚      |
+| audiounit_set_buffer_size                   | 🥚      |
+| audiounit_configure_input                   | 🐣      |
+| audiounit_configure_output                  | 🐣      |
+| audiounit_setup_stream                      | 🐣      |
+| audiounit_close_stream                      | 🐣      |
+| audiounit_stream_destroy_internal           | 🐣      |
+| audiounit_stream_destroy                    | 🐣      |
+| audiounit_stream_start_internal             | 🥚      |
+| audiounit_stream_stop_internal              | 🥚      |
+| audiounit_stream_get_volume                 | 🐥      |
+| convert_uint32_into_string                  | 🐥      |
+| audiounit_get_default_device_datasource     | 🐥      |
+| audiounit_get_default_device_name           | 🐥      |
+| audiounit_strref_to_cstr_utf8               | 🐥      |
+| audiounit_get_channel_count                 | 🐥      |
+| audiounit_get_available_samplerate          | 🐥      |
+| audiounit_get_device_presentation_latency   | 🐥      |
+| audiounit_create_device_from_hwdev          | 🐥      |
+| is_aggregate_device                         | 🐥      |
+| audiounit_get_devices_of_type               | 🐥      |
+| audiounit_collection_changed_callback       | 🐥      |
+| audiounit_add_device_listener               | 🐥      |
+| audiounit_remove_device_listener            | 🐥      |
+
+
 ## TODO
 - [cubeb-rs][cubeb-rs]
   - Implement `to_owned` in [`StreamParamsRef`][cubeb-rs-stmparamsref]
