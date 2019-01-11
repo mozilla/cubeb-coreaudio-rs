@@ -20,9 +20,9 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 - 🐓 : Already run on the product.
 
 ### Cubeb APIs (Public APIs)
-- 🥚 : 2/20
-- 🐣 : 3/20
-- 🐥 : 15/20
+- 🥚 : 2/20 (10%)
+- 🐣 : 3/20 (15%)
+- 🐥 : 15/20 (75%)
 
 | Cubeb APIs                                    | status |
 | --------------------------------------------- | ------ |
@@ -49,9 +49,9 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 
 ### Interanl APIs
 
-- 🥚 : 22/75
-- 🐣 : 7/75
-- 🐥 : 46/75
+- 🥚 : 22/75 (29.3%)
+- 🐣 : 7/75 (9.3%)
+- 🐥 : 46/75 (61.3%)
 
 | Interanl AudioUnit APIs                     | status |
 | ------------------------------------------- | ------ |
