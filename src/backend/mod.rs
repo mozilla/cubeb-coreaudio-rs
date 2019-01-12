@@ -1425,7 +1425,42 @@ extern fn buffer_size_changed_callback(inClientData: *mut c_void,
                                        inElement: AudioUnitElement)
 {
     let stm = unsafe { &mut *(inClientData as *mut AudioUnitStream) };
-    *stm.buffer_size_change_state.get_mut() = true;
+
+    let au = inUnit;
+    let mut au_scope = kAudioUnitScope_Input;
+    let au_element = inElement;
+    let mut au_type = "output";
+
+    if AU_IN_BUS == inElement {
+        au_scope = kAudioUnitScope_Output;
+        au_type = "input";
+    }
+
+    match inPropertyID {
+        // Using coreaudio_sys as prefix so kAudioDevicePropertyBufferFrameSize
+        // won't be treated as a new variable introduced in the match arm.
+        coreaudio_sys::kAudioDevicePropertyBufferFrameSize => {
+            if inScope != au_scope { // filter out the callback for global scope
+                return;
+            }
+            let mut new_buffer_size: u32 = 0;
+            let mut outSize = mem::size_of::<u32>();
+            let r = audio_unit_get_property(&au,
+                                            kAudioDevicePropertyBufferFrameSize,
+                                            au_scope,
+                                            au_element,
+                                            &mut new_buffer_size,
+                                            &mut outSize);
+            if r != NO_ERR {
+                cubeb_log!("({:p}) Event: kAudioDevicePropertyBufferFrameSize: Cannot get current buffer size", stm);
+            } else {
+                cubeb_log!("({:p}) Event: kAudioDevicePropertyBufferFrameSize: New {} buffer size = {} for scope {}", stm,
+                           au_type, new_buffer_size, inScope);
+            }
+            *stm.buffer_size_change_state.get_mut() = true;
+        }
+        _ => {}
+    }
 }
 
 fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, side: io_side) -> Result<()>
