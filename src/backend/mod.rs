@@ -137,14 +137,13 @@ bitflags! {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 enum io_side {
   INPUT,
   OUTPUT,
 }
 
-// TODO: Use reference instead!
-fn to_string(side: io_side) -> &'static str
+fn to_string(side: &io_side) -> &'static str
 {
     match side {
         io_side::INPUT => "input",
@@ -1451,12 +1450,12 @@ fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, si
                                         &mut buffer_frames,
                                         &mut size);
     if r != NO_ERR {
-        cubeb_log!("AudioUnitGetProperty/{}/kAudioDevicePropertyBufferFrameSize rv={}", to_string(side), r);
+        cubeb_log!("AudioUnitGetProperty/{}/kAudioDevicePropertyBufferFrameSize rv={}", to_string(&side), r);
         return Err(Error::error());
     }
 
     if new_size_frames == buffer_frames {
-        cubeb_log!("({:p}) No need to update {} buffer size already {} frames", stm, to_string(side), buffer_frames);
+        cubeb_log!("({:p}) No need to update {} buffer size already {} frames", stm, to_string(&side), buffer_frames);
         return Ok(());
     }
 
@@ -1465,7 +1464,7 @@ fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, si
                                          buffer_size_changed_callback,
                                          stm as *mut AudioUnitStream as *mut c_void);
     if r != NO_ERR {
-        cubeb_log!("AudioUnitAddPropertyListener/{}/kAudioDevicePropertyBufferFrameSize rv={}", to_string(side), r);
+        cubeb_log!("AudioUnitAddPropertyListener/{}/kAudioDevicePropertyBufferFrameSize rv={}", to_string(&side), r);
         return Err(Error::error());
     }
 
@@ -1478,14 +1477,14 @@ fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, si
                                 &new_size_frames,
                                 mem::size_of_val(&new_size_frames));
     if r != NO_ERR {
-        cubeb_log!("AudioUnitSetProperty/{}/kAudioDevicePropertyBufferFrameSize rv={}", to_string(side.clone()), r);
+        cubeb_log!("AudioUnitSetProperty/{}/kAudioDevicePropertyBufferFrameSize rv={}", to_string(&side), r);
 
         r = audio_unit_remove_property_listener_with_user_data(&au,
                                                                kAudioDevicePropertyBufferFrameSize,
                                                                buffer_size_changed_callback,
                                                                stm as *mut AudioUnitStream as *mut c_void);
         if r != NO_ERR {
-            cubeb_log!("AudioUnitAddPropertyListener/{}/kAudioDevicePropertyBufferFrameSize rv={}", to_string(side), r);
+            cubeb_log!("AudioUnitAddPropertyListener/{}/kAudioDevicePropertyBufferFrameSize rv={}", to_string(&side), r);
         }
 
         return Err(Error::error());
@@ -1503,7 +1502,7 @@ fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, si
                                                            buffer_size_changed_callback,
                                                            stm as *mut AudioUnitStream as *mut c_void);
     if r != NO_ERR {
-        cubeb_log!("AudioUnitAddPropertyListener/{}/kAudioDevicePropertyBufferFrameSize rv={}", to_string(side), r);
+        cubeb_log!("AudioUnitAddPropertyListener/{}/kAudioDevicePropertyBufferFrameSize rv={}", to_string(&side), r);
         return Err(Error::error());
     }
 
@@ -1512,7 +1511,7 @@ fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, si
         return Err(Error::error());
     }
 
-    cubeb_log!("({:p}) {} buffer size changed to {} frames.", stm, to_string(side), new_size_frames);
+    cubeb_log!("({:p}) {} buffer size changed to {} frames.", stm, to_string(&side), new_size_frames);
     Ok(())
 }
 
