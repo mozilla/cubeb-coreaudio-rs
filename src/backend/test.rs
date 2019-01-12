@@ -3083,6 +3083,282 @@ fn test_clamp_latency_with_more_than_one_active_streams() {
     }
 }
 
+// set_buffer_size
+// ------------------------------------
+#[test]
+fn test_set_buffer_size_for_input_with_null_input_unit()
+{
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+
+    {
+        // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let ctx_mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        // The scope of `_lock` is a critical section.
+        let ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
+
+    let mut stream = AudioUnitStream::new(
+        &mut ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+    stream.init();
+
+    assert!(stream.input_unit.is_null());
+
+    assert_eq!(
+        audiounit_set_buffer_size(
+            &mut stream,
+            2048,
+            io_side::INPUT
+        ).unwrap_err(),
+        Error::error()
+    );
+}
+
+#[test]
+fn test_set_buffer_size_for_input()
+{
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+
+    {
+        // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let ctx_mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        // The scope of `_lock` is a critical section.
+        let ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
+
+    let mut stream = AudioUnitStream::new(
+        &mut ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+    stream.init();
+
+    let mut raw = ffi::cubeb_stream_params::default();
+    raw.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
+    raw.rate = 48_000;
+    raw.channels = 1;
+    raw.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
+    raw.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+    stream.output_stream_params = StreamParams::from(raw);
+
+    // It's crucial to call to audiounit_set_device_info to set
+    // stream.input_device, or we will hit the
+    // assertion in audiounit_create_unit.
+
+    let default_input_id = audiounit_get_default_device_id(DeviceType::INPUT);
+    if !valid_id(default_input_id) {
+        return;
+    }
+
+    assert!(
+        audiounit_set_device_info(
+            &mut stream,
+            kAudioObjectUnknown,
+            DeviceType::INPUT
+        ).is_ok()
+    );
+
+    assert_eq!(stream.input_device.id, default_input_id);
+    assert_eq!(
+        stream.input_device.flags,
+        device_flags::DEV_INPUT |
+        device_flags::DEV_SELECTED_DEFAULT |
+        device_flags::DEV_SYSTEM_DEFAULT
+    );
+
+    assert!(
+        audiounit_create_unit(
+            &mut stream.input_unit,
+            &stream.input_device
+        ).is_ok()
+    );
+
+    assert!(!stream.input_unit.is_null());
+
+    let mut buffer_frames: u32 = 0;
+    let mut size = mem::size_of::<u32>();
+    assert_eq!(
+        audio_unit_get_property(
+            &stream.input_unit,
+            kAudioDevicePropertyBufferFrameSize,
+            kAudioUnitScope_Output,
+            AU_IN_BUS,
+            &mut buffer_frames,
+            &mut size
+        ),
+        0
+    );
+
+    assert_ne!(buffer_frames, 0);
+    buffer_frames *= 2;
+    assert!(
+        audiounit_set_buffer_size(
+            &mut stream,
+            buffer_frames,
+            io_side::INPUT
+        ).is_ok()
+    );
+}
+
+#[test]
+fn test_set_buffer_size_for_output_with_null_output_unit()
+{
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+
+    {
+        // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let ctx_mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        // The scope of `_lock` is a critical section.
+        let ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
+
+    let mut stream = AudioUnitStream::new(
+        &mut ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+    stream.init();
+
+    assert!(stream.input_unit.is_null());
+
+    assert_eq!(
+        audiounit_set_buffer_size(
+            &mut stream,
+            2048,
+            io_side::OUTPUT
+        ).unwrap_err(),
+        Error::error()
+    );
+}
+
+#[test]
+fn test_set_buffer_size_for_output()
+{
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+
+    {
+        // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let ctx_mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        // The scope of `_lock` is a critical section.
+        let ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
+
+    let mut stream = AudioUnitStream::new(
+        &mut ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+    stream.init();
+
+    let mut raw = ffi::cubeb_stream_params::default();
+    raw.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
+    raw.rate = 44_100;
+    raw.channels = 2;
+    raw.layout = ffi::CUBEB_LAYOUT_STEREO;
+    raw.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+    stream.output_stream_params = StreamParams::from(raw);
+
+    // It's crucial to call to audiounit_set_device_info to set
+    // stream.input_device, or we will hit the
+    // assertion in audiounit_create_unit.
+
+    let default_output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
+    if !valid_id(default_output_id) {
+        return;
+    }
+
+    assert!(
+        audiounit_set_device_info(
+            &mut stream,
+            kAudioObjectUnknown,
+            DeviceType::OUTPUT
+        ).is_ok()
+    );
+
+    assert_eq!(stream.output_device.id, default_output_id);
+    assert_eq!(
+        stream.output_device.flags,
+        device_flags::DEV_OUTPUT |
+        device_flags::DEV_SELECTED_DEFAULT |
+        device_flags::DEV_SYSTEM_DEFAULT
+    );
+
+    assert!(
+        audiounit_create_unit(
+            &mut stream.output_unit,
+            &stream.output_device
+        ).is_ok()
+    );
+
+    assert!(!stream.output_unit.is_null());
+
+    let mut buffer_frames: u32 = 0;
+    let mut size = mem::size_of::<u32>();
+    assert_eq!(
+        audio_unit_get_property(
+            &stream.output_unit,
+            kAudioDevicePropertyBufferFrameSize,
+            kAudioUnitScope_Input,
+            AU_OUT_BUS,
+            &mut buffer_frames,
+            &mut size
+        ),
+        0
+    );
+
+    assert_ne!(buffer_frames, 0);
+    buffer_frames *= 2;
+    assert!(
+        audiounit_set_buffer_size(
+            &mut stream,
+            buffer_frames,
+            io_side::OUTPUT
+        ).is_ok()
+    );
+}
+
 // configure_input
 // ------------------------------------
 #[test]

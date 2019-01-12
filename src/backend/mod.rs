@@ -137,12 +137,13 @@ bitflags! {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 enum io_side {
   INPUT,
   OUTPUT,
 }
 
+// TODO: Use reference instead!
 fn to_string(side: io_side) -> &'static str
 {
     match side {
@@ -1410,6 +1411,111 @@ fn audiounit_clamp_latency(stm: &mut AudioUnitStream, latency_frames: u32) -> u3
              SAFE_MIN_LATENCY_FRAMES)
 }
 
+/*
+ * Change buffer size is prone to deadlock thus we change it
+ * following the steps:
+ * - register a listener for the buffer size property
+ * - change the property
+ * - wait until the listener is executed
+ * - property has changed, remove the listener
+ * */
+extern fn buffer_size_changed_callback(inClientData: *mut c_void,
+                                       inUnit: AudioUnit,
+                                       inPropertyID: AudioUnitPropertyID,
+                                       inScope: AudioUnitScope,
+                                       inElement: AudioUnitElement)
+{
+    let stm = unsafe { &mut *(inClientData as *mut AudioUnitStream) };
+    *stm.buffer_size_change_state.get_mut() = true;
+}
+
+fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, side: io_side) -> Result<()>
+{
+    let mut au = stm.output_unit;
+    let mut au_scope = kAudioUnitScope_Input;
+    let mut au_element = AU_OUT_BUS;
+
+    if side == io_side::INPUT {
+        au = stm.input_unit;
+        au_scope = kAudioUnitScope_Output;
+        au_element = AU_IN_BUS;
+    }
+    // TODO: Check au is not null ?
+
+    let mut buffer_frames: u32 = 0;
+    let mut size = mem::size_of_val(&buffer_frames);
+    let mut r = audio_unit_get_property(&au,
+                                        kAudioDevicePropertyBufferFrameSize,
+                                        au_scope,
+                                        au_element,
+                                        &mut buffer_frames,
+                                        &mut size);
+    if r != NO_ERR {
+        cubeb_log!("AudioUnitGetProperty/{}/kAudioDevicePropertyBufferFrameSize rv={}", to_string(side), r);
+        return Err(Error::error());
+    }
+
+    if new_size_frames == buffer_frames {
+        cubeb_log!("({:p}) No need to update {} buffer size already {} frames", stm, to_string(side), buffer_frames);
+        return Ok(());
+    }
+
+    r = audio_unit_add_property_listener(&au,
+                                         kAudioDevicePropertyBufferFrameSize,
+                                         buffer_size_changed_callback,
+                                         stm as *mut AudioUnitStream as *mut c_void);
+    if r != NO_ERR {
+        cubeb_log!("AudioUnitAddPropertyListener/{}/kAudioDevicePropertyBufferFrameSize rv={}", to_string(side), r);
+        return Err(Error::error());
+    }
+
+    *stm.buffer_size_change_state.get_mut() = false;
+
+    r = audio_unit_set_property(&au,
+                                kAudioDevicePropertyBufferFrameSize,
+                                au_scope,
+                                au_element,
+                                &new_size_frames,
+                                mem::size_of_val(&new_size_frames));
+    if r != NO_ERR {
+        cubeb_log!("AudioUnitSetProperty/{}/kAudioDevicePropertyBufferFrameSize rv={}", to_string(side.clone()), r);
+
+        r = audio_unit_remove_property_listener_with_user_data(&au,
+                                                               kAudioDevicePropertyBufferFrameSize,
+                                                               buffer_size_changed_callback,
+                                                               stm as *mut AudioUnitStream as *mut c_void);
+        if r != NO_ERR {
+            cubeb_log!("AudioUnitAddPropertyListener/{}/kAudioDevicePropertyBufferFrameSize rv={}", to_string(side), r);
+        }
+
+        return Err(Error::error());
+    }
+
+    let mut count: u32 = 0;
+    while !*stm.buffer_size_change_state.get_mut() && count < 30 {
+        count += 1;
+        // TODO: Log time ...
+        cubeb_log!("({:p}) audiounit_set_buffer_size : wait count = {}", stm, count);
+    }
+
+    r = audio_unit_remove_property_listener_with_user_data(&au,
+                                                           kAudioDevicePropertyBufferFrameSize,
+                                                           buffer_size_changed_callback,
+                                                           stm as *mut AudioUnitStream as *mut c_void);
+    if r != NO_ERR {
+        cubeb_log!("AudioUnitAddPropertyListener/{}/kAudioDevicePropertyBufferFrameSize rv={}", to_string(side), r);
+        return Err(Error::error());
+    }
+
+    if !*stm.buffer_size_change_state.get_mut() && count >= 30 {
+        cubeb_log!("({:p}) Error, did not get buffer size change callback ...", stm);
+        return Err(Error::error());
+    }
+
+    cubeb_log!("({:p}) {} buffer size changed to {} frames.", stm, to_string(side), new_size_frames);
+    Ok(())
+}
+
 fn audiounit_configure_input(stm: &mut AudioUnitStream) -> Result<()>
 {
     assert!(!stm.input_unit.is_null());
@@ -2667,6 +2773,7 @@ struct AudioUnitStream<'ctx> {
     panning: atomic::Atomic<f32>,
     /* This is true if a device change callback is currently running.  */
     switching_device: AtomicBool,
+    buffer_size_change_state: AtomicBool,
     aggregate_device_id: AudioDeviceID, // the aggregate device id
     plugin_id: AudioObjectID,           // used to create aggregate device
     /* Listeners indicating what system events are monitored. */
@@ -2727,6 +2834,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             current_latency_frames: AtomicU32::new(0),
             panning: atomic::Atomic::new(0.0_f32),
             switching_device: AtomicBool::new(false),
+            buffer_size_change_state: AtomicBool::new(false),
             // TODO: Use kAudioObjectUnknown instead ?
             aggregate_device_id: 0,
             plugin_id: 0,
