@@ -773,6 +773,8 @@ fn test_audio_unit_add_then_fire_then_remove_property_listener() {
         0
     );
 
+    // Make sure buffer_frames will be set to a new value.
+    assert_ne!(buffer_frames, 0);
     buffer_frames *= 2;
     debug_println!("target {} buffer frames: {}",
         if is_input { "input" } else { "output" }, buffer_frames);
