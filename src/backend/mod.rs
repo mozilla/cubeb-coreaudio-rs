@@ -1597,7 +1597,7 @@ fn audiounit_configure_output(stm: &mut AudioUnitStream) -> Result<()>
                stm.output_stream_params.format(), stm.latency_frames);
 
     if let Err(r) = audio_stream_desc_init(&mut stm.output_desc, &stm.output_stream_params) {
-        cubeb_log!("({:p}) Could not initialize the audio stream description.");
+        cubeb_log!("({:p}) Could not initialize the audio stream description.", stm);
         return Err(r);
     }
 
