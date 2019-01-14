@@ -154,6 +154,10 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
   - A panic in `capi_register_device_collection_changed` causes `EXC_BAD_INSTRUCTION`.
   - Works fine if replacing `register_device_collection_changed: Option<unsafe extern "C" fn(..,) -> c_int>` to `register_device_collection_changed: unsafe extern "C" fn(..,) -> c_int`
   - Test them in `AudioUnitContext` directly instead of calling them via `OPS` for now.
+- Fail to run `test_configure_input_with_zero_latency_frames` and `test_configure_input` at the same time.
+  - `audiounit_set_buffer_size` cannot be called in parallel
+  - We should not set `kAudioDevicePropertyBufferFrameSize` in parallel when another stream using the same device with smaller buffer size is active. See [here][chg-buf-sz] for reference.
+  - *Buffer frame size* within same device may be overwritten (no matter the *AudioUnit*s are different or not) ?
 
 ## Issues
 - Mutex: Find a replacement for [`owned_critical_section`][ocs]
@@ -187,6 +191,10 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 - Complexity of creating unit tests
     - We have lots of dependent APIs, so it's hard to test one API only, specially for those APIs using mutex(`OwnedCriticalSection` actually)
     - It's better to split them into several APIs so it's easier to test them
+- APIs that cannot be called in parallel
+    - The APIs depending on `audiounit_set_buffer_size` cannot be called in parallel
+        - `kAudioDevicePropertyBufferFrameSize` cannot be set when another stream using the same device with smaller buffer size is active. See [here][chg-buf-sz] for reference.
+        - The *buffer frame size* within same device may be overwritten (no matter the *AudioUnit*s are different or not) ?
 
 [cubeb]: https://github.com/kinetiknz/cubeb "Cross platform audio library"
 [cubeb-au]: https://github.com/kinetiknz/cubeb/blob/master/src/cubeb_audiounit.cpp "Cubeb AudioUnit"
@@ -217,3 +225,5 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 
 [cubeb-backend-stm-reg-dev-chg-cb]: cubeb-backend-stream_register_device_changed_callback.diff "Implementation of stream_register_device_changed_callback"
 [cubeb-pulse-rs-reg-dev-chg-cb]: cubeb-pulse-rs-register_device_changed_callback.diff "Impelement of register_device_changed_callback"
+
+[chg-buf-sz]: https://cs.chromium.org/chromium/src/media/audio/mac/audio_manager_mac.cc?l=982-989&rcl=0207eefb445f9855c2ed46280cb835b6f08bdb30 "issue on changing buffer size"

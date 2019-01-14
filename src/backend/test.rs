@@ -3405,8 +3405,11 @@ fn test_configure_input_with_null_unit() {
     }
 }
 
+// Ignore the test by default to avoid overwritting the buffer frame size
+// within the same input device that is used in test_configure_input.
 #[test]
-fn test_configure_input() {
+#[ignore]
+fn test_configure_input_with_zero_latency_frames() {
     // We need to initialize the members with type OwnedCriticalSection in
     // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
     // will be used when AudioUnitStream::drop/destroy is called.
@@ -3439,7 +3442,7 @@ fn test_configure_input() {
     raw.channels = 1;
     raw.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
     raw.prefs = ffi::CUBEB_STREAM_PREF_NONE;
-    stream.output_stream_params = StreamParams::from(raw);
+    stream.input_stream_params = StreamParams::from(raw);
 
     // It's crucial to call to audiounit_set_device_info to set
     // stream.input_device, or we will hit the
@@ -3475,6 +3478,8 @@ fn test_configure_input() {
 
     assert!(!stream.input_unit.is_null());
 
+    assert_eq!(stream.latency_frames, 0);
+
     assert!(
         audiounit_configure_input(
             &mut stream
@@ -3486,10 +3491,213 @@ fn test_configure_input() {
         0_f64
     );
 
-    // TODO:
-    // 1. Confirm the rate is same as what we set or not.
-    // 2. Check buffer and other things ....
-    //    after audiounit_configure_input is finished.
+    let mut description = AudioStreamBasicDescription::default();
+    let mut size = mem::size_of::<AudioStreamBasicDescription>();
+    assert_eq!(
+        audio_unit_get_property(
+            &stream.input_unit,
+            kAudioUnitProperty_StreamFormat,
+            kAudioUnitScope_Output,
+            AU_IN_BUS,
+            &mut description,
+            &mut size
+        ),
+        0
+    );
+    assert_eq!(
+        description.mSampleRate,
+        stream.input_hw_rate
+    );
+
+    let mut buffer_frames: u32 = 0;
+    let mut size = mem::size_of::<u32>();
+    assert_eq!(
+        audio_unit_get_property(
+            &stream.input_unit,
+            kAudioDevicePropertyBufferFrameSize,
+            kAudioUnitScope_Output,
+            AU_IN_BUS,
+            &mut buffer_frames,
+            &mut size
+        ),
+        0
+    );
+    // TODO: buffer frames size won't be 0 even it's ok to set that!
+    assert_ne!(
+        stream.latency_frames,
+        buffer_frames
+    );
+
+    let mut frames_per_slice: u32 = 0;
+    let mut size = mem::size_of::<u32>();
+    assert_eq!(
+        audio_unit_get_property(
+            &stream.input_unit,
+            kAudioUnitProperty_MaximumFramesPerSlice,
+            kAudioUnitScope_Global,
+            0,
+            &mut frames_per_slice,
+            &mut size
+        ),
+        0
+    );
+    // TODO: frames per slice won't be 0 even it's ok to set that!
+    assert_ne!(
+        stream.latency_frames,
+        frames_per_slice
+    );
+}
+
+#[test]
+fn test_configure_input() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+
+    {
+        // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let ctx_mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        // The scope of `_lock` is a critical section.
+        let ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
+
+    let mut stream = AudioUnitStream::new(
+        &mut ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+    stream.init();
+
+    let mut raw = ffi::cubeb_stream_params::default();
+    raw.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
+    raw.rate = 48_000;
+    raw.channels = 1;
+    raw.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
+    raw.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+    stream.input_stream_params = StreamParams::from(raw);
+
+    // It's crucial to call to audiounit_set_device_info to set
+    // stream.input_device, or we will hit the
+    // assertion in audiounit_create_unit.
+
+    let default_input_id = audiounit_get_default_device_id(DeviceType::INPUT);
+    if !valid_id(default_input_id) {
+        return;
+    }
+
+    assert!(
+        audiounit_set_device_info(
+            &mut stream,
+            kAudioObjectUnknown,
+            DeviceType::INPUT
+        ).is_ok()
+    );
+
+    assert_eq!(stream.input_device.id, default_input_id);
+    assert_eq!(
+        stream.input_device.flags,
+        device_flags::DEV_INPUT |
+        device_flags::DEV_SELECTED_DEFAULT |
+        device_flags::DEV_SYSTEM_DEFAULT
+    );
+
+    assert!(
+        audiounit_create_unit(
+            &mut stream.input_unit,
+            &stream.input_device
+        ).is_ok()
+    );
+
+    assert!(!stream.input_unit.is_null());
+
+    // Set the latency_frames to a valid value so `buffer frames size` and
+    // `frames per slice` can be set correctly! Comparing the checks for
+    // these two with `test_configure_input_with_zero_latency_frames` to
+    // know why latency_frames should be set to a correct value.
+    {
+        // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let ctx_mutex_ptr = &mut stream.context.mutex as *mut OwnedCriticalSection;
+        // The scope of `ctx_lock` is a critical section.
+        let ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
+        assert_eq!(stream.latency_frames, 0);
+        stream.latency_frames = audiounit_clamp_latency(&mut stream, 0);
+        assert_ne!(stream.latency_frames, 0);
+    }
+
+    assert!(
+        audiounit_configure_input(
+            &mut stream
+        ).is_ok()
+    );
+
+    assert_ne!(
+        stream.input_hw_rate,
+        0_f64
+    );
+
+    let mut description = AudioStreamBasicDescription::default();
+    let mut size = mem::size_of::<AudioStreamBasicDescription>();
+    assert_eq!(
+        audio_unit_get_property(
+            &stream.input_unit,
+            kAudioUnitProperty_StreamFormat,
+            kAudioUnitScope_Output,
+            AU_IN_BUS,
+            &mut description,
+            &mut size
+        ),
+        0
+    );
+    assert_eq!(
+        description.mSampleRate,
+        stream.input_hw_rate
+    );
+
+    let mut buffer_frames: u32 = 0;
+    let mut size = mem::size_of::<u32>();
+    assert_eq!(
+        audio_unit_get_property(
+            &stream.input_unit,
+            kAudioDevicePropertyBufferFrameSize,
+            kAudioUnitScope_Output,
+            AU_IN_BUS,
+            &mut buffer_frames,
+            &mut size
+        ),
+        0
+    );
+    assert_eq!(
+        stream.latency_frames,
+        buffer_frames
+    );
+
+    let mut frames_per_slice: u32 = 0;
+    let mut size = mem::size_of::<u32>();
+    assert_eq!(
+        audio_unit_get_property(
+            &stream.input_unit,
+            kAudioUnitProperty_MaximumFramesPerSlice,
+            kAudioUnitScope_Global,
+            0,
+            &mut frames_per_slice,
+            &mut size
+        ),
+        0
+    );
+    assert_eq!(
+        stream.latency_frames,
+        frames_per_slice
+    );
+
+    // TODO: Check input_linear_buffer and input callback ...
 }
 
 // configure_output

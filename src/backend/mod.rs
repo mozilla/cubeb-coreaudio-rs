@@ -1465,6 +1465,11 @@ extern fn buffer_size_changed_callback(inClientData: *mut c_void,
 
 fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, side: io_side) -> Result<()>
 {
+    // TODO: Check `new_size_frames` is not zero (larger than zero) ?
+    // Surprisingly, it's ok to set `new_size_frames` to zero without getting
+    // any error. However, the `buffer frames size` won't become 0 even it's
+    // ok to set it to 0. Maybe we should fix it!
+
     let mut au = stm.output_unit;
     let mut au_scope = kAudioUnitScope_Input;
     let mut au_element = AU_OUT_BUS;
@@ -1582,8 +1587,57 @@ fn audiounit_configure_input(stm: &mut AudioUnitStream) -> Result<()>
     stm.input_hw_rate = input_hw_desc.mSampleRate;
     cubeb_log!("({:p}) Input device sampling rate: {}", stm, stm.input_hw_rate);
 
-    // TODO: Set format description, buffer size, ..., etc.
+    /* Set format description according to the input params. */
+    if let Err(r) = audio_stream_desc_init(&mut stm.input_desc, &stm.input_stream_params) {
+        cubeb_log!("({:p}) Setting format description for input failed.", stm);
+        return Err(r);
+    }
 
+    // Use latency to set buffer size
+    // TODO: Make sure stm.latency_frames is larger than 0 ?
+    // assert_ne!(stm.latency_frames, 0);
+    // Surprisingly, it's ok to set buffer frame size to zero without getting
+    // any error. However, the buffer frame size won't become 0 even it's ok to
+    // set that. Maybe we should fix it!
+    // Use a temporary variable `latency_frames` to avoid borrowing issue.
+    let latency_frames = stm.latency_frames;
+    if let Err(r) = audiounit_set_buffer_size(stm, latency_frames, io_side::INPUT) {
+        cubeb_log!("({:p}) Error in change input buffer size.", stm);
+        return Err(r);
+    }
+
+    let mut src_desc = stm.input_desc;
+    /* Input AudioUnit must be configured with device's sample rate.
+       we will resample inside input callback. */
+    src_desc.mSampleRate = stm.input_hw_rate;
+
+    r = audio_unit_set_property(&stm.input_unit,
+                                kAudioUnitProperty_StreamFormat,
+                                kAudioUnitScope_Output,
+                                AU_IN_BUS,
+                                &src_desc,
+                                mem::size_of::<AudioStreamBasicDescription>());
+    if r != NO_ERR {
+        cubeb_log!("AudioUnitSetProperty/input/kAudioUnitProperty_StreamFormat rv={}", r);
+        return Err(Error::error());
+    }
+
+    // TODO: Surprisingly, it's ok to set frames per slice to zero without
+    // getting any error. However, the frames per slice won't become 0 even
+    // it's ok to set that. Maybe we should fix it!
+    /* Frames per buffer in the input callback. */
+    r = audio_unit_set_property(&stm.input_unit,
+                                kAudioUnitProperty_MaximumFramesPerSlice,
+                                kAudioUnitScope_Global,
+                                AU_IN_BUS,
+                                &stm.latency_frames,
+                                mem::size_of::<u32>());
+    if r != NO_ERR {
+        cubeb_log!("AudioUnitSetProperty/input/kAudioUnitProperty_MaximumFramesPerSlice rv={}", r);
+        return Err(Error::error());
+    }
+
+    // TODO: Init input_linear_buffer and set callback ...
     Ok(())
 }
 
