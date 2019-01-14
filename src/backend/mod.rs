@@ -1489,6 +1489,9 @@ fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, si
         return Err(Error::error());
     }
 
+    // TODO: Check buffer_frames is not zero (larger than zero) ?
+    // TODO: Check new_size_frames is not zero (larger than zero) ?
+
     if new_size_frames == buffer_frames {
         cubeb_log!("({:p}) No need to update {} buffer size already {} frames", stm, to_string(&side), buffer_frames);
         return Ok(());
