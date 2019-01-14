@@ -584,7 +584,14 @@ fn test_stream_set_panning() {
         ptr::null_mut()
     ).unwrap();
 
-    assert!(stream.set_panning(0.5).is_ok());
+    if ctx.max_channel_count().unwrap() > 2 {
+        assert_eq!(
+            stream.set_panning(0.5).unwrap_err(),
+            Error::invalid_format()
+        );
+    } else {
+        assert!(stream.set_panning(0.5).is_ok());
+    }
 
     // stream should be dropped autmatically.
     // See the implementation of the ffi_type_heap macro.

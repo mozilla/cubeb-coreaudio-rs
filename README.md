@@ -21,8 +21,8 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 
 ### Cubeb APIs (Public APIs)
 - 🥚 : 2/20 (10%)
-- 🐣 : 3/20 (15%)
-- 🐥 : 15/20 (75%)
+- 🐣 : 2/20 (10%)
+- 🐥 : 16/20 (80%)
 
 | Cubeb APIs                                    | status |
 | --------------------------------------------- | ------ |
@@ -41,7 +41,7 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 | cubeb_stream_get_position                     | 🐥      |
 | cubeb_stream_get_latency                      | 🐥      |
 | cubeb_stream_set_volume                       | 🐥      |
-| cubeb_stream_set_panning                      | 🐣      |
+| cubeb_stream_set_panning                      | 🐥      |
 | cubeb_stream_get_current_device               | 🐥      |
 | cubeb_stream_device_destroy                   | 🐥      |
 | cubeb_stream_register_device_changed_callback | 🐥      |

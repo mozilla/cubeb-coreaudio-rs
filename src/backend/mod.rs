@@ -2938,7 +2938,10 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         Ok(())
     }
     fn set_panning(&mut self, panning: f32) -> Result<()> {
-        // TODO: Return error when channels per frame is greater than 2.
+        if self.output_desc.mChannelsPerFrame > 2 {
+            return Err(Error::invalid_format());
+        }
+
         self.panning.store(panning, Ordering::Relaxed);
         Ok(())
     }
