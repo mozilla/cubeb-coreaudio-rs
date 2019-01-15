@@ -49,8 +49,8 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 
 ### Interanl APIs
 
-- 🥚 : 20/75 (26.6%)
-- 🐣 : 7/75 (9.3%)
+- 🥚 : 19/75 (25.3%)
+- 🐣 : 8/75 (10.6%)
 - 🐥 : 48/75 (64%)
 
 | Interanl AudioUnit APIs                     | status |
@@ -104,7 +104,7 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 | audiounit_new_unit_instance                 | 🐥      |
 | audiounit_enable_unit_scope                 | 🐥      |
 | audiounit_create_unit                       | 🐥      |
-| audiounit_init_input_linear_buffer          | 🥚      |
+| audiounit_init_input_linear_buffer          | 🐣      |
 | audiounit_clamp_latency                     | 🐥      |
 | buffer_size_changed_callback                | 🐥      |
 | audiounit_set_buffer_size                   | 🐥      |
@@ -158,6 +158,7 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
   - `audiounit_set_buffer_size` cannot be called in parallel
   - We should not set `kAudioDevicePropertyBufferFrameSize` in parallel when another stream using the same device with smaller buffer size is active. See [here][chg-buf-sz] for reference.
   - *Buffer frame size* within same device may be overwritten (no matter the *AudioUnit*s are different or not) ?
+- Implement `auto_array_wrapper` and `auto_array` (by *trait* and *generic* I think)
 
 ## Issues
 - Mutex: Find a replacement for [`owned_critical_section`][ocs]

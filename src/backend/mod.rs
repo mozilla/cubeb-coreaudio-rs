@@ -1336,6 +1336,21 @@ fn audiounit_create_unit(unit: &mut AudioUnit, device: &device_info) -> Result<(
     Ok(())
 }
 
+fn audiounit_init_input_linear_buffer(stream: &mut AudioUnitStream, capacity: u32) -> Result<()>
+{
+    // TODO: Make sure we have a valid input (AudioUnit, device, ...) ?
+    // TODO: Make sure `input_desc` is initialized ?
+    let size = capacity * stream.latency_frames * stream.input_desc.mChannelsPerFrame;
+    if stream.input_desc.mFormatFlags & kAudioFormatFlagIsSignedInteger != 0 {
+        // TODO: Create a input_linear_buffer with i16(short type in C)
+    } else {
+        // TODO: Assert input_desc.mFormatFlags contains kAudioFormatFlagIsFloat ?
+        // TODO: Create a input_linear_buffer with f32(float type in C)
+    }
+
+    Ok(())
+}
+
 // TODO: 1. Change to audiounit_clamp_latency(stm: &mut AudioUnitStream)
 //          latency_frames is actually equal to stm.latency_frames.
 //       2. Merge the value clamp for boundary.

@@ -3809,6 +3809,20 @@ fn test_configure_output() {
 
     assert!(!stream.output_unit.is_null());
 
+    // Set the latency_frames to a valid value so `buffer frames size` and
+    // `frames per slice` can be set correctly! Comparing the checks for
+    // these two with `test_configure_output_with_zero_latency_frames` to
+    // know why latency_frames should be set to a correct value.
+    {
+        // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let ctx_mutex_ptr = &mut stream.context.mutex as *mut OwnedCriticalSection;
+        // The scope of `ctx_lock` is a critical section.
+        let ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
+        assert_eq!(stream.latency_frames, 0);
+        stream.latency_frames = audiounit_clamp_latency(&mut stream, 0);
+        assert_ne!(stream.latency_frames, 0);
+    }
+
     assert!(
         audiounit_configure_output(
             &mut stream
