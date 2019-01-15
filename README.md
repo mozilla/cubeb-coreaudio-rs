@@ -4,7 +4,7 @@ Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] 
 Currently it can only be built by *rust-nightly* since we use *nightly-only* atomic types(`AtomicU32` and `AtomicU64`).
 
 ## Current Goals
-- Translate [C code][cubeb-au] line by line into Rust
+- Translate [C code][cubeb-au] line by line into Rust (so the coding style is almost same as *C*)
 - Create tests for later refactoring
 
 ## Branches
