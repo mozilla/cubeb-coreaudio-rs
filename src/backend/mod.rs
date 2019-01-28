@@ -1821,7 +1821,11 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
 
         *stm.current_latency_frames.get_mut() = audiounit_get_device_presentation_latency(stm.output_device.id, kAudioDevicePropertyScopeOutput);
 
-        // TODO: Update current latency ...
+        let mut unit_s: f64 = 0.0;
+        let mut size = mem::size_of_val(&unit_s);
+        if audio_unit_get_property(&stm.output_unit, kAudioUnitProperty_Latency, kAudioUnitScope_Global, 0, &mut unit_s, &mut size) == NO_ERR {
+            *stm.current_latency_frames.get_mut() += (unit_s * stm.output_desc.mSampleRate) as u32
+        }
     }
 
     if let Err(_) = audiounit_install_device_changed_callback(stm) {
