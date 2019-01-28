@@ -1828,6 +1828,14 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
         }
     }
 
+    if !stm.input_unit.is_null() && !stm.output_unit.is_null() {
+        // According to the I/O hardware rate it is expected a specific pattern of callbacks
+        // for example is input is 44100 and output is 48000 we expected no more than 2
+        // out callback in a row.
+        // TODO: Make sure `input_hw_rate` is larger than 0 ?
+        stm.expected_output_callbacks_in_a_row = (stm.output_hw_rate / stm.input_hw_rate).ceil() as i32
+    }
+
     if let Err(_) = audiounit_install_device_changed_callback(stm) {
         cubeb_log!("({:p}) Could not install all device change callback.", stm);
     }
@@ -2898,6 +2906,9 @@ struct AudioUnitStream<'ctx> {
     /* I/O device sample rate */
     input_hw_rate: f64,
     output_hw_rate: f64,
+    /* Expected I/O thread interleave,
+     * calculated from I/O hw rate. */
+    expected_output_callbacks_in_a_row: i32,
     mutex: OwnedCriticalSection,
     /* Frame counters */
     frames_played: AtomicU64,
@@ -2962,6 +2973,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             output_unit: ptr::null_mut(),
             input_hw_rate: 0_f64,
             output_hw_rate: 0_f64,
+            expected_output_callbacks_in_a_row: 0,
             mutex: OwnedCriticalSection::new(),
             frames_played: AtomicU64::new(0),
             shutdown: AtomicBool::new(true),
