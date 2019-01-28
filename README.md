@@ -17,7 +17,7 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 - 🥚 : Not implemented.
 - 🐣 : Work in progress. May be implemented partially or blocked by dependent APIs.
 - 🐥 : Implemented.
-- 🐓 : Already run on the product.
+- 🐓 : Already ride the trains.
 
 ### Cubeb APIs (Public APIs)
 - 🥚 : 2/20 (10%)
