@@ -1694,6 +1694,33 @@ fn audiounit_configure_output(stm: &mut AudioUnitStream) -> Result<()>
 
     // TODO: Set channels, layout, ...
 
+    // Use latency to set buffer size
+    // TODO: Make sure stm.latency_frames is larger than 0 ?
+    // assert_ne!(stm.latency_frames, 0);
+    // Surprisingly, it's ok to set buffer frame size to zero without getting
+    // any error. However, the buffer frame size won't become 0 even it's ok to
+    // set that. Maybe we should fix it!
+    // Use a temporary variable `latency_frames` to avoid borrowing issue.
+    let latency_frames = stm.latency_frames;
+    if let Err(r) = audiounit_set_buffer_size(stm, latency_frames, io_side::OUTPUT) {
+        cubeb_log!("({:p}) Error in change output buffer size.", stm);
+        return Err(r);
+    }
+
+    /* Frames per buffer in the input callback. */
+    r = audio_unit_set_property(&stm.output_unit,
+                                kAudioUnitProperty_MaximumFramesPerSlice,
+                                kAudioUnitScope_Global,
+                                AU_OUT_BUS,
+                                &stm.latency_frames,
+                                mem::size_of::<u32>());
+    if r != NO_ERR {
+        cubeb_log!("AudioUnitSetProperty/output/kAudioUnitProperty_MaximumFramesPerSlice rv={}", r);
+        return Err(Error::error());
+    }
+
+    // TODO: Set output callback ...
+
     Ok(())
 }
 
