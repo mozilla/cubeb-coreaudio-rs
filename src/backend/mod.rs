@@ -1342,13 +1342,16 @@ fn audiounit_init_input_linear_buffer(stream: &mut AudioUnitStream, capacity: u3
 {
     // TODO: Make sure we have a valid input (AudioUnit, device, ...) ?
     // TODO: Make sure `input_desc` is initialized ?
-    let size = capacity * stream.latency_frames * stream.input_desc.mChannelsPerFrame;
+    let size = (capacity * stream.latency_frames * stream.input_desc.mChannelsPerFrame) as usize;
     if stream.input_desc.mFormatFlags & kAudioFormatFlagIsSignedInteger != 0 {
-        // TODO: Create a input_linear_buffer with i16(short type in C)
+        // TODO: Assert input_desc.mFormatFlags doesn't contain kAudioFormatFlagIsFloat ?
+        stream.input_linear_buffer = Some(AutoArrayWrapper::Short(<AutoArrayImpl<i16>>::new(size)));
     } else {
         // TODO: Assert input_desc.mFormatFlags contains kAudioFormatFlagIsFloat ?
-        // TODO: Create a input_linear_buffer with f32(float type in C)
+        // TODO: Assert input_desc.mFormatFlags doesn't contain kAudioFormatFlagIsSignedInteger ?
+        stream.input_linear_buffer = Some(AutoArrayWrapper::Float(<AutoArrayImpl<f32>>::new(size)));
     }
+    assert_eq!(stream.input_linear_buffer.as_ref().unwrap().elements(), 0);
 
     Ok(())
 }
@@ -2912,6 +2915,9 @@ struct AudioUnitStream<'ctx> {
      * calculated from I/O hw rate. */
     expected_output_callbacks_in_a_row: i32,
     mutex: OwnedCriticalSection,
+    // Hold the input samples in every input callback iteration.
+    // Only accessed on input/output callback thread and during initial configure.
+    input_linear_buffer: Option<AutoArrayWrapper>,
     /* Frame counters */
     frames_played: AtomicU64,
     shutdown: AtomicBool,
@@ -2977,6 +2983,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             output_hw_rate: 0_f64,
             expected_output_callbacks_in_a_row: 0,
             mutex: OwnedCriticalSection::new(),
+            input_linear_buffer: None,
             frames_played: AtomicU64::new(0),
             shutdown: AtomicBool::new(true),
             reinit_pending: AtomicBool::new(false),
