@@ -1,3 +1,5 @@
+// https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=53180777432a468c4d0fce913ff69d19
+
 use std::any::{Any, TypeId};
 use std::fmt::Debug;
 use std::ptr;
@@ -9,12 +11,14 @@ pub enum AutoArrayWrapper {
 }
 
 impl AutoArrayWrapper {
-    pub fn push<T>(&mut self, data: &[T]) {
+    pub fn push<T: Any>(&mut self, data: &[T]) {
         match self {
             AutoArrayWrapper::Float(array) => unsafe {
+                assert_eq!(TypeId::of::<T>(), TypeId::of::<f32>());
                 array.push(&*(data as *const [T] as *const [f32]));
             },
             AutoArrayWrapper::Short(array) => unsafe {
+                assert_eq!(TypeId::of::<T>(), TypeId::of::<i16>());
                 array.push(&*(data as *const [T] as *const [i16]));
             },
         }
@@ -163,4 +167,13 @@ fn test_auto_array() {
     let buf_i16 = [5_i16, 8, 13, 21, 34, 55, 89, 144];
     test_auto_array_impl(&buf_i16);
     test_auto_array_wrapper(&buf_i16);
+}
+
+#[test]
+#[should_panic]
+fn test_auto_array_type_safe() {
+    let mut array = AutoArrayWrapper::Float(<AutoArrayImpl<f32>>::new(5));
+    array.push(&[5_i16, 8, 13, 21, 34, 55, 89, 144]);
+    // let mut array = AutoArrayWrapper::Short(<AutoArrayImpl<i16>>::new(5));
+    // array.push(&[1.0_f32, 2.1, 3.2, 4.3, 5.4]);
 }
