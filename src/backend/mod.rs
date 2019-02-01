@@ -1340,15 +1340,21 @@ fn audiounit_create_unit(unit: &mut AudioUnit, device: &device_info) -> Result<(
 
 fn audiounit_init_input_linear_buffer(stream: &mut AudioUnitStream, capacity: u32) -> Result<()>
 {
-    // TODO: Make sure we have a valid input (AudioUnit, device, ...) ?
-    // TODO: Make sure `input_desc` is initialized ?
+    // FIXIT: Make sure `input_desc` is initialized, or the type of the buffer is set to float!
+    // assert_ne!(stream.input_desc.mFormatFlags, 0);
+    // assert_ne!(stream.input_desc.mChannelsPerFrame, 0);
+    // TODO: and latency_frames is larger than zero ?
+    // assert_ne!(stream.latency_frames, 0);
     let size = (capacity * stream.latency_frames * stream.input_desc.mChannelsPerFrame) as usize;
     if stream.input_desc.mFormatFlags & kAudioFormatFlagIsSignedInteger != 0 {
         // TODO: Assert input_desc.mFormatFlags doesn't contain kAudioFormatFlagIsFloat ?
+        // assert_eq!(stream.input_desc.mFormatFlags & kAudioFormatFlagIsFloat, 0);
         stream.input_linear_buffer = Some(AutoArrayWrapper::Short(<AutoArrayImpl<i16>>::new(size)));
     } else {
         // TODO: Assert input_desc.mFormatFlags contains kAudioFormatFlagIsFloat ?
+        // assert_ne!(stream.input_desc.mFormatFlags & kAudioFormatFlagIsFloat, 0);
         // TODO: Assert input_desc.mFormatFlags doesn't contain kAudioFormatFlagIsSignedInteger ?
+        // assert_eq!(stream.input_desc.mFormatFlags & kAudioFormatFlagIsSignedInteger, 0);
         stream.input_linear_buffer = Some(AutoArrayWrapper::Float(<AutoArrayImpl<f32>>::new(size)));
     }
     assert_eq!(stream.input_linear_buffer.as_ref().unwrap().elements(), 0);
@@ -1657,7 +1663,17 @@ fn audiounit_configure_input(stm: &mut AudioUnitStream) -> Result<()>
         return Err(Error::error());
     }
 
-    // TODO: Init input_linear_buffer and set callback ...
+    // Input only capacity
+    let mut array_capacity = 1;
+    if has_output(stm) {
+        // Full-duplex increase capacity
+        array_capacity = 8;
+    }
+    if let Err(_) = audiounit_init_input_linear_buffer(stm, array_capacity) {
+        return Err(Error::error());
+    }
+
+    // TODO: set callback ...
     Ok(())
 }
 

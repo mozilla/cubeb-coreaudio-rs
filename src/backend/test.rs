@@ -2900,6 +2900,219 @@ fn test_create_unit() {
     }
 }
 
+// init_input_linear_buffer
+// ------------------------------------
+// FIXIT: We should get a panic! The type should be unknown before the audio
+//        description is set!
+#[test]
+#[should_panic]
+#[ignore]
+fn test_init_input_linear_buffer_without_valid_audiodescription() {
+    // Create a stream.
+    // ------------------------------------------------------------------------
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+
+    {
+        // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let ctx_mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        // The scope of `_lock` is a critical section.
+        let ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
+
+    let mut stream = AudioUnitStream::new(
+        &mut ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+    stream.init();
+
+    assert!(stream.input_linear_buffer.is_none());
+
+    assert!(audiounit_init_input_linear_buffer(&mut stream, 0).is_ok());
+}
+
+// TODO: Should we get a panic ?
+#[test]
+fn test_init_input_linear_buffer_without_setting_latency() {
+    // Create a stream.
+    // ------------------------------------------------------------------------
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+
+    {
+        // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let ctx_mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        // The scope of `_lock` is a critical section.
+        let ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
+
+    let mut stream = AudioUnitStream::new(
+        &mut ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+    stream.init();
+
+    assert!(stream.input_linear_buffer.is_none());
+
+    // // Set latency
+    // // ------------------------------------------------------------------------
+    // {
+    //     // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
+    //     let ctx_mutex_ptr = &mut stream.context.mutex as *mut OwnedCriticalSection;
+    //     // The scope of `ctx_lock` is a critical section.
+    //     let ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
+    //     assert_eq!(stream.latency_frames, 0);
+    //     stream.latency_frames = audiounit_clamp_latency(&mut stream, 0);
+    //     assert_ne!(stream.latency_frames, 0);
+    // }
+
+    // Set audio input description according to the input params.
+    // ------------------------------------------------------------------------
+    let mut raw = ffi::cubeb_stream_params::default();
+    raw.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
+    raw.rate = 48_000;
+    raw.channels = 2;
+    raw.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
+    raw.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+
+    let params = StreamParams::from(raw);
+
+    assert_eq!(stream.input_desc.mFormatFlags, 0);
+    assert_eq!(stream.input_desc.mChannelsPerFrame, 0);
+
+    assert!(
+        audio_stream_desc_init(
+            &mut stream.input_desc,
+            &params
+        ).is_ok()
+    );
+
+    assert_ne!(stream.input_desc.mFormatFlags & kAudioFormatFlagIsFloat, 0);
+    assert_eq!(stream.input_desc.mChannelsPerFrame, 2);
+
+    // Set input_linear_buffer
+    // ------------------------------------------------------------------------
+    assert!(audiounit_init_input_linear_buffer(&mut stream, 1).is_ok());
+    assert!(stream.input_linear_buffer.is_some());
+
+    stream.input_linear_buffer.as_mut().unwrap().push(&[1.0_f32, 2.1, 3.2]);
+}
+
+fn test_init_input_linear_buffer_impl<T: std::any::Any>(array: &[T]) {
+    const CHANNEL: u32 = 2;
+    const BUF_CAPACITY: u32 = 1;
+
+    // Get format parameters for the type.
+    // ------------------------------------------------------------------------
+    let type_id = std::any::TypeId::of::<T>();
+    let (format, format_flag) = if type_id == std::any::TypeId::of::<f32>() {
+        (ffi::CUBEB_SAMPLE_FLOAT32NE, kAudioFormatFlagIsFloat)
+    } else if type_id == std::any::TypeId::of::<i16>() {
+        (ffi::CUBEB_SAMPLE_S16NE, kAudioFormatFlagIsSignedInteger)
+    } else {
+        panic!("Unsupported type!");
+    };
+
+    // Create a stream.
+    // ------------------------------------------------------------------------
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+
+    {
+        // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let ctx_mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        // The scope of `_lock` is a critical section.
+        let ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
+
+    let mut stream = AudioUnitStream::new(
+        &mut ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+    stream.init();
+
+    assert!(stream.input_linear_buffer.is_none());
+
+    // Set latency.
+    // ------------------------------------------------------------------------
+    {
+        // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let ctx_mutex_ptr = &mut stream.context.mutex as *mut OwnedCriticalSection;
+        // The scope of `ctx_lock` is a critical section.
+        let ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
+        assert_eq!(stream.latency_frames, 0);
+        stream.latency_frames = audiounit_clamp_latency(&mut stream, 0);
+        assert_ne!(stream.latency_frames, 0);
+    }
+
+    // Set audio input description according to the input params.
+    // ------------------------------------------------------------------------
+    let mut raw = ffi::cubeb_stream_params::default();
+    raw.format = format;
+    raw.rate = 48_000;
+    raw.channels = CHANNEL;
+    raw.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
+    raw.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+
+    let params = StreamParams::from(raw);
+
+    assert_eq!(stream.input_desc.mFormatFlags, 0);
+    assert_eq!(stream.input_desc.mChannelsPerFrame, 0);
+
+    assert!(
+        audio_stream_desc_init(
+            &mut stream.input_desc,
+            &params
+        ).is_ok()
+    );
+
+    assert_ne!(stream.input_desc.mFormatFlags & format_flag, 0);
+    assert_eq!(stream.input_desc.mChannelsPerFrame, CHANNEL);
+
+    // Set input_linear_buffer
+    // ------------------------------------------------------------------------
+    assert!(audiounit_init_input_linear_buffer(&mut stream, BUF_CAPACITY).is_ok());
+    assert!(stream.input_linear_buffer.is_some());
+
+    stream.input_linear_buffer.as_mut().unwrap().push(array);
+}
+
+#[test]
+fn test_init_input_linear_buffer() {
+    test_init_input_linear_buffer_impl(&[3.1_f32, 4.1, 5.9, 2.6, 5.35]);
+    test_init_input_linear_buffer_impl(&[13_i16, 21, 34, 55, 89, 144]);
+}
+
 // clamp_latency
 // ------------------------------------
 // TODO: Add a test to test the behavior of clamp_latency without any
@@ -3548,8 +3761,17 @@ fn test_configure_input_with_zero_latency_frames() {
     );
 }
 
-#[test]
-fn test_configure_input() {
+fn test_configure_input_impl<T: std::any::Any>(array: &[T]) {
+    // Get format parameters for the type.
+    let type_id = std::any::TypeId::of::<T>();
+    let format = if type_id == std::any::TypeId::of::<f32>() {
+        ffi::CUBEB_SAMPLE_FLOAT32NE
+    } else if type_id == std::any::TypeId::of::<i16>() {
+        ffi::CUBEB_SAMPLE_S16NE
+    } else {
+        panic!("Unsupported type!");
+    };
+
     // We need to initialize the members with type OwnedCriticalSection in
     // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
     // will be used when AudioUnitStream::drop/destroy is called.
@@ -3575,9 +3797,10 @@ fn test_configure_input() {
         0
     );
     stream.init();
+    assert!(stream.input_linear_buffer.is_none());
 
     let mut raw = ffi::cubeb_stream_params::default();
-    raw.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
+    raw.format = format;
     raw.rate = 48_000;
     raw.channels = 1;
     raw.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
@@ -3697,7 +3920,16 @@ fn test_configure_input() {
         frames_per_slice
     );
 
-    // TODO: Check input_linear_buffer and input callback ...
+    assert!(stream.input_linear_buffer.is_some());
+    stream.input_linear_buffer.as_mut().unwrap().push(array);
+
+    // TODO: Check input callback ...
+}
+
+#[test]
+fn test_configure_input() {
+    test_configure_input_impl(&[1.1_f32, 2.2, 3.3, 4.4]);
+    test_configure_input_impl(&[1_i16, 2, 3, 4, 5, 6, 7]);
 }
 
 // configure_output
