@@ -3791,7 +3791,7 @@ fn test_configure_input_impl<T: std::any::Any>(array: &[T]) {
 
     let mut stream = AudioUnitStream::new(
         &mut ctx,
-        ptr::null_mut(),
+        0xDEAD_BEEF as *mut c_void,
         None,
         None,
         0
@@ -3924,9 +3924,18 @@ fn test_configure_input_impl<T: std::any::Any>(array: &[T]) {
     stream.input_linear_buffer.as_mut().unwrap().push(array);
 
     // TODO: Check input callback ...
-    // Trigger callback:
+    // extern fn state_callback(
+    //     stm: *mut ffi::cubeb_stream,
+    //     user_ptr: *mut c_void,
+    //     state: ffi::cubeb_state
+    // ) {
+    //     // TODO: Check stm is stream!
+    //     assert_eq!(user_ptr, 0xDEAD_BEEF as *mut c_void);
+    //     assert_eq!(state, ffi::CUBEB_STATE_STARTED);
+    // }
+    // stream.state_callback = Some(state_callback);
     // audio_unit_initialize(&stream.input_unit);
-    // audiounit_stream_start_internal(&stream);
+    // assert!(audiounit_stream_start(&mut stream).is_ok());
     // loop {}
 }
 
@@ -4283,6 +4292,10 @@ fn test_configure_output() {
 // TODO
 
 // stream_start_internal
+// ------------------------------------
+// TODO
+
+// stream_start
 // ------------------------------------
 // TODO
 
