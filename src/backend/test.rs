@@ -3924,6 +3924,16 @@ fn test_configure_input_impl<T: std::any::Any>(array: &[T]) {
     stream.input_linear_buffer.as_mut().unwrap().push(array);
 
     // TODO: Check input callback ...
+    // Trigger callback:
+    // audio_unit_initialize(&stream.input_unit);
+    // unsafe {
+    //     assert_eq!(
+    //         AudioOutputUnitStart(stream.input_unit),
+    //         NO_ERR
+    //     );
+    // }
+
+    // loop {}
 }
 
 #[test]

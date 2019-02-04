@@ -41,7 +41,7 @@ use std::mem;
 use std::os::raw::{c_void, c_char};
 use std::ptr;
 use std::slice;
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU32, AtomicU64, Ordering};
 
 // TODO:
 // 1. We use AudioDeviceID and AudioObjectID at the same time.
@@ -238,6 +238,19 @@ fn audiounit_set_global_latency(ctx: &mut AudioUnitContext, latency_frames: u32)
     ctx.mutex.assert_current_thread_owns();
     assert_eq!(audiounit_active_streams(ctx), 1);
     ctx.global_latency_frames = latency_frames;
+}
+
+extern fn audiounit_input_callback(user_ptr: *mut c_void,
+                                   flags: *mut AudioUnitRenderActionFlags,
+                                   tstamp: *const AudioTimeStamp,
+                                   bus: u32,
+                                   input_frames: u32,
+                                   _: *mut AudioBufferList) -> OSStatus
+{
+    let stm = unsafe { &mut *(user_ptr as *mut AudioUnitStream) };
+    assert!(!stm.input_unit.is_null());
+    assert_eq!(bus, AU_IN_BUS);
+    NO_ERR
 }
 
 fn audiounit_set_device_info(stm: &mut AudioUnitStream, id: AudioDeviceID, devtype: DeviceType) -> Result<()>
@@ -1599,7 +1612,6 @@ fn audiounit_configure_input(stm: &mut AudioUnitStream) -> Result<()>
     /* Get input device sample rate. */
     let mut input_hw_desc = AudioStreamBasicDescription::default();
     size = mem::size_of::<AudioStreamBasicDescription>();
-
     r = audio_unit_get_property(&stm.input_unit,
                                 kAudioUnitProperty_StreamFormat,
                                 kAudioUnitScope_Input,
@@ -1669,11 +1681,28 @@ fn audiounit_configure_input(stm: &mut AudioUnitStream) -> Result<()>
         // Full-duplex increase capacity
         array_capacity = 8;
     }
-    if let Err(_) = audiounit_init_input_linear_buffer(stm, array_capacity) {
+    if audiounit_init_input_linear_buffer(stm, array_capacity).is_err() {
         return Err(Error::error());
     }
 
-    // TODO: set callback ...
+    aurcbs_in.inputProc = Some(audiounit_input_callback);
+    aurcbs_in.inputProcRefCon = stm as *mut AudioUnitStream as *mut c_void;
+
+    r = audio_unit_set_property(&stm.input_unit,
+                                kAudioOutputUnitProperty_SetInputCallback,
+                                kAudioUnitScope_Global,
+                                AU_OUT_BUS,
+                                &aurcbs_in,
+                                mem::size_of_val(&aurcbs_in));
+    if r != NO_ERR {
+        cubeb_log!("AudioUnitSetProperty/input/kAudioOutputUnitProperty_SetInputCallback rv={}", r);
+        return Err(Error::error());
+    }
+
+    *stm.frames_read.get_mut() = 0;
+
+    cubeb_log!("({:p}) Input audiounit init successfully.", stm);
+
     Ok(())
 }
 
@@ -2936,6 +2965,9 @@ struct AudioUnitStream<'ctx> {
     input_linear_buffer: Option<AutoArrayWrapper>,
     /* Frame counters */
     frames_played: AtomicU64,
+    // How many frames got read from the input since the stream started (includes
+    // padded silence)
+    frames_read: AtomicI64,
     shutdown: AtomicBool,
     reinit_pending: AtomicBool,
     destroy_pending: AtomicBool,
@@ -3001,6 +3033,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             mutex: OwnedCriticalSection::new(),
             input_linear_buffer: None,
             frames_played: AtomicU64::new(0),
+            frames_read: AtomicI64::new(0),
             shutdown: AtomicBool::new(true),
             reinit_pending: AtomicBool::new(false),
             destroy_pending: AtomicBool::new(false),
