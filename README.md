@@ -138,6 +138,7 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 - Integration Tests
   - Add a test-only API to change the default audio devices
   - Use above API to test the device-changed callback
+- Create *Rust* bindings/modules for *cubeb-mixer* and *cubeb-resampler*
 - Move issues below to github issues.
 - Test aggregate devices
   - Test with AirPods
