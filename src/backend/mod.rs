@@ -1975,32 +1975,6 @@ fn audiounit_stream_start_internal(stm: &AudioUnitStream)
     }
 }
 
-fn audiounit_stream_start(stm: &mut AudioUnitStream) -> Result<()>
-{
-    // The scope of `_context_lock` is a critical section.
-    // Use `mutex_ptr` to avoid the borrowing twice issue.
-    let mutex_ptr = &mut stm.context.mutex as *mut OwnedCriticalSection;
-    let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-
-    *stm.shutdown.get_mut() = false;
-    *stm.draining.get_mut() = false;
-
-    audiounit_stream_start_internal(stm);
-
-    // TODO: C version doesn't check if state_callback is a null pointer.
-    if stm.state_callback.is_some() {
-        unsafe {
-            (stm.state_callback.unwrap())(
-                stm as *mut AudioUnitStream as *mut ffi::cubeb_stream,
-                stm.user_ptr,
-                ffi::CUBEB_STATE_STARTED);
-        }
-    }
-
-    cubeb_log!("Cubeb stream ({:p}) started successfully.", stm);
-    Ok(())
-}
-
 fn audiounit_stream_stop_internal(stm: &AudioUnitStream)
 {
     if !stm.input_unit.is_null() {
@@ -2009,32 +1983,6 @@ fn audiounit_stream_stop_internal(stm: &AudioUnitStream)
     if !stm.output_unit.is_null() {
         assert_eq!(audio_output_unit_stop(stm.output_unit), NO_ERR);
     }
-}
-
-fn audiounit_stream_stop(stm: &mut AudioUnitStream) -> Result<()>
-{
-    // The scope of `_context_lock` is a critical section.
-    // Use `mutex_ptr` to avoid the borrowing twice issue.
-    let mutex_ptr = &mut stm.context.mutex as *mut OwnedCriticalSection;
-    let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-
-    *stm.shutdown.get_mut() = true;
-
-    audiounit_stream_stop_internal(stm);
-
-    // TODO: C version doesn't check if state_callback is a null pointer.
-    if stm.state_callback.is_some() {
-        unsafe {
-            (stm.state_callback.unwrap())(
-                stm as *mut AudioUnitStream as *mut ffi::cubeb_stream,
-                stm.user_ptr,
-                ffi::CUBEB_STATE_STOPPED
-            );
-        }
-    }
-
-    cubeb_log!("Cubeb stream ({:p}) stopped successfully.", stm);
-    Ok(())
 }
 
 fn audiounit_stream_get_volume(stm: &AudioUnitStream, volume: &mut f32) -> Result<()>
@@ -3147,9 +3095,51 @@ impl<'ctx> Drop for AudioUnitStream<'ctx> {
 
 impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     fn start(&mut self) -> Result<()> {
+        // The scope of `_context_lock` is a critical section.
+        // Use `mutex_ptr` to avoid the borrowing twice issue.
+        let mutex_ptr = &mut self.context.mutex as *mut OwnedCriticalSection;
+        let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+
+        *self.shutdown.get_mut() = false;
+        *self.draining.get_mut() = false;
+
+        audiounit_stream_start_internal(self);
+
+        // TODO: C version doesn't check if state_callback is a null pointer.
+        if self.state_callback.is_some() {
+            unsafe {
+                (self.state_callback.unwrap())(
+                    self as *mut AudioUnitStream as *mut ffi::cubeb_stream,
+                    self.user_ptr,
+                    ffi::CUBEB_STATE_STARTED);
+            }
+        }
+
+        cubeb_log!("Cubeb stream ({:p}) started successfully.", self);
         Ok(())
     }
     fn stop(&mut self) -> Result<()> {
+        // The scope of `_context_lock` is a critical section.
+        // Use `mutex_ptr` to avoid the borrowing twice issue.
+        let mutex_ptr = &mut self.context.mutex as *mut OwnedCriticalSection;
+        let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+
+        *self.shutdown.get_mut() = true;
+
+        audiounit_stream_stop_internal(self);
+
+        // TODO: C version doesn't check if state_callback is a null pointer.
+        if self.state_callback.is_some() {
+            unsafe {
+                (self.state_callback.unwrap())(
+                    self as *mut AudioUnitStream as *mut ffi::cubeb_stream,
+                    self.user_ptr,
+                    ffi::CUBEB_STATE_STOPPED
+                );
+            }
+        }
+
+        cubeb_log!("Cubeb stream ({:p}) stopped successfully.", self);
         Ok(())
     }
     fn reset_default_device(&mut self) -> Result<()> {

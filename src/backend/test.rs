@@ -3791,7 +3791,7 @@ fn test_configure_input_impl<T: std::any::Any>(array: &[T]) {
 
     let mut stream = AudioUnitStream::new(
         &mut ctx,
-        0xDEAD_BEEF as *mut c_void,
+        ptr::null_mut(),
         None,
         None,
         0
@@ -3924,22 +3924,34 @@ fn test_configure_input_impl<T: std::any::Any>(array: &[T]) {
     stream.input_linear_buffer.as_mut().unwrap().push(array);
 
     // TODO: Check input callback ...
+    // struct Data {
+    //     stream: *mut ffi::cubeb_stream,
+    //     called: usize,
+    //     states: [ffi::cubeb_state; 2]
+    // }
+
+    // let mut data = Data {
+    //     stream: &mut stream as *mut AudioUnitStream as *mut ffi::cubeb_stream,
+    //     called: 0,
+    //     states: [ffi::CUBEB_STATE_STARTED, ffi::CUBEB_STATE_STOPPED]
+    // };
+
     // extern fn state_callback(
     //     stm: *mut ffi::cubeb_stream,
     //     user_ptr: *mut c_void,
     //     state: ffi::cubeb_state
     // ) {
-    //     // TODO: Check stm is stream!
-    //     println!("state: {}", state);
-    //     assert_eq!(user_ptr, 0xDEAD_BEEF as *mut c_void);
-    //     assert!(state == ffi::CUBEB_STATE_STARTED ||
-    //             state == ffi::CUBEB_STATE_STOPPED);
+    //     let data = unsafe { &mut *(user_ptr as *mut Data) };
+    //     assert_eq!(stm, data.stream);
+    //     assert_eq!(state, data.states[data.called]);
+    //     data.called += 1;
     // }
+    // stream.user_ptr = &mut data as *mut Data as *mut c_void;
     // stream.state_callback = Some(state_callback);
     // audio_unit_initialize(&stream.input_unit);
-    // assert!(audiounit_stream_start(&mut stream).is_ok());
+    // assert!(stream.start().is_ok());
     // for i in 0..10000000 {}
-    // assert!(audiounit_stream_stop(&mut stream).is_ok());
+    // assert!(stream.stop().is_ok());
 }
 
 #[test]
