@@ -3930,14 +3930,16 @@ fn test_configure_input_impl<T: std::any::Any>(array: &[T]) {
     //     state: ffi::cubeb_state
     // ) {
     //     // TODO: Check stm is stream!
+    //     println!("state: {}", state);
     //     assert_eq!(user_ptr, 0xDEAD_BEEF as *mut c_void);
-    //     assert_eq!(state, ffi::CUBEB_STATE_STARTED);
+    //     assert!(state == ffi::CUBEB_STATE_STARTED ||
+    //             state == ffi::CUBEB_STATE_STOPPED);
     // }
     // stream.state_callback = Some(state_callback);
     // audio_unit_initialize(&stream.input_unit);
     // assert!(audiounit_stream_start(&mut stream).is_ok());
     // for i in 0..10000000 {}
-    // audiounit_stream_stop_internal(&stream);
+    // assert!(audiounit_stream_stop(&mut stream).is_ok());
 }
 
 #[test]

@@ -2011,6 +2011,32 @@ fn audiounit_stream_stop_internal(stm: &AudioUnitStream)
     }
 }
 
+fn audiounit_stream_stop(stm: &mut AudioUnitStream) -> Result<()>
+{
+    // The scope of `_context_lock` is a critical section.
+    // Use `mutex_ptr` to avoid the borrowing twice issue.
+    let mutex_ptr = &mut stm.context.mutex as *mut OwnedCriticalSection;
+    let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+
+    *stm.shutdown.get_mut() = true;
+
+    audiounit_stream_stop_internal(stm);
+
+    // TODO: C version doesn't check if state_callback is a null pointer.
+    if stm.state_callback.is_some() {
+        unsafe {
+            (stm.state_callback.unwrap())(
+                stm as *mut AudioUnitStream as *mut ffi::cubeb_stream,
+                stm.user_ptr,
+                ffi::CUBEB_STATE_STOPPED
+            );
+        }
+    }
+
+    cubeb_log!("Cubeb stream ({:p}) stopped successfully.", stm);
+    Ok(())
+}
+
 fn audiounit_stream_get_volume(stm: &AudioUnitStream, volume: &mut f32) -> Result<()>
 {
     assert!(!stm.output_unit.is_null());

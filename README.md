@@ -20,9 +20,9 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 - 🐓 : Already ride the trains.
 
 ### Cubeb APIs (Public APIs)
-- 🥚 : 1/20 (10%)
+- 🥚 : 0/20 (0%)
 - 🐣 : 2/20 (10%)
-- 🐥 : 17/20 (85%)
+- 🐥 : 18/20 (90%)
 
 | Cubeb APIs                                    | status |
 | --------------------------------------------- | ------ |
@@ -36,7 +36,7 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 | cubeb_stream_init                             | 🐣      |
 | cubeb_stream_destroy                          | 🐣      |
 | cubeb_stream_start                            | 🐥      |
-| cubeb_stream_stop                             | 🥚      |
+| cubeb_stream_stop                             | 🐥      |
 | cubeb_reset_default_device                    | 🐥      |
 | cubeb_stream_get_position                     | 🐥      |
 | cubeb_stream_get_latency                      | 🐥      |
