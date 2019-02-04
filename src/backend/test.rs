@@ -3926,13 +3926,7 @@ fn test_configure_input_impl<T: std::any::Any>(array: &[T]) {
     // TODO: Check input callback ...
     // Trigger callback:
     // audio_unit_initialize(&stream.input_unit);
-    // unsafe {
-    //     assert_eq!(
-    //         AudioOutputUnitStart(stream.input_unit),
-    //         NO_ERR
-    //     );
-    // }
-
+    // audiounit_stream_start_internal(&stream);
     // loop {}
 }
 
@@ -4285,6 +4279,10 @@ fn test_configure_output() {
 // TODO
 
 // stream_destroy
+// ------------------------------------
+// TODO
+
+// stream_start_internal
 // ------------------------------------
 // TODO
 

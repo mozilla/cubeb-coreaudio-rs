@@ -331,6 +331,14 @@ pub fn dispose_audio_unit(
     }
 }
 
+pub fn audio_output_unit_start(
+    unit: sys::AudioUnit,
+) -> sys::OSStatus {
+    unsafe {
+       sys::AudioOutputUnitStart(unit)
+    }
+}
+
 pub fn show_callback_info(
     id: sys::AudioObjectID,
     number_of_addresses: u32,
