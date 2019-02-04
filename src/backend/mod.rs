@@ -2001,6 +2001,16 @@ fn audiounit_stream_start(stm: &mut AudioUnitStream) -> Result<()>
     Ok(())
 }
 
+fn audiounit_stream_stop_internal(stm: &AudioUnitStream)
+{
+    if !stm.input_unit.is_null() {
+        assert_eq!(audio_output_unit_stop(stm.input_unit), NO_ERR);
+    }
+    if !stm.output_unit.is_null() {
+        assert_eq!(audio_output_unit_stop(stm.output_unit), NO_ERR);
+    }
+}
+
 fn audiounit_stream_get_volume(stm: &AudioUnitStream, volume: &mut f32) -> Result<()>
 {
     assert!(!stm.output_unit.is_null());

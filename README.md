@@ -49,9 +49,9 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 
 ### Interanl APIs
 
-- 🥚 : 17/75 (22.6%)
+- 🥚 : 16/75 (21.3%)
 - 🐣 : 7/75 (9.3%)
-- 🐥 : 51/75 (68%)
+- 🐥 : 52/75 (69.3%)
 
 | Interanl AudioUnit APIs                     | status |
 | ------------------------------------------- | ------ |
@@ -115,7 +115,7 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 | audiounit_stream_destroy_internal           | 🐣      |
 | audiounit_stream_destroy                    | 🐣      |
 | audiounit_stream_start_internal             | 🐥      |
-| audiounit_stream_stop_internal              | 🥚      |
+| audiounit_stream_stop_internal              | 🐥      |
 | audiounit_stream_get_volume                 | 🐥      |
 | convert_uint32_into_string                  | 🐥      |
 | audiounit_get_default_device_datasource     | 🐥      |

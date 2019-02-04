@@ -3936,7 +3936,8 @@ fn test_configure_input_impl<T: std::any::Any>(array: &[T]) {
     // stream.state_callback = Some(state_callback);
     // audio_unit_initialize(&stream.input_unit);
     // assert!(audiounit_stream_start(&mut stream).is_ok());
-    // loop {}
+    // for i in 0..10000000 {}
+    // audiounit_stream_stop_internal(&stream);
 }
 
 #[test]
@@ -4296,6 +4297,10 @@ fn test_configure_output() {
 // TODO
 
 // stream_start
+// ------------------------------------
+// TODO
+
+// stream_stop_internal
 // ------------------------------------
 // TODO
 
