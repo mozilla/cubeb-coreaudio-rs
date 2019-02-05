@@ -3023,7 +3023,11 @@ fn test_init_input_linear_buffer_without_setting_latency() {
     assert!(audiounit_init_input_linear_buffer(&mut stream, 1).is_ok());
     assert!(stream.input_linear_buffer.is_some());
 
-    stream.input_linear_buffer.as_mut().unwrap().push(&[1.0_f32, 2.1, 3.2]);
+    let buf_f32 = [1.0_f32, 2.1, 3.2];
+    stream.input_linear_buffer.as_mut().unwrap().push(
+        buf_f32.as_ptr() as *const c_void,
+        buf_f32.len()
+    );
 }
 
 fn test_init_input_linear_buffer_impl<T: std::any::Any>(array: &[T]) {
@@ -3112,7 +3116,10 @@ fn test_init_input_linear_buffer_impl<T: std::any::Any>(array: &[T]) {
     assert!(audiounit_init_input_linear_buffer(&mut stream, BUF_CAPACITY).is_ok());
     assert!(stream.input_linear_buffer.is_some());
 
-    stream.input_linear_buffer.as_mut().unwrap().push(array);
+    stream.input_linear_buffer.as_mut().unwrap().push(
+        array.as_ptr() as *const c_void,
+        array.len()
+    );
 }
 
 #[test]
@@ -3929,7 +3936,10 @@ fn test_configure_input_impl<T: std::any::Any>(array: &[T]) {
     );
 
     assert!(stream.input_linear_buffer.is_some());
-    stream.input_linear_buffer.as_mut().unwrap().push(array);
+    stream.input_linear_buffer.as_mut().unwrap().push(
+        array.as_ptr() as *const c_void,
+        array.len()
+    );
 
     // TODO: Check input callback ...
     // struct Data {

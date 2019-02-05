@@ -2,7 +2,9 @@
 
 use std::any::{Any, TypeId};
 use std::fmt::Debug;
+use std::os::raw::c_void;
 use std::ptr;
+use std::slice;
 
 #[derive(Debug)]
 pub enum AutoArrayWrapper {
@@ -11,16 +13,23 @@ pub enum AutoArrayWrapper {
 }
 
 impl AutoArrayWrapper {
-    pub fn push<T: Any>(&mut self, data: &[T]) {
+    pub fn push(&mut self, data: *const c_void, elements: usize) {
         match self {
-            AutoArrayWrapper::Float(array) => unsafe {
-                assert_eq!(TypeId::of::<T>(), TypeId::of::<f32>());
-                array.push(&*(data as *const [T] as *const [f32]));
+            AutoArrayWrapper::Float(array) => {
+                let slice = unsafe { slice::from_raw_parts(data as *const f32, elements) };
+                array.push(slice);
             },
-            AutoArrayWrapper::Short(array) => unsafe {
-                assert_eq!(TypeId::of::<T>(), TypeId::of::<i16>());
-                array.push(&*(data as *const [T] as *const [i16]));
+            AutoArrayWrapper::Short(array) => {
+                let slice = unsafe { slice::from_raw_parts(data as *const i16, elements) };
+                array.push(slice);
             },
+        }
+    }
+
+    pub fn push_zeros(&mut self, elements: usize) {
+        match self {
+            AutoArrayWrapper::Float(array) => array.extend_with_value(elements, 0_f32),
+            AutoArrayWrapper::Short(array) => array.extend_with_value(elements, 0_i16),
         }
     }
 
@@ -28,6 +37,13 @@ impl AutoArrayWrapper {
         match self {
             AutoArrayWrapper::Float(array) => array.pop(elements),
             AutoArrayWrapper::Short(array) => array.pop(elements),
+        }
+    }
+
+    pub fn clear(&mut self) {
+        match self {
+            AutoArrayWrapper::Float(array) => array.clear(),
+            AutoArrayWrapper::Short(array) => array.clear(),
         }
     }
 
@@ -70,6 +86,15 @@ impl<T: Clone> AutoArrayImpl<T> {
         true
     }
 
+    fn extend_with_value(&mut self, elements: usize, value: T) {
+        let len = self.ar.len();
+        self.ar.resize(len + elements, value);
+    }
+
+    fn clear(&mut self) {
+        self.ar.clear();
+    }
+
     fn elements(&self) -> usize {
         self.ar.len()
     }
@@ -83,7 +108,7 @@ impl<T: Clone> AutoArrayImpl<T> {
 }
 
 #[cfg(test)]
-fn test_auto_array_impl<T: Clone + Debug + PartialEq>(buf: &[T]) {
+fn test_auto_array_impl<T: Clone + Debug + PartialEq + Zero>(buf: &[T]) {
     let mut auto_array = AutoArrayImpl::<T>::new(5);
     assert_eq!(auto_array.elements(), 0);
     assert!(auto_array.as_ptr().is_null());
@@ -112,10 +137,22 @@ fn test_auto_array_impl<T: Clone + Debug + PartialEq>(buf: &[T]) {
             assert_eq!(*data.add(i), buf[POP + i]);
         }
     }
+
+    // Check if extend_with_value works.
+    const ZEROS: usize = 5;
+    let len = auto_array.elements();
+    auto_array.extend_with_value(ZEROS, T::zero());
+    assert_eq!(auto_array.elements(), len + ZEROS);
+    let data = auto_array.as_ptr();
+    for i in len..len + ZEROS {
+        unsafe {
+            assert_eq!(*data.add(i), T::zero());
+        }
+    }
 }
 
 #[cfg(test)]
-fn test_auto_array_wrapper<T: Any + Clone + Debug + PartialEq>(buf: &[T]) {
+fn test_auto_array_wrapper<T: Any + Clone + Debug + PartialEq + Zero>(buf: &[T]) {
     let mut auto_array: Option<AutoArrayWrapper> = None;
 
     // Initialize the buffer based on the type.
@@ -133,7 +170,7 @@ fn test_auto_array_wrapper<T: Any + Clone + Debug + PartialEq>(buf: &[T]) {
     assert!(data.is_null());
 
     // Check if push works.
-    auto_array.as_mut().unwrap().push(buf);
+    auto_array.as_mut().unwrap().push(buf.as_ptr() as *const c_void, buf.len());
     assert_eq!(auto_array.as_ref().unwrap().elements(), buf.len());
 
     let data = auto_array.as_ref().unwrap().as_ptr() as *const T;
@@ -156,6 +193,30 @@ fn test_auto_array_wrapper<T: Any + Clone + Debug + PartialEq>(buf: &[T]) {
             assert_eq!(*data.add(i), buf[POP + i]);
         }
     }
+
+    // Check if push_zeros works.
+    const ZEROS: usize = 5;
+    let len = auto_array.as_ref().unwrap().elements();
+    auto_array.as_mut().unwrap().push_zeros(ZEROS);
+    assert_eq!(auto_array.as_ref().unwrap().elements(), len + ZEROS);
+    let data = auto_array.as_ref().unwrap().as_ptr() as *const T;
+    for i in len..len + ZEROS {
+        unsafe {
+            assert_eq!(*data.add(i), T::zero());
+        }
+    }
+}
+
+trait Zero {
+    fn zero() -> Self;
+}
+
+impl Zero for f32 {
+    fn zero() -> Self { 0.0 }
+}
+
+impl Zero for i16 {
+    fn zero() -> Self { 0 }
 }
 
 #[test]
@@ -167,13 +228,4 @@ fn test_auto_array() {
     let buf_i16 = [5_i16, 8, 13, 21, 34, 55, 89, 144];
     test_auto_array_impl(&buf_i16);
     test_auto_array_wrapper(&buf_i16);
-}
-
-#[test]
-#[should_panic]
-fn test_auto_array_type_safe() {
-    let mut array = AutoArrayWrapper::Float(<AutoArrayImpl<f32>>::new(5));
-    array.push(&[5_i16, 8, 13, 21, 34, 55, 89, 144]);
-    // let mut array = AutoArrayWrapper::Short(<AutoArrayImpl<i16>>::new(5));
-    // array.push(&[1.0_f32, 2.1, 3.2, 4.3, 5.4]);
 }

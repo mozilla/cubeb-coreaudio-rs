@@ -275,10 +275,11 @@ fn audiounit_render_input(stm: &mut AudioUnitStream,
         // For now state that no error occurred and feed silence, stream will be
         // resumed once reinit has completed.
         cubeb_logv!("({:p}) input: reinit pending feeding silence instead", stm);
-        // TODO: push silence data into stm.input_linear_buffer ...
+        stm.input_linear_buffer.as_mut().unwrap().push_zeros((input_frames * stm.input_desc.mChannelsPerFrame) as usize);
     } else {
         /* Copy input data in linear buffer. */
-        // TODO: push data into stm.input_linear_buffer ...
+        stm.input_linear_buffer.as_mut().unwrap().push(input_buffer_list.mBuffers[0].mData,
+                                                       (input_frames * stm.input_desc.mChannelsPerFrame) as usize);
     }
 
     /* Advance input frame counter. */
@@ -325,10 +326,11 @@ extern fn audiounit_input_callback(user_ptr: *mut c_void,
 
     /* Input only. Call the user callback through resampler.
        Resampler will deliver input buffer in the correct rate. */
-    // assert!(input_frames as usize <= stm.input_linear_buffer.as_ref().unwrap().elements() / stm.input_desc.mChannelsPerFrame as usize);
+    assert!(input_frames as usize <= stm.input_linear_buffer.as_ref().unwrap().elements() / stm.input_desc.mChannelsPerFrame as usize);
     // TODO: Connect to cubeb-resampler ...
 
-    // TODO: Reset input buffer...
+    // Reset input buffer
+    stm.input_linear_buffer.as_mut().unwrap().clear();
 
     NO_ERR
 }
