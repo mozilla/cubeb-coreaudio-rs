@@ -1991,9 +1991,13 @@ fn audiounit_close_stream(stm: &mut AudioUnitStream)
         stm.output_unit = ptr::null_mut();
     }
 
-    // TODO:
-    //   1. Reset resampler and mixer ...
-    //   2. Destroy aggregate devices ...
+    // TODO: Reset resampler and mixer ...
+
+    if stm.aggregate_device_id != kAudioObjectUnknown {
+        // TODO: Check if aggregate device is destroyed or not ?
+        audiounit_destroy_aggregate_device(stm.plugin_id, &mut stm.aggregate_device_id);
+        stm.aggregate_device_id = kAudioObjectUnknown;
+    }
 }
 
 fn audiounit_stream_destroy_internal(stm: &mut AudioUnitStream)
@@ -3146,8 +3150,8 @@ impl<'ctx> AudioUnitStream<'ctx> {
             panning: atomic::Atomic::new(0.0_f32),
             switching_device: AtomicBool::new(false),
             buffer_size_change_state: AtomicBool::new(false),
-            // TODO: Use kAudioObjectUnknown instead ?
-            aggregate_device_id: 0,
+            // TODO: C version uses 0 instead.
+            aggregate_device_id: kAudioObjectUnknown,
             plugin_id: 0,
             default_input_listener: None,
             default_output_listener: None,
