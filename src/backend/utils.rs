@@ -303,6 +303,26 @@ pub fn audio_unit_set_parameter(
     }
 }
 
+pub fn audio_unit_render(
+    inUnit: sys::AudioUnit,
+    ioActionFlags: *mut sys::AudioUnitRenderActionFlags,
+    inTimeStamp: *const sys::AudioTimeStamp,
+    inOutputBusNumber: u32,
+    inNumberFrames: u32,
+    ioData: *mut sys::AudioBufferList
+) -> sys::OSStatus {
+    unsafe {
+        sys::AudioUnitRender(
+            inUnit,
+            ioActionFlags,
+            inTimeStamp,
+            inOutputBusNumber,
+            inNumberFrames,
+            ioData
+        )
+    }
+}
+
 pub fn audio_unit_initialize(
     unit: &sys::AudioUnit,
 ) -> sys::OSStatus {

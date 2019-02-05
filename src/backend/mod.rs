@@ -240,6 +240,62 @@ fn audiounit_set_global_latency(ctx: &mut AudioUnitContext, latency_frames: u32)
     ctx.global_latency_frames = latency_frames;
 }
 
+fn audiounit_render_input(stm: &mut AudioUnitStream,
+                          flags: *mut AudioUnitRenderActionFlags,
+                          tstamp: *const AudioTimeStamp,
+                          bus: u32,
+                          input_frames: u32) -> OSStatus
+{
+    /* Create the AudioBufferList to store input. */
+    let mut input_buffer_list = AudioBufferList::default();
+    input_buffer_list.mBuffers[0].mDataByteSize = stm.input_desc.mBytesPerFrame * input_frames;
+    input_buffer_list.mBuffers[0].mData = ptr::null_mut();
+    input_buffer_list.mBuffers[0].mNumberChannels = stm.input_desc.mChannelsPerFrame;
+    input_buffer_list.mNumberBuffers = 1;
+
+    assert!(!stm.input_unit.is_null());
+    let r = audio_unit_render(stm.input_unit,
+                              flags,
+                              tstamp,
+                              bus,
+                              input_frames,
+                              &mut input_buffer_list);
+
+    if r != NO_ERR {
+        cubeb_log!("AudioUnitRender rv={}", r);
+        if r != kAudioUnitErr_CannotDoInCurrentContext {
+            return r;
+        }
+        if !stm.output_unit.is_null() {
+            // kAudioUnitErr_CannotDoInCurrentContext is returned when using a BT
+            // headset and the profile is changed from A2DP to HFP/HSP. The previous
+            // output device is no longer valid and must be reset.
+            audiounit_reinit_stream_async(stm, device_flags::DEV_INPUT | device_flags::DEV_OUTPUT);
+        }
+        // For now state that no error occurred and feed silence, stream will be
+        // resumed once reinit has completed.
+        cubeb_logv!("({:p}) input: reinit pending feeding silence instead", stm);
+        // TODO: push silence data into stm.input_linear_buffer ...
+    } else {
+        /* Copy input data in linear buffer. */
+        // TODO: push data into stm.input_linear_buffer ...
+    }
+
+    /* Advance input frame counter. */
+    assert!(input_frames > 0);
+    *stm.frames_read.get_mut() += input_frames as i64;
+
+    cubeb_logv!("({:p}) input: buffers {}, size {}, channels {}, rendered frames {}, total frames {}.",
+                stm,
+                input_buffer_list.mNumberBuffers,
+                input_buffer_list.mBuffers[0].mDataByteSize,
+                input_buffer_list.mBuffers[0].mNumberChannels,
+                input_frames,
+                stm.input_linear_buffer.as_ref().unwrap().elements() / stm.input_desc.mChannelsPerFrame as usize);
+
+    NO_ERR
+}
+
 extern fn audiounit_input_callback(user_ptr: *mut c_void,
                                    flags: *mut AudioUnitRenderActionFlags,
                                    tstamp: *const AudioTimeStamp,
@@ -248,8 +304,32 @@ extern fn audiounit_input_callback(user_ptr: *mut c_void,
                                    _: *mut AudioBufferList) -> OSStatus
 {
     let stm = unsafe { &mut *(user_ptr as *mut AudioUnitStream) };
+
     assert!(!stm.input_unit.is_null());
     assert_eq!(bus, AU_IN_BUS);
+
+    if *stm.shutdown.get_mut() {
+        cubeb_log!("({:p}) input shutdown", stm);
+        return NO_ERR;
+    }
+
+    let r = audiounit_render_input(stm, flags, tstamp, bus, input_frames);
+    if r != NO_ERR {
+        return r;
+    }
+
+    // Full Duplex. We'll call data_callback in the AudioUnit output callback.
+    if !stm.output_unit.is_null() {
+        return NO_ERR;
+    }
+
+    /* Input only. Call the user callback through resampler.
+       Resampler will deliver input buffer in the correct rate. */
+    // assert!(input_frames as usize <= stm.input_linear_buffer.as_ref().unwrap().elements() / stm.input_desc.mChannelsPerFrame as usize);
+    // TODO: Connect to cubeb-resampler ...
+
+    // TODO: Reset input buffer...
+
     NO_ERR
 }
 

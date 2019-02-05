@@ -833,6 +833,14 @@ fn test_set_global_latency() {
     }
 }
 
+// render_input
+// ------------------------------------
+// TODO
+
+// input_callback
+// ------------------------------------
+// TODO
+
 // set_device_info
 // ------------------------------------
 #[test]
