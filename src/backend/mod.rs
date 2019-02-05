@@ -2023,9 +2023,14 @@ fn audiounit_stream_destroy_internal(stm: &mut AudioUnitStream)
 fn audiounit_stream_destroy(stm: &mut AudioUnitStream)
 {
     if !stm.shutdown.load(Ordering::SeqCst) {
+        // Since we cannot call `AutoLock::new(&mut stm.context.mutex)` and
+        // `audiounit_stream_destroy_internal(stm)` at the same time,
+        // We take the pointer to `stm.context.mutex` first and then dereference
+        // it to the mutex to avoid this problem for now.
+        let mutex_ptr = &mut stm.context.mutex as *mut OwnedCriticalSection;
         // The scope of `_context_lock` is a critical section.
-        let _context_lock = AutoLock::new(&mut stm.context.mutex);
-        // TODO: Stop stream ...
+        let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        audiounit_stream_stop_internal(stm);
         *stm.shutdown.get_mut() = true;
     }
 
@@ -2038,10 +2043,7 @@ fn audiounit_stream_destroy(stm: &mut AudioUnitStream)
     // with reinit when un/plug devices
     sync_dispatch(stm.context.serial_queue, move || {
         let stm = unsafe { &mut (*(stm_ptr as *mut AudioUnitStream)) };
-        // Since we cannot call `AutoLock::new(&mut stm.context.mutex)` and
-        // `audiounit_stream_destroy_internal(stm)` at the same time,
-        // We take the pointer to `stm.context.mutex` first and then dereference
-        // it to the mutex to avoid this problem for now.
+        // Use `mutex_ptr` to avoid the same borrowing issue as above.
         let mutex_ptr = &mut stm.context.mutex as *mut OwnedCriticalSection;
         // The scope of `_context_lock` is a critical section.
         let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
