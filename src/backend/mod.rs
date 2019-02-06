@@ -1404,7 +1404,7 @@ fn audiounit_enable_unit_scope(unit: &AudioUnit, side: io_side, state: enable_st
 
     let mut rv = NO_ERR;
     let enable: u32 = if state == enable_state::DISABLE { 0 } else { 1 };
-    rv = audio_unit_set_property(unit, kAudioOutputUnitProperty_EnableIO,
+    rv = audio_unit_set_property(*unit, kAudioOutputUnitProperty_EnableIO,
                                  if side == io_side::INPUT { kAudioUnitScope_Input } else { kAudioUnitScope_Output },
                                  if side == io_side::INPUT { AU_IN_BUS } else { AU_OUT_BUS },
                                  &enable,
@@ -1454,7 +1454,7 @@ fn audiounit_create_unit(unit: &mut AudioUnit, device: &device_info) -> Result<(
         assert!(false);
     }
 
-    rv = audio_unit_set_property(unit,
+    rv = audio_unit_set_property(*unit,
                                  kAudioOutputUnitProperty_CurrentDevice,
                                  kAudioUnitScope_Global,
                                  0,
@@ -1515,7 +1515,7 @@ fn audiounit_clamp_latency(stm: &mut AudioUnitStream, latency_frames: u32) -> u3
     assert_eq!(size, mem::size_of::<UInt32>());
     // TODO: Why we check `output_unit` here? We already have an assertions above!
     if !stm.output_unit.is_null() {
-        r = audio_unit_get_property(&stm.output_unit,
+        r = audio_unit_get_property(stm.output_unit,
                                     kAudioDevicePropertyBufferFrameSize,
                                     kAudioUnitScope_Output,
                                     AU_OUT_BUS,
@@ -1534,7 +1534,7 @@ fn audiounit_clamp_latency(stm: &mut AudioUnitStream, latency_frames: u32) -> u3
 
     let mut input_buffer_size: UInt32 = 0;
     if !stm.input_unit.is_null() {
-        r = audio_unit_get_property(&stm.input_unit,
+        r = audio_unit_get_property(stm.input_unit,
                                     kAudioDevicePropertyBufferFrameSize,
                                     kAudioUnitScope_Input,
                                     AU_IN_BUS,
@@ -1601,7 +1601,7 @@ extern fn buffer_size_changed_callback(inClientData: *mut c_void,
             }
             let mut new_buffer_size: u32 = 0;
             let mut outSize = mem::size_of::<u32>();
-            let r = audio_unit_get_property(&au,
+            let r = audio_unit_get_property(au,
                                             kAudioDevicePropertyBufferFrameSize,
                                             au_scope,
                                             au_element,
@@ -1639,7 +1639,7 @@ fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, si
 
     let mut buffer_frames: u32 = 0;
     let mut size = mem::size_of_val(&buffer_frames);
-    let mut r = audio_unit_get_property(&au,
+    let mut r = audio_unit_get_property(au,
                                         kAudioDevicePropertyBufferFrameSize,
                                         au_scope,
                                         au_element,
@@ -1658,7 +1658,7 @@ fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, si
         return Ok(());
     }
 
-    r = audio_unit_add_property_listener(&au,
+    r = audio_unit_add_property_listener(au,
                                          kAudioDevicePropertyBufferFrameSize,
                                          buffer_size_changed_callback,
                                          stm as *mut AudioUnitStream as *mut c_void);
@@ -1669,7 +1669,7 @@ fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, si
 
     *stm.buffer_size_change_state.get_mut() = false;
 
-    r = audio_unit_set_property(&au,
+    r = audio_unit_set_property(au,
                                 kAudioDevicePropertyBufferFrameSize,
                                 au_scope,
                                 au_element,
@@ -1678,7 +1678,7 @@ fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, si
     if r != NO_ERR {
         cubeb_log!("AudioUnitSetProperty/{}/kAudioDevicePropertyBufferFrameSize rv={}", to_string(&side), r);
 
-        r = audio_unit_remove_property_listener_with_user_data(&au,
+        r = audio_unit_remove_property_listener_with_user_data(au,
                                                                kAudioDevicePropertyBufferFrameSize,
                                                                buffer_size_changed_callback,
                                                                stm as *mut AudioUnitStream as *mut c_void);
@@ -1696,7 +1696,7 @@ fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, si
         cubeb_log!("({:p}) audiounit_set_buffer_size : wait count = {}", stm, count);
     }
 
-    r = audio_unit_remove_property_listener_with_user_data(&au,
+    r = audio_unit_remove_property_listener_with_user_data(au,
                                                            kAudioDevicePropertyBufferFrameSize,
                                                            buffer_size_changed_callback,
                                                            stm as *mut AudioUnitStream as *mut c_void);
@@ -1729,7 +1729,7 @@ fn audiounit_configure_input(stm: &mut AudioUnitStream) -> Result<()>
     /* Get input device sample rate. */
     let mut input_hw_desc = AudioStreamBasicDescription::default();
     size = mem::size_of::<AudioStreamBasicDescription>();
-    r = audio_unit_get_property(&stm.input_unit,
+    r = audio_unit_get_property(stm.input_unit,
                                 kAudioUnitProperty_StreamFormat,
                                 kAudioUnitScope_Input,
                                 AU_IN_BUS,
@@ -1766,7 +1766,7 @@ fn audiounit_configure_input(stm: &mut AudioUnitStream) -> Result<()>
        we will resample inside input callback. */
     src_desc.mSampleRate = stm.input_hw_rate;
 
-    r = audio_unit_set_property(&stm.input_unit,
+    r = audio_unit_set_property(stm.input_unit,
                                 kAudioUnitProperty_StreamFormat,
                                 kAudioUnitScope_Output,
                                 AU_IN_BUS,
@@ -1781,7 +1781,7 @@ fn audiounit_configure_input(stm: &mut AudioUnitStream) -> Result<()>
     // getting any error. However, the frames per slice won't become 0 even
     // it's ok to set that. Maybe we should fix it!
     /* Frames per buffer in the input callback. */
-    r = audio_unit_set_property(&stm.input_unit,
+    r = audio_unit_set_property(stm.input_unit,
                                 kAudioUnitProperty_MaximumFramesPerSlice,
                                 kAudioUnitScope_Global,
                                 AU_IN_BUS,
@@ -1805,7 +1805,7 @@ fn audiounit_configure_input(stm: &mut AudioUnitStream) -> Result<()>
     aurcbs_in.inputProc = Some(audiounit_input_callback);
     aurcbs_in.inputProcRefCon = stm as *mut AudioUnitStream as *mut c_void;
 
-    r = audio_unit_set_property(&stm.input_unit,
+    r = audio_unit_set_property(stm.input_unit,
                                 kAudioOutputUnitProperty_SetInputCallback,
                                 kAudioUnitScope_Global,
                                 AU_OUT_BUS,
@@ -1846,7 +1846,7 @@ fn audiounit_configure_output(stm: &mut AudioUnitStream) -> Result<()>
     // C version uses `memset` to set output_hw_desc to an zero value, but
     // AudioStreamBasicDescription::default() return an zero value already
     // so we don't need to do anything here.
-    r = audio_unit_get_property(&stm.output_unit,
+    r = audio_unit_get_property(stm.output_unit,
                                 kAudioUnitProperty_StreamFormat,
                                 kAudioUnitScope_Output,
                                 AU_OUT_BUS,
@@ -1860,7 +1860,7 @@ fn audiounit_configure_output(stm: &mut AudioUnitStream) -> Result<()>
     cubeb_log!("{:p} Output device sampling rate: {}", stm, output_hw_desc.mSampleRate);
 
     // TODO: Set channels, layout, ...
-    r = audio_unit_set_property(&stm.output_unit,
+    r = audio_unit_set_property(stm.output_unit,
                                 kAudioUnitProperty_StreamFormat,
                                 kAudioUnitScope_Input,
                                 AU_OUT_BUS,
@@ -1885,7 +1885,7 @@ fn audiounit_configure_output(stm: &mut AudioUnitStream) -> Result<()>
     }
 
     /* Frames per buffer in the input callback. */
-    r = audio_unit_set_property(&stm.output_unit,
+    r = audio_unit_set_property(stm.output_unit,
                                 kAudioUnitProperty_MaximumFramesPerSlice,
                                 kAudioUnitScope_Global,
                                 AU_OUT_BUS,
@@ -1899,7 +1899,7 @@ fn audiounit_configure_output(stm: &mut AudioUnitStream) -> Result<()>
     // TODO: Set output callback ...
     aurcbs_out.inputProc = Some(audiounit_output_callback);
     aurcbs_out.inputProcRefCon = stm as *mut AudioUnitStream as *mut c_void;
-    r = audio_unit_set_property(&stm.output_unit,
+    r = audio_unit_set_property(stm.output_unit,
                                 kAudioUnitProperty_SetRenderCallback,
                                 kAudioUnitScope_Global,
                                 AU_OUT_BUS,
@@ -1997,7 +1997,7 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
     }
 
     if !stm.input_unit.is_null() {
-        let r = audio_unit_initialize(&stm.input_unit);
+        let r = audio_unit_initialize(stm.input_unit);
         if r != NO_ERR {
             cubeb_log!("AudioUnitInitialize/input rv={}", r);
             return Err(Error::error());
@@ -2005,7 +2005,7 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
     }
 
     if !stm.output_unit.is_null() {
-        let r = audio_unit_initialize(&stm.output_unit);
+        let r = audio_unit_initialize(stm.output_unit);
         if r != NO_ERR {
             cubeb_log!("AudioUnitInitialize/output rv={}", r);
             return Err(Error::error());
@@ -2015,7 +2015,7 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
 
         let mut unit_s: f64 = 0.0;
         let mut size = mem::size_of_val(&unit_s);
-        if audio_unit_get_property(&stm.output_unit, kAudioUnitProperty_Latency, kAudioUnitScope_Global, 0, &mut unit_s, &mut size) == NO_ERR {
+        if audio_unit_get_property(stm.output_unit, kAudioUnitProperty_Latency, kAudioUnitScope_Global, 0, &mut unit_s, &mut size) == NO_ERR {
             *stm.current_latency_frames.get_mut() += (unit_s * stm.output_desc.mSampleRate) as u32
         }
     }
@@ -2040,14 +2040,14 @@ fn audiounit_close_stream(stm: &mut AudioUnitStream)
     stm.mutex.assert_current_thread_owns();
 
     if !stm.input_unit.is_null() {
-        audio_unit_uninitialize(&stm.input_unit);
-        dispose_audio_unit(&stm.input_unit);
+        audio_unit_uninitialize(stm.input_unit);
+        dispose_audio_unit(stm.input_unit);
         stm.input_unit = ptr::null_mut();
     }
 
     if !stm.output_unit.is_null() {
-        audio_unit_uninitialize(&stm.output_unit);
-        dispose_audio_unit(&stm.output_unit);
+        audio_unit_uninitialize(stm.output_unit);
+        dispose_audio_unit(stm.output_unit);
         stm.output_unit = ptr::null_mut();
     }
 
@@ -2136,7 +2136,7 @@ fn audiounit_stream_stop_internal(stm: &AudioUnitStream)
 fn audiounit_stream_get_volume(stm: &AudioUnitStream, volume: &mut f32) -> Result<()>
 {
     assert!(!stm.output_unit.is_null());
-    let r = audio_unit_get_parameter(&stm.output_unit,
+    let r = audio_unit_get_parameter(stm.output_unit,
                                      kHALOutputParam_Volume,
                                      kAudioUnitScope_Global,
                                      0, volume);
@@ -3324,7 +3324,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     fn set_volume(&mut self, volume: f32) -> Result<()> {
         assert!(!self.output_unit.is_null());
         let mut r = NO_ERR;
-        r = audio_unit_set_parameter(&self.output_unit,
+        r = audio_unit_set_parameter(self.output_unit,
                                      kHALOutputParam_Volume,
                                      kAudioUnitScope_Global,
                                      0, volume, 0);

@@ -185,7 +185,7 @@ pub fn audio_object_remove_property_listener(
 }
 
 pub fn audio_unit_get_property<T>(
-    unit: &sys::AudioUnit,
+    unit: sys::AudioUnit,
     property: sys::AudioUnitPropertyID,
     scope: sys::AudioUnitScope,
     element: sys::AudioUnitElement,
@@ -194,7 +194,7 @@ pub fn audio_unit_get_property<T>(
 ) -> sys::OSStatus {
     unsafe {
         sys::AudioUnitGetProperty(
-            *unit,
+            unit,
             property,
             scope,
             element,
@@ -205,7 +205,7 @@ pub fn audio_unit_get_property<T>(
 }
 
 pub fn audio_unit_set_property<T>(
-    unit: &sys::AudioUnit,
+    unit: sys::AudioUnit,
     property: sys::AudioUnitPropertyID,
     scope: sys::AudioUnitScope,
     element: sys::AudioUnitElement,
@@ -214,7 +214,7 @@ pub fn audio_unit_set_property<T>(
 ) -> sys::OSStatus {
     unsafe {
         sys::AudioUnitSetProperty(
-            *unit,
+            unit,
             property,
             scope,
             element,
@@ -225,7 +225,7 @@ pub fn audio_unit_set_property<T>(
 }
 
 pub fn audio_unit_get_parameter(
-    unit: &sys::AudioUnit,
+    unit: sys::AudioUnit,
     id: sys:: AudioUnitParameterID,
     scope: sys::AudioUnitScope,
     element: sys::AudioUnitElement,
@@ -233,7 +233,7 @@ pub fn audio_unit_get_parameter(
 ) -> sys::OSStatus {
     unsafe {
         sys::AudioUnitGetParameter(
-            *unit,
+            unit,
             id,
             scope,
             element,
@@ -252,14 +252,14 @@ pub type audio_unit_property_listener_proc = extern fn(
 );
 
 pub fn audio_unit_add_property_listener(
-    unit: &sys::AudioUnit,
+    unit: sys::AudioUnit,
     id: sys::AudioUnitPropertyID,
     listener: audio_unit_property_listener_proc,
     data: *mut c_void,
 ) -> sys::OSStatus {
     unsafe {
         sys::AudioUnitAddPropertyListener(
-            *unit,
+            unit,
             id,
             Some(listener),
             data
@@ -268,14 +268,14 @@ pub fn audio_unit_add_property_listener(
 }
 
 pub fn audio_unit_remove_property_listener_with_user_data(
-    unit: &sys::AudioUnit,
+    unit: sys::AudioUnit,
     id: sys::AudioUnitPropertyID,
     listener: audio_unit_property_listener_proc,
     data: *mut c_void,
 ) -> sys::OSStatus {
     unsafe {
         sys::AudioUnitRemovePropertyListenerWithUserData(
-            *unit,
+            unit,
             id,
             Some(listener),
             data
@@ -284,7 +284,7 @@ pub fn audio_unit_remove_property_listener_with_user_data(
 }
 
 pub fn audio_unit_set_parameter(
-    unit: &sys::AudioUnit,
+    unit: sys::AudioUnit,
     id: sys:: AudioUnitParameterID,
     scope: sys::AudioUnitScope,
     element: sys::AudioUnitElement,
@@ -293,7 +293,7 @@ pub fn audio_unit_set_parameter(
 ) -> sys::OSStatus {
     unsafe {
         sys::AudioUnitSetParameter(
-            *unit,
+            unit,
             id,
             scope,
             element,
@@ -324,30 +324,30 @@ pub fn audio_unit_render(
 }
 
 pub fn audio_unit_initialize(
-    unit: &sys::AudioUnit,
+    unit: sys::AudioUnit,
 ) -> sys::OSStatus {
     unsafe {
-        sys::AudioUnitInitialize(*unit)
+        sys::AudioUnitInitialize(unit)
     }
 }
 
 // TODO: Maybe we can merge the following two functions into something like
-//       `destroy_audio_unit(unit: &sys::AudioUnit)` and call
+//       `destroy_audio_unit(unit: sys::AudioUnit)` and call
 //        `AudioUnitUninitialize`, `AudioComponentInstanceDispose` in this
 //        function.
 pub fn audio_unit_uninitialize(
-    unit: &sys::AudioUnit,
+    unit: sys::AudioUnit,
 ) -> sys::OSStatus {
     unsafe {
-        sys::AudioUnitUninitialize(*unit)
+        sys::AudioUnitUninitialize(unit)
     }
 }
 
 pub fn dispose_audio_unit(
-    unit: &sys::AudioUnit,
+    unit: sys::AudioUnit,
 ) -> sys::OSStatus {
     unsafe {
-        sys::AudioComponentInstanceDispose(*unit)
+        sys::AudioComponentInstanceDispose(unit)
     }
 }
 
@@ -592,7 +592,7 @@ fn test_audio_unit_add_property_listener_for_null_unit() {
     let unit = ptr::null_mut();
     assert_eq!(
         audio_unit_add_property_listener(
-            &unit,
+            unit,
             sys::kAudioDevicePropertyBufferFrameSize,
             listener,
             ptr::null_mut()
@@ -617,7 +617,7 @@ fn test_audio_unit_remove_property_listener_with_user_data_for_null_unit() {
     let unit = ptr::null_mut();
     assert_eq!(
         audio_unit_remove_property_listener_with_user_data(
-            &unit,
+            unit,
             sys::kAudioDevicePropertyBufferFrameSize,
             listener,
             ptr::null_mut()
@@ -645,7 +645,7 @@ fn test_audio_unit_remove_property_listener_with_user_data_without_adding_any() 
 
     assert_eq!(
         audio_unit_remove_property_listener_with_user_data(
-            &unit,
+            unit,
             sys::kAudioDevicePropertyBufferFrameSize,
             listener,
             ptr::null_mut()
@@ -673,7 +673,7 @@ fn test_audio_unit_add_then_remove_property_listener() {
 
     assert_eq!(
         audio_unit_add_property_listener(
-            &unit,
+            unit,
             sys::kAudioDevicePropertyBufferFrameSize,
             listener,
             ptr::null_mut()
@@ -683,7 +683,7 @@ fn test_audio_unit_add_then_remove_property_listener() {
 
     assert_eq!(
         audio_unit_remove_property_listener_with_user_data(
-            &unit,
+            unit,
             sys::kAudioDevicePropertyBufferFrameSize,
             listener,
             ptr::null_mut()
@@ -733,7 +733,7 @@ fn test_audio_unit_add_then_fire_then_remove_property_listener() {
         let mut size = mem::size_of::<u32>();
         assert_eq!(
             audio_unit_get_property(
-                &unit,
+                unit,
                 id,
                 scope,
                 element,
@@ -754,7 +754,7 @@ fn test_audio_unit_add_then_fire_then_remove_property_listener() {
         // It's ok to remove listener here.
         // assert_eq!(
         //     audio_unit_remove_property_listener_with_user_data(
-        //         &unit,
+        //         unit,
         //         id,
         //         listener,
         //         data
@@ -786,7 +786,7 @@ fn test_audio_unit_add_then_fire_then_remove_property_listener() {
     let mut size = mem::size_of::<u32>();
     assert_eq!(
         audio_unit_get_property(
-            &unit,
+            unit,
             sys::kAudioDevicePropertyBufferFrameSize,
             if is_input { sys::kAudioUnitScope_Output } else { sys::kAudioUnitScope_Input },
             if is_input { IN_ELEMENT } else { OUT_ELEMENT },
@@ -801,7 +801,7 @@ fn test_audio_unit_add_then_fire_then_remove_property_listener() {
 
     assert_eq!(
         audio_unit_add_property_listener(
-            &unit,
+            unit,
             sys::kAudioDevicePropertyBufferFrameSize,
             listener,
             &mut called as *mut u32 as *mut c_void
@@ -817,7 +817,7 @@ fn test_audio_unit_add_then_fire_then_remove_property_listener() {
 
     assert_eq!(
         audio_unit_set_property(
-            &unit,
+            unit,
             sys::kAudioDevicePropertyBufferFrameSize,
             if is_input { sys::kAudioUnitScope_Output } else { sys::kAudioUnitScope_Input },
             if is_input { IN_ELEMENT } else { OUT_ELEMENT },
@@ -831,7 +831,7 @@ fn test_audio_unit_add_then_fire_then_remove_property_listener() {
 
     assert_eq!(
         audio_unit_remove_property_listener_with_user_data(
-            &unit,
+            unit,
             sys::kAudioDevicePropertyBufferFrameSize,
             listener,
             &mut called as *mut u32 as *mut c_void

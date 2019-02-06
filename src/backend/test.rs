@@ -2703,14 +2703,14 @@ fn test_enable_unit_output_scope_for_default_output_unit() {
         let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
         if valid_id(output_id) {
             // Check if the output scope is enabled.
-            assert!(unit_scope_is_enabled(&unit, false));
+            assert!(unit_scope_is_enabled(unit, false));
 
             // The input scope is enabled if it's also a input device.
             // Otherwise, it's disabled.
             if is_input(output_id) {
-                assert!(unit_scope_is_enabled(&unit, true));
+                assert!(unit_scope_is_enabled(unit, true));
             } else {
-                assert!(!unit_scope_is_enabled(&unit, true));
+                assert!(!unit_scope_is_enabled(unit, true));
             }
         }
 
@@ -2884,16 +2884,16 @@ fn test_create_unit() {
                 let mut unit: AudioUnit = ptr::null_mut();
                 assert!(audiounit_create_unit(&mut unit, &device).is_ok());
                 assert!(!unit.is_null());
-                assert!(unit_scope_is_enabled(&unit, false));
+                assert!(unit_scope_is_enabled(unit, false));
 
                 // For default output device, the input scope is enabled
                 // if it's also a input device. Otherwise, it's disabled.
                 if device.flags.contains(device_flags::DEV_INPUT |
                                          device_flags::DEV_SYSTEM_DEFAULT) {
                     if is_input(device_id) {
-                        assert!(unit_scope_is_enabled(&unit, true));
+                        assert!(unit_scope_is_enabled(unit, true));
                     } else {
-                        assert!(!unit_scope_is_enabled(&unit, true));
+                        assert!(!unit_scope_is_enabled(unit, true));
                     }
 
                     // Destroy the audioUnit.
@@ -2920,7 +2920,7 @@ fn test_create_unit() {
                 let mut unit: AudioUnit = ptr::null_mut();
                 assert!(audiounit_create_unit(&mut unit, &device).is_ok());
                 assert!(!unit.is_null());
-                assert!(unit_scope_is_enabled(&unit, true));
+                assert!(unit_scope_is_enabled(unit, true));
                 // Destroy the audioUnit.
                 unsafe {
                     AudioUnitUninitialize(unit);
@@ -3305,7 +3305,7 @@ fn test_clamp_latency_with_more_than_one_active_streams() {
     let maybe_buffer_size = {
         let mut buffer_size: u32 = 0;
         if audio_unit_get_property(
-            &stream.output_unit,
+            stream.output_unit,
             kAudioDevicePropertyBufferFrameSize,
             kAudioUnitScope_Output,
             AU_OUT_BUS,
@@ -3459,7 +3459,7 @@ fn test_set_buffer_size_for_input()
     let mut size = mem::size_of::<u32>();
     assert_eq!(
         audio_unit_get_property(
-            &stream.input_unit,
+            stream.input_unit,
             kAudioDevicePropertyBufferFrameSize,
             kAudioUnitScope_Output,
             AU_IN_BUS,
@@ -3596,7 +3596,7 @@ fn test_set_buffer_size_for_output()
     let mut size = mem::size_of::<u32>();
     assert_eq!(
         audio_unit_get_property(
-            &stream.output_unit,
+            stream.output_unit,
             kAudioDevicePropertyBufferFrameSize,
             kAudioUnitScope_Input,
             AU_OUT_BUS,
@@ -3746,7 +3746,7 @@ fn test_configure_input_with_zero_latency_frames() {
     let mut size = mem::size_of::<AudioStreamBasicDescription>();
     assert_eq!(
         audio_unit_get_property(
-            &stream.input_unit,
+            stream.input_unit,
             kAudioUnitProperty_StreamFormat,
             kAudioUnitScope_Output,
             AU_IN_BUS,
@@ -3764,7 +3764,7 @@ fn test_configure_input_with_zero_latency_frames() {
     let mut size = mem::size_of::<u32>();
     assert_eq!(
         audio_unit_get_property(
-            &stream.input_unit,
+            stream.input_unit,
             kAudioDevicePropertyBufferFrameSize,
             kAudioUnitScope_Output,
             AU_IN_BUS,
@@ -3783,7 +3783,7 @@ fn test_configure_input_with_zero_latency_frames() {
     let mut size = mem::size_of::<u32>();
     assert_eq!(
         audio_unit_get_property(
-            &stream.input_unit,
+            stream.input_unit,
             kAudioUnitProperty_MaximumFramesPerSlice,
             kAudioUnitScope_Global,
             0,
@@ -3908,7 +3908,7 @@ fn test_configure_input_impl<T: std::any::Any>(array: &[T]) {
     let mut size = mem::size_of::<AudioStreamBasicDescription>();
     assert_eq!(
         audio_unit_get_property(
-            &stream.input_unit,
+            stream.input_unit,
             kAudioUnitProperty_StreamFormat,
             kAudioUnitScope_Output,
             AU_IN_BUS,
@@ -3926,7 +3926,7 @@ fn test_configure_input_impl<T: std::any::Any>(array: &[T]) {
     let mut size = mem::size_of::<u32>();
     assert_eq!(
         audio_unit_get_property(
-            &stream.input_unit,
+            stream.input_unit,
             kAudioDevicePropertyBufferFrameSize,
             kAudioUnitScope_Output,
             AU_IN_BUS,
@@ -3944,7 +3944,7 @@ fn test_configure_input_impl<T: std::any::Any>(array: &[T]) {
     let mut size = mem::size_of::<u32>();
     assert_eq!(
         audio_unit_get_property(
-            &stream.input_unit,
+            stream.input_unit,
             kAudioUnitProperty_MaximumFramesPerSlice,
             kAudioUnitScope_Global,
             0,
@@ -3989,7 +3989,7 @@ fn test_configure_input_impl<T: std::any::Any>(array: &[T]) {
     // }
     // stream.user_ptr = &mut data as *mut Data as *mut c_void;
     // stream.state_callback = Some(state_callback);
-    // audio_unit_initialize(&stream.input_unit);
+    // audio_unit_initialize(stream.input_unit);
     // assert!(stream.start().is_ok());
     // for i in 0..10000000 {}
     // assert!(stream.stop().is_ok());
@@ -4130,7 +4130,7 @@ fn test_configure_output_with_zero_latency_frames() {
     let mut size = mem::size_of::<AudioStreamBasicDescription>();
     assert_eq!(
         audio_unit_get_property(
-            &stream.output_unit,
+            stream.output_unit,
             kAudioUnitProperty_StreamFormat,
             kAudioUnitScope_Output,
             AU_OUT_BUS,
@@ -4148,7 +4148,7 @@ fn test_configure_output_with_zero_latency_frames() {
     let mut size = mem::size_of::<u32>();
     assert_eq!(
         audio_unit_get_property(
-            &stream.output_unit,
+            stream.output_unit,
             kAudioDevicePropertyBufferFrameSize,
             kAudioUnitScope_Input,
             AU_OUT_BUS,
@@ -4167,7 +4167,7 @@ fn test_configure_output_with_zero_latency_frames() {
     let mut size = mem::size_of::<u32>();
     assert_eq!(
         audio_unit_get_property(
-            &stream.output_unit,
+            stream.output_unit,
             kAudioUnitProperty_MaximumFramesPerSlice,
             kAudioUnitScope_Global,
             0,
@@ -4282,7 +4282,7 @@ fn test_configure_output() {
     let mut size = mem::size_of::<AudioStreamBasicDescription>();
     assert_eq!(
         audio_unit_get_property(
-            &stream.output_unit,
+            stream.output_unit,
             kAudioUnitProperty_StreamFormat,
             kAudioUnitScope_Output,
             AU_OUT_BUS,
@@ -4300,7 +4300,7 @@ fn test_configure_output() {
     let mut size = mem::size_of::<u32>();
     assert_eq!(
         audio_unit_get_property(
-            &stream.output_unit,
+            stream.output_unit,
             kAudioDevicePropertyBufferFrameSize,
             kAudioUnitScope_Input,
             AU_OUT_BUS,
@@ -4318,7 +4318,7 @@ fn test_configure_output() {
     let mut size = mem::size_of::<u32>();
     assert_eq!(
         audio_unit_get_property(
-            &stream.output_unit,
+            stream.output_unit,
             kAudioUnitProperty_MaximumFramesPerSlice,
             kAudioUnitScope_Global,
             0,
@@ -4358,7 +4358,7 @@ fn test_configure_output() {
     // }
     // stream.user_ptr = &mut data as *mut Data as *mut c_void;
     // stream.state_callback = Some(state_callback);
-    // audio_unit_initialize(&stream.output_unit);
+    // audio_unit_initialize(stream.output_unit);
     // assert!(stream.start().is_ok());
     // for i in 0..10000000 {}
     // assert!(stream.stop().is_ok());
@@ -5776,8 +5776,8 @@ fn is_output(id: AudioObjectID) -> bool {
     audiounit_get_channel_count(id, kAudioDevicePropertyScopeOutput) > 0
 }
 
-fn unit_scope_is_enabled(unit: &AudioUnit, is_input: bool) -> bool {
-    assert!(!(*unit).is_null());
+fn unit_scope_is_enabled(unit: AudioUnit, is_input: bool) -> bool {
+    assert!(!unit.is_null());
     let mut has_io: UInt32 = 0;
     assert_eq!(
         audio_unit_get_property(
