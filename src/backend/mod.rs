@@ -1479,13 +1479,13 @@ fn audiounit_init_input_linear_buffer(stream: &mut AudioUnitStream, capacity: u3
     if stream.input_desc.mFormatFlags & kAudioFormatFlagIsSignedInteger != 0 {
         // TODO: Assert input_desc.mFormatFlags doesn't contain kAudioFormatFlagIsFloat ?
         // assert_eq!(stream.input_desc.mFormatFlags & kAudioFormatFlagIsFloat, 0);
-        stream.input_linear_buffer = Some(AutoArrayWrapper::Short(<AutoArrayImpl<i16>>::new(size)));
+        stream.input_linear_buffer = Some(Box::new(AutoArrayImpl::<i16>::new(size)));
     } else {
         // TODO: Assert input_desc.mFormatFlags contains kAudioFormatFlagIsFloat ?
         // assert_ne!(stream.input_desc.mFormatFlags & kAudioFormatFlagIsFloat, 0);
         // TODO: Assert input_desc.mFormatFlags doesn't contain kAudioFormatFlagIsSignedInteger ?
         // assert_eq!(stream.input_desc.mFormatFlags & kAudioFormatFlagIsSignedInteger, 0);
-        stream.input_linear_buffer = Some(AutoArrayWrapper::Float(<AutoArrayImpl<f32>>::new(size)));
+        stream.input_linear_buffer = Some(Box::new(AutoArrayImpl::<f32>::new(size)));
     }
     assert_eq!(stream.input_linear_buffer.as_ref().unwrap().elements(), 0);
 
@@ -3142,7 +3142,7 @@ struct AudioUnitStream<'ctx> {
     mutex: OwnedCriticalSection,
     // Hold the input samples in every input callback iteration.
     // Only accessed on input/output callback thread and during initial configure.
-    input_linear_buffer: Option<AutoArrayWrapper>,
+    input_linear_buffer: Option<Box<AutoArrayWrapper>>,
     /* Frame counters */
     frames_played: AtomicU64,
     // How many frames got read from the input since the stream started (includes

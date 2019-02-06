@@ -1,81 +1,41 @@
-// https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=53180777432a468c4d0fce913ff69d19
+// https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=9832f58ca6db9f6e6c597f7dfead994c
 
-use std::any::{Any, TypeId};
 use std::fmt::Debug;
 use std::os::raw::c_void;
 use std::ptr;
 use std::slice;
 
-#[derive(Debug)]
-pub enum AutoArrayWrapper {
-    Float(AutoArrayImpl<f32>),
-    Short(AutoArrayImpl<i16>),
-}
-
-impl AutoArrayWrapper {
-    pub fn push(&mut self, data: *const c_void, elements: usize) {
-        match self {
-            AutoArrayWrapper::Float(array) => {
-                let slice = unsafe { slice::from_raw_parts(data as *const f32, elements) };
-                array.push(slice);
-            },
-            AutoArrayWrapper::Short(array) => {
-                let slice = unsafe { slice::from_raw_parts(data as *const i16, elements) };
-                array.push(slice);
-            },
-        }
-    }
-
-    pub fn push_zeros(&mut self, elements: usize) {
-        match self {
-            AutoArrayWrapper::Float(array) => array.extend_with_value(elements, 0_f32),
-            AutoArrayWrapper::Short(array) => array.extend_with_value(elements, 0_i16),
-        }
-    }
-
-    pub fn pop(&mut self, elements: usize) -> bool {
-        match self {
-            AutoArrayWrapper::Float(array) => array.pop(elements),
-            AutoArrayWrapper::Short(array) => array.pop(elements),
-        }
-    }
-
-    pub fn clear(&mut self) {
-        match self {
-            AutoArrayWrapper::Float(array) => array.clear(),
-            AutoArrayWrapper::Short(array) => array.clear(),
-        }
-    }
-
-    pub fn elements(&self) -> usize {
-        match self {
-            AutoArrayWrapper::Float(array) => array.elements(),
-            AutoArrayWrapper::Short(array) => array.elements(),
-        }
-    }
-
-    pub fn as_ptr<T>(&self) -> *const T {
-        match self {
-            AutoArrayWrapper::Float(array) => array.as_ptr() as *const T,
-            AutoArrayWrapper::Short(array) => array.as_ptr() as *const T,
-        }
-    }
+pub trait AutoArrayWrapper: Debug {
+    fn push(&mut self, data: *const c_void, elements: usize);
+    fn push_zeros(&mut self, elements: usize);
+    fn pop(&mut self, elements: usize) -> bool;
+    fn clear(&mut self);
+    fn elements(&self) -> usize;
+    fn as_ptr(&self) -> *const c_void;
 }
 
 #[derive(Debug)]
-pub struct AutoArrayImpl<T: Clone> {
+pub struct AutoArrayImpl<T: Clone + Debug + Zero> {
     ar: Vec<T>,
 }
 
-impl<T: Clone> AutoArrayImpl<T> {
+impl<T: Clone + Debug + Zero> AutoArrayImpl<T> {
     pub fn new(size: usize) -> Self {
         AutoArrayImpl {
             ar: Vec::<T>::with_capacity(size),
         }
     }
+}
 
-    fn push(&mut self, data: &[T]) {
-        self.ar.extend_from_slice(data);
+impl<T: Clone + Debug + Zero> AutoArrayWrapper for AutoArrayImpl<T> {
+    fn push(&mut self, data: *const c_void, elements: usize) {
+        let slice = unsafe { slice::from_raw_parts(data as *const T, elements) };
+        self.ar.extend_from_slice(slice);
+    }
+
+    fn push_zeros(&mut self, elements: usize) {
+        let len = self.ar.len();
+        self.ar.resize(len + elements, T::zero());
     }
 
     fn pop(&mut self, elements: usize) -> bool {
@@ -86,11 +46,6 @@ impl<T: Clone> AutoArrayImpl<T> {
         true
     }
 
-    fn extend_with_value(&mut self, elements: usize, value: T) {
-        let len = self.ar.len();
-        self.ar.resize(len + elements, value);
-    }
-
     fn clear(&mut self) {
         self.ar.clear();
     }
@@ -99,12 +54,27 @@ impl<T: Clone> AutoArrayImpl<T> {
         self.ar.len()
     }
 
-    fn as_ptr(&self) -> *const T {
+    fn as_ptr(&self) -> *const c_void {
         if self.ar.is_empty() {
             return ptr::null();
         }
-        self.ar.as_ptr()
+        self.ar.as_ptr() as *const c_void
     }
+}
+
+// Define the zero values for the different types.
+// With Zero trait, AutoArrayImpl can be constructed
+// only with the limited types.
+pub trait Zero {
+    fn zero() -> Self;
+}
+
+impl Zero for f32 {
+    fn zero() -> Self { 0.0 }
+}
+
+impl Zero for i16 {
+    fn zero() -> Self { 0 }
 }
 
 #[cfg(test)]
@@ -114,13 +84,13 @@ fn test_auto_array_impl<T: Clone + Debug + PartialEq + Zero>(buf: &[T]) {
     assert!(auto_array.as_ptr().is_null());
 
     // Check if push works.
-    auto_array.push(buf);
+    auto_array.push(buf.as_ptr() as *const c_void, buf.len());
     assert_eq!(auto_array.elements(), buf.len());
 
-    let data = auto_array.as_ptr();
-    for i in 0..buf.len() {
+    let data = auto_array.as_ptr() as *const T;
+    for (idx, item) in buf.iter().enumerate() {
         unsafe {
-            assert_eq!(*data.add(i), buf[i]);
+            assert_eq!(*data.add(idx), *item);
         }
     }
 
@@ -131,7 +101,7 @@ fn test_auto_array_impl<T: Clone + Debug + PartialEq + Zero>(buf: &[T]) {
     assert!(auto_array.pop(POP));
     assert_eq!(auto_array.elements(), buf.len() - POP);
 
-    let data = auto_array.as_ptr();
+    let data = auto_array.as_ptr() as *const T;
     for i in 0..buf.len() - POP {
         unsafe {
             assert_eq!(*data.add(i), buf[POP + i]);
@@ -141,9 +111,9 @@ fn test_auto_array_impl<T: Clone + Debug + PartialEq + Zero>(buf: &[T]) {
     // Check if extend_with_value works.
     const ZEROS: usize = 5;
     let len = auto_array.elements();
-    auto_array.extend_with_value(ZEROS, T::zero());
+    auto_array.push_zeros(ZEROS);
     assert_eq!(auto_array.elements(), len + ZEROS);
-    let data = auto_array.as_ptr();
+    let data = auto_array.as_ptr() as *const T;
     for i in len..len + ZEROS {
         unsafe {
             assert_eq!(*data.add(i), T::zero());
@@ -152,18 +122,9 @@ fn test_auto_array_impl<T: Clone + Debug + PartialEq + Zero>(buf: &[T]) {
 }
 
 #[cfg(test)]
-fn test_auto_array_wrapper<T: Any + Clone + Debug + PartialEq + Zero>(buf: &[T]) {
-    let mut auto_array: Option<AutoArrayWrapper> = None;
-
-    // Initialize the buffer based on the type.
-    let type_id = TypeId::of::<T>();
-    auto_array = Some(if type_id == TypeId::of::<f32>() {
-        AutoArrayWrapper::Float(<AutoArrayImpl<f32>>::new(5))
-    } else if type_id == TypeId::of::<i16>() {
-        AutoArrayWrapper::Short(<AutoArrayImpl<i16>>::new(5))
-    } else {
-        panic!("Unsupported type!");
-    });
+fn test_auto_array_wrapper<T: Clone + Debug + PartialEq + Zero>(buf: &[T]) {
+    let mut auto_array: Option<Box<AutoArrayWrapper>> = None;
+    auto_array = Some(Box::new(AutoArrayImpl::<T>::new(5)));
 
     assert_eq!(auto_array.as_ref().unwrap().elements(), 0);
     let data = auto_array.as_ref().unwrap().as_ptr() as *const T;
@@ -205,18 +166,6 @@ fn test_auto_array_wrapper<T: Any + Clone + Debug + PartialEq + Zero>(buf: &[T])
             assert_eq!(*data.add(i), T::zero());
         }
     }
-}
-
-trait Zero {
-    fn zero() -> Self;
-}
-
-impl Zero for f32 {
-    fn zero() -> Self { 0.0 }
-}
-
-impl Zero for i16 {
-    fn zero() -> Self { 0 }
 }
 
 #[test]
