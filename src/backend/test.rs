@@ -4333,6 +4333,35 @@ fn test_configure_output() {
     );
 
     // TODO: check layout, output callback, ....
+    // struct Data {
+    //     stream: *mut ffi::cubeb_stream,
+    //     called: usize,
+    //     states: [ffi::cubeb_state; 2]
+    // }
+
+    // let mut data = Data {
+    //     stream: &mut stream as *mut AudioUnitStream as *mut ffi::cubeb_stream,
+    //     called: 0,
+    //     states: [ffi::CUBEB_STATE_STARTED, ffi::CUBEB_STATE_STOPPED]
+    // };
+
+    // extern fn state_callback(
+    //     stm: *mut ffi::cubeb_stream,
+    //     user_ptr: *mut c_void,
+    //     state: ffi::cubeb_state
+    // ) {
+    //     println!("state: {}", state);
+    //     let data = unsafe { &mut *(user_ptr as *mut Data) };
+    //     assert_eq!(stm, data.stream);
+    //     assert_eq!(state, data.states[data.called]);
+    //     data.called += 1;
+    // }
+    // stream.user_ptr = &mut data as *mut Data as *mut c_void;
+    // stream.state_callback = Some(state_callback);
+    // audio_unit_initialize(&stream.output_unit);
+    // assert!(stream.start().is_ok());
+    // for i in 0..10000000 {}
+    // assert!(stream.stop().is_ok());
 }
 
 // setup_stream

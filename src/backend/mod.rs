@@ -335,6 +335,35 @@ extern fn audiounit_input_callback(user_ptr: *mut c_void,
     NO_ERR
 }
 
+extern fn audiounit_output_callback(user_ptr: *mut c_void,
+                                    _: *mut AudioUnitRenderActionFlags,
+                                    tstamp: *const AudioTimeStamp,
+                                    bus: u32,
+                                    output_frames: u32,
+                                    outBufferList: *mut AudioBufferList) -> OSStatus
+{
+    assert_eq!(bus, AU_OUT_BUS);
+    assert_eq!(unsafe { (&(*outBufferList)).mNumberBuffers }, 1);
+
+    let stm = unsafe { &mut *(user_ptr as *mut AudioUnitStream) };
+    let buffers = unsafe {
+        let ptr = (&mut (*outBufferList)).mBuffers.as_mut_ptr();
+        let len = (&(*outBufferList)).mNumberBuffers as usize;
+        slice::from_raw_parts_mut(ptr, len)
+    };
+
+    // TODO: Why don't we replace `has_input(stm)` by `stm.input_linear_buffer.is_some()` ?
+    cubeb_logv!("({:p}) output: buffers {}, size {}, channels {}, frames {}, total input frames {}.",
+                stm,
+                buffers.len(),
+                buffers[0].mDataByteSize,
+                buffers[0].mNumberChannels,
+                output_frames,
+                if has_input(stm) { stm.input_linear_buffer.as_ref().unwrap().elements() / stm.input_desc.mChannelsPerFrame as usize } else { 0 });
+
+    NO_ERR
+}
+
 fn audiounit_set_device_info(stm: &mut AudioUnitStream, id: AudioDeviceID, devtype: DeviceType) -> Result<()>
 {
     assert!(devtype == DeviceType::INPUT || devtype == DeviceType::OUTPUT);
@@ -1868,7 +1897,22 @@ fn audiounit_configure_output(stm: &mut AudioUnitStream) -> Result<()>
     }
 
     // TODO: Set output callback ...
+    aurcbs_out.inputProc = Some(audiounit_output_callback);
+    aurcbs_out.inputProcRefCon = stm as *mut AudioUnitStream as *mut c_void;
+    r = audio_unit_set_property(&stm.output_unit,
+                                kAudioUnitProperty_SetRenderCallback,
+                                kAudioUnitScope_Global,
+                                AU_OUT_BUS,
+                                &aurcbs_out,
+                                mem::size_of_val(&aurcbs_out));
+    if r != NO_ERR {
+        cubeb_log!("AudioUnitSetProperty/output/kAudioUnitProperty_SetRenderCallback rv={}", r);
+        return Err(Error::error());
+    }
 
+    // TODO: Set frames_written to 0 ...
+
+    cubeb_log!("({:p}) Output audiounit init successfully.", stm);
     Ok(())
 }
 
