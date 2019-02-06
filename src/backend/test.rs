@@ -537,9 +537,14 @@ fn test_stream_set_volume() {
     ctx.init();
 
     let name = CString::new("test set valume").expect("CString::new failed");
-    let mut ffi_params: ffi::cubeb_stream_params = unsafe { ::std::mem::zeroed() };
-    ffi_params.rate = 44100;
-    let params = StreamParams::from(ffi_params);
+    let mut raw = ffi::cubeb_stream_params::default();
+    raw.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
+    raw.rate = 44100;
+    raw.channels = 2;
+    raw.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
+    raw.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+
+    let params = StreamParams::from(raw);
     let stream = ctx.stream_init(
         Some(&name),
         ptr::null(),
@@ -653,10 +658,12 @@ fn test_manual_stream_register_device_changed_callback() {
     let mut raw = ffi::cubeb_stream_params::default();
     raw.format = ffi::CUBEB_SAMPLE_FLOAT32BE;
     raw.rate = 96_000;
-    raw.channels = 32;
+    raw.channels = 4;
     raw.layout = ffi::CUBEB_LAYOUT_3F1_LFE;
     raw.prefs = ffi::CUBEB_STREAM_PREF_NONE;
     stream.output_stream_params = StreamParams::from(raw);
+    // TODO: Return an error if input has specific layout ?
+    //       Should input layout always be defined as `undefined` ?
     stream.input_stream_params = StreamParams::from(raw);
 
     // It's crucial to call to audiounit_set_device_info to set
@@ -732,15 +739,31 @@ fn test_manual_ctx_stream_register_device_changed_callback() {
 
     const USER_PTR: *mut c_void = 0xDEAD_BEEF as *mut c_void;
     let name = CString::new("test register device changed callback").expect("CString::new failed");
-    let mut ffi_params: ffi::cubeb_stream_params = unsafe { ::std::mem::zeroed() };
-    ffi_params.rate = 44100;
-    let params = StreamParams::from(ffi_params);
+
+    let mut raw_in = ffi::cubeb_stream_params::default();
+    raw_in.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
+    raw_in.rate = 48_000;
+    raw_in.channels = 1;
+    raw_in.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
+    raw_in.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+    let params_in = StreamParams::from(raw_in);
+
+    let mut raw_out = ffi::cubeb_stream_params::default();
+    raw_out.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
+    raw_out.rate = 44100;
+    raw_out.channels = 2;
+    raw_out.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
+    raw_out.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+    let params_out = StreamParams::from(raw_out);
+
+    // TODO: What if `raw_in.format` and `raw_out.format` are different ?
+
     let stream = ctx.stream_init(
         Some(&name),
         ptr::null(),
-        Some(&&params),
+        Some(&&params_in),
         ptr::null(),
-        Some(&&params),
+        Some(&&params_out),
         4096,
         None,
         None,
@@ -3396,7 +3419,7 @@ fn test_set_buffer_size_for_input()
     raw.channels = 1;
     raw.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
     raw.prefs = ffi::CUBEB_STREAM_PREF_NONE;
-    stream.output_stream_params = StreamParams::from(raw);
+    stream.input_stream_params = StreamParams::from(raw);
 
     // It's crucial to call to audiounit_set_device_info to set
     // stream.input_device, or we will hit the

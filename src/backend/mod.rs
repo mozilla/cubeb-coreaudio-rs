@@ -722,6 +722,12 @@ fn audiounit_get_default_device_id(devtype: DeviceType) -> AudioObjectID
 fn audio_stream_desc_init(ss: &mut AudioStreamBasicDescription,
                           stream_params: &StreamParams) -> Result<()>
 {
+    // TODO:
+    //   1. Apply more strict checkings. e.g., min rate should be 44100.
+    //   2. C version doesn't check anything. Update it!
+    assert!(stream_params.rate() > 0);
+    assert!(stream_params.channels() > 0);
+
     match stream_params.format() {
         SampleFormat::S16LE => {
             ss.mBitsPerChannel = 16;
@@ -1825,6 +1831,16 @@ fn audiounit_configure_output(stm: &mut AudioUnitStream) -> Result<()>
     cubeb_log!("{:p} Output device sampling rate: {}", stm, output_hw_desc.mSampleRate);
 
     // TODO: Set channels, layout, ...
+    r = audio_unit_set_property(&stm.output_unit,
+                                kAudioUnitProperty_StreamFormat,
+                                kAudioUnitScope_Input,
+                                AU_OUT_BUS,
+                                &stm.output_desc,
+                                mem::size_of::<AudioStreamBasicDescription>());
+    if r != NO_ERR {
+        cubeb_log!("AudioUnitSetProperty/output/kAudioUnitProperty_StreamFormat rv={}", r);
+        return Err(Error::error());
+    }
 
     // Use latency to set buffer size
     // TODO: Make sure stm.latency_frames is larger than 0 ?
@@ -2935,6 +2951,18 @@ impl ContextOps for AudioUnitContext {
         state_callback: ffi::cubeb_state_callback,
         user_ptr: *mut c_void,
     ) -> Result<Stream> {
+        // TODO: Check stm.input_stream_params and stm.output_stream_params
+        //       are valid and matched ? The code can easily fail if
+        //       {input, output}_stream_params is
+        //       ffi::cubeb_stream_params::default().
+        //       (I added some easy checks in `audio_stream_desc_init` to prevent
+        //        the wrong values are set.)
+        //   1. What if the `stm.output_stream_params.format()` is different
+        //      from `stm.input_stream_params.format()` ?
+        //   2. What if the channels is different from the channels for the
+        //      layout ?
+        //   3. Should stm.output_stream_params.layout() always be undefined ?
+
         // Since we cannot call `AutoLock::new(&mut self.mutex)` and
         // `AudioUnitStream::new(self, ...)` at the same time.
         // (`self` cannot be borrowed immutably after it's borrowed as mutable.),

@@ -160,6 +160,8 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
   - We should not set `kAudioDevicePropertyBufferFrameSize` in parallel when another stream using the same device with smaller buffer size is active. See [here][chg-buf-sz] for reference.
   - *Buffer frame size* within same device may be overwritten (no matter the *AudioUnit*s are different or not) ?
 - Implement `auto_array_wrapper` and `auto_array` (by *trait* and *generic* I think)
+- Check the input `StreamParams` parameters properly, or we will set a invalid format into `AudioUnit`.
+  - In fact, we should check **all** the parameters properly so we can make sure we don't mess up the streams/devices settings!
 
 ## Issues
 - Mutex: Find a replacement for [`owned_critical_section`][ocs]
