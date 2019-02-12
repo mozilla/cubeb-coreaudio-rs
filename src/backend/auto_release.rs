@@ -1,15 +1,14 @@
-use std::fmt::Debug;
+use std::fmt;
 use std::mem;
 use std::os::raw::c_void;
 use std::ptr;
 
-#[derive(Debug)]
-pub struct AutoRelease<T: Debug> {
+pub struct AutoRelease<T> {
     ptr: *mut T,
     release_func: unsafe extern fn(*mut T)
 }
 
-impl<T: Debug> AutoRelease<T> {
+impl<T> AutoRelease<T> {
     pub fn new(ptr: *mut T, release_func: unsafe extern fn(*mut T)) -> Self {
         Self {
             ptr,
@@ -33,9 +32,20 @@ impl<T: Debug> AutoRelease<T> {
     }
 }
 
-impl<T: Debug> Drop for AutoRelease<T> {
+impl<T> Drop for AutoRelease<T> {
     fn drop(&mut self) {
         self.release();
+    }
+}
+
+// Explicit Debug impl to work for the type T
+// that doesn't implement Debug trait.
+impl<T> fmt::Debug for AutoRelease<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("AutoRelease")
+            .field("ptr", &self.ptr)
+            .field("release_func", &self.release_func)
+            .finish()
     }
 }
 
