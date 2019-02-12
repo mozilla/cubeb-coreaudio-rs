@@ -49,8 +49,8 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 
 ### Interanl APIs
 
-- 🥚 : 15/75 (20%)
-- 🐣 : 6/75 (8%)
+- 🥚 : 14/75 (18.6%)
+- 🐣 : 7/75 (9.3%)
 - 🐥 : 54/75 (72%)
 
 | Interanl AudioUnit APIs                     | status |
@@ -70,7 +70,7 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 | audiounit_input_callback                    | 🐥      |
 | audiounit_mix_output_buffer                 | 🥚      |
 | minimum_resampling_input_frames             | 🥚      |
-| audiounit_output_callback                   | 🥚      |
+| audiounit_output_callback                   | 🐣      |
 | audiounit_set_device_info                   | 🐥      |
 | audiounit_reinit_stream                     | 🥚      |
 | audiounit_reinit_stream_async               | 🐣      |
