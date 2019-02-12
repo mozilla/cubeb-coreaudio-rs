@@ -3084,6 +3084,9 @@ impl ContextOps for AudioUnitContext {
         //   2. What if the channels is different from the channels for the
         //      layout ?
         //   3. Should stm.output_stream_params.layout() always be undefined ?
+        //   4. In C version. we always call `state_callback` without checking
+        //      if it's null or not. It's better to add an assert here to check
+        //      state_callback is some!
 
         // Since we cannot call `AutoLock::new(&mut self.mutex)` and
         // `AudioUnitStream::new(self, ...)` at the same time.
