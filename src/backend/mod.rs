@@ -3113,6 +3113,12 @@ impl ContextOps for AudioUnitContext {
     }
 }
 
+impl Drop for AudioUnitContext {
+    fn drop(&mut self) {
+        println!("Drop context @ {:p}", self);
+    }
+}
+
 #[derive(Debug)]
 struct AudioUnitStream<'ctx> {
     context: &'ctx mut AudioUnitContext,

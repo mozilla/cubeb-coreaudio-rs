@@ -577,12 +577,41 @@ fn test_stream_set_panning() {
     ctx.init();
 
     let name = CString::new("test set panning").expect("CString::new failed");
+
+    // TODO: `test_context_register_device_collection_changed_twice`
+    //       cannot be executed if the stream is initializeed with input
+    //       parameter and out parameter at the same time. If a stream
+    //       works for both input and output scope, we will create an
+    //       aggregate device and fire the
+    //       `audiounit_collection_changed_callback` indirectly (see the NOTE
+    //       in `audiounit_create_blank_aggregate_device`) and then cause a
+    //       EXC_BAD_ACCESS error for the same reason as the case 1 commented
+    //       in the comment above `test_create_blank_aggregate_device`.
+
+    // let mut raw_in = ffi::cubeb_stream_params::default();
+    // raw_in.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
+    // raw_in.rate = 48_000;
+    // raw_in.channels = 1;
+    // raw_in.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
+    // raw_in.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+    // let params_in = StreamParams::from(raw_in);
+
+    let mut raw_out = ffi::cubeb_stream_params::default();
+    raw_out.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
+    raw_out.rate = 44100;
+    raw_out.channels = 2;
+    raw_out.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
+    raw_out.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+    let params_out = StreamParams::from(raw_out);
+
+    // TODO: What if `raw_in.format` and `raw_out.format` are different ?
+
     let stream = ctx.stream_init(
         Some(&name),
         ptr::null(),
-        None,
+        None, // Some(&&params_in),
         ptr::null(),
-        None,
+        Some(&&params_out),
         4096,
         None,
         None,
@@ -1700,26 +1729,66 @@ fn test_get_sub_devices_for_blank_aggregate_devices() {
 // create_blank_aggregate_device
 // ------------------------------------
 // This is marked as `ignore` by default since it cannot run with those
-// tests calling `audiounit_add_device_listener` at the same time.
+// tests calling `audiounit_add_device_listener` directly or indirectly
+// (via `register_device_collection_changed`) at the same time.
 //
 // The `audiounit_collection_changed_callback` will be fired upon
-// `audiounit_create_blank_aggregate_device` is called. The cubeb contexts
-// within those tests will be locked in asynchronous functions to fire
-// the device-collection-changed callbacks (dispatched via `async_dispatch`).
-// Most of the time, those tests will be ended before finishing those
-// asynchronous functions. Therefore, the cubeb contexts within those tests
-// will be destroyed while they are supposed to be locked by those asynchronous
-// functions. That is, those tests try destroying their mutexes
-// (OwnedCriticalSections) while the mutexes are currently locked by those
-// asynchronous functions (after they are unlocked by those tests). Thus, we
-// will get panics in `OwnedCriticalSection::drop/destroy` since
-// `pthread_mutex_destroy` returns `EBUSY(16)` rather than 0.
+// `audiounit_create_blank_aggregate_device` is called.
+// In `audiounit_collection_changed_callback`, it will register an asynchronous
+// function to notify the device-collection is changed. In current
+// implementation, those asynchronous functions might cause the following
+// errors:
 //
-// A simple way to verify this is to add two logs in the beginning and the end
-// of `async_dispatch` in `audiounit_collection_changed_callback` and some logs
-// in the beginning and the end of those tests calling
-// `audiounit_add_device_listener`. You will find those tests fail when they end
-// while those asynchronous functions are still running.
+// 1. If those tests calling `audiounit_add_device_listener` is finished
+//    before those asynchronous functions fired by
+//    `audiounit_collection_changed_callback` start executing,
+//    without unregistering the callback by `audiounit_remove_device_listener`,
+//    when those asynchronous functions are executed, their pointers to those
+//    contexts declared in the tests are already destroyed. So we will get a
+//    EXC_BAD_ACCESS error when we try dereferencing the destroyed pointers
+//    that should be pointed to the alive contexts. Thus, it's critical to make
+//    sure the device-collection callback is unregistered for the context about
+//    to be destroyed!
+//
+//    One example is to run `test_context_register_device_collection_changed_twice`
+//    at the same time with other tests that initialize a stream for both input
+//    and output(this will create an aggregate device and fire
+//    `audiounit_collection_changed_callback` indirectly, see the comment in
+//    `audiounit_create_blank_aggregate_device` and `test_stream_set_panning`).
+//
+//    A simple way to verify this is to add a log at the beginning
+//    `audiounit_collection_changed_callback` and a log in
+//    `AudioUnitContext::drop`. You will get this error when
+//    `audiounit_collection_changed_callback` is called after the
+//    AudioUnitContext is dropped.
+//
+// 2. If those tests calling `audiounit_add_device_listener` is finished
+//    between the time after those asynchronous functions are executed but
+//    before those asynchronous functions are finished, those tests will try
+//    destroying the contexts that are currently locked by those asynchronous
+//    functions. Thus, we will get panics in
+//    `OwnedCriticalSection::drop/destroy` since `pthread_mutex_destroy`
+//    returns `EBUSY(16)` rather than 0.
+//
+//    Theoretically, this could happen when the operations are executed in the
+//    following order:
+//    1. Create an AudioUnitContext `ctx`
+//    2. Register device-collection changed for `ctx`
+//    3. Initialize an AudioUnitStream `stm` within `ctx` for both input and
+//       output. It will create an aggregate device and fire the
+//       `audiounit_collection_changed_callback` indirectly.
+//       In the `audiounit_collection_changed_callback`, it will dispatch an
+//       asynchronous task that will lock the `ctx`
+//    4. The asynchronous task starts runnning and lock the `ctx`
+//    5. `ctx` is destroyed while the asynchronous task is running, before the
+//       asynchronous task is finished, we will get a fail for destroying a
+//       locked `ctx`
+//
+//    A simple way to verify this is to add two logs at the beginning and the
+//    end of `async_dispatch` in `audiounit_collection_changed_callback` and
+//    two logs at the beginning and the end of the tests calling
+//    `audiounit_add_device_listener`. You will find those tests fail when the
+//    tests are ended while those asynchronous functions are still running.
 #[test]
 #[ignore]
 fn test_create_blank_aggregate_device() {
