@@ -896,6 +896,26 @@ fn test_set_global_latency() {
     }
 }
 
+// make_silent
+// ------------------------------------
+#[test]
+fn test_make_silent() {
+    let mut array = allocate_array::<u32>(10);
+    for data in array.iter_mut() {
+        *data = 0xFFFF;
+    }
+
+    let mut buffer = AudioBuffer::default();
+    buffer.mData = array.as_mut_ptr() as *mut c_void;
+    buffer.mDataByteSize = (array.len() * mem::size_of::<u32>()) as u32;
+    buffer.mNumberChannels = 1;
+
+    audiounit_make_silent(&mut buffer);
+    for data in array {
+        assert_eq!(data, 0);
+    }
+}
+
 // render_input
 // ------------------------------------
 // TODO

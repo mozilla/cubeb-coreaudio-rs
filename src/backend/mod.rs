@@ -242,6 +242,13 @@ fn audiounit_set_global_latency(ctx: &mut AudioUnitContext, latency_frames: u32)
     ctx.global_latency_frames = latency_frames;
 }
 
+fn audiounit_make_silent(ioData: &mut AudioBuffer) {
+    assert!(!ioData.mData.is_null());
+    unsafe {
+        libc::memset(ioData.mData, 0, ioData.mDataByteSize as usize);
+    }
+}
+
 fn audiounit_render_input(stm: &mut AudioUnitStream,
                           flags: *mut AudioUnitRenderActionFlags,
                           tstamp: *const AudioTimeStamp,
