@@ -2116,7 +2116,8 @@ fn audiounit_close_stream(stm: &mut AudioUnitStream)
         stm.output_unit = ptr::null_mut();
     }
 
-    // TODO: Reset resampler and mixer ...
+    stm.resampler.reset(ptr::null_mut());
+    // TODO: Reset mixer ...
 
     if stm.aggregate_device_id != kAudioObjectUnknown {
         // TODO: Check if aggregate device is destroyed or not ?
