@@ -1996,6 +1996,43 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
         }
     }
 
+    /* We use a resampler because input AudioUnit operates
+     * reliable only in the capture device sample rate.
+     * Resampler will convert it to the user sample rate
+     * and deliver it to the callback. */
+    let target_sample_rate = if has_input(stm) {
+        stm.input_stream_params.rate()
+    } else {
+        assert!(has_output(stm));
+        stm.output_stream_params.rate()
+    };
+
+    let mut input_unconverted_params: ffi::cubeb_stream_params = unsafe { ::std::mem::zeroed() };
+    if has_input(stm) {
+        input_unconverted_params = unsafe { (*(stm.input_stream_params.as_ptr())).clone() };
+        input_unconverted_params.rate = stm.input_hw_rate as u32;
+    }
+
+    let stm_ptr = stm as *mut AudioUnitStream as *mut ffi::cubeb_stream;
+    let stm_has_input = has_input(stm);
+    let stm_has_output = has_output(stm);
+    stm.resampler.reset(unsafe {
+        ffi::cubeb_resampler_create(
+            stm_ptr,
+            if stm_has_input { &mut input_unconverted_params } else { ptr::null_mut() },
+            if stm_has_output { stm.output_stream_params.as_ptr() } else { ptr::null_mut() },
+            target_sample_rate,
+            stm.data_callback,
+            stm.user_ptr,
+            ffi::CUBEB_RESAMPLER_QUALITY_DESKTOP
+        )
+    });
+
+    if stm.resampler.as_mut_ptr().is_null() {
+        cubeb_log!("({:p}) Could not create resampler.", stm);
+        return Err(Error::error());
+    }
+
     if !stm.input_unit.is_null() {
         let r = audio_unit_initialize(stm.input_unit);
         if r != NO_ERR {
@@ -3162,6 +3199,7 @@ struct AudioUnitStream<'ctx> {
     latency_frames: u32,
     current_latency_frames: AtomicU32,
     panning: atomic::Atomic<f32>,
+    resampler: AutoRelease<ffi::cubeb_resampler>,
     /* This is true if a device change callback is currently running.  */
     switching_device: AtomicBool,
     buffer_size_change_state: AtomicBool,
@@ -3228,6 +3266,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             latency_frames,
             current_latency_frames: AtomicU32::new(0),
             panning: atomic::Atomic::new(0.0_f32),
+            resampler: AutoRelease::new(ptr::null_mut(), ffi::cubeb_resampler_destroy),
             switching_device: AtomicBool::new(false),
             buffer_size_change_state: AtomicBool::new(false),
             // TODO: C version uses 0 instead.

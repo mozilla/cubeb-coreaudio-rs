@@ -35,8 +35,10 @@ fn test_stream_get_panic_before_releasing_mutex() {
     );
     stream.init();
 
+    // The resampler will be initialized in `audiounit_setup_stream` (or via
+    // `stream_init`), and it only accepts the formats with FLOAT32NE or S16NE.
     let mut raw = ffi::cubeb_stream_params::default();
-    raw.format = ffi::CUBEB_SAMPLE_FLOAT32BE;
+    raw.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
     raw.rate = 96_000;
     raw.channels = 32;
     raw.layout = ffi::CUBEB_LAYOUT_3F1_LFE;
@@ -72,7 +74,7 @@ fn test_stream_get_panic_before_releasing_mutex() {
     {
         let stm_mutex_ptr = &mut stream.mutex as *mut OwnedCriticalSection;
         let _stm_lock = AutoLock::new(unsafe { &mut (*stm_mutex_ptr) });
-        audiounit_setup_stream(&mut stream);
+        assert!(audiounit_setup_stream(&mut stream).is_ok());
     }
 
     // If the following `drop` is commented, the AudioUnitStream::drop()
@@ -537,6 +539,9 @@ fn test_stream_set_volume() {
     ctx.init();
 
     let name = CString::new("test set valume").expect("CString::new failed");
+
+    // The resampler will be initialized in `audiounit_setup_stream` (or via
+    // `stream_init`), and it only accepts the formats with FLOAT32NE or S16NE.
     let mut raw = ffi::cubeb_stream_params::default();
     raw.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
     raw.rate = 44100;
@@ -596,6 +601,8 @@ fn test_stream_set_panning() {
     // raw_in.prefs = ffi::CUBEB_STREAM_PREF_NONE;
     // let params_in = StreamParams::from(raw_in);
 
+    // The resampler will be initialized in `audiounit_setup_stream` (or via
+    // `stream_init`), and it only accepts the formats with FLOAT32NE or S16NE.
     let mut raw_out = ffi::cubeb_stream_params::default();
     raw_out.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
     raw_out.rate = 44100;
@@ -684,8 +691,10 @@ fn test_manual_stream_register_device_changed_callback() {
     );
     stream.init();
 
+    // The resampler will be initialized in `audiounit_setup_stream` (or via
+    // `stream_init`), and it only accepts the formats with FLOAT32NE or S16NE.
     let mut raw = ffi::cubeb_stream_params::default();
-    raw.format = ffi::CUBEB_SAMPLE_FLOAT32BE;
+    raw.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
     raw.rate = 96_000;
     raw.channels = 4;
     raw.layout = ffi::CUBEB_LAYOUT_3F1_LFE;
@@ -744,7 +753,7 @@ fn test_manual_stream_register_device_changed_callback() {
         let _ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
         let stm_mutex_ptr = &mut stream.mutex as *mut OwnedCriticalSection;
         let _stm_lock = AutoLock::new(unsafe { &mut (*stm_mutex_ptr) });
-        audiounit_setup_stream(&mut stream);
+        assert!(audiounit_setup_stream(&mut stream).is_ok());
     }
 
     extern "C" fn on_device_changed(user: *mut c_void) {
@@ -752,7 +761,7 @@ fn test_manual_stream_register_device_changed_callback() {
         println!("on_device_changed: user_ptr = {:p}", user);
     }
 
-    stream.register_device_changed_callback(Some(on_device_changed));
+    assert!(stream.register_device_changed_callback(Some(on_device_changed)).is_ok());
 
     loop {}
 }
@@ -769,6 +778,8 @@ fn test_manual_ctx_stream_register_device_changed_callback() {
     const USER_PTR: *mut c_void = 0xDEAD_BEEF as *mut c_void;
     let name = CString::new("test register device changed callback").expect("CString::new failed");
 
+    // The resampler will be initialized in `audiounit_setup_stream` (or via
+    // `stream_init`), and it only accepts the formats with FLOAT32NE or S16NE.
     let mut raw_in = ffi::cubeb_stream_params::default();
     raw_in.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
     raw_in.rate = 48_000;
@@ -4487,8 +4498,10 @@ fn test_stream_get_volume() {
     );
     stream.init();
 
+    // The resampler will be initialized in `audiounit_setup_stream` (or via
+    // `stream_init`), and it only accepts the formats with FLOAT32NE or S16NE.
     let mut raw = ffi::cubeb_stream_params::default();
-    raw.format = ffi::CUBEB_SAMPLE_FLOAT32BE;
+    raw.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
     raw.rate = 96_000;
     raw.channels = 32;
     raw.layout = ffi::CUBEB_LAYOUT_3F1_LFE;
@@ -4526,14 +4539,14 @@ fn test_stream_get_volume() {
         let _ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
         let stm_mutex_ptr = &mut stream.mutex as *mut OwnedCriticalSection;
         let _stm_lock = AutoLock::new(unsafe { &mut (*stm_mutex_ptr) });
-        audiounit_setup_stream(&mut stream);
+        assert!(audiounit_setup_stream(&mut stream).is_ok());
     }
 
     let expected_volume: f32 = 0.5;
     stream.set_volume(expected_volume);
 
     let mut actual_volume: f32 = 0.0;
-    audiounit_stream_get_volume(&stream, &mut actual_volume);
+    assert!(audiounit_stream_get_volume(&stream, &mut actual_volume).is_ok());
 
     assert_eq!(expected_volume, actual_volume);
 }
