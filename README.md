@@ -50,8 +50,8 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 ### Interanl APIs
 
 - 🥚 : 15/75 (20%)
-- 🐣 : 7/75 (9.3%)
-- 🐥 : 53/75 (70.6%)
+- 🐣 : 6/75 (8%)
+- 🐥 : 54/75 (72%)
 
 | Interanl AudioUnit APIs                     | status |
 | ------------------------------------------- | ------ |
@@ -67,7 +67,7 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 | audiounit_set_global_latency                | 🐥      |
 | audiounit_make_silent                       | 🥚      |
 | audiounit_render_input                      | 🐥      |
-| audiounit_input_callback                    | 🐣      |
+| audiounit_input_callback                    | 🐥      |
 | audiounit_mix_output_buffer                 | 🥚      |
 | minimum_resampling_input_frames             | 🥚      |
 | audiounit_output_callback                   | 🥚      |

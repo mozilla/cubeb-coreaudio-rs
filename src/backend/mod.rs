@@ -327,7 +327,31 @@ extern fn audiounit_input_callback(user_ptr: *mut c_void,
     /* Input only. Call the user callback through resampler.
        Resampler will deliver input buffer in the correct rate. */
     assert!(input_frames as usize <= stm.input_linear_buffer.as_ref().unwrap().elements() / stm.input_desc.mChannelsPerFrame as usize);
-    // TODO: Connect to cubeb-resampler ...
+    let mut total_input_frames = (stm.input_linear_buffer.as_ref().unwrap().elements() / stm.input_desc.mChannelsPerFrame as usize) as i64;
+    assert!(!stm.resampler.as_mut_ptr().is_null());
+    assert!(!stm.input_linear_buffer.as_ref().unwrap().as_ptr().is_null());
+    let outframes = unsafe {
+        ffi::cubeb_resampler_fill(stm.resampler.as_mut_ptr(),
+                                  stm.input_linear_buffer.as_mut().unwrap().as_mut_ptr(),
+                                  &mut total_input_frames,
+                                  ptr::null_mut(),
+                                  0)
+    };
+    if outframes < total_input_frames {
+        assert_eq!(audio_output_unit_stop(stm.input_unit), NO_ERR);
+
+        // TODO: C version doesn't check if state_callback is a null pointer.
+        if stm.state_callback.is_some() {
+            unsafe {
+                (stm.state_callback.unwrap())(
+                    stm as *mut AudioUnitStream as *mut ffi::cubeb_stream,
+                    stm.user_ptr,
+                    ffi::CUBEB_STATE_DRAINED);
+            }
+        }
+
+        return NO_ERR;
+    }
 
     // Reset input buffer
     stm.input_linear_buffer.as_mut().unwrap().clear();

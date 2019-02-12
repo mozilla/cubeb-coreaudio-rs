@@ -12,6 +12,7 @@ pub trait AutoArrayWrapper: Debug {
     fn clear(&mut self);
     fn elements(&self) -> usize;
     fn as_ptr(&self) -> *const c_void;
+    fn as_mut_ptr(&mut self) -> *mut c_void;
 }
 
 #[derive(Debug)]
@@ -59,6 +60,13 @@ impl<T: Clone + Debug + Zero> AutoArrayWrapper for AutoArrayImpl<T> {
             return ptr::null();
         }
         self.ar.as_ptr() as *const c_void
+    }
+
+    fn as_mut_ptr(&mut self) -> *mut c_void {
+        if self.ar.is_empty() {
+            return ptr::null_mut();
+        }
+        self.ar.as_mut_ptr() as *mut c_void
     }
 }
 
