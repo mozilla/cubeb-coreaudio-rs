@@ -192,6 +192,7 @@ pub fn audio_unit_get_property<T>(
     data: *mut T,
     size: *mut usize,
 ) -> sys::OSStatus {
+    assert!(!unit.is_null());
     unsafe {
         sys::AudioUnitGetProperty(
             unit,
@@ -212,6 +213,7 @@ pub fn audio_unit_set_property<T>(
     data: *const T,
     size: usize,
 ) -> sys::OSStatus {
+    assert!(!unit.is_null());
     unsafe {
         sys::AudioUnitSetProperty(
             unit,
@@ -231,6 +233,7 @@ pub fn audio_unit_get_parameter(
     element: sys::AudioUnitElement,
     value: &mut sys::AudioUnitParameterValue,
 ) -> sys::OSStatus {
+    assert!(!unit.is_null());
     unsafe {
         sys::AudioUnitGetParameter(
             unit,
@@ -257,6 +260,7 @@ pub fn audio_unit_add_property_listener(
     listener: audio_unit_property_listener_proc,
     data: *mut c_void,
 ) -> sys::OSStatus {
+    assert!(!unit.is_null());
     unsafe {
         sys::AudioUnitAddPropertyListener(
             unit,
@@ -273,6 +277,7 @@ pub fn audio_unit_remove_property_listener_with_user_data(
     listener: audio_unit_property_listener_proc,
     data: *mut c_void,
 ) -> sys::OSStatus {
+    assert!(!unit.is_null());
     unsafe {
         sys::AudioUnitRemovePropertyListenerWithUserData(
             unit,
@@ -291,6 +296,7 @@ pub fn audio_unit_set_parameter(
     value: sys::AudioUnitParameterValue,
     buffer_offset_in_frames: sys::UInt32,
 ) -> sys::OSStatus {
+    assert!(!unit.is_null());
     unsafe {
         sys::AudioUnitSetParameter(
             unit,
@@ -311,6 +317,7 @@ pub fn audio_unit_render(
     inNumberFrames: u32,
     ioData: *mut sys::AudioBufferList
 ) -> sys::OSStatus {
+    assert!(!inUnit.is_null());
     unsafe {
         sys::AudioUnitRender(
             inUnit,
@@ -326,6 +333,7 @@ pub fn audio_unit_render(
 pub fn audio_unit_initialize(
     unit: sys::AudioUnit,
 ) -> sys::OSStatus {
+    assert!(!unit.is_null());
     unsafe {
         sys::AudioUnitInitialize(unit)
     }
@@ -338,6 +346,7 @@ pub fn audio_unit_initialize(
 pub fn audio_unit_uninitialize(
     unit: sys::AudioUnit,
 ) -> sys::OSStatus {
+    assert!(!unit.is_null());
     unsafe {
         sys::AudioUnitUninitialize(unit)
     }
@@ -354,6 +363,7 @@ pub fn dispose_audio_unit(
 pub fn audio_output_unit_start(
     unit: sys::AudioUnit,
 ) -> sys::OSStatus {
+    assert!(!unit.is_null());
     unsafe {
        sys::AudioOutputUnitStart(unit)
     }
@@ -362,6 +372,7 @@ pub fn audio_output_unit_start(
 pub fn audio_output_unit_stop(
     unit: sys::AudioUnit,
 ) -> sys::OSStatus {
+    assert!(!unit.is_null());
     unsafe {
        sys::AudioOutputUnitStop(unit)
     }
@@ -578,6 +589,7 @@ fn test_manual_audio_object_add_property_listener() {
 }
 
 #[test]
+#[should_panic]
 fn test_audio_unit_add_property_listener_for_null_unit() {
     extern fn listener(
         _: *mut c_void,
@@ -603,6 +615,7 @@ fn test_audio_unit_add_property_listener_for_null_unit() {
 
 
 #[test]
+#[should_panic]
 fn test_audio_unit_remove_property_listener_with_user_data_for_null_unit() {
     extern fn listener(
         _: *mut c_void,

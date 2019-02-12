@@ -3444,6 +3444,7 @@ fn test_clamp_latency_with_more_than_one_active_streams() {
 // set_buffer_size
 // ------------------------------------
 #[test]
+#[should_panic]
 fn test_set_buffer_size_for_input_with_null_input_unit()
 {
     // We need to initialize the members with type OwnedCriticalSection in
@@ -3581,6 +3582,7 @@ fn test_set_buffer_size_for_input()
 }
 
 #[test]
+#[should_panic]
 fn test_set_buffer_size_for_output_with_null_output_unit()
 {
     // We need to initialize the members with type OwnedCriticalSection in
@@ -3609,7 +3611,7 @@ fn test_set_buffer_size_for_output_with_null_output_unit()
     );
     stream.init();
 
-    assert!(stream.input_unit.is_null());
+    assert!(stream.output_unit.is_null());
 
     assert_eq!(
         audiounit_set_buffer_size(
