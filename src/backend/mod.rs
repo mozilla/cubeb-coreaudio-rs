@@ -921,15 +921,17 @@ fn audiounit_create_blank_aggregate_device(plugin_id: &mut AudioObjectID, aggreg
         // TODO: Check if time_id is larger than 0 ?
         // assert!(time_id > 0);
 
+        let prefix = CString::new(PRIVATE_AGGREGATE_DEVICE_NAME).expect("Fail on creating a cstring as a prefix for an aggregate device");
+
         // let device_name_string = format!("{}_{}", PRIVATE_AGGREGATE_DEVICE_NAME, time_id);
         // let aggregate_device_name = cfstringref_from_string(&device_name_string);
-        let aggregate_device_name = CFStringCreateWithFormat(ptr::null(), ptr::null(), cfstringref_from_static_string("%s_%llx"), CString::new(PRIVATE_AGGREGATE_DEVICE_NAME).expect("Fail on creating an aggregate device name").as_ptr(), time_id);
+        let aggregate_device_name = CFStringCreateWithFormat(ptr::null(), ptr::null(), cfstringref_from_static_string("%s_%llx"), prefix.as_ptr(), time_id);
         CFDictionaryAddValue(aggregate_device_dict, cfstringref_from_static_string(AGGREGATE_DEVICE_NAME_KEY) as *const c_void, aggregate_device_name as *const c_void);
         CFRelease(aggregate_device_name as *const c_void);
 
         // let device_uid_string = format!("org.mozilla.{}_{}", PRIVATE_AGGREGATE_DEVICE_NAME, time_id);
         // let aggregate_device_UID = cfstringref_from_string(&device_uid_string);
-        let aggregate_device_UID = CFStringCreateWithFormat(ptr::null(), ptr::null(), cfstringref_from_static_string("org.mozilla.%s_%llx"), CString::new(PRIVATE_AGGREGATE_DEVICE_NAME).expect("Fail on creating an aggregate device uid").as_ptr(), time_id);
+        let aggregate_device_UID = CFStringCreateWithFormat(ptr::null(), ptr::null(), cfstringref_from_static_string("org.mozilla.%s_%llx"), prefix.as_ptr(), time_id);
         CFDictionaryAddValue(aggregate_device_dict, cfstringref_from_static_string(AGGREGATE_DEVICE_UID) as *const c_void, aggregate_device_UID as *const c_void);
         CFRelease(aggregate_device_UID as *const c_void);
 
@@ -2571,11 +2573,13 @@ fn audiounit_create_device_from_hwdev(dev_info: &mut ffi::cubeb_device_info, dev
 //       Is it possible to have a public aggregate device ?
 fn is_aggregate_device(device_info: &ffi::cubeb_device_info) -> bool
 {
+    // https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=dda40d0b40a8d922649521544f260a91
     assert!(!device_info.friendly_name.is_null());
-    let private_name_ptr = CString::new(PRIVATE_AGGREGATE_DEVICE_NAME).expect("Fail on creating a private name").as_ptr();
+    let private_name = CString::new(PRIVATE_AGGREGATE_DEVICE_NAME)
+        .expect("Fail on creating a private name");
     unsafe {
-        libc::strncmp(device_info.friendly_name, private_name_ptr,
-                      libc::strlen(private_name_ptr)) == 0
+        libc::strncmp(device_info.friendly_name, private_name.as_ptr(),
+                      libc::strlen(private_name.as_ptr())) == 0
     }
 }
 
@@ -2989,6 +2993,9 @@ impl ContextOps for AudioUnitContext {
                 count += 1;
             }
         }
+
+        // Remove the redundant space, set len to count.
+        devices.truncate(count);
 
         let coll = unsafe { &mut *collection.as_ptr() };
         if count > 0 {

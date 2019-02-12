@@ -5276,7 +5276,20 @@ fn test_create_device_from_hwdev_output() {
 
 // is_aggregate_device
 // ------------------------------------
-// TODO
+#[test]
+fn test_is_aggregate_device() {
+    let mut aggregate_name = String::from(PRIVATE_AGGREGATE_DEVICE_NAME);
+    aggregate_name.push_str("_something");
+    let aggregate_name_cstring = CString::new(aggregate_name).unwrap();
+
+    let mut info = ffi::cubeb_device_info::default();
+    info.friendly_name = aggregate_name_cstring.as_ptr();
+    assert!(is_aggregate_device(&info));
+
+    let non_aggregate_name_cstring = CString::new("Hello World!").unwrap();
+    info.friendly_name = non_aggregate_name_cstring.as_ptr();
+    assert!(!is_aggregate_device(&info));
+}
 
 // device_destroy
 // ------------------------------------

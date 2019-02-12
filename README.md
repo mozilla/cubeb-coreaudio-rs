@@ -161,6 +161,7 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
   - *Buffer frame size* within same device may be overwritten (no matter the *AudioUnit*s are different or not) ?
 - Check the input `StreamParams` parameters properly, or we will set a invalid format into `AudioUnit`.
   - In fact, we should check **all** the parameters properly so we can make sure we don't mess up the streams/devices settings!
+- Find a reliable way to verify `enumerate_devices`
 
 ## Issues
 - Mutex: Find a replacement for [`owned_critical_section`][ocs]
