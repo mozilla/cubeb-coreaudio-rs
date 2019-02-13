@@ -8,6 +8,7 @@ extern crate libc;
 
 mod auto_array;
 mod auto_release;
+mod cubeb_utils;
 mod dispatch_utils;
 mod utils;
 mod owned_critical_section;
@@ -33,6 +34,7 @@ use cubeb_backend::{ffi, Context, ContextOps, DeviceCollectionRef, DeviceId,
                     StreamPrefs};
 use self::auto_array::*;
 use self::auto_release::*;
+use self::cubeb_utils::*;
 use self::dispatch_utils::*;
 use self::coreaudio_sys::*;
 use self::utils::*;
