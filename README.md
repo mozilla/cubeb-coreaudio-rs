@@ -1,11 +1,15 @@
 # cubeb-coreaudio-rs
 
-Implementation of MacOS Audio backend in CoreAudio framework for [Cubeb][cubeb] written in Rust.
-Currently it can only be built by *rust-nightly* since we use *nightly-only* atomic types(`AtomicU32` and `AtomicU64`).
+*Rust* implementation of [Cubeb][cubeb] on the MacOS platform.
 
 ## Current Goals
-- Translate [C code][cubeb-au] line by line into Rust (so the coding style is almost same as *C*)
-- Create tests for later refactoring
+- Rewrite the [C code][cubeb-au] into *Rust* on a line-by-line basis
+  - The coding style is in *C* style rather than *Rust* so it's easier to review
+    (and it's easy to re-format the style later by running `rustfmt`)
+- Create some tests for later refactoring
+
+## Limitations
+Currently it can only be built by *rust-nightly* since we use *nightly-only* atomic types(`AtomicU32` and `AtomicU64`).
 
 ## Branches
 - *trailblazer*: Draft *Rust* code without being reviewed. Commits are scribbled.
@@ -14,6 +18,12 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
          This branch is used to create pull-requests to *release* branch.
 
 ## Status
+
+By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb], it's ok to
+1. play sounds by running *test_audio*, *test_tone*
+2. capture streams by running *test_record*
+3. show devices by running *test_devices*
+
 - 🥚 : Not implemented.
 - 🐣 : Work in progress. May be implemented partially or blocked by dependent APIs.
 - 🐥 : Implemented.
@@ -133,16 +143,16 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 
 
 ## TODO
-- [cubeb-rs][cubeb-rs]
-  - Implement `to_owned` in [`StreamParamsRef`][cubeb-rs-stmparamsref]
+- Integrate with cubeb-mixer APIs
 - Integration Tests
   - Add a test-only API to change the default audio devices
   - Use above API to test the device-changed callback
-- Create *Rust* bindings/modules for *cubeb-mixer* and *cubeb-resampler*
+  - Rewrite some tests under _cubeb/test/*_ in _Rust_ as part of the integration tests
+  - Add tests for capturing/recording, output, duplex streams
 - Move issues below to github issues.
 - Test aggregate devices
-  - Test with AirPods
-- Test for stream operations
+  - Test with AirPods, bluethooth devices, or other devices that with special workarounds.
+- Unit test for stream operations
 - Clean up the tests. Merge the duplicated pieces in to a function.
 - Find a way to catch memory leaks
   - Try Instrument on OSX
@@ -162,6 +172,8 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 - Check the input `StreamParams` parameters properly, or we will set a invalid format into `AudioUnit`.
   - In fact, we should check **all** the parameters properly so we can make sure we don't mess up the streams/devices settings!
 - Find a reliable way to verify `enumerate_devices`
+- [cubeb-rs][cubeb-rs]
+  - Implement `to_owned` in [`StreamParamsRef`][cubeb-rs-stmparamsref]
 
 ## Issues
 - Mutex: Find a replacement for [`owned_critical_section`][ocs]
@@ -202,6 +214,8 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 
 [cubeb]: https://github.com/kinetiknz/cubeb "Cross platform audio library"
 [cubeb-au]: https://github.com/kinetiknz/cubeb/blob/master/src/cubeb_audiounit.cpp "Cubeb AudioUnit"
+
+[integrate-with-cubeb]: https://github.com/ChunMinChang/cubeb-coreaudio-rs/commit/e84c554f18ef054376134c79a112a84cb8f923b4 "patch for integrating within cubeb"
 
 [ocs]: https://github.com/kinetiknz/cubeb/blob/master/src/cubeb_utils_unix.h "owned_critical_section"
 [ocs-rust]: src/backend/owned_critical_section.rs "OwnedCriticalSection"
