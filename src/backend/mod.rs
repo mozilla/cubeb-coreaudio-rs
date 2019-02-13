@@ -396,6 +396,113 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
                 output_frames,
                 if has_input(stm) { stm.input_linear_buffer.as_ref().unwrap().elements() / stm.input_desc.mChannelsPerFrame as usize } else { 0 });
 
+    let mut input_frames: i64 = 0;
+    let mut output_buffer = ptr::null_mut::<c_void>();
+    let mut input_buffer = ptr::null_mut::<c_void>();
+
+    if *stm.shutdown.get_mut() {
+        cubeb_log!("({:p}) output shutdown.", stm);
+        audiounit_make_silent(&mut buffers[0]);
+        return NO_ERR;
+    }
+
+    if *stm.draining.get_mut() {
+        // TODO: Consider moving `stop output unit and input unit` into a function.
+        //       There are duplicated code below.
+        assert_eq!(audio_output_unit_stop(stm.output_unit), NO_ERR);
+        if !stm.input_unit.is_null() {
+            assert_eq!(audio_output_unit_stop(stm.input_unit), NO_ERR);
+        }
+        // TODO: C version doesn't check if state_callback is a null pointer.
+        if stm.state_callback.is_some() {
+            unsafe {
+                (stm.state_callback.unwrap())(
+                    stm as *mut AudioUnitStream as *mut ffi::cubeb_stream,
+                    stm.user_ptr,
+                    ffi::CUBEB_STATE_DRAINED);
+            }
+        }
+        audiounit_make_silent(&mut buffers[0]);
+        return NO_ERR;
+    }
+
+    /* Get output buffer. */
+    // TODO: Assign output_buffer to temp_buffer when mixing audio ...
+    output_buffer = buffers[0].mData;
+    *stm.frames_written.get_mut() += output_frames as i64;
+
+    /* If Full duplex get also input buffer */
+    // TODO: fill in additional silence to input_linear_buffer and set it to
+    //       the input_buffer...
+
+    /* Call user callback through resampler. */
+    assert!(!output_buffer.is_null());
+    let outframes = unsafe {
+        ffi::cubeb_resampler_fill(stm.resampler.as_mut_ptr(),
+                                  input_buffer,
+                                  if input_buffer.is_null() { ptr::null_mut() } else { &mut input_frames },
+                                  output_buffer,
+                                  output_frames as i64)
+    };
+
+    // TODO: Pop from the buffer the frames used by the the resampler
+    //       if having input_buffer ...
+
+    if outframes < 0 || outframes > output_frames as i64 {
+        *stm.shutdown.get_mut() = true;
+        assert_eq!(audio_output_unit_stop(stm.output_unit), NO_ERR);
+        if !stm.input_unit.is_null() {
+            assert_eq!(audio_output_unit_stop(stm.input_unit), NO_ERR);
+        }
+        // TODO: C version doesn't check if state_callback is a null pointer.
+        if stm.state_callback.is_some() {
+            unsafe {
+                (stm.state_callback.unwrap())(
+                    stm as *mut AudioUnitStream as *mut ffi::cubeb_stream,
+                    stm.user_ptr,
+                    ffi::CUBEB_STATE_ERROR);
+            }
+        }
+        audiounit_make_silent(&mut buffers[0]);
+        return NO_ERR;
+    }
+
+    *stm.draining.get_mut() = outframes < output_frames as i64;
+    *stm.frames_played.get_mut() = stm.frames_queued;
+    stm.frames_queued += outframes as u64;
+
+    let outaff = stm.output_desc.mFormatFlags;
+    let panning = if stm.output_desc.mChannelsPerFrame == 2 {
+        stm.panning.load(Ordering::Relaxed)
+    } else {
+        0.0
+    };
+
+    /* Post process output samples. */
+    if *stm.draining.get_mut() {
+        let outbpf = cubeb_sample_size(stm.output_stream_params.format());
+        /* Clear missing frames (silence) */
+        unsafe {
+            let dest = (output_buffer as *mut u8).add(outframes as usize * outbpf) as *mut c_void;
+            let len = (output_frames as i64 - outframes) as usize * outbpf;
+            libc::memset(dest, 0, len);
+        }
+    }
+
+    /* Mixing */
+    // TODO: Mixing audio based on layout and channels ...
+
+    /* Pan stereo. */
+    if panning != 0.0 {
+        unsafe {
+            if outaff & kAudioFormatFlagIsFloat != 0 {
+                ffi::cubeb_pan_stereo_buffer_float(output_buffer as *mut f32, outframes as u32, panning);
+            } else if outaff & kAudioFormatFlagIsSignedInteger != 0 {
+                ffi::cubeb_pan_stereo_buffer_int(output_buffer as *mut i16, outframes as u32, panning);
+            }
+        }
+    }
+
     NO_ERR
 }
 
@@ -1933,7 +2040,6 @@ fn audiounit_configure_output(stm: &mut AudioUnitStream) -> Result<()>
         return Err(Error::error());
     }
 
-    // TODO: Set output callback ...
     aurcbs_out.inputProc = Some(audiounit_output_callback);
     aurcbs_out.inputProcRefCon = stm as *mut AudioUnitStream as *mut c_void;
     r = audio_unit_set_property(stm.output_unit,
@@ -1947,7 +2053,7 @@ fn audiounit_configure_output(stm: &mut AudioUnitStream) -> Result<()>
         return Err(Error::error());
     }
 
-    // TODO: Set frames_written to 0 ...
+    *stm.frames_written.get_mut() = 0;
 
     cubeb_log!("({:p}) Output audiounit init successfully.", stm);
     Ok(())
@@ -3234,9 +3340,12 @@ struct AudioUnitStream<'ctx> {
     input_linear_buffer: Option<Box<AutoArrayWrapper>>,
     /* Frame counters */
     frames_played: AtomicU64,
+    frames_queued: u64,
     // How many frames got read from the input since the stream started (includes
     // padded silence)
     frames_read: AtomicI64,
+    // How many frames got written to the output device since the stream started
+    frames_written: AtomicI64,
     shutdown: AtomicBool,
     draining: AtomicBool,
     reinit_pending: AtomicBool,
@@ -3304,7 +3413,9 @@ impl<'ctx> AudioUnitStream<'ctx> {
             mutex: OwnedCriticalSection::new(),
             input_linear_buffer: None,
             frames_played: AtomicU64::new(0),
+            frames_queued: 0,
             frames_read: AtomicI64::new(0),
+            frames_written: AtomicI64::new(0),
             shutdown: AtomicBool::new(true),
             draining: AtomicBool::new(false),
             reinit_pending: AtomicBool::new(false),
