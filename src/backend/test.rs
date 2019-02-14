@@ -924,6 +924,202 @@ fn test_make_silent() {
 // ------------------------------------
 // TODO
 
+// minimum_resampling_input_frames
+// ------------------------------------
+#[test]
+#[should_panic]
+fn test_minimum_resampling_input_frames_zero_input_rate() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+    {
+        // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
+
+    let mut stream = AudioUnitStream::new(
+        &mut ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+    stream.init();
+
+    // Set output rate to 44100
+    let mut raw = ffi::cubeb_stream_params::default();
+    raw.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
+    raw.rate = 44100;
+    raw.channels = 2;
+    raw.layout = ffi::CUBEB_LAYOUT_STEREO;
+    raw.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+    stream.output_stream_params = StreamParams::from(raw);
+
+    // Set input rate to 0
+    stream.input_hw_rate = 0_f64;
+
+    // Set frames to 100
+    let frames = 100;
+
+    assert_eq!(
+        minimum_resampling_input_frames(&stream, frames),
+        0
+    );
+}
+
+#[test]
+#[should_panic]
+fn test_minimum_resampling_input_frames_zero_output_rate() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+    {
+        // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
+
+    let mut stream = AudioUnitStream::new(
+        &mut ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+    stream.init();
+
+    // Set output rate to 0
+    let mut raw = ffi::cubeb_stream_params::default();
+    raw.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
+    raw.rate = 0;
+    raw.channels = 2;
+    raw.layout = ffi::CUBEB_LAYOUT_STEREO;
+    raw.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+    stream.output_stream_params = StreamParams::from(raw);
+
+    // Set input rate to 48000
+    stream.input_hw_rate = 48000_f64;
+
+    // Set frames to 100
+    let frames = 100;
+
+    assert_eq!(
+        minimum_resampling_input_frames(&stream, frames),
+        i64::min_value()
+    );
+}
+
+#[test]
+fn test_minimum_resampling_input_frames_equal_input_output_rate() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+    {
+        // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
+
+    let mut stream = AudioUnitStream::new(
+        &mut ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+    stream.init();
+
+    // Set output rate to 44100
+    let mut raw = ffi::cubeb_stream_params::default();
+    raw.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
+    raw.rate = 44100;
+    raw.channels = 2;
+    raw.layout = ffi::CUBEB_LAYOUT_STEREO;
+    raw.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+    stream.output_stream_params = StreamParams::from(raw);
+
+    // Set input rate to 44100
+    stream.input_hw_rate = 44100_f64;
+
+    // Set frames to 100
+    let frames = 100;
+
+    assert_eq!(
+        minimum_resampling_input_frames(&stream, frames),
+        frames
+    );
+}
+
+#[test]
+fn test_minimum_resampling_input_frames() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    // Add a stream to the context. `AudioUnitStream::drop()` will check
+    // the context has at least one stream.
+    {
+        // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
+        let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
+
+    let mut stream = AudioUnitStream::new(
+        &mut ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+    stream.init();
+
+    // Set output rate to 44100
+    let mut raw = ffi::cubeb_stream_params::default();
+    raw.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
+    raw.rate = 44100;
+    raw.channels = 2;
+    raw.layout = ffi::CUBEB_LAYOUT_STEREO;
+    raw.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+    stream.output_stream_params = StreamParams::from(raw);
+
+    // Set input rate to 48000
+    stream.input_hw_rate = 48000_f64;
+
+    // Set frames to 100
+    let frames = 100;
+
+    assert_eq!(
+        minimum_resampling_input_frames(&stream, frames),
+        (stream.input_hw_rate * frames as f64 / raw.rate as f64).ceil() as i64
+    );
+}
+
 // output_callback
 // ------------------------------------
 // TODO

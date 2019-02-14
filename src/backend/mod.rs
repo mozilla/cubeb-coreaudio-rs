@@ -370,6 +370,18 @@ extern fn audiounit_input_callback(user_ptr: *mut c_void,
     NO_ERR
 }
 
+fn minimum_resampling_input_frames(stm: &AudioUnitStream, output_frames: i64) -> i64
+{
+    // TODO: Check the arguments ?
+    assert_ne!(stm.input_hw_rate, 0_f64);
+    assert_ne!(stm.output_stream_params.rate(), 0);
+    if stm.input_hw_rate == stm.output_stream_params.rate() as f64 {
+        // Fast path.
+        return output_frames;
+    }
+    (stm.input_hw_rate * output_frames as f64 / stm.output_stream_params.rate() as f64).ceil() as i64
+}
+
 extern fn audiounit_output_callback(user_ptr: *mut c_void,
                                     _: *mut AudioUnitRenderActionFlags,
                                     tstamp: *const AudioTimeStamp,
@@ -434,6 +446,39 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
     /* If Full duplex get also input buffer */
     // TODO: fill in additional silence to input_linear_buffer and set it to
     //       the input_buffer...
+    if !stm.input_unit.is_null() {
+        /* If the output callback came first and this is a duplex stream, we need to
+         * fill in some additional silence in the resampler.
+         * Otherwise, if we had more than expected callbacks in a row, or we're
+         * currently switching, we add some silence as well to compensate for the
+         * fact that we're lacking some input data. */
+        let frames_written = *stm.frames_written.get_mut();
+        let input_frames_needed = minimum_resampling_input_frames(stm, frames_written);
+        let missing_frames = input_frames_needed - *stm.frames_read.get_mut();
+        if missing_frames > 0 {
+            stm.input_linear_buffer.as_mut().unwrap().push_zeros((missing_frames * stm.input_desc.mChannelsPerFrame as i64) as usize);
+            *stm.frames_read.get_mut() = input_frames_needed;
+            // Using `stm_ptr` to avoid the borrowing issue below.
+            let stm_ptr = stm as *const AudioUnitStream;
+            cubeb_log!("({:p}) {} pushed {} frames of input silence.",
+                       stm_ptr,
+                       if *stm.frames_read.get_mut() == 0 {
+                           "Input hasn't started,"
+                       } else {
+                           if *stm.switching_device.get_mut() {
+                               "Device switching,"
+                           } else {
+                               "Drop out,"
+                           }
+                       },
+                       missing_frames);
+        }
+        input_buffer = stm.input_linear_buffer.as_mut().unwrap().as_mut_ptr();
+        // Number of input frames in the buffer. It will change to actually used frames
+        // inside fill
+        assert_ne!(stm.input_desc.mChannelsPerFrame, 0);
+        input_frames = (stm.input_linear_buffer.as_ref().unwrap().elements() / stm.input_desc.mChannelsPerFrame as usize) as i64;
+    }
 
     /* Call user callback through resampler. */
     assert!(!output_buffer.is_null());

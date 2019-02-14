@@ -59,9 +59,9 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 
 ### Interanl APIs
 
-- 🥚 : 13/75 (17.3%)
+- 🥚 : 12/75 (16%)
 - 🐣 : 7/75 (9.3%)
-- 🐥 : 55/75 (73.3%)
+- 🐥 : 56/75 (74.6%)
 
 | Interanl AudioUnit APIs                     | status |
 | ------------------------------------------- | ------ |
@@ -79,7 +79,7 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 | audiounit_render_input                      | 🐥      |
 | audiounit_input_callback                    | 🐥      |
 | audiounit_mix_output_buffer                 | 🥚      |
-| minimum_resampling_input_frames             | 🥚      |
+| minimum_resampling_input_frames             | 🐥      |
 | audiounit_output_callback                   | 🐣      |
 | audiounit_set_device_info                   | 🐥      |
 | audiounit_reinit_stream                     | 🥚      |
