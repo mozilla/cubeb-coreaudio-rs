@@ -28,10 +28,11 @@ mod owned_critical_section;
 // - StreamParams       : pub struct StreamParams           (cubeb-core/stream.rs)
 // - StreamParamsRef    : pub struct StreamParamsRef        (cubeb-core/stream.rs)
 use atomic;
-use cubeb_backend::{ffi, Context, ContextOps, DeviceCollectionRef, DeviceId,
-                    DeviceRef, DeviceType, Error, Ops, Result, SampleFormat,
-                    Stream, StreamOps, StreamParams, StreamParamsRef,
-                    StreamPrefs};
+use cubeb_backend::{
+    ffi, ChannelLayout, Context, ContextOps, DeviceCollectionRef, DeviceId, DeviceRef, DeviceType,
+    Error, Ops, Result, SampleFormat, Stream, StreamOps, StreamParams, StreamParamsRef,
+    StreamPrefs,
+};
 use self::auto_array::*;
 use self::auto_release::*;
 use self::cubeb_utils::*;
@@ -217,6 +218,36 @@ fn has_input(stm: &AudioUnitStream) -> bool
 fn has_output(stm: &AudioUnitStream) -> bool
 {
     stm.output_stream_params.rate() > 0
+}
+
+fn cubeb_channel_to_channel_label(channel: ChannelLayout) -> AudioChannelLabel
+{
+    // Make sure the argument is a channel (only one bit set to 1)
+    // If channel.bits() is 0, channel.bits() - 1 will get a panic on subtraction with overflow.
+    assert_eq!(channel.bits() & channel.bits() - 1, 0);
+    // TODO: Allow ffi::CHANNEL_UNKNOWN / ChannelLayout::from(0) ?
+    // assert!(channel.bits() == 0 || channel.bits() & channel.bits() - 1 == 0);
+    match channel {
+        ChannelLayout::FRONT_LEFT => kAudioChannelLabel_Left,
+        ChannelLayout::FRONT_RIGHT => kAudioChannelLabel_Right,
+        ChannelLayout::FRONT_CENTER => kAudioChannelLabel_Center,
+        ChannelLayout::LOW_FREQUENCY => kAudioChannelLabel_LFEScreen,
+        ChannelLayout::BACK_LEFT => kAudioChannelLabel_LeftSurround,
+        ChannelLayout::BACK_RIGHT =>  kAudioChannelLabel_RightSurround,
+        ChannelLayout::FRONT_LEFT_OF_CENTER => kAudioChannelLabel_LeftCenter,
+        ChannelLayout::FRONT_RIGHT_OF_CENTER => kAudioChannelLabel_RightCenter,
+        ChannelLayout::BACK_CENTER => kAudioChannelLabel_CenterSurround,
+        ChannelLayout::SIDE_LEFT => kAudioChannelLabel_LeftSurroundDirect,
+        ChannelLayout::SIDE_RIGHT => kAudioChannelLabel_RightSurroundDirect,
+        ChannelLayout::TOP_CENTER => kAudioChannelLabel_TopCenterSurround,
+        ChannelLayout::TOP_FRONT_LEFT => kAudioChannelLabel_VerticalHeightLeft,
+        ChannelLayout::TOP_FRONT_CENTER => kAudioChannelLabel_VerticalHeightCenter,
+        ChannelLayout::TOP_FRONT_RIGHT => kAudioChannelLabel_VerticalHeightRight,
+        ChannelLayout::TOP_BACK_LEFT => kAudioChannelLabel_TopBackLeft,
+        ChannelLayout::TOP_BACK_CENTER => kAudioChannelLabel_TopBackCenter,
+        ChannelLayout::TOP_BACK_RIGHT => kAudioChannelLabel_TopBackRight,
+        _ => kAudioChannelLabel_Unknown
+    }
 }
 
 fn audiounit_increment_active_streams(ctx: &mut AudioUnitContext)

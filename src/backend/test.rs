@@ -847,6 +847,58 @@ fn test_to_string() {
 // ------------------------------------
 // TODO
 
+// cubeb_channel_to_channel_label
+// ------------------------------------
+#[test]
+#[should_panic]
+fn test_cubeb_channel_to_channel_label_with_invalid_channel() {
+    assert_eq!(
+        cubeb_channel_to_channel_label(ChannelLayout::_3F4_LFE),
+        kAudioChannelLabel_Unknown
+    );
+}
+
+#[test]
+#[should_panic]
+fn test_cubeb_channel_to_channel_label_with_unknown_channel() {
+    assert_eq!(
+        cubeb_channel_to_channel_label(ChannelLayout::from(ffi::CHANNEL_UNKNOWN)),
+        kAudioChannelLabel_Unknown
+    );
+}
+
+#[test]
+fn test_cubeb_channel_to_channel_label() {
+    let pairs = [
+        (ChannelLayout::FRONT_LEFT, kAudioChannelLabel_Left),
+        (ChannelLayout::FRONT_RIGHT, kAudioChannelLabel_Right),
+        (ChannelLayout::FRONT_CENTER, kAudioChannelLabel_Center),
+        (ChannelLayout::LOW_FREQUENCY, kAudioChannelLabel_LFEScreen),
+        (ChannelLayout::BACK_LEFT, kAudioChannelLabel_LeftSurround),
+        (ChannelLayout::BACK_RIGHT, kAudioChannelLabel_RightSurround),
+        (ChannelLayout::FRONT_LEFT_OF_CENTER, kAudioChannelLabel_LeftCenter),
+        (ChannelLayout::FRONT_RIGHT_OF_CENTER, kAudioChannelLabel_RightCenter),
+        (ChannelLayout::BACK_CENTER, kAudioChannelLabel_CenterSurround),
+        (ChannelLayout::SIDE_LEFT, kAudioChannelLabel_LeftSurroundDirect),
+        (ChannelLayout::SIDE_RIGHT, kAudioChannelLabel_RightSurroundDirect),
+        (ChannelLayout::TOP_CENTER, kAudioChannelLabel_TopCenterSurround),
+        (ChannelLayout::TOP_FRONT_LEFT, kAudioChannelLabel_VerticalHeightLeft),
+        (ChannelLayout::TOP_FRONT_CENTER, kAudioChannelLabel_VerticalHeightCenter),
+        (ChannelLayout::TOP_FRONT_RIGHT, kAudioChannelLabel_VerticalHeightRight),
+        (ChannelLayout::TOP_BACK_LEFT, kAudioChannelLabel_TopBackLeft),
+        (ChannelLayout::TOP_BACK_CENTER, kAudioChannelLabel_TopBackCenter),
+        (ChannelLayout::TOP_BACK_RIGHT, kAudioChannelLabel_TopBackRight),
+    ];
+
+    for pair in pairs.iter() {
+        let (channel, label) = pair;
+        assert_eq!(
+            cubeb_channel_to_channel_label(*channel),
+            *label
+        );
+    }
+}
+
 // increment_active_streams
 // decrement_active_streams
 // active_streams
