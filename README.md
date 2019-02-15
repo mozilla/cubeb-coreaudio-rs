@@ -59,13 +59,13 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 
 ### Interanl APIs
 
-- 🥚 : 10/75 (13.3%)
+- 🥚 : 9/75 (12%)
 - 🐣 : 7/75 (9.3%)
-- 🐥 : 58/75 (77.3%)
+- 🐥 : 59/75 (78.6%)
 
 | Interanl AudioUnit APIs                     | status |
 | ------------------------------------------- | ------ |
-| make_sized_audio_channel_layout             | 🥚      |
+| make_sized_audio_channel_layout             | 🐥      |
 | to_string                                   | 🐥      |
 | has_input                                   | 🐥      |
 | has_output                                  | 🐥      |

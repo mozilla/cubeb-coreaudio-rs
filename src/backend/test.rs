@@ -825,6 +825,28 @@ fn test_manual_ctx_stream_register_device_changed_callback() {
 
 // Private APIs
 // ============================================================================
+// make_sized_audio_channel_layout
+// ------------------------------------
+#[test]
+#[should_panic]
+fn test_make_sized_audio_channel_layout_with_wrong_size() {
+    // let _ = make_sized_audio_channel_layout(0);
+    let one_channel_size = mem::size_of::<AudioChannelLayout>();
+    let padding_size = 10;
+    assert_ne!(mem::size_of::<AudioChannelDescription>(), padding_size);
+    let wrong_size = one_channel_size + padding_size;
+    let _ = make_sized_audio_channel_layout(wrong_size);
+}
+
+#[test]
+fn test_make_sized_audio_channel_layout() {
+    for channels in 1..10 {
+        let size = mem::size_of::<AudioChannelLayout>()
+            + (channels - 1) * mem::size_of::<AudioChannelDescription>();
+        let _ = make_sized_audio_channel_layout(size);
+    }
+}
+
 // to_string
 // ------------------------------------
 #[test]

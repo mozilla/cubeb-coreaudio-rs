@@ -150,6 +150,21 @@ enum io_side {
   OUTPUT,
 }
 
+fn make_sized_audio_channel_layout(sz: usize) -> AutoRelease<AudioChannelLayout> {
+    assert!(sz >= mem::size_of::<AudioChannelLayout>());
+    assert_eq!(
+        (sz - mem::size_of::<AudioChannelLayout>()) % mem::size_of::<AudioChannelDescription>(),
+        0
+    );
+    let acl = unsafe { libc::calloc(1, sz) } as *mut AudioChannelLayout;
+
+    unsafe extern "C" fn free_acl(acl: *mut AudioChannelLayout) {
+        libc::free(acl as *mut c_void);
+    }
+
+    AutoRelease::new(acl, free_acl)
+}
+
 fn to_string(side: &io_side) -> &'static str
 {
     match side {
