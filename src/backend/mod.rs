@@ -1008,6 +1008,47 @@ fn audiounit_get_default_device_id(devtype: DeviceType) -> AudioObjectID
     return devid;
 }
 
+fn audiounit_convert_channel_layout(layout: &AudioChannelLayout) -> ChannelLayout
+{
+    // TODO: Correct `on` to `one` and indents in C version.
+    // When having one or two channel, force mono or stereo. Some devices (namely,
+    // Bose QC35, mark 1 and 2), expose a single channel mapped to the right for
+    // some reason.
+    if layout.mNumberChannelDescriptions == 1 {
+        return ChannelLayout::MONO;
+    } else if layout.mNumberChannelDescriptions == 2 {
+        return ChannelLayout::STEREO;
+    }
+
+    if layout.mChannelLayoutTag != kAudioChannelLayoutTag_UseChannelDescriptions {
+        // kAudioChannelLayoutTag_UseChannelBitmap
+        // kAudioChannelLayoutTag_Mono
+        // kAudioChannelLayoutTag_Stereo
+        // ....
+        cubeb_log!("Only handle UseChannelDescriptions for now.\n");
+        return ChannelLayout::UNDEFINED;
+    }
+
+    let channel_descriptions = unsafe {
+        slice::from_raw_parts(
+            layout.mChannelDescriptions.as_ptr(),
+            layout.mNumberChannelDescriptions as usize
+        )
+    };
+
+    let mut cl = ChannelLayout::UNDEFINED; // ChannelLayout::from(0)
+    for description in channel_descriptions {
+        let channel = channel_label_to_cubeb_channel(description.mChannelLabel);
+
+        if channel == ChannelLayout::UNDEFINED {
+            return ChannelLayout::UNDEFINED;
+        }
+        cl |= channel;
+    }
+
+    return cl;
+}
+
 fn audio_stream_desc_init(ss: &mut AudioStreamBasicDescription,
                           stream_params: &StreamParams) -> Result<()>
 {

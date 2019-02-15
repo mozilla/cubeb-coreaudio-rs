@@ -1963,6 +1963,256 @@ fn test_get_default_device_id() {
     )
 }
 
+// convert_channel_layout
+// ------------------------------------
+#[test]
+fn test_convert_channel_layout() {
+    let pairs = [
+        // The single channel is mapped to mono now.
+        (vec![kAudioObjectUnknown], ChannelLayout::MONO),
+        (vec![kAudioChannelLabel_Mono], ChannelLayout::MONO),
+        // The dual channels are mapped to stereo now.
+        (
+            vec![kAudioChannelLabel_Mono, kAudioChannelLabel_LFEScreen],
+            ChannelLayout::STEREO,
+        ),
+        (
+            vec![kAudioChannelLabel_Left, kAudioChannelLabel_Right],
+            ChannelLayout::STEREO,
+        ),
+        // The Layouts containing any unknonwn channel will be mapped to UNDEFINED.
+        (
+            vec![
+                kAudioChannelLabel_Left,
+                kAudioChannelLabel_Right,
+                kAudioChannelLabel_Unknown,
+            ],
+            ChannelLayout::UNDEFINED,
+        ),
+        (
+            vec![
+                kAudioChannelLabel_Left,
+                kAudioChannelLabel_Right,
+                kAudioChannelLabel_Unused,
+            ],
+            ChannelLayout::UNDEFINED,
+        ),
+        (
+            vec![
+                kAudioChannelLabel_Left,
+                kAudioChannelLabel_Right,
+                kAudioChannelLabel_ForeignLanguage,
+            ],
+            ChannelLayout::UNDEFINED,
+        ),
+        // The SMPTE layouts.
+        (
+            vec![
+                kAudioChannelLabel_Left,
+                kAudioChannelLabel_Right,
+                kAudioChannelLabel_LFEScreen,
+            ],
+            ChannelLayout::STEREO_LFE,
+        ),
+        (
+            vec![
+                kAudioChannelLabel_Left,
+                kAudioChannelLabel_Right,
+                kAudioChannelLabel_Center,
+            ],
+            ChannelLayout::_3F,
+        ),
+        (
+            vec![
+                kAudioChannelLabel_Left,
+                kAudioChannelLabel_Right,
+                kAudioChannelLabel_Center,
+                kAudioChannelLabel_LFEScreen,
+            ],
+            ChannelLayout::_3F_LFE,
+        ),
+        (
+            vec![
+                kAudioChannelLabel_Left,
+                kAudioChannelLabel_Right,
+                kAudioChannelLabel_CenterSurround,
+            ],
+            ChannelLayout::_2F1,
+        ),
+        (
+            vec![
+                kAudioChannelLabel_Left,
+                kAudioChannelLabel_Right,
+                kAudioChannelLabel_CenterSurround,
+                kAudioChannelLabel_LFEScreen,
+            ],
+            ChannelLayout::_2F1_LFE,
+        ),
+        (
+            vec![
+                kAudioChannelLabel_Left,
+                kAudioChannelLabel_Right,
+                kAudioChannelLabel_Center,
+                kAudioChannelLabel_CenterSurround,
+            ],
+            ChannelLayout::_3F1,
+        ),
+        (
+            vec![
+                kAudioChannelLabel_Left,
+                kAudioChannelLabel_Right,
+                kAudioChannelLabel_Center,
+                kAudioChannelLabel_CenterSurround,
+                kAudioChannelLabel_LFEScreen,
+            ],
+            ChannelLayout::_3F1_LFE,
+        ),
+        (
+            vec![
+                kAudioChannelLabel_Left,
+                kAudioChannelLabel_Right,
+                kAudioChannelLabel_LeftSurroundDirect,
+                kAudioChannelLabel_RightSurroundDirect,
+            ],
+            ChannelLayout::_2F2,
+        ),
+        (
+            vec![
+                kAudioChannelLabel_Left,
+                kAudioChannelLabel_Right,
+                kAudioChannelLabel_LeftSurroundDirect,
+                kAudioChannelLabel_RightSurroundDirect,
+                kAudioChannelLabel_LFEScreen,
+            ],
+            ChannelLayout::_2F2_LFE,
+        ),
+        (
+            vec![
+                kAudioChannelLabel_Left,
+                kAudioChannelLabel_Right,
+                kAudioChannelLabel_LeftSurround,
+                kAudioChannelLabel_RightSurround,
+            ],
+            ChannelLayout::QUAD,
+        ),
+        (
+            vec![
+                kAudioChannelLabel_Left,
+                kAudioChannelLabel_Right,
+                kAudioChannelLabel_LeftSurround,
+                kAudioChannelLabel_RightSurround,
+                kAudioChannelLabel_LFEScreen,
+            ],
+            ChannelLayout::QUAD_LFE,
+        ),
+        (
+            vec![
+                kAudioChannelLabel_Left,
+                kAudioChannelLabel_Right,
+                kAudioChannelLabel_Center,
+                kAudioChannelLabel_LeftSurroundDirect,
+                kAudioChannelLabel_RightSurroundDirect,
+            ],
+            ChannelLayout::_3F2,
+        ),
+        (
+            vec![
+                kAudioChannelLabel_Left,
+                kAudioChannelLabel_Right,
+                kAudioChannelLabel_Center,
+                kAudioChannelLabel_LeftSurroundDirect,
+                kAudioChannelLabel_RightSurroundDirect,
+                kAudioChannelLabel_LFEScreen,
+            ],
+            ChannelLayout::_3F2_LFE,
+        ),
+        (
+            vec![
+                kAudioChannelLabel_Left,
+                kAudioChannelLabel_Right,
+                kAudioChannelLabel_LeftSurround,
+                kAudioChannelLabel_RightSurround,
+                kAudioChannelLabel_Center,
+            ],
+            ChannelLayout::_3F2_BACK,
+        ),
+        (
+            vec![
+                kAudioChannelLabel_Left,
+                kAudioChannelLabel_Right,
+                kAudioChannelLabel_LeftSurround,
+                kAudioChannelLabel_RightSurround,
+                kAudioChannelLabel_Center,
+                kAudioChannelLabel_LFEScreen,
+            ],
+            ChannelLayout::_3F2_LFE_BACK,
+        ),
+        (
+            vec![
+                kAudioChannelLabel_Left,
+                kAudioChannelLabel_Right,
+                kAudioChannelLabel_Center,
+                kAudioChannelLabel_LFEScreen,
+                kAudioChannelLabel_CenterSurround,
+                kAudioChannelLabel_LeftSurroundDirect,
+                kAudioChannelLabel_RightSurroundDirect,
+            ],
+            ChannelLayout::_3F3R_LFE,
+        ),
+        (
+            vec![
+                kAudioChannelLabel_Left,
+                kAudioChannelLabel_Right,
+                kAudioChannelLabel_Center,
+                kAudioChannelLabel_LFEScreen,
+                kAudioChannelLabel_LeftSurround,
+                kAudioChannelLabel_RightSurround,
+                kAudioChannelLabel_LeftSurroundDirect,
+                kAudioChannelLabel_RightSurroundDirect,
+            ],
+            ChannelLayout::_3F4_LFE,
+        ),
+    ];
+
+    const MAX_CHANNELS: usize = 10;
+    // A Rust mapping structure of the AudioChannelLayout with MAX_CHANNELS channels
+    // https://github.com/phracker/MacOSX-SDKs/blob/master/MacOSX10.13.sdk/System/Library/Frameworks/CoreAudio.framework/Versions/A/Headers/CoreAudioTypes.h#L1332
+    #[repr(C)]
+    struct TestLayout {
+        tag: AudioChannelLayoutTag,
+        map: AudioChannelBitmap,
+        number_channel_descriptions: UInt32,
+        channel_descriptions: [AudioChannelDescription; MAX_CHANNELS],
+    }
+
+    impl Default for TestLayout {
+        fn default() -> Self {
+            Self {
+                tag: AudioChannelLayoutTag::default(),
+                map: AudioChannelBitmap::default(),
+                number_channel_descriptions: UInt32::default(),
+                channel_descriptions: [AudioChannelDescription::default(); MAX_CHANNELS],
+            }
+        }
+    }
+
+    let mut layout = TestLayout::default();
+    layout.tag = kAudioChannelLayoutTag_UseChannelDescriptions;
+
+    for (labels, expected_layout) in pairs.iter() {
+        assert!(labels.len() <= MAX_CHANNELS);
+        layout.number_channel_descriptions = labels.len() as u32;
+        for (idx, label) in labels.iter().enumerate() {
+            layout.channel_descriptions[idx].mChannelLabel = *label;
+        }
+        let layout_ref = unsafe { &(*(&layout as *const TestLayout as *const AudioChannelLayout)) };
+        assert_eq!(
+            audiounit_convert_channel_layout(layout_ref),
+            *expected_layout
+        );
+    }
+}
+
 // audio_stream_desc_init
 // ------------------------------------
 #[test]
