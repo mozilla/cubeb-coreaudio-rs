@@ -847,6 +847,40 @@ fn test_to_string() {
 // ------------------------------------
 // TODO
 
+// channel_label_to_cubeb_channel
+// ------------------------------------
+#[test]
+fn test_channel_label_to_cubeb_channel() {
+    let pairs = [
+        (kAudioChannelLabel_Left, ChannelLayout::FRONT_LEFT),
+        (kAudioChannelLabel_Right, ChannelLayout::FRONT_RIGHT),
+        (kAudioChannelLabel_Center, ChannelLayout::FRONT_CENTER),
+        (kAudioChannelLabel_LFEScreen, ChannelLayout::LOW_FREQUENCY),
+        (kAudioChannelLabel_LeftSurround, ChannelLayout::BACK_LEFT),
+        (kAudioChannelLabel_RightSurround, ChannelLayout::BACK_RIGHT),
+        (kAudioChannelLabel_LeftCenter, ChannelLayout::FRONT_LEFT_OF_CENTER),
+        (kAudioChannelLabel_RightCenter, ChannelLayout::FRONT_RIGHT_OF_CENTER),
+        (kAudioChannelLabel_CenterSurround, ChannelLayout::BACK_CENTER),
+        (kAudioChannelLabel_LeftSurroundDirect, ChannelLayout::SIDE_LEFT),
+        (kAudioChannelLabel_RightSurroundDirect, ChannelLayout::SIDE_RIGHT),
+        (kAudioChannelLabel_TopCenterSurround, ChannelLayout::TOP_CENTER),
+        (kAudioChannelLabel_VerticalHeightLeft, ChannelLayout::TOP_FRONT_LEFT),
+        (kAudioChannelLabel_VerticalHeightCenter, ChannelLayout::TOP_FRONT_CENTER),
+        (kAudioChannelLabel_VerticalHeightRight, ChannelLayout::TOP_FRONT_RIGHT),
+        (kAudioChannelLabel_TopBackLeft, ChannelLayout::TOP_BACK_LEFT),
+        (kAudioChannelLabel_TopBackCenter, ChannelLayout::TOP_BACK_CENTER),
+        (kAudioChannelLabel_TopBackRight, ChannelLayout::TOP_BACK_RIGHT),
+        (kAudioChannelLabel_Unknown, ChannelLayout::UNDEFINED),
+    ];
+
+    for (label, channel) in pairs.iter() {
+        assert_eq!(
+            channel_label_to_cubeb_channel(*label),
+            *channel
+        );
+    }
+}
+
 // cubeb_channel_to_channel_label
 // ------------------------------------
 #[test]
@@ -861,8 +895,9 @@ fn test_cubeb_channel_to_channel_label_with_invalid_channel() {
 #[test]
 #[should_panic]
 fn test_cubeb_channel_to_channel_label_with_unknown_channel() {
+    assert_eq!(ChannelLayout::from(ffi::CHANNEL_UNKNOWN), ChannelLayout::UNDEFINED);
     assert_eq!(
-        cubeb_channel_to_channel_label(ChannelLayout::from(ffi::CHANNEL_UNKNOWN)),
+        cubeb_channel_to_channel_label(ChannelLayout::UNDEFINED),
         kAudioChannelLabel_Unknown
     );
 }
@@ -890,8 +925,7 @@ fn test_cubeb_channel_to_channel_label() {
         (ChannelLayout::TOP_BACK_RIGHT, kAudioChannelLabel_TopBackRight),
     ];
 
-    for pair in pairs.iter() {
-        let (channel, label) = pair;
+    for (channel, label) in pairs.iter() {
         assert_eq!(
             cubeb_channel_to_channel_label(*channel),
             *label

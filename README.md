@@ -59,9 +59,9 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 
 ### Interanl APIs
 
-- 🥚 : 11/75 (14.6%)
+- 🥚 : 10/75 (13.3%)
 - 🐣 : 7/75 (9.3%)
-- 🐥 : 57/75 (76%)
+- 🐥 : 58/75 (77.3%)
 
 | Interanl AudioUnit APIs                     | status |
 | ------------------------------------------- | ------ |
@@ -69,7 +69,7 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 | to_string                                   | 🐥      |
 | has_input                                   | 🐥      |
 | has_output                                  | 🐥      |
-| channel_label_to_cubeb_channel              | 🥚      |
+| channel_label_to_cubeb_channel              | 🐥      |
 | cubeb_channel_to_channel_label              | 🐥      |
 | audiounit_increment_active_streams          | 🐥      |
 | audiounit_decrement_active_streams          | 🐥      |

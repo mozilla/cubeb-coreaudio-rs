@@ -220,12 +220,39 @@ fn has_output(stm: &AudioUnitStream) -> bool
     stm.output_stream_params.rate() > 0
 }
 
+fn channel_label_to_cubeb_channel(label: AudioChannelLabel) -> ChannelLayout
+{
+    use self::coreaudio_sys as sys;
+
+    match label {
+        sys::kAudioChannelLabel_Left => ChannelLayout::FRONT_LEFT,
+        sys::kAudioChannelLabel_Right => ChannelLayout::FRONT_RIGHT,
+        sys::kAudioChannelLabel_Center => ChannelLayout::FRONT_CENTER,
+        sys::kAudioChannelLabel_LFEScreen => ChannelLayout::LOW_FREQUENCY,
+        sys::kAudioChannelLabel_LeftSurround => ChannelLayout::BACK_LEFT,
+        sys::kAudioChannelLabel_RightSurround => ChannelLayout::BACK_RIGHT,
+        sys::kAudioChannelLabel_LeftCenter => ChannelLayout::FRONT_LEFT_OF_CENTER,
+        sys::kAudioChannelLabel_RightCenter => ChannelLayout::FRONT_RIGHT_OF_CENTER,
+        sys::kAudioChannelLabel_CenterSurround => ChannelLayout::BACK_CENTER,
+        sys::kAudioChannelLabel_LeftSurroundDirect => ChannelLayout::SIDE_LEFT,
+        sys::kAudioChannelLabel_RightSurroundDirect => ChannelLayout::SIDE_RIGHT,
+        sys::kAudioChannelLabel_TopCenterSurround => ChannelLayout::TOP_CENTER,
+        sys::kAudioChannelLabel_VerticalHeightLeft => ChannelLayout::TOP_FRONT_LEFT,
+        sys::kAudioChannelLabel_VerticalHeightCenter => ChannelLayout::TOP_FRONT_CENTER,
+        sys::kAudioChannelLabel_VerticalHeightRight => ChannelLayout::TOP_FRONT_RIGHT,
+        sys::kAudioChannelLabel_TopBackLeft => ChannelLayout::TOP_BACK_LEFT,
+        sys::kAudioChannelLabel_TopBackCenter => ChannelLayout::TOP_BACK_CENTER,
+        sys::kAudioChannelLabel_TopBackRight => ChannelLayout::TOP_BACK_RIGHT,
+        _ => ChannelLayout::UNDEFINED
+    }
+}
+
 fn cubeb_channel_to_channel_label(channel: ChannelLayout) -> AudioChannelLabel
 {
     // Make sure the argument is a channel (only one bit set to 1)
     // If channel.bits() is 0, channel.bits() - 1 will get a panic on subtraction with overflow.
     assert_eq!(channel.bits() & channel.bits() - 1, 0);
-    // TODO: Allow ffi::CHANNEL_UNKNOWN / ChannelLayout::from(0) ?
+    // TODO: Allow ffi::CHANNEL_UNKNOWN / ChannelLayout::UNDEFINED / ChannelLayout::from(0) ?
     // assert!(channel.bits() == 0 || channel.bits() & channel.bits() - 1 == 0);
     match channel {
         ChannelLayout::FRONT_LEFT => kAudioChannelLabel_Left,
