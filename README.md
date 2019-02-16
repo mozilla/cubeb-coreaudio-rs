@@ -59,9 +59,9 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 
 ### Interanl APIs
 
-- 🥚 : 8/75 (10.6%)
+- 🥚 : 7/75 (9.3%)
 - 🐣 : 7/75 (9.3%)
-- 🐥 : 60/75 (80%)
+- 🐥 : 61/75 (81.3%)
 
 | Interanl AudioUnit APIs                     | status |
 | ------------------------------------------- | ------ |
@@ -96,7 +96,7 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 | audiounit_get_default_device_id             | 🐥      |
 | audiounit_convert_channel_layout            | 🐥      |
 | audiounit_get_preferred_channel_layout      | 🥚      |
-| audiounit_get_current_channel_layout        | 🥚      |
+| audiounit_get_current_channel_layout        | 🐥      |
 | audiounit_destroy                           | 🥚      |
 | audio_stream_desc_init                      | 🐥      |
 | audiounit_init_mixer                        | 🥚      |

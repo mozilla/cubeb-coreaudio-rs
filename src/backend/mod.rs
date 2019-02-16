@@ -1049,6 +1049,39 @@ fn audiounit_convert_channel_layout(layout: &AudioChannelLayout) -> ChannelLayou
     return cl;
 }
 
+fn audiounit_get_current_channel_layout(output_unit: AudioUnit) -> ChannelLayout
+{
+    let mut rv = NO_ERR;
+    let mut size: usize = 0;
+
+    rv = audio_unit_get_property_info(output_unit,
+                                      kAudioUnitProperty_AudioChannelLayout,
+                                      kAudioUnitScope_Output,
+                                      AU_OUT_BUS,
+                                      &mut size,
+                                      ptr::null_mut());
+    if rv != NO_ERR {
+        cubeb_log!("AudioUnitGetPropertyInfo/kAudioUnitProperty_AudioChannelLayout rv={}", rv);
+        // TODO: This property isn't known before macOS 10.12, attempt another method.
+        return ChannelLayout::UNDEFINED;
+    }
+    assert!(size > 0);
+
+    let layout = make_sized_audio_channel_layout(size);
+    rv = audio_unit_get_property(output_unit,
+                                 kAudioUnitProperty_AudioChannelLayout,
+                                 kAudioUnitScope_Output,
+                                 AU_OUT_BUS,
+                                 layout.as_mut_ptr(),
+                                 &mut size);
+    if rv != NO_ERR {
+        cubeb_log!("AudioUnitGetProperty/kAudioUnitProperty_AudioChannelLayout rv={}", rv);
+        return ChannelLayout::UNDEFINED;
+    }
+
+    audiounit_convert_channel_layout(layout.as_ref())
+}
+
 fn audio_stream_desc_init(ss: &mut AudioStreamBasicDescription,
                           stream_params: &StreamParams) -> Result<()>
 {

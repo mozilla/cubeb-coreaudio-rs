@@ -189,6 +189,27 @@ pub fn audio_object_remove_property_listener(
     }
 }
 
+pub fn audio_unit_get_property_info(
+    unit: sys::AudioUnit,
+    property: sys::AudioUnitPropertyID,
+    scope: sys::AudioUnitScope,
+    element: sys::AudioUnitElement,
+    size: *mut usize,
+    writable: *mut sys::Boolean
+) -> sys::OSStatus {
+    assert!(!unit.is_null());
+    unsafe {
+        sys::AudioUnitGetPropertyInfo(
+            unit,
+            property,
+            scope,
+            element,
+            size as *mut sys::UInt32,
+            writable
+        )
+    }
+}
+
 pub fn audio_unit_get_property<T>(
     unit: sys::AudioUnit,
     property: sys::AudioUnitPropertyID,
