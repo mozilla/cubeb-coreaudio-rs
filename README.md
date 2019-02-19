@@ -17,7 +17,21 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 - *dev*: All the commits are cherry-picked from *trailblazer* branch.
          This branch is used to create pull-requests to *release* branch.
 
+## Development Pipeline / Timeline
+
+| phase   | 1         | 2         | 3                      | 4                          |
+| ------- | --------- | --------- | ---------------------- | -------------------------- |
+| draft   | translate | translate | fix bugs and re-test   |                            |
+| review  |           | review    | review and laned       |                            |
+| release |           |           |                        | test in gecko and fix bugs |
+
+The draft code is in *trailblazer* branch, the reviewing code are in the pull requests,
+which comes from *dev* branch, and the reviewed code is in *release* branch.
+
 ## Status
+
+Thew project is in phase 2. The *C-to-Rust* translation work is about to be finished.
+Only the *mixer* related code is left.
 
 By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb], it's ok to
 1. play sounds by running *test_audio*, *test_tone*
