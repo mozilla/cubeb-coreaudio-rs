@@ -1049,11 +1049,41 @@ fn audiounit_convert_channel_layout(layout: &AudioChannelLayout) -> ChannelLayou
     return cl;
 }
 
+fn audiounit_get_preferred_channel_layout(output_unit: AudioUnit) -> ChannelLayout
+{
+    let mut rv = NO_ERR;
+    let mut size: usize = 0;
+    rv = audio_unit_get_property_info(output_unit,
+                                      kAudioDevicePropertyPreferredChannelLayout,
+                                      kAudioUnitScope_Output,
+                                      AU_OUT_BUS,
+                                      &mut size,
+                                      ptr::null_mut());
+    if rv != NO_ERR {
+        cubeb_log!("AudioUnitGetPropertyInfo/kAudioDevicePropertyPreferredChannelLayout rv={}", rv);
+        return ChannelLayout::UNDEFINED;
+    }
+    assert!(size > 0);
+
+    let layout = make_sized_audio_channel_layout(size);
+    rv = audio_unit_get_property(output_unit,
+                                 kAudioDevicePropertyPreferredChannelLayout,
+                                 kAudioUnitScope_Output,
+                                 AU_OUT_BUS,
+                                 layout.as_mut_ptr(),
+                                 &mut size);
+    if rv != NO_ERR {
+        cubeb_log!("AudioUnitGetProperty/kAudioDevicePropertyPreferredChannelLayout rv={}", rv);
+        return ChannelLayout::UNDEFINED;
+    }
+
+    audiounit_convert_channel_layout(layout.as_ref())
+}
+
 fn audiounit_get_current_channel_layout(output_unit: AudioUnit) -> ChannelLayout
 {
     let mut rv = NO_ERR;
     let mut size: usize = 0;
-
     rv = audio_unit_get_property_info(output_unit,
                                       kAudioUnitProperty_AudioChannelLayout,
                                       kAudioUnitScope_Output,
@@ -1062,8 +1092,8 @@ fn audiounit_get_current_channel_layout(output_unit: AudioUnit) -> ChannelLayout
                                       ptr::null_mut());
     if rv != NO_ERR {
         cubeb_log!("AudioUnitGetPropertyInfo/kAudioUnitProperty_AudioChannelLayout rv={}", rv);
-        // TODO: This property isn't known before macOS 10.12, attempt another method.
-        return ChannelLayout::UNDEFINED;
+        // This property isn't known before macOS 10.12, attempt another method.
+        return audiounit_get_preferred_channel_layout(output_unit);
     }
     assert!(size > 0);
 

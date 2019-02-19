@@ -2213,6 +2213,33 @@ fn test_convert_channel_layout() {
     }
 }
 
+// get_preferred_channel_layout
+// ------------------------------------
+// TODO: Should it be prevented ? The AudioUnitElement is for output only.
+//       It should be called for the input side.
+// #[test]
+// fn test_get_preferred_channel_layout_input() {
+// }
+
+#[test]
+fn test_get_preferred_channel_layout_output() {
+    // Initialize the unit to default output device.
+    let default_output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
+    if !valid_id(default_output_id) {
+        return;
+    }
+    let mut unit: AudioUnit = ptr::null_mut();
+    let device = device_info {
+        id: default_output_id,
+        flags: device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT
+    };
+    assert!(audiounit_create_unit(&mut unit, &device).is_ok());
+    assert!(!unit.is_null());
+
+    // TODO: The preferred layout might be undefined for some devices ?
+    assert_ne!(audiounit_get_preferred_channel_layout(unit), ChannelLayout::UNDEFINED);
+}
+
 // get_current_channel_layout
 // ------------------------------------
 // TODO: Should it be prevented ? The AudioUnitElement is for output only.
@@ -2232,6 +2259,7 @@ fn test_convert_channel_layout() {
 
 //     assert!(audiounit_create_unit(&mut unit, &device).is_ok());
 //     assert!(!unit.is_null());
+//
 //     assert_eq!(audiounit_get_current_channel_layout(unit), ChannelLayout::UNDEFINED);
 // }
 
@@ -2249,6 +2277,8 @@ fn test_get_current_channel_layout_output() {
     };
     assert!(audiounit_create_unit(&mut unit, &device).is_ok());
     assert!(!unit.is_null());
+
+    // TODO: The current layout might be undefined for some devices ?
     assert_ne!(audiounit_get_current_channel_layout(unit), ChannelLayout::UNDEFINED);
 }
 
