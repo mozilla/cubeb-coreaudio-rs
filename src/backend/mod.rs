@@ -1159,6 +1159,76 @@ fn audio_stream_desc_init(ss: &mut AudioStreamBasicDescription,
     Ok(())
 }
 
+fn audiounit_set_channel_layout(unit: AudioUnit,
+                                side: io_side,
+                                layout: ChannelLayout) -> Result<()>
+{
+    assert!(!unit.is_null());
+
+    if side != io_side::OUTPUT {
+        return Err(Error::error());
+    }
+
+    if layout == ChannelLayout::UNDEFINED {
+        // We leave everything as-is...
+        return Ok(());
+    }
+
+    let mut r = NO_ERR;
+    let nb_channels = unsafe { ffi::cubeb_channel_layout_nb_channels(layout.into()) };
+
+    // We do not use CoreAudio standard layout for lack of documentation on what
+    // the actual channel orders are. So we set a custom layout.
+    assert!(nb_channels >= 1);
+    let size = mem::size_of::<AudioChannelLayout>() + (nb_channels as usize - 1) * mem::size_of::<AudioChannelDescription>();
+    let mut au_layout = make_sized_audio_channel_layout(size);
+    au_layout.as_mut().mChannelLayoutTag = kAudioChannelLayoutTag_UseChannelDescriptions;
+    au_layout.as_mut().mNumberChannelDescriptions = nb_channels;
+    let channel_descriptions = unsafe {
+        slice::from_raw_parts_mut(
+            au_layout.as_mut().mChannelDescriptions.as_mut_ptr(),
+            nb_channels as usize
+        )
+    };
+
+    let mut channels: usize = 0;
+    let mut channelMap: ffi::cubeb_channel_layout = layout.into();
+    let i = 0;
+    while channelMap != 0 {
+        assert!(channels < nb_channels as usize);
+        let channel = (channelMap & 1) << i;
+        if channel != 0 {
+            channel_descriptions[channels].mChannelLabel =
+                cubeb_channel_to_channel_label(ChannelLayout::from(channel));
+            channel_descriptions[channels].mChannelFlags = kAudioChannelFlags_AllOff;
+            channels += 1;
+        }
+        channelMap = channelMap >> 1;
+    }
+
+    // TODO: This call doesn't work all the times, and r is NO_ERR doesn't
+    // guarantee the layout is set to the one we want. The layouts on some
+    // devices don't be changed even no errors are returned,
+    // e.g., r returns NO_ERR when we set stereo layout to a 4-channels aggregate
+    // device with QUAD layout (created by Audio MIDI Setup). However, the layout
+    // of this 4-channels aggregate device is still QUAD. Another weird thing is
+    // that we will get a kAudioUnitErr_InvalidPropertyValue error if we set the
+    // layout to QUAD. It's the same layout as its original one but it cannot be
+    // set!
+    r = audio_unit_set_property(unit,
+                                kAudioUnitProperty_AudioChannelLayout,
+                                kAudioUnitScope_Input,
+                                AU_OUT_BUS,
+                                au_layout.as_ref(),
+                                size);
+    if r != NO_ERR {
+        cubeb_log!("AudioUnitSetProperty/{}/kAudioUnitProperty_AudioChannelLayout rv={}", to_string(&side), r);
+        return Err(Error::error());
+    }
+
+    Ok(())
+}
+
 fn audiounit_get_sub_devices(device_id: AudioDeviceID) -> Vec<AudioObjectID>
 {
     // FIXIT: Add a check ? We will fail to get data size if `device_id`

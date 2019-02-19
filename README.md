@@ -73,9 +73,9 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 
 ### Interanl APIs
 
-- 🥚 : 6/75 (8%)
+- 🥚 : 5/75 (6.6%)
 - 🐣 : 7/75 (9.3%)
-- 🐥 : 62/75 (82.6%)
+- 🐥 : 63/75 (84%)
 
 | Interanl AudioUnit APIs                     | status |
 | ------------------------------------------- | ------ |
@@ -114,7 +114,7 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 | audiounit_destroy                           | 🥚      |
 | audio_stream_desc_init                      | 🐥      |
 | audiounit_init_mixer                        | 🥚      |
-| audiounit_set_channel_layout                | 🥚      |
+| audiounit_set_channel_layout                | 🐥      |
 | audiounit_layout_init                       | 🥚      |
 | audiounit_get_sub_devices                   | 🐥      |
 | audiounit_create_blank_aggregate_device     | 🐥      |
@@ -186,6 +186,8 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 - Check the input `StreamParams` parameters properly, or we will set a invalid format into `AudioUnit`.
   - In fact, we should check **all** the parameters properly so we can make sure we don't mess up the streams/devices settings!
 - Find a reliable way to verify `enumerate_devices`
+- Make a list pairing (device-uid/device-name, available channel layouts) so we can check the layout-related APIs properly!
+  - A prototype is in [`test_set_channel_layout_output`](src/backend/test.rs).
 - [cubeb-rs][cubeb-rs]
   - Implement `to_owned` in [`StreamParamsRef`][cubeb-rs-stmparamsref]
 

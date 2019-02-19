@@ -2256,10 +2256,9 @@ fn test_get_preferred_channel_layout_output() {
 //         id: default_input_id,
 //         flags: device_flags::DEV_INPUT | device_flags::DEV_SYSTEM_DEFAULT
 //     };
-
 //     assert!(audiounit_create_unit(&mut unit, &device).is_ok());
 //     assert!(!unit.is_null());
-//
+
 //     assert_eq!(audiounit_get_current_channel_layout(unit), ChannelLayout::UNDEFINED);
 // }
 
@@ -2321,6 +2320,111 @@ fn test_audio_stream_desc_init() {
         assert_eq!(stream_description.mFramesPerPacket, 1);
         assert_eq!(stream_description.mBytesPerPacket, (bits / 8) * raw.channels);
         assert_eq!(stream_description.mReserved, 0);
+    }
+}
+
+// set_channel_layout
+// ------------------------------------
+#[test]
+#[should_panic]
+fn test_set_channel_layout_with_null_unit() {
+    assert!(audiounit_set_channel_layout(ptr::null_mut(), io_side::OUTPUT, ChannelLayout::UNDEFINED).is_err());
+}
+
+#[test]
+fn test_set_channel_layout_undefind_layout() {
+    // Initialize the unit to default output device.
+    let default_output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
+    if !valid_id(default_output_id) {
+        return;
+    }
+    let mut unit: AudioUnit = ptr::null_mut();
+    let device = device_info {
+        id: default_output_id,
+        flags: device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT
+    };
+    assert!(audiounit_create_unit(&mut unit, &device).is_ok());
+    assert!(!unit.is_null());
+
+    // Get original layout.
+    let original_layout = audiounit_get_current_channel_layout(unit);
+
+    // Leave layout as it is.
+    assert!(audiounit_set_channel_layout(unit, io_side::OUTPUT, ChannelLayout::UNDEFINED).is_ok());
+
+    // Check the layout is same as the original one.
+    assert_eq!(
+        audiounit_get_current_channel_layout(unit),
+        original_layout
+    );
+}
+
+#[test]
+fn test_set_channel_layout_input() {
+    // Initialize the unit to the default input device.
+    let default_input_id = audiounit_get_default_device_id(DeviceType::INPUT);
+    if !valid_id(default_input_id) {
+        return;
+    }
+    let mut unit: AudioUnit = ptr::null_mut();
+    let device = device_info {
+        id: default_input_id,
+        flags: device_flags::DEV_INPUT | device_flags::DEV_SYSTEM_DEFAULT
+    };
+    assert!(audiounit_create_unit(&mut unit, &device).is_ok());
+    assert!(!unit.is_null());
+
+    assert_eq!(
+        audiounit_set_channel_layout(unit, io_side::INPUT, ChannelLayout::UNDEFINED).unwrap_err(),
+        Error::error()
+    );
+}
+
+#[test]
+fn test_set_channel_layout_output() {
+    // TODO: Add more devices and its available layouts.
+    use std::collections::HashMap;
+    let devices_layouts: HashMap<&'static str, Vec<ChannelLayout>> = [
+        ("hdpn", vec![ChannelLayout::STEREO]),
+        ("ispk", vec![ChannelLayout::STEREO]),
+    ].into_iter().cloned().collect();
+
+    // Initialize the unit to default output device.
+    let default_output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
+    if !valid_id(default_output_id) {
+        return;
+    }
+    let mut unit: AudioUnit = ptr::null_mut();
+    let device = device_info {
+        id: default_output_id,
+        flags: device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT
+    };
+    assert!(audiounit_create_unit(&mut unit, &device).is_ok());
+    assert!(!unit.is_null());
+
+    let mut device = ffi::cubeb_device::default();
+    assert!(
+        audiounit_get_default_device_name(
+            unsafe { &*(ptr::null() as *const AudioUnitStream) },
+            &mut device,
+            DeviceType::OUTPUT
+        ).is_ok()
+    );
+
+    let device_name = unsafe {
+        CStr::from_ptr(device.output_name)
+            .to_string_lossy()
+            .into_owned()
+    };
+
+    if let Some(layouts) = devices_layouts.get(device_name.as_str()) {
+        for layout in layouts.iter() {
+            assert!(audiounit_set_channel_layout(unit, io_side::OUTPUT, *layout).is_ok());
+            assert_eq!(
+                audiounit_get_current_channel_layout(unit),
+                *layout
+            );
+        }
     }
 }
 

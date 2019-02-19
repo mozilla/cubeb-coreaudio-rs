@@ -25,6 +25,10 @@ impl<T> AutoRelease<T> {
         unsafe { &*self.ptr }
     }
 
+    pub fn as_mut(&self) -> &mut T {
+        unsafe { &mut *self.ptr }
+    }
+
     pub fn as_mut_ptr(&self) -> *mut T {
         self.ptr
     }
