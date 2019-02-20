@@ -197,7 +197,7 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 - Mutex: Find a replacement for [`owned_critical_section`][ocs]
   - A dummy mutex like `Mutex<()>` should work (see [`test_dummy_mutex_multithread`][ocs-rust]) as what `owned_critical_section` does in [_C_ version][ocs], but it doens't has equivalent API for `assert_current_thread_owns`.
   - We implement a [`OwnedCriticalSection` around `pthread_mutex_t`][ocs-rust] like what we do in [_C_ version][ocs] for now.
-  - It's hard to debug with the variables using `OwnedCriticalSection`. Within a test with a variable using `OwnedCriticalSection` that will get a panic, if the `OwnedCriticalSection` used in the test isn't be dropped **before** where the code get a panic, then the test might get a crash in `OwnedCriticalSection` rather than the line having a panic. One example is [`test_stream_get_panic_before_releasing_mutex`](src/backend/test.rs). The tests must be created very carefully.
+  - It's hard to debug with the variables using `OwnedCriticalSection`. Within a test with a variable using `OwnedCriticalSection`, if the `OwnedCriticalSection` used in the test isn't be dropped in a correct order, then the test will get a crash in `OwnedCriticalSection`. The examples are [`test_stream_drop_mutex_(in)correct`](src/backend/test.rs). The tests must be created very carefully.
 - Atomic:
   - The stable atomic types only support `bool`, `usize`, `isize`, and `ptr`, but we need `u64`, `i64`, and `f32`.
   - Using [atomic-rs](https://github.com/Amanieu/atomic-rs) instead.

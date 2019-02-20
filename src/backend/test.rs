@@ -5,11 +5,10 @@
 
 use super::*;
 
-// Note
+// Note / Template
 // ============================================================================
 #[test]
-#[ignore]
-fn test_stream_get_panic_before_releasing_mutex() {
+fn test_stream_drop_mutex_incorrect() {
     // We need to initialize the members with type OwnedCriticalSection in
     // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
     // will be used when AudioUnitStream::drop/destroy is called.
@@ -24,6 +23,9 @@ fn test_stream_get_panic_before_releasing_mutex() {
 
     // The scope of `_lock` is a critical section.
     let ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
+
+    // Add one stream to the context in advance to avoid the borrowing-twice
+    // issue of ctx.
     audiounit_increment_active_streams(&mut ctx);
 
     let mut stream = AudioUnitStream::new(
@@ -77,6 +79,8 @@ fn test_stream_get_panic_before_releasing_mutex() {
         assert!(audiounit_setup_stream(&mut stream).is_ok());
     }
 
+    assert!(!stream.output_unit.is_null());
+
     // If the following `drop` is commented, the AudioUnitStream::drop()
     // will lock the AudioUnitStream.context.mutex without releasing the
     // AudioUnitStream.context.mutex in use (`ctx_lock` here) first and
@@ -89,8 +93,88 @@ fn test_stream_get_panic_before_releasing_mutex() {
     // Force to drop the context lock before stream is dropped, since
     // AudioUnitStream::Drop() will lock the context mutex.
     drop(ctx_lock);
+}
 
-    assert!(false);
+#[test]
+fn test_stream_drop_mutex_correct() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
+    let ctx_mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+
+    // Add one stream to the context in advance to avoid the borrowing-twice
+    // issue of ctx.
+    // `AudioUnitStream::drop()` will check the context has at least one stream.
+    {
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr ) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
+
+    let mut stream = AudioUnitStream::new(
+        &mut ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+    stream.init();
+
+    // The scope of `ctx_lock` is a critical section.
+    // When `AudioUnitStream::drop()` is called, `AudioUnitContext.mutex`
+    // needs to be unlocked. That's why `_lock` needs to be declared after
+    // `stream` so it will be dropped and unlocked before dropping `stream`.
+    let ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
+
+    // The resampler will be initialized in `audiounit_setup_stream` (or via
+    // `stream_init`), and it only accepts the formats with FLOAT32NE or S16NE.
+    let mut raw = ffi::cubeb_stream_params::default();
+    raw.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
+    raw.rate = 96_000;
+    raw.channels = 32;
+    raw.layout = ffi::CUBEB_LAYOUT_3F1_LFE;
+    raw.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+    stream.output_stream_params = StreamParams::from(raw);
+
+    // It's crucial to call to audiounit_set_device_info to set
+    // stream.output_device to output device type, or we will hit the
+    // assertion in audiounit_create_unit.
+
+    let default_output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
+    // Return an error if there is no available device.
+    if !valid_id(default_output_id) {
+        return;
+    }
+
+    assert!(
+        audiounit_set_device_info(
+            &mut stream,
+            kAudioObjectUnknown,
+            DeviceType::OUTPUT
+        ).is_ok()
+    );
+
+    assert_eq!(stream.output_device.id, default_output_id);
+    assert_eq!(
+        stream.output_device.flags,
+        device_flags::DEV_OUTPUT |
+        device_flags::DEV_SELECTED_DEFAULT |
+        device_flags::DEV_SYSTEM_DEFAULT
+    );
+
+    {
+        let stm_mutex_ptr = &mut stream.mutex as *mut OwnedCriticalSection;
+        let _stm_lock = AutoLock::new(unsafe { &mut (*stm_mutex_ptr) });
+        assert!(audiounit_setup_stream(&mut stream).is_ok());
+    }
+
+    assert!(!stream.output_unit.is_null());
+
+    // Do some stream operations here ...
 }
 
 // Interface
