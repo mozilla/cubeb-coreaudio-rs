@@ -10,6 +10,7 @@ use std::os::raw::c_void;
 use std::ptr;
 
 pub fn allocate_array_by_size<T>(size: usize) -> Vec<T> {
+    assert_eq!(size % mem::size_of::<T>(), 0);
     let elements = size / mem::size_of::<T>();
     allocate_array::<T>(elements)
 }
