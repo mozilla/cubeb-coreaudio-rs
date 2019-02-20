@@ -2512,6 +2512,94 @@ fn test_set_channel_layout_output() {
     }
 }
 
+// layout_init
+// ------------------------------------
+#[test]
+fn test_layout_init() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
+    let ctx_mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+
+    // Add one stream to the context in advance to avoid the borrowing-twice
+    // issue of ctx.
+    // `AudioUnitStream::drop()` will check the context has at least one stream.
+    {
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr ) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
+
+    let mut stream = AudioUnitStream::new(
+        &mut ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+    stream.init();
+
+    // The scope of `ctx_lock` is a critical section.
+    // When `AudioUnitStream::drop()` is called, `AudioUnitContext.mutex`
+    // needs to be unlocked. That's why `_lock` needs to be declared after
+    // `stream` so it will be dropped and unlocked before dropping `stream`.
+    let ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
+
+    // The resampler will be initialized in `audiounit_setup_stream` (or via
+    // `stream_init`), and it only accepts the formats with FLOAT32NE or S16NE.
+    let mut raw = ffi::cubeb_stream_params::default();
+    raw.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
+    raw.rate = 96_000;
+    raw.channels = 32;
+    raw.layout = ffi::CUBEB_LAYOUT_3F1_LFE;
+    raw.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+    stream.output_stream_params = StreamParams::from(raw);
+
+    // It's crucial to call to audiounit_set_device_info to set
+    // stream.output_device to output device type, or we will hit the
+    // assertion in audiounit_create_unit.
+
+    let default_output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
+    // Return an error if there is no available device.
+    if !valid_id(default_output_id) {
+        return;
+    }
+
+    assert!(
+        audiounit_set_device_info(
+            &mut stream,
+            kAudioObjectUnknown,
+            DeviceType::OUTPUT
+        ).is_ok()
+    );
+
+    assert_eq!(stream.output_device.id, default_output_id);
+    assert_eq!(
+        stream.output_device.flags,
+        device_flags::DEV_OUTPUT |
+        device_flags::DEV_SELECTED_DEFAULT |
+        device_flags::DEV_SYSTEM_DEFAULT
+    );
+
+    assert!(audiounit_create_unit(&mut stream.output_unit, &stream.output_device).is_ok());
+    assert!(!stream.output_unit.is_null());
+    assert_eq!(
+        stream.context.layout.load(atomic::Ordering::SeqCst),
+        ChannelLayout::UNDEFINED
+    );
+
+    let layout = audiounit_get_current_channel_layout(stream.output_unit);
+    audiounit_layout_init(&mut stream, io_side::OUTPUT);
+    assert_eq!(
+        stream.context.layout.load(atomic::Ordering::SeqCst),
+        layout
+    );
+}
+
 // get_sub_devices
 // ------------------------------------
 // FIXIT: It doesn't make any sense to return the sub devices for an unknown

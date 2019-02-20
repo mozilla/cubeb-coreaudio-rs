@@ -1228,6 +1228,19 @@ fn audiounit_set_channel_layout(unit: AudioUnit,
     Ok(())
 }
 
+fn audiounit_layout_init(stm: &mut AudioUnitStream, side: io_side)
+{
+    // We currently don't support the input layout setting.
+    if side == io_side::INPUT {
+        return;
+    }
+
+    stm.context.layout.store(audiounit_get_current_channel_layout(stm.output_unit), atomic::Ordering::SeqCst);
+    let _ = audiounit_set_channel_layout(stm.output_unit, io_side::OUTPUT, stm.context.layout.load(atomic::Ordering::SeqCst));
+    // *stm.context.layout.get_mut() = audiounit_get_current_channel_layout(stm.output_unit).into();
+    // let _ = audiounit_set_channel_layout(stm.output_unit, io_side::OUTPUT, ChannelLayout::from(*stm.context.layout.get_mut()));
+}
+
 fn audiounit_get_sub_devices(device_id: AudioDeviceID) -> Vec<AudioObjectID>
 {
     // FIXIT: Add a check ? We will fail to get data size if `device_id`
@@ -2294,7 +2307,10 @@ fn audiounit_configure_output(stm: &mut AudioUnitStream) -> Result<()>
     stm.output_hw_rate = output_hw_desc.mSampleRate;
     cubeb_log!("{:p} Output device sampling rate: {}", stm, output_hw_desc.mSampleRate);
 
-    // TODO: Set channels, layout, ...
+    // Set the input layout to match the output device layout.
+    audiounit_layout_init(stm, io_side::OUTPUT);
+    // TODO: Initialize mixer ....
+
     r = audio_unit_set_property(stm.output_unit,
                                 kAudioUnitProperty_StreamFormat,
                                 kAudioUnitScope_Input,
@@ -3255,6 +3271,8 @@ pub struct AudioUnitContext {
     output_device_array: Vec<AudioObjectID>,
     // The queue is asynchronously deallocated once all references to it are released
     serial_queue: dispatch_queue_t,
+    layout: atomic::Atomic<ChannelLayout>,
+    // layout: AtomicU32,
 }
 
 impl AudioUnitContext {
@@ -3273,7 +3291,9 @@ impl AudioUnitContext {
             serial_queue: create_dispatch_queue(
                 DISPATCH_QUEUE_LABEL,
                 DISPATCH_QUEUE_SERIAL
-            )
+            ),
+            layout: atomic::Atomic::new(ChannelLayout::UNDEFINED),
+            // layout: AtomicU32::new(ffi::CUBEB_LAYOUT_UNDEFINED),
         }
     }
 
