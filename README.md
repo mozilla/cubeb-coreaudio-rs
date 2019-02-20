@@ -188,6 +188,8 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 - Find a reliable way to verify `enumerate_devices`
 - Make a list pairing (device-uid/device-name, available channel layouts) so we can check the layout-related APIs properly!
   - A prototype is in [`test_set_channel_layout_output`](src/backend/test.rs).
+- Make a black/white list for those devices cannot/can get the *datasource*,
+  so the tests for `audiounit_get_default_device_datasource` and those APIs based on `audiounit_get_default_device_datasource` can work on different devices.
 - [cubeb-rs][cubeb-rs]
   - Implement `to_owned` in [`StreamParamsRef`][cubeb-rs-stmparamsref]
 
