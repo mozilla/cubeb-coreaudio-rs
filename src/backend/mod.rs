@@ -562,8 +562,10 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
                                   output_frames as i64)
     };
 
-    // TODO: Pop from the buffer the frames used by the the resampler
-    //       if having input_buffer ...
+    if !input_buffer.is_null() {
+        // Pop from the buffer the frames used by the the resampler.
+        stm.input_linear_buffer.as_mut().unwrap().pop(input_frames as usize * stm.input_desc.mChannelsPerFrame as usize);
+    }
 
     if outframes < 0 || outframes > output_frames as i64 {
         *stm.shutdown.get_mut() = true;
