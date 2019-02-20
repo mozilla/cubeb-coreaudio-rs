@@ -1116,6 +1116,10 @@ fn test_make_silent() {
 // ------------------------------------
 // TODO
 
+// mix_output_buffer
+// ------------------------------------
+// TODO
+
 // minimum_resampling_input_frames
 // ------------------------------------
 #[test]
@@ -2405,6 +2409,41 @@ fn test_audio_stream_desc_init() {
         assert_eq!(stream_description.mBytesPerPacket, (bits / 8) * raw.channels);
         assert_eq!(stream_description.mReserved, 0);
     }
+}
+
+// init_mixer
+// ------------------------------------
+#[test]
+fn test_init_mixer() {
+    // We need to initialize the members with type OwnedCriticalSection in
+    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
+    // will be used when AudioUnitStream::drop/destroy is called.
+    let mut ctx = AudioUnitContext::new();
+    ctx.init();
+
+    // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
+    let ctx_mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+
+    // Add one stream to the context in advance to avoid the borrowing-twice
+    // issue of ctx.
+    // `AudioUnitStream::drop()` will check the context has at least one stream.
+    {
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr ) });
+        audiounit_increment_active_streams(&mut ctx);
+    }
+
+    let mut stream = AudioUnitStream::new(
+        &mut ctx,
+        ptr::null_mut(),
+        None,
+        None,
+        0
+    );
+    stream.init();
+
+    audiounit_init_mixer(&mut stream);
+    assert!(!stream.mixer.as_mut_ptr().is_null());
 }
 
 // set_channel_layout

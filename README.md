@@ -73,9 +73,9 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 
 ### Interanl APIs
 
-- 🥚 : 4/75 (5.3%)
-- 🐣 : 7/75 (9.3%)
-- 🐥 : 64/75 (85.3%)
+- 🥚 : 2/75 (2.6%)
+- 🐣 : 1/75 (1.3%)
+- 🐥 : 72/75 (96%)
 
 | Interanl AudioUnit APIs                     | status |
 | ------------------------------------------- | ------ |
@@ -92,9 +92,9 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 | audiounit_make_silent                       | 🐥      |
 | audiounit_render_input                      | 🐥      |
 | audiounit_input_callback                    | 🐥      |
-| audiounit_mix_output_buffer                 | 🥚      |
+| audiounit_mix_output_buffer                 | 🐥      |
 | minimum_resampling_input_frames             | 🐥      |
-| audiounit_output_callback                   | 🐣      |
+| audiounit_output_callback                   | 🐥      |
 | audiounit_set_device_info                   | 🐥      |
 | audiounit_reinit_stream                     | 🥚      |
 | audiounit_reinit_stream_async               | 🐣      |
@@ -113,7 +113,7 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 | audiounit_get_current_channel_layout        | 🐥      |
 | audiounit_destroy                           | 🥚      |
 | audio_stream_desc_init                      | 🐥      |
-| audiounit_init_mixer                        | 🥚      |
+| audiounit_init_mixer                        | 🐥      |
 | audiounit_set_channel_layout                | 🐥      |
 | audiounit_layout_init                       | 🐥      |
 | audiounit_get_sub_devices                   | 🐥      |
@@ -133,11 +133,11 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 | buffer_size_changed_callback                | 🐥      |
 | audiounit_set_buffer_size                   | 🐥      |
 | audiounit_configure_input                   | 🐥      |
-| audiounit_configure_output                  | 🐣      |
-| audiounit_setup_stream                      | 🐣      |
-| audiounit_close_stream                      | 🐣      |
-| audiounit_stream_destroy_internal           | 🐣      |
-| audiounit_stream_destroy                    | 🐣      |
+| audiounit_configure_output                  | 🐥      |
+| audiounit_setup_stream                      | 🐥      |
+| audiounit_close_stream                      | 🐥      |
+| audiounit_stream_destroy_internal           | 🐥      |
+| audiounit_stream_destroy                    | 🐥      |
 | audiounit_stream_start_internal             | 🐥      |
 | audiounit_stream_stop_internal              | 🐥      |
 | audiounit_stream_get_volume                 | 🐥      |
