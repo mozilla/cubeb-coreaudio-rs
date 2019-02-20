@@ -22,10 +22,12 @@ impl<T> AutoRelease<T> {
     }
 
     pub fn as_ref(&self) -> &T {
+        assert!(!self.ptr.is_null());
         unsafe { &*self.ptr }
     }
 
     pub fn as_mut(&self) -> &mut T {
+        assert!(!self.ptr.is_null());
         unsafe { &mut *self.ptr }
     }
 

@@ -412,10 +412,9 @@ extern fn audiounit_input_callback(user_ptr: *mut c_void,
        Resampler will deliver input buffer in the correct rate. */
     assert!(input_frames as usize <= stm.input_linear_buffer.as_ref().unwrap().elements() / stm.input_desc.mChannelsPerFrame as usize);
     let mut total_input_frames = (stm.input_linear_buffer.as_ref().unwrap().elements() / stm.input_desc.mChannelsPerFrame as usize) as i64;
-    assert!(!stm.resampler.as_mut_ptr().is_null());
     assert!(!stm.input_linear_buffer.as_ref().unwrap().as_ptr().is_null());
     let outframes = unsafe {
-        ffi::cubeb_resampler_fill(stm.resampler.as_mut_ptr(),
+        ffi::cubeb_resampler_fill(stm.resampler.as_mut(),
                                   stm.input_linear_buffer.as_mut().unwrap().as_mut_ptr(),
                                   &mut total_input_frames,
                                   ptr::null_mut(),
@@ -556,7 +555,7 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
     /* Call user callback through resampler. */
     assert!(!output_buffer.is_null());
     let outframes = unsafe {
-        ffi::cubeb_resampler_fill(stm.resampler.as_mut_ptr(),
+        ffi::cubeb_resampler_fill(stm.resampler.as_mut(),
                                   input_buffer,
                                   if input_buffer.is_null() { ptr::null_mut() } else { &mut input_frames },
                                   output_buffer,
@@ -1070,7 +1069,7 @@ fn audiounit_get_preferred_channel_layout(output_unit: AudioUnit) -> ChannelLayo
                                  kAudioDevicePropertyPreferredChannelLayout,
                                  kAudioUnitScope_Output,
                                  AU_OUT_BUS,
-                                 layout.as_mut_ptr(),
+                                 layout.as_mut(),
                                  &mut size);
     if rv != NO_ERR {
         cubeb_log!("AudioUnitGetProperty/kAudioDevicePropertyPreferredChannelLayout rv={}", rv);
@@ -1102,7 +1101,7 @@ fn audiounit_get_current_channel_layout(output_unit: AudioUnit) -> ChannelLayout
                                  kAudioUnitProperty_AudioChannelLayout,
                                  kAudioUnitScope_Output,
                                  AU_OUT_BUS,
-                                 layout.as_mut_ptr(),
+                                 layout.as_mut(),
                                  &mut size);
     if rv != NO_ERR {
         cubeb_log!("AudioUnitGetProperty/kAudioUnitProperty_AudioChannelLayout rv={}", rv);
