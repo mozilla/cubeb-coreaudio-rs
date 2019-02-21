@@ -2756,6 +2756,7 @@ fn audiounit_stream_destroy_internal(stm: &mut AudioUnitStream)
     audiounit_decrement_active_streams(&mut stm.context);
 }
 
+// TODO: Move to AudioUnitStream::destroy/drop() directly
 fn audiounit_stream_destroy(stm: &mut AudioUnitStream)
 {
     if !stm.shutdown.load(Ordering::SeqCst) {
@@ -3410,6 +3411,7 @@ fn audiounit_add_device_listener(context: *mut AudioUnitContext,
     0 // noErr.
 }
 
+// TODO: Replace *mut AudioUnitContext by &mut AudioUnitContext
 fn audiounit_remove_device_listener(context: *mut AudioUnitContext, devtype: DeviceType) -> OSStatus
 {
     unsafe {
@@ -3773,6 +3775,7 @@ impl ContextOps for AudioUnitContext {
         let cubeb_stream = unsafe {
             Stream::from_ptr(Box::into_raw(boxed_stream) as *mut _)
         };
+        cubeb_log!("({:p}) Cubeb stream init successful.", &cubeb_stream);
         Ok(cubeb_stream)
     }
     fn register_device_collection_changed(
@@ -3807,6 +3810,23 @@ impl ContextOps for AudioUnitContext {
 impl Drop for AudioUnitContext {
     fn drop(&mut self) {
         println!("Drop context @ {:p}", self);
+        let mutex_ptr = &mut self.mutex as *mut OwnedCriticalSection;
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+
+        // Disabling this assert for bug 1083664 -- we seem to leak a stream
+        // assert(ctx->active_streams == 0);
+        let streams = audiounit_active_streams(self);
+        if streams > 0 {
+            cubeb_log!("({:p}) API misuse, {} streams active when context destroyed!", self, streams);
+        }
+
+        /* Unregister the callback if necessary. */
+        if self.input_collection_changed_callback.is_some() {
+            audiounit_remove_device_listener(self, DeviceType::INPUT);
+        }
+        if self.output_collection_changed_callback.is_some() {
+            audiounit_remove_device_listener(self, DeviceType::OUTPUT);
+        }
     }
 }
 

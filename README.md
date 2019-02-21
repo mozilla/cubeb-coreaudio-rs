@@ -45,8 +45,8 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 
 ### Cubeb APIs (Public APIs)
 - 🥚 : 0/20 (0%)
-- 🐣 : 2/20 (10%)
-- 🐥 : 18/20 (90%)
+- 🐣 : 0/20 (0%)
+- 🐥 : 20/20 (100%)
 
 | Cubeb APIs                                    | status |
 | --------------------------------------------- | ------ |
@@ -57,8 +57,8 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 | cubub_get_preferred_sample_rate               | 🐥      |
 | cubub_enumerate_devices                       | 🐥      |
 | cubeb_device_collection_destroy               | 🐥      |
-| cubeb_stream_init                             | 🐣      |
-| cubeb_stream_destroy                          | 🐣      |
+| cubeb_stream_init                             | 🐥      |
+| cubeb_stream_destroy                          | 🐥      |
 | cubeb_stream_start                            | 🐥      |
 | cubeb_stream_stop                             | 🐥      |
 | cubeb_reset_default_device                    | 🐥      |
@@ -73,9 +73,9 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 
 ### Interanl APIs
 
-- 🥚 : 1/75 (1.3%)
+- 🥚 : 0/75 (0%)
 - 🐣 : 0/75 (0%)
-- 🐥 : 74/75 (98.7%)
+- 🐥 : 74/75 (100%)
 
 | Interanl AudioUnit APIs                     | status |
 | ------------------------------------------- | ------ |
@@ -111,7 +111,7 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 | audiounit_convert_channel_layout            | 🐥      |
 | audiounit_get_preferred_channel_layout      | 🐥      |
 | audiounit_get_current_channel_layout        | 🐥      |
-| audiounit_destroy                           | 🥚      |
+| audiounit_destroy                           | 🐥      |
 | audio_stream_desc_init                      | 🐥      |
 | audiounit_init_mixer                        | 🐥      |
 | audiounit_set_channel_layout                | 🐥      |
