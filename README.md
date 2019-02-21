@@ -19,24 +19,24 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 
 ## Development Pipeline / Timeline
 
-| phase   | 1         | 2         | 3                      | 4                          |
-| ------- | --------- | --------- | ---------------------- | -------------------------- |
-| draft   | translate | translate | fix bugs and re-test   |                            |
-| review  |           | review    | review and laned       |                            |
-| release |           |           |                        | test in gecko and fix bugs |
+| phase   | 1         | 2         | 3                       | 4                          | 5                 |
+| ------- | --------- | --------- | ----------------------- | -------------------------- | ----------------- |
+| draft   | translate | translate | test in gecko, fix bugs |                            | x                 |
+| review  |           | review    | review and laned        | refactor                   | start refactoring |
+| release |           |           |                         | ride the trains / fix bugs | ...               |
 
 The draft code is in *trailblazer* branch, the reviewing code are in the pull requests,
 which comes from *dev* branch, and the reviewed code is in *release* branch.
 
 ## Status
 
-Thew project is in phase 2. The *C-to-Rust* translation work is about to be finished.
-Only the *mixer* related code is left.
+Thew project is in phase 2.
 
 By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb], it's ok to
 1. play sounds by running *test_audio*, *test_tone*
 2. capture streams by running *test_record*
 3. show devices by running *test_devices*
+4. Keep playing streams when switching devices
 
 - 🥚 : Not implemented.
 - 🐣 : Work in progress. May be implemented partially or blocked by dependent APIs.
@@ -157,7 +157,6 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 
 
 ## TODO
-- Integrate with cubeb-mixer APIs
 - Integration Tests
   - Add a test-only API to change the default audio devices
   - Use above API to test the device-changed callback
