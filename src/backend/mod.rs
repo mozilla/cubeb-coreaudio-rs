@@ -144,6 +144,7 @@ bitflags! {
     }
 }
 
+// TODO: Consider replacing it by DeviceType.
 #[derive(Debug, PartialEq)]
 enum io_side {
   INPUT,
@@ -675,6 +676,7 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
     NO_ERR
 }
 
+// TODO: Replace DeviceType by io_side
 fn audiounit_set_device_info(stm: &mut AudioUnitStream, id: AudioDeviceID, devtype: DeviceType) -> Result<()>
 {
     assert!(devtype == DeviceType::INPUT || devtype == DeviceType::OUTPUT);
@@ -714,6 +716,95 @@ fn audiounit_set_device_info(stm: &mut AudioUnitStream, id: AudioDeviceID, devty
     Ok(())
 }
 
+fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Result<()>
+{
+    // Since we cannot call `AutoLock::new(&mut stm.context.mutex)` and call
+    // `some_func(stm)` at the same time, we take the pointer to
+    // `stm.context.mutex` first and then dereference it to the mutex to avoid
+    // this problem for now.
+    let mutex_ptr = &mut stm.context.mutex as *mut OwnedCriticalSection;
+    // The scope of `_context_lock` is a critical section.
+    let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+    // TODO: C version uses
+    // assert!(!stm.input_unit.is_null() && flags.contains(device_flags::DEV_INPUT) ||
+    //         !stm.output_unit.is_null() && flags.contains(device_flags::DEV_OUTPUT));
+    // For a stream with input and output units, if the check for input is true,
+    // then it won't check the output.
+    assert!((stm.input_unit.is_null() || flags.contains(device_flags::DEV_INPUT)) &&
+            (stm.output_unit.is_null() || flags.contains(device_flags::DEV_OUTPUT)));
+    if !*stm.shutdown.get_mut() {
+        audiounit_stream_stop_internal(stm);
+    }
+
+    if let Err(_) = audiounit_uninstall_device_changed_callback(stm) {
+        cubeb_log!("({:p}) Could not uninstall all device change listeners.", stm);
+    }
+
+    {
+        let mutex_ptr = &mut stm.mutex as *mut OwnedCriticalSection;
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        let mut volume: f32 = 0.0;
+        let mut vol_ok = false;
+        if !stm.output_unit.is_null() {
+            vol_ok = audiounit_stream_get_volume(stm, &mut volume).is_ok();
+        }
+
+        audiounit_close_stream(stm);
+
+        /* Reinit occurs in one of the following case:
+         * - When the device is not alive any more
+         * - When the default system device change.
+         * - The bluetooth device changed from A2DP to/from HFP/HSP profile
+         * We first attempt to re-use the same device id, should that fail we will
+         * default to the (potentially new) default device. */
+        // TODO: C version uses 0 instead of kAudioObjectUnknown, but they should be same.
+        let input_device = if flags.contains(device_flags::DEV_INPUT) { stm.input_device.id } else { kAudioObjectUnknown };
+
+        if flags.contains(device_flags::DEV_INPUT) {
+            if audiounit_set_device_info(stm, input_device, DeviceType::INPUT).is_err() {
+                cubeb_log!("({:p}) Set input device info failed. This can happen when last media device is unplugged", stm);
+                return Err(Error::error());
+            }
+        }
+
+        /* Always use the default output on reinit. This is not correct in every
+         * case but it is sufficient for Firefox and prevent reinit from reporting
+         * failures. It will change soon when reinit mechanism will be updated. */
+        // TODO: C version uses 0 instead of kAudioObjectUnknown, but they should be same.
+        if audiounit_set_device_info(stm, kAudioObjectUnknown, DeviceType::OUTPUT).is_err() {
+            cubeb_log!("({:p}) Set output device info failed. This can happen when last media device is unplugged", stm);
+            return Err(Error::error());
+        }
+
+        if audiounit_setup_stream(stm).is_err() {
+            cubeb_log!("({:p}) Stream reinit failed.", stm);
+            // TODO: C version uses 0 instead of kAudioObjectUnknown, but they should be same.
+            if flags.contains(device_flags::DEV_INPUT) && input_device != kAudioObjectUnknown {
+                // Attempt to re-use the same device-id failed, so attempt again with
+                // default input device.
+                audiounit_close_stream(stm);
+                // TODO: C version uses 0 instead of kAudioObjectUnknown, but they should be same.
+                if audiounit_set_device_info(stm, kAudioObjectUnknown, DeviceType::INPUT).is_err() ||
+                   audiounit_setup_stream(stm).is_err() {
+                    cubeb_log!("({:p}) Second stream reinit failed.", stm);
+                    return Err(Error::error());
+                }
+            }
+        }
+
+        if vol_ok {
+            stm.set_volume(volume);
+        }
+
+        // If the stream was running, start it again.
+        if !*stm.shutdown.get_mut() {
+            audiounit_stream_start_internal(stm);
+        }
+    }
+
+    Ok(())
+}
+
 fn audiounit_reinit_stream_async(stm: &mut AudioUnitStream, flags: device_flags)
 {
     if stm.reinit_pending.swap(true, Ordering::SeqCst) {
@@ -736,8 +827,22 @@ fn audiounit_reinit_stream_async(stm: &mut AudioUnitStream, flags: device_flags)
             return;
         }
 
-        // TODO: Reinit stream ...
-
+        if audiounit_reinit_stream(stm, flags).is_err() {
+            if audiounit_uninstall_system_changed_callback(stm).is_err() {
+                cubeb_log!("({:p}) Could not uninstall system changed callback", stm);
+            }
+            // TODO: C version doesn't check if state_callback is a null pointer.
+            if stm.state_callback.is_some() {
+                unsafe {
+                    (stm.state_callback.unwrap())(
+                        stm as *mut AudioUnitStream as *mut ffi::cubeb_stream,
+                        stm.user_ptr,
+                        ffi::CUBEB_STATE_ERROR
+                    );
+                }
+            }
+            cubeb_log!("({:p}) Could not reopen the stream after switching.", stm);
+        }
         *stm.switching_device.get_mut() = false;
         *stm.reinit_pending.get_mut() = false;
     });
@@ -2704,6 +2809,7 @@ fn audiounit_stream_stop_internal(stm: &AudioUnitStream)
     }
 }
 
+// TODO: Return the volume within Ok.
 fn audiounit_stream_get_volume(stm: &AudioUnitStream, volume: &mut f32) -> Result<()>
 {
     assert!(!stm.output_unit.is_null());

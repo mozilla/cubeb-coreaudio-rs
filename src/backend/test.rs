@@ -1768,6 +1768,10 @@ fn test_set_device_info_for_nonexistent_output_device() {
     );
 }
 
+// reinit_stream
+// ------------------------------------
+// TODO
+
 // reinit_stream_async
 // ------------------------------------
 // TODO

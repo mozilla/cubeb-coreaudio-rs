@@ -73,9 +73,9 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 
 ### Interanl APIs
 
-- 🥚 : 2/75 (2.6%)
-- 🐣 : 1/75 (1.3%)
-- 🐥 : 72/75 (96%)
+- 🥚 : 1/75 (1.3%)
+- 🐣 : 0/75 (0%)
+- 🐥 : 74/75 (98.7%)
 
 | Interanl AudioUnit APIs                     | status |
 | ------------------------------------------- | ------ |
@@ -96,8 +96,8 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 | minimum_resampling_input_frames             | 🐥      |
 | audiounit_output_callback                   | 🐥      |
 | audiounit_set_device_info                   | 🐥      |
-| audiounit_reinit_stream                     | 🥚      |
-| audiounit_reinit_stream_async               | 🐣      |
+| audiounit_reinit_stream                     | 🐥      |
+| audiounit_reinit_stream_async               | 🐥      |
 | event_addr_to_string                        | 🐥      |
 | audiounit_property_listener_callback        | 🐥      |
 | audiounit_add_listener                      | 🐥      |
@@ -190,6 +190,8 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
   - A prototype is in [`test_set_channel_layout_output`](src/backend/test.rs).
 - Make a black/white list for those devices cannot/can get the *datasource*,
   so the tests for `audiounit_get_default_device_datasource` and those APIs based on `audiounit_get_default_device_datasource` can work on different devices.
+- Replace `if let Err(_) = some_func(...) { ... }` by `if some_func(...).is_err() { ... }`
+- Replace `fn audiounit_set_device_info(..., devtype: DeviceType)` with `fn audiounit_set_device_info(..., side: io_side)`
 - [cubeb-rs][cubeb-rs]
   - Implement `to_owned` in [`StreamParamsRef`][cubeb-rs-stmparamsref]
 
