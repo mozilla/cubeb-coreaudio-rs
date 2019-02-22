@@ -160,7 +160,7 @@ fn make_sized_audio_channel_layout(sz: usize) -> AutoRelease<AudioChannelLayout>
     let acl = unsafe { libc::calloc(1, sz) } as *mut AudioChannelLayout;
 
     unsafe extern "C" fn free_acl(acl: *mut AudioChannelLayout) {
-        libc::free(acl as *mut c_void);
+        libc::free(acl as *mut libc::c_void);
     }
 
     AutoRelease::new(acl, free_acl)
@@ -321,7 +321,7 @@ fn audiounit_set_global_latency(ctx: &mut AudioUnitContext, latency_frames: u32)
 fn audiounit_make_silent(ioData: &mut AudioBuffer) {
     assert!(!ioData.mData.is_null());
     unsafe {
-        libc::memset(ioData.mData, 0, ioData.mDataByteSize as usize);
+        libc::memset(ioData.mData as *mut libc::c_void, 0, ioData.mDataByteSize as usize);
     }
 }
 
@@ -643,7 +643,7 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
         let outbpf = cubeb_sample_size(stm.output_stream_params.format());
         /* Clear missing frames (silence) */
         unsafe {
-            let dest = (output_buffer as *mut u8).add(outframes as usize * outbpf) as *mut c_void;
+            let dest = (output_buffer as *mut u8).add(outframes as usize * outbpf) as *mut libc::c_void;
             let len = (output_frames as i64 - outframes) as usize * outbpf;
             libc::memset(dest, 0, len);
         }
