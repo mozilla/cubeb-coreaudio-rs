@@ -359,7 +359,7 @@ fn audiounit_render_input(stm: &mut AudioUnitStream,
         }
         // For now state that no error occurred and feed silence, stream will be
         // resumed once reinit has completed.
-        cubeb_logv!("({:p}) input: reinit pending feeding silence instead", stm);
+        cubeb_logv!("({:p}) input: reinit pending feeding silence instead", stm as *const AudioUnitStream);
         stm.input_linear_buffer.as_mut().unwrap().push_zeros((input_frames * stm.input_desc.mChannelsPerFrame) as usize);
     } else {
         /* Copy input data in linear buffer. */
@@ -372,7 +372,7 @@ fn audiounit_render_input(stm: &mut AudioUnitStream,
     *stm.frames_read.get_mut() += input_frames as i64;
 
     cubeb_logv!("({:p}) input: buffers {}, size {}, channels {}, rendered frames {}, total frames {}.",
-                stm,
+                stm as *const AudioUnitStream,
                 input_buffer_list.mNumberBuffers,
                 input_buffer_list.mBuffers[0].mDataByteSize,
                 input_buffer_list.mBuffers[0].mNumberChannels,
@@ -395,7 +395,7 @@ extern fn audiounit_input_callback(user_ptr: *mut c_void,
     assert_eq!(bus, AU_IN_BUS);
 
     if *stm.shutdown.get_mut() {
-        cubeb_log!("({:p}) input shutdown", stm);
+        cubeb_log!("({:p}) input shutdown", stm as *const AudioUnitStream);
         return NO_ERR;
     }
 
@@ -501,7 +501,7 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
 
     // TODO: Why don't we replace `has_input(stm)` by `stm.input_linear_buffer.is_some()` ?
     cubeb_logv!("({:p}) output: buffers {}, size {}, channels {}, frames {}, total input frames {}.",
-                stm,
+                stm as *const AudioUnitStream,
                 buffers.len(),
                 buffers[0].mDataByteSize,
                 buffers[0].mNumberChannels,
@@ -513,7 +513,7 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
     let mut input_buffer = ptr::null_mut::<c_void>();
 
     if *stm.shutdown.get_mut() {
-        cubeb_log!("({:p}) output shutdown.", stm);
+        cubeb_log!("({:p}) output shutdown.", stm as *const AudioUnitStream);
         audiounit_make_silent(&mut buffers[0]);
         return NO_ERR;
     }
@@ -737,7 +737,7 @@ fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Re
     }
 
     if let Err(_) = audiounit_uninstall_device_changed_callback(stm) {
-        cubeb_log!("({:p}) Could not uninstall all device change listeners.", stm);
+        cubeb_log!("({:p}) Could not uninstall all device change listeners.", stm as *const AudioUnitStream);
     }
 
     {
@@ -762,7 +762,7 @@ fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Re
 
         if flags.contains(device_flags::DEV_INPUT) {
             if audiounit_set_device_info(stm, input_device, DeviceType::INPUT).is_err() {
-                cubeb_log!("({:p}) Set input device info failed. This can happen when last media device is unplugged", stm);
+                cubeb_log!("({:p}) Set input device info failed. This can happen when last media device is unplugged", stm as *const AudioUnitStream);
                 return Err(Error::error());
             }
         }
@@ -772,12 +772,12 @@ fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Re
          * failures. It will change soon when reinit mechanism will be updated. */
         // TODO: C version uses 0 instead of kAudioObjectUnknown, but they should be same.
         if audiounit_set_device_info(stm, kAudioObjectUnknown, DeviceType::OUTPUT).is_err() {
-            cubeb_log!("({:p}) Set output device info failed. This can happen when last media device is unplugged", stm);
+            cubeb_log!("({:p}) Set output device info failed. This can happen when last media device is unplugged", stm as *const AudioUnitStream);
             return Err(Error::error());
         }
 
         if audiounit_setup_stream(stm).is_err() {
-            cubeb_log!("({:p}) Stream reinit failed.", stm);
+            cubeb_log!("({:p}) Stream reinit failed.", stm as *const AudioUnitStream);
             // TODO: C version uses 0 instead of kAudioObjectUnknown, but they should be same.
             if flags.contains(device_flags::DEV_INPUT) && input_device != kAudioObjectUnknown {
                 // Attempt to re-use the same device-id failed, so attempt again with
@@ -786,7 +786,7 @@ fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Re
                 // TODO: C version uses 0 instead of kAudioObjectUnknown, but they should be same.
                 if audiounit_set_device_info(stm, kAudioObjectUnknown, DeviceType::INPUT).is_err() ||
                    audiounit_setup_stream(stm).is_err() {
-                    cubeb_log!("({:p}) Second stream reinit failed.", stm);
+                    cubeb_log!("({:p}) Second stream reinit failed.", stm as *const AudioUnitStream);
                     return Err(Error::error());
                 }
             }
@@ -810,7 +810,7 @@ fn audiounit_reinit_stream_async(stm: &mut AudioUnitStream, flags: device_flags)
     if stm.reinit_pending.swap(true, Ordering::SeqCst) {
         // A reinit task is already pending, nothing more to do.
         // TODO: redundant space! Sync with C version.
-        cubeb_log!("({:p}) re-init stream task already pending, cancelling request ", stm);
+        cubeb_log!("({:p}) re-init stream task already pending, cancelling request ", stm as *const AudioUnitStream);
         return;
     }
 
@@ -823,13 +823,13 @@ fn audiounit_reinit_stream_async(stm: &mut AudioUnitStream, flags: device_flags)
     async_dispatch(stm.context.serial_queue, move || {
         let stm = unsafe { &mut *(stm_ptr as *mut AudioUnitStream) };
         if *stm.destroy_pending.get_mut() {
-            cubeb_log!("({:p}) stream pending destroy, cancelling reinit task", stm);
+            cubeb_log!("({:p}) stream pending destroy, cancelling reinit task", stm as *const AudioUnitStream);
             return;
         }
 
         if audiounit_reinit_stream(stm, flags).is_err() {
             if audiounit_uninstall_system_changed_callback(stm).is_err() {
-                cubeb_log!("({:p}) Could not uninstall system changed callback", stm);
+                cubeb_log!("({:p}) Could not uninstall system changed callback", stm as *const AudioUnitStream);
             }
             // TODO: C version doesn't check if state_callback is a null pointer.
             if stm.state_callback.is_some() {
@@ -841,7 +841,7 @@ fn audiounit_reinit_stream_async(stm: &mut AudioUnitStream, flags: device_flags)
                     );
                 }
             }
-            cubeb_log!("({:p}) Could not reopen the stream after switching.", stm);
+            cubeb_log!("({:p}) Could not reopen the stream after switching.", stm as *const AudioUnitStream);
         }
         *stm.switching_device.get_mut() = false;
         *stm.reinit_pending.get_mut() = false;
@@ -875,7 +875,7 @@ extern fn audiounit_property_listener_callback(id: AudioObjectID, address_count:
     }
     *stm.switching_device.get_mut() = true;
 
-    cubeb_log!("({:p}) Audio device changed, {} events.", stm, address_count);
+    cubeb_log!("({:p}) Audio device changed, {} events.", stm as *const AudioUnitStream, address_count);
     for (i, addr) in addrs.iter().enumerate() {
         match addr.mSelector {
             coreaudio_sys::kAudioHardwarePropertyDefaultOutputDevice => {
@@ -1818,7 +1818,7 @@ fn audiounit_workaround_for_airpod(stm: &AudioUnitStream)
         let mut input_nominal_rate = 0;
         audiounit_get_available_samplerate(stm.input_device.id, kAudioObjectPropertyScopeGlobal,
                                            &mut input_min_rate, &mut input_max_rate, &mut input_nominal_rate);
-        cubeb_log!("({:p}) Input device {}, name: {}, min: {}, max: {}, nominal rate: {}", stm, stm.input_device.id
+        cubeb_log!("({:p}) Input device {}, name: {}, min: {}, max: {}, nominal rate: {}", stm as *const AudioUnitStream, stm.input_device.id
         , input_name_str, input_min_rate, input_max_rate, input_nominal_rate);
 
         let mut output_min_rate = 0;
@@ -1826,7 +1826,7 @@ fn audiounit_workaround_for_airpod(stm: &AudioUnitStream)
         let mut output_nominal_rate = 0;
         audiounit_get_available_samplerate(stm.output_device.id, kAudioObjectPropertyScopeGlobal,
                                            &mut output_min_rate, &mut output_max_rate, &mut output_nominal_rate);
-        cubeb_log!("({:p}) Output device {}, name: {}, min: {}, max: {}, nominal rate: {}", stm, stm.output_device.id
+        cubeb_log!("({:p}) Output device {}, name: {}, min: {}, max: {}, nominal rate: {}", stm as *const AudioUnitStream, stm.output_device.id
         , output_name_str, output_min_rate, output_max_rate, output_nominal_rate);
 
         let rate = input_nominal_rate as f64;
@@ -1877,26 +1877,26 @@ fn audiounit_workaround_for_airpod(stm: &AudioUnitStream)
 fn audiounit_create_aggregate_device(stm: &mut AudioUnitStream) -> Result<()>
 {
     if let Err(r) = audiounit_create_blank_aggregate_device(&mut stm.plugin_id, &mut stm.aggregate_device_id) {
-        cubeb_log!("({:p}) Failed to create blank aggregate device", stm);
+        cubeb_log!("({:p}) Failed to create blank aggregate device", stm as *const AudioUnitStream);
         return Err(r);
     }
 
     if let Err(r) = audiounit_set_aggregate_sub_device_list(stm.aggregate_device_id, stm.input_device.id, stm.output_device.id) {
-        cubeb_log!("({:p}) Failed to set aggregate sub-device list", stm);
+        cubeb_log!("({:p}) Failed to set aggregate sub-device list", stm as *const AudioUnitStream);
         // TODO: Check if aggregate device is destroyed or not ?
         audiounit_destroy_aggregate_device(stm.plugin_id, &mut stm.aggregate_device_id);
         return Err(r);
     }
 
     if let Err(r) = audiounit_set_master_aggregate_device(stm.aggregate_device_id) {
-        cubeb_log!("({:p}) Failed to set master sub-device for aggregate device", stm);
+        cubeb_log!("({:p}) Failed to set master sub-device for aggregate device", stm as *const AudioUnitStream);
         // TODO: Check if aggregate device is destroyed or not ?
         audiounit_destroy_aggregate_device(stm.plugin_id, &mut stm.aggregate_device_id);
         return Err(r);
     }
 
     if let Err(r) = audiounit_activate_clock_drift_compensation(stm.aggregate_device_id) {
-        cubeb_log!("({:p}) Failed to activate clock drift compensation for aggregate device", stm);
+        cubeb_log!("({:p}) Failed to activate clock drift compensation for aggregate device", stm as *const AudioUnitStream);
         // TODO: Check if aggregate device is destroyed or not ?
         audiounit_destroy_aggregate_device(stm.plugin_id, &mut stm.aggregate_device_id);
         return Err(r);
@@ -2229,9 +2229,9 @@ extern fn buffer_size_changed_callback(inClientData: *mut c_void,
                                             &mut new_buffer_size,
                                             &mut outSize);
             if r != NO_ERR {
-                cubeb_log!("({:p}) Event: kAudioDevicePropertyBufferFrameSize: Cannot get current buffer size", stm);
+                cubeb_log!("({:p}) Event: kAudioDevicePropertyBufferFrameSize: Cannot get current buffer size", stm as *const AudioUnitStream);
             } else {
-                cubeb_log!("({:p}) Event: kAudioDevicePropertyBufferFrameSize: New {} buffer size = {} for scope {}", stm,
+                cubeb_log!("({:p}) Event: kAudioDevicePropertyBufferFrameSize: New {} buffer size = {} for scope {}", stm as *const AudioUnitStream,
                            au_type, new_buffer_size, inScope);
             }
             *stm.buffer_size_change_state.get_mut() = true;
@@ -2275,7 +2275,7 @@ fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, si
     // TODO: Check new_size_frames is not zero (larger than zero) ?
 
     if new_size_frames == buffer_frames {
-        cubeb_log!("({:p}) No need to update {} buffer size already {} frames", stm, to_string(&side), buffer_frames);
+        cubeb_log!("({:p}) No need to update {} buffer size already {} frames", stm as *const AudioUnitStream, to_string(&side), buffer_frames);
         return Ok(());
     }
 
@@ -2314,7 +2314,7 @@ fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, si
     while !*stm.buffer_size_change_state.get_mut() && count < 30 {
         count += 1;
         // TODO: Log time ...
-        cubeb_log!("({:p}) audiounit_set_buffer_size : wait count = {}", stm, count);
+        cubeb_log!("({:p}) audiounit_set_buffer_size : wait count = {}", stm as *const AudioUnitStream, count);
     }
 
     r = audio_unit_remove_property_listener_with_user_data(au,
@@ -2327,11 +2327,11 @@ fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, si
     }
 
     if !*stm.buffer_size_change_state.get_mut() && count >= 30 {
-        cubeb_log!("({:p}) Error, did not get buffer size change callback ...", stm);
+        cubeb_log!("({:p}) Error, did not get buffer size change callback ...", stm as *const AudioUnitStream);
         return Err(Error::error());
     }
 
-    cubeb_log!("({:p}) {} buffer size changed to {} frames.", stm, to_string(&side), new_size_frames);
+    cubeb_log!("({:p}) {} buffer size changed to {} frames.", stm as *const AudioUnitStream, to_string(&side), new_size_frames);
     Ok(())
 }
 
@@ -2344,7 +2344,7 @@ fn audiounit_configure_input(stm: &mut AudioUnitStream) -> Result<()>
     let mut aurcbs_in = AURenderCallbackStruct::default();
 
     cubeb_log!("({:p}) Opening input side: rate {}, channels {}, format {:?}, latency in frames {}.",
-        stm, stm.input_stream_params.rate(), stm.input_stream_params.channels(),
+        stm as *const AudioUnitStream, stm.input_stream_params.rate(), stm.input_stream_params.channels(),
         stm.input_stream_params.format(), stm.latency_frames);
 
     /* Get input device sample rate. */
@@ -2361,11 +2361,11 @@ fn audiounit_configure_input(stm: &mut AudioUnitStream) -> Result<()>
         return Err(Error::error());
     }
     stm.input_hw_rate = input_hw_desc.mSampleRate;
-    cubeb_log!("({:p}) Input device sampling rate: {}", stm, stm.input_hw_rate);
+    cubeb_log!("({:p}) Input device sampling rate: {}", stm as *const AudioUnitStream, stm.input_hw_rate);
 
     /* Set format description according to the input params. */
     if let Err(r) = audio_stream_desc_init(&mut stm.input_desc, &stm.input_stream_params) {
-        cubeb_log!("({:p}) Setting format description for input failed.", stm);
+        cubeb_log!("({:p}) Setting format description for input failed.", stm as *const AudioUnitStream);
         return Err(r);
     }
 
@@ -2378,7 +2378,7 @@ fn audiounit_configure_input(stm: &mut AudioUnitStream) -> Result<()>
     // Use a temporary variable `latency_frames` to avoid borrowing issue.
     let latency_frames = stm.latency_frames;
     if let Err(r) = audiounit_set_buffer_size(stm, latency_frames, io_side::INPUT) {
-        cubeb_log!("({:p}) Error in change input buffer size.", stm);
+        cubeb_log!("({:p}) Error in change input buffer size.", stm as *const AudioUnitStream);
         return Err(r);
     }
 
@@ -2439,7 +2439,7 @@ fn audiounit_configure_input(stm: &mut AudioUnitStream) -> Result<()>
 
     *stm.frames_read.get_mut() = 0;
 
-    cubeb_log!("({:p}) Input audiounit init successfully.", stm);
+    cubeb_log!("({:p}) Input audiounit init successfully.", stm as *const AudioUnitStream);
 
     Ok(())
 }
@@ -2453,11 +2453,11 @@ fn audiounit_configure_output(stm: &mut AudioUnitStream) -> Result<()>
     let mut size: usize = 0;
 
     cubeb_log!("({:p}) Opening output side: rate {}, channels {}, format {:?}, latency in frames {}.",
-               stm, stm.output_stream_params.rate(), stm.output_stream_params.channels(),
+               stm as *const AudioUnitStream, stm.output_stream_params.rate(), stm.output_stream_params.channels(),
                stm.output_stream_params.format(), stm.latency_frames);
 
     if let Err(r) = audio_stream_desc_init(&mut stm.output_desc, &stm.output_stream_params) {
-        cubeb_log!("({:p}) Could not initialize the audio stream description.", stm);
+        cubeb_log!("({:p}) Could not initialize the audio stream description.", stm as *const AudioUnitStream);
         return Err(r);
     }
 
@@ -2478,7 +2478,7 @@ fn audiounit_configure_output(stm: &mut AudioUnitStream) -> Result<()>
         return Err(Error::error());
     }
     stm.output_hw_rate = output_hw_desc.mSampleRate;
-    cubeb_log!("{:p} Output device sampling rate: {}", stm, output_hw_desc.mSampleRate);
+    cubeb_log!("{:p} Output device sampling rate: {}", stm as *const AudioUnitStream, output_hw_desc.mSampleRate);
     stm.context.channels = output_hw_desc.mChannelsPerFrame;
 
     // Set the input layout to match the output device layout.
@@ -2519,7 +2519,7 @@ fn audiounit_configure_output(stm: &mut AudioUnitStream) -> Result<()>
     // Use a temporary variable `latency_frames` to avoid borrowing issue.
     let latency_frames = stm.latency_frames;
     if let Err(r) = audiounit_set_buffer_size(stm, latency_frames, io_side::OUTPUT) {
-        cubeb_log!("({:p}) Error in change output buffer size.", stm);
+        cubeb_log!("({:p}) Error in change output buffer size.", stm as *const AudioUnitStream);
         return Err(r);
     }
 
@@ -2550,7 +2550,7 @@ fn audiounit_configure_output(stm: &mut AudioUnitStream) -> Result<()>
 
     *stm.frames_written.get_mut() = 0;
 
-    cubeb_log!("({:p}) Output audiounit init successfully.", stm);
+    cubeb_log!("({:p}) Output audiounit init successfully.", stm as *const AudioUnitStream);
     Ok(())
 }
 
@@ -2563,7 +2563,7 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
 
     if stm.input_stream_params.prefs().contains(StreamPrefs::LOOPBACK) ||
        stm.output_stream_params.prefs().contains(StreamPrefs::LOOPBACK) {
-        cubeb_log!("({:p}) Loopback not supported for audiounit.", stm);
+        cubeb_log!("({:p}) Loopback not supported for audiounit.", stm as *const AudioUnitStream);
         return Err(Error::not_supported());
     }
 
@@ -2575,7 +2575,7 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
         if let Err(r) = audiounit_create_aggregate_device(stm) {
             // TODO: Use kAudioObjectUnknown instead ?
             stm.aggregate_device_id = 0;
-            cubeb_log!("({:p}) Create aggregate devices failed.", stm);
+            cubeb_log!("({:p}) Create aggregate devices failed.", stm as *const AudioUnitStream);
             // !!!NOTE: It is not necessary to return here. If it does not
             // return it will fallback to the old implementation. The intention
             // is to investigate how often it fails. I plan to remove
@@ -2590,14 +2590,14 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
 
     if has_input(stm) {
         if let Err(r) = audiounit_create_unit(&mut stm.input_unit, &in_dev_info) {
-            cubeb_log!("({:p}) AudioUnit creation for input failed.", stm);
+            cubeb_log!("({:p}) AudioUnit creation for input failed.", stm as *const AudioUnitStream);
             return Err(r);
         }
     }
 
     if has_output(stm) {
         if let Err(r) = audiounit_create_unit(&mut stm.output_unit, &out_dev_info) {
-            cubeb_log!("({:p}) AudioUnit creation for output failed.", stm);
+            cubeb_log!("({:p}) AudioUnit creation for output failed.", stm as *const AudioUnitStream);
             return Err(r);
         }
     }
@@ -2605,7 +2605,7 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
     /* Latency cannot change if another stream is operating in parallel. In this case
      * latecy is set to the other stream value. */
     if audiounit_active_streams(stm.context) > 1 {
-        cubeb_log!("({:p}) More than one active stream, use global latency.", stm);
+        cubeb_log!("({:p}) More than one active stream, use global latency.", stm as *const AudioUnitStream);
         stm.latency_frames = stm.context.global_latency_frames;
     } else {
         /* Silently clamp the latency down to the platform default, because we
@@ -2622,14 +2622,14 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
     /* Configure I/O stream */
     if has_input(stm) {
         if let Err(r) = audiounit_configure_input(stm) {
-            cubeb_log!("({:p}) Configure audiounit input failed.", stm);
+            cubeb_log!("({:p}) Configure audiounit input failed.", stm as *const AudioUnitStream);
             return Err(r);
         }
     }
 
     if has_output(stm) {
         if let Err(r) = audiounit_configure_output(stm) {
-            cubeb_log!("({:p}) Configure audiounit output failed.", stm);
+            cubeb_log!("({:p}) Configure audiounit output failed.", stm as *const AudioUnitStream);
             return Err(r);
         }
     }
@@ -2667,7 +2667,7 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
     });
 
     if stm.resampler.as_mut_ptr().is_null() {
-        cubeb_log!("({:p}) Could not create resampler.", stm);
+        cubeb_log!("({:p}) Could not create resampler.", stm as *const AudioUnitStream);
         return Err(Error::error());
     }
 
@@ -2704,7 +2704,7 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
     }
 
     if let Err(_) = audiounit_install_device_changed_callback(stm) {
-        cubeb_log!("({:p}) Could not install all device change callback.", stm);
+        cubeb_log!("({:p}) Could not install all device change callback.", stm as *const AudioUnitStream);
     }
 
     Ok(())
@@ -2741,11 +2741,11 @@ fn audiounit_stream_destroy_internal(stm: &mut AudioUnitStream)
     stm.context.mutex.assert_current_thread_owns();
 
     if let Err(_) = audiounit_uninstall_system_changed_callback(stm) {
-        cubeb_log!("({:p}) Could not uninstall the device changed callback", stm);
+        cubeb_log!("({:p}) Could not uninstall the device changed callback", stm as *const AudioUnitStream);
     }
 
     if let Err(_) = audiounit_uninstall_device_changed_callback(stm) {
-        cubeb_log!("({:p}) Could not uninstall all device change listeners", stm);
+        cubeb_log!("({:p}) Could not uninstall all device change listeners", stm as *const AudioUnitStream);
     }
 
     // The scope of `_lock` is a critical section.
@@ -2787,7 +2787,7 @@ fn audiounit_stream_destroy(stm: &mut AudioUnitStream)
         audiounit_stream_destroy_internal(stm);
     });
 
-    cubeb_log!("Cubeb stream ({:p}) destroyed successful.", stm);
+    cubeb_log!("Cubeb stream ({:p}) destroyed successful.", stm as *const AudioUnitStream);
 }
 
 fn audiounit_stream_start_internal(stm: &AudioUnitStream)
@@ -2899,7 +2899,7 @@ fn audiounit_get_default_device_name(stm: &AudioUnitStream,
     *name = convert_uint32_into_string(data).into_raw();
     if name.is_null() {
         // TODO: Bad style to use scope as the above.
-        cubeb_log!("({:p}) name of {} device is empty!", stm,
+        cubeb_log!("({:p}) name of {} device is empty!", stm as *const AudioUnitStream,
                    if devtype == DeviceType::INPUT { "input" } else { "output" } );
     }
     Ok(())
@@ -3775,7 +3775,7 @@ impl ContextOps for AudioUnitContext {
         let cubeb_stream = unsafe {
             Stream::from_ptr(Box::into_raw(boxed_stream) as *mut _)
         };
-        cubeb_log!("({:p}) Cubeb stream init successful.", &cubeb_stream);
+        cubeb_log!("({:p}) Cubeb stream init successful.", &cubeb_stream as *const Stream);
         Ok(cubeb_stream)
     }
     fn register_device_collection_changed(
@@ -3809,7 +3809,7 @@ impl ContextOps for AudioUnitContext {
 
 impl Drop for AudioUnitContext {
     fn drop(&mut self) {
-        println!("Drop context @ {:p}", self);
+        println!("Drop context @ {:p}", self as *const AudioUnitContext);
         let mutex_ptr = &mut self.mutex as *mut OwnedCriticalSection;
         let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
 
@@ -3817,7 +3817,7 @@ impl Drop for AudioUnitContext {
         // assert(ctx->active_streams == 0);
         let streams = audiounit_active_streams(self);
         if streams > 0 {
-            cubeb_log!("({:p}) API misuse, {} streams active when context destroyed!", self, streams);
+            cubeb_log!("({:p}) API misuse, {} streams active when context destroyed!", self as *const AudioUnitContext, streams);
         }
 
         /* Unregister the callback if necessary. */
@@ -3982,7 +3982,7 @@ impl<'ctx> Drop for AudioUnitStream<'ctx> {
     fn drop(&mut self) {
         self.destroy();
         println!("<Drop> stream @ {:p}\nstream.context @ {:p}\n{:?}",
-                 self, self.context, self);
+                 self as *const AudioUnitStream, self.context as *const AudioUnitContext, self);
     }
 }
 
@@ -4008,7 +4008,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
             }
         }
 
-        cubeb_log!("Cubeb stream ({:p}) started successfully.", self);
+        cubeb_log!("Cubeb stream ({:p}) started successfully.", self as *const AudioUnitStream);
         Ok(())
     }
     fn stop(&mut self) -> Result<()> {
@@ -4032,7 +4032,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
             }
         }
 
-        cubeb_log!("Cubeb stream ({:p}) stopped successfully.", self);
+        cubeb_log!("Cubeb stream ({:p}) stopped successfully.", self as *const AudioUnitStream);
         Ok(())
     }
     fn reset_default_device(&mut self) -> Result<()> {
