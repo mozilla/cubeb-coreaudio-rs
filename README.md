@@ -19,25 +19,30 @@ Currently it can only be built by *rust-nightly* since we use *nightly-only* ato
 
 ## Development Pipeline / Timeline
 
-| phase   | 1         | 2         | 3                       | 4                          | 5                 |
-| ------- | --------- | --------- | ----------------------- | -------------------------- | ----------------- |
-| draft   | translate | translate | test in gecko, fix bugs |                            | x                 |
-| review  |           | review    | review and laned        | refactor                   | start refactoring |
-| release |           |           |                         | ride the trains / fix bugs | ...               |
+| phase   | 1         | 2         | 3                       | 4               | 5             |
+| ------- | --------- | --------- | ----------------------- | --------------- | ------------- |
+| draft   | translate | translate | test in gecko, fix bugs |                 | x             |
+| review  |           | review    | review and land         | refactor        | refactor loop |
+| release |           |           |                         | ride the trains | release loop  |
 
 The draft code is in *trailblazer* branch, the reviewing code are in the pull requests,
 which comes from *dev* branch, and the reviewed code is in *release* branch.
 
 ## Status
 
-Thew project is in phase 2.
+Thew project is in phase 2. All the lines in [*cubeb_audiounit.cpp*][cubeb-au] are translated.
 
-By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb], it's ok to
-1. play sounds by running *test_audio*, *test_tone*
-2. capture streams by running *test_record*
-3. show devices by running *test_devices*
-4. Keep playing streams when switching devices
+By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb],
+it can pass all the tests under *cubeb/test*
+and it's able to switch devices when the stream is working
+(we are unable to test this automatically yet).
 
+Now the draft version is tested within *gecko*.
+It can be tracked on [*bugzilla* 1530715][bugzilla-cars].
+(Commits to import and build this within *gecko* can be found [here][build-within-gecko])
+
+
+<!--
 - 🥚 : Not implemented.
 - 🐣 : Work in progress. May be implemented partially or blocked by dependent APIs.
 - 🐥 : Implemented.
@@ -154,6 +159,7 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 | audiounit_collection_changed_callback       | 🐥      |
 | audiounit_add_device_listener               | 🐥      |
 | audiounit_remove_device_listener            | 🐥      |
+-->
 
 
 ## TODO
@@ -195,6 +201,7 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
   - Implement `to_owned` in [`StreamParamsRef`][cubeb-rs-stmparamsref]
 
 ## Issues
+- See discussion [here][discussion]
 - Mutex: Find a replacement for [`owned_critical_section`][ocs]
   - A dummy mutex like `Mutex<()>` should work (see [`test_dummy_mutex_multithread`][ocs-rust]) as what `owned_critical_section` does in [_C_ version][ocs], but it doens't has equivalent API for `assert_current_thread_owns`.
   - We implement a [`OwnedCriticalSection` around `pthread_mutex_t`][ocs-rust] like what we do in [_C_ version][ocs] for now.
@@ -264,3 +271,8 @@ By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb]
 [cubeb-pulse-rs-reg-dev-chg-cb]: cubeb-pulse-rs-register_device_changed_callback.diff "Impelement of register_device_changed_callback"
 
 [chg-buf-sz]: https://cs.chromium.org/chromium/src/media/audio/mac/audio_manager_mac.cc?l=982-989&rcl=0207eefb445f9855c2ed46280cb835b6f08bdb30 "issue on changing buffer size"
+
+[bugzilla-cars]: https://bugzilla.mozilla.org/show_bug.cgi?id=1530715 "Bug 1530715 - Implement CoreAudio backend for Cubeb in Rust"
+[build-within-gecko]: https://github.com/ChunMinChang/gecko-dev/commits/cubeb-coreaudio-rs
+
+[discussion]: https://docs.google.com/document/d/1ZP6R7d5S9I_8bXOXhplnO6qFM1X4VokWtE7w8ExgJEQ/edit?ts=5c6d5f09
