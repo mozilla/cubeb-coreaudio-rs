@@ -8,9 +8,6 @@
     (and it's easy to re-format the style later by running `rustfmt`)
 - Create some tests for later refactoring
 
-## Limitations
-Currently it can only be built by *rust-nightly* since we use *nightly-only* atomic types(`AtomicU32` and `AtomicU64`).
-
 ## Branches
 - *trailblazer*: Draft *Rust* code without being reviewed. Commits are scribbled.
 - *release*: The offical version. All the commits are reviewed.
@@ -163,6 +160,7 @@ It can be tracked on [*bugzilla* 1530715][bugzilla-cars].
 
 
 ## TODO
+- Use `Atomic{I64, U32, U64}` instead of `Atomic<{i64, u32, u64}>`, once they are stable.
 - Integration Tests
   - Add a test-only API to change the default audio devices
   - Use above API to test the device-changed callback

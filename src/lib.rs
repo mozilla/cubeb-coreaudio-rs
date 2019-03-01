@@ -3,8 +3,8 @@
 // This program is made available under an ISC-style license.  See the
 // accompanying file LICENSE for details.
 
-// TODO: Remove `integer_atomics` after `AtomicU32` and `AtomicU64` are stable.
-#![feature(integer_atomics)]
+// Use Atomic{I64, U32, U64} once they are stable.
+// #![feature(integer_atomics)]
 
 extern crate atomic;
 #[macro_use]

@@ -46,7 +46,9 @@ use std::mem;
 use std::os::raw::{c_void, c_char};
 use std::ptr;
 use std::slice;
-use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU32, AtomicU64, Ordering};
+// Replace Atomic{I64, U32, U64} by Atomic<{i64, u32, u64}> for now so
+// this can be compiled with the stable rustc.
+use std::sync::atomic::{AtomicBool, /*AtomicI64, AtomicU32, AtomicU64,*/ Ordering};
 
 // TODO:
 // 1. We use AudioDeviceID and AudioObjectID at the same time.
@@ -369,7 +371,8 @@ fn audiounit_render_input(stm: &mut AudioUnitStream,
 
     /* Advance input frame counter. */
     assert!(input_frames > 0);
-    *stm.frames_read.get_mut() += input_frames as i64;
+    // *stm.frames_read.get_mut() += input_frames as i64;
+    stm.frames_read.fetch_add(input_frames as i64, atomic::Ordering::SeqCst);
 
     cubeb_logv!("({:p}) input: buffers {}, size {}, channels {}, rendered frames {}, total frames {}.",
                 stm as *const AudioUnitStream,
@@ -554,7 +557,8 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
         output_buffer = stm.temp_buffer.as_mut_ptr() as *mut c_void;
     }
 
-    *stm.frames_written.get_mut() += output_frames as i64;
+    // *stm.frames_written.get_mut() += output_frames as i64;
+    stm.frames_written.fetch_add(output_frames as i64, atomic::Ordering::SeqCst);
 
     /* If Full duplex get also input buffer */
     // TODO: fill in additional silence to input_linear_buffer and set it to
@@ -565,17 +569,21 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
          * Otherwise, if we had more than expected callbacks in a row, or we're
          * currently switching, we add some silence as well to compensate for the
          * fact that we're lacking some input data. */
-        let frames_written = *stm.frames_written.get_mut();
+        // let frames_written = *stm.frames_written.get_mut();
+        let frames_written = stm.frames_written.load(atomic::Ordering::SeqCst);
         let input_frames_needed = minimum_resampling_input_frames(stm, frames_written);
-        let missing_frames = input_frames_needed - *stm.frames_read.get_mut();
+        // let missing_frames = input_frames_needed - *stm.frames_read.get_mut();
+        let missing_frames = input_frames_needed - stm.frames_read.load(atomic::Ordering::SeqCst);
         if missing_frames > 0 {
             stm.input_linear_buffer.as_mut().unwrap().push_zeros((missing_frames * stm.input_desc.mChannelsPerFrame as i64) as usize);
-            *stm.frames_read.get_mut() = input_frames_needed;
+            // *stm.frames_read.get_mut() = input_frames_needed;
+            stm.frames_read.store(input_frames_needed, atomic::Ordering::SeqCst);
             // Using `stm_ptr` to avoid the borrowing issue below.
             let stm_ptr = stm as *const AudioUnitStream;
             cubeb_log!("({:p}) {} pushed {} frames of input silence.",
                        stm_ptr,
-                       if *stm.frames_read.get_mut() == 0 {
+                       // if *stm.frames_read.get_mut() == 0 {
+                       if stm.frames_read.load(atomic::Ordering::SeqCst) == 0 {
                            "Input hasn't started,"
                        } else {
                            if *stm.switching_device.get_mut() {
@@ -628,7 +636,8 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
     }
 
     *stm.draining.get_mut() = outframes < output_frames as i64;
-    *stm.frames_played.get_mut() = stm.frames_queued;
+    // *stm.frames_played.get_mut() = stm.frames_queued;
+    stm.frames_played.store(stm.frames_queued, atomic::Ordering::SeqCst);
     stm.frames_queued += outframes as u64;
 
     let outaff = stm.output_desc.mFormatFlags;
@@ -2437,7 +2446,8 @@ fn audiounit_configure_input(stm: &mut AudioUnitStream) -> Result<()>
         return Err(Error::error());
     }
 
-    *stm.frames_read.get_mut() = 0;
+    // *stm.frames_read.get_mut() = 0;
+    stm.frames_read.store(0, atomic::Ordering::SeqCst);
 
     cubeb_log!("({:p}) Input audiounit init successfully.", stm as *const AudioUnitStream);
 
@@ -2548,7 +2558,8 @@ fn audiounit_configure_output(stm: &mut AudioUnitStream) -> Result<()>
         return Err(Error::error());
     }
 
-    *stm.frames_written.get_mut() = 0;
+    // *stm.frames_written.get_mut() = 0;
+    stm.frames_written.store(0, atomic::Ordering::SeqCst);
 
     cubeb_log!("({:p}) Output audiounit init successfully.", stm as *const AudioUnitStream);
     Ok(())
@@ -2686,12 +2697,20 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
             return Err(Error::error());
         }
 
-        *stm.current_latency_frames.get_mut() = audiounit_get_device_presentation_latency(stm.output_device.id, kAudioDevicePropertyScopeOutput);
+        // *stm.current_latency_frames.get_mut() = audiounit_get_device_presentation_latency(stm.output_device.id, kAudioDevicePropertyScopeOutput);
+        stm.current_latency_frames.store(
+            audiounit_get_device_presentation_latency(
+                stm.output_device.id,
+                kAudioDevicePropertyScopeOutput
+            ),
+            atomic::Ordering::SeqCst
+        );
 
         let mut unit_s: f64 = 0.0;
         let mut size = mem::size_of_val(&unit_s);
         if audio_unit_get_property(stm.output_unit, kAudioUnitProperty_Latency, kAudioUnitScope_Global, 0, &mut unit_s, &mut size) == NO_ERR {
-            *stm.current_latency_frames.get_mut() += (unit_s * stm.output_desc.mSampleRate) as u32
+            // *stm.current_latency_frames.get_mut() += (unit_s * stm.output_desc.mSampleRate) as u32
+            stm.current_latency_frames.fetch_add((unit_s * stm.output_desc.mSampleRate) as u32, atomic::Ordering::SeqCst);
         }
     }
 
@@ -3861,20 +3880,24 @@ struct AudioUnitStream<'ctx> {
     // Only accessed on input/output callback thread and during initial configure.
     input_linear_buffer: Option<Box<AutoArrayWrapper>>,
     /* Frame counters */
-    frames_played: AtomicU64,
+    // frames_played: AtomicU64,
+    frames_played: atomic::Atomic<u64>,
     frames_queued: u64,
     // How many frames got read from the input since the stream started (includes
     // padded silence)
-    frames_read: AtomicI64,
+    // frames_read: AtomicI64,
+    frames_read: atomic::Atomic<i64>,
     // How many frames got written to the output device since the stream started
-    frames_written: AtomicI64,
+    // frames_written: AtomicI64,
+    frames_written: atomic::Atomic<i64>,
     shutdown: AtomicBool,
     draining: AtomicBool,
     reinit_pending: AtomicBool,
     destroy_pending: AtomicBool,
     /* Latency requested by the user. */
     latency_frames: u32,
-    current_latency_frames: AtomicU32,
+    // current_latency_frames: AtomicU32,
+    current_latency_frames: atomic::Atomic<u32>,
     panning: atomic::Atomic<f32>,
     resampler: AutoRelease<ffi::cubeb_resampler>,
     /* This is true if a device change callback is currently running.  */
@@ -3940,16 +3963,20 @@ impl<'ctx> AudioUnitStream<'ctx> {
             expected_output_callbacks_in_a_row: 0,
             mutex: OwnedCriticalSection::new(),
             input_linear_buffer: None,
-            frames_played: AtomicU64::new(0),
+            // frames_played: AtomicU64::new(0),
+            frames_played: atomic::Atomic::new(0),
             frames_queued: 0,
-            frames_read: AtomicI64::new(0),
-            frames_written: AtomicI64::new(0),
+            // frames_read: AtomicI64::new(0),
+            frames_read: atomic::Atomic::new(0),
+            // frames_written: AtomicI64::new(0),
+            frames_written: atomic::Atomic::new(0),
             shutdown: AtomicBool::new(true),
             draining: AtomicBool::new(false),
             reinit_pending: AtomicBool::new(false),
             destroy_pending: AtomicBool::new(false),
             latency_frames,
-            current_latency_frames: AtomicU32::new(0),
+            // current_latency_frames: AtomicU32::new(0),
+            current_latency_frames: atomic::Atomic::new(0),
             panning: atomic::Atomic::new(0.0_f32),
             resampler: AutoRelease::new(ptr::null_mut(), ffi::cubeb_resampler_destroy),
             switching_device: AtomicBool::new(false),
@@ -4039,10 +4066,12 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         Ok(())
     }
     fn position(&mut self) -> Result<u64> {
-        let position = if *self.current_latency_frames.get_mut() as u64 > *self.frames_played.get_mut() {
+        // let position = if *self.current_latency_frames.get_mut() as u64 > *self.frames_played.get_mut() {
+        let position = if self.current_latency_frames.load(atomic::Ordering::SeqCst) as u64 > self.frames_played.load(atomic::Ordering::SeqCst) {
             0
         } else {
-            *self.frames_played.get_mut() - *self.current_latency_frames.get_mut() as u64
+            // *self.frames_played.get_mut() - *self.current_latency_frames.get_mut() as u64
+            self.frames_played.load(atomic::Ordering::SeqCst) - self.current_latency_frames.load(atomic::Ordering::SeqCst) as u64
         };
         Ok(position)
     }
@@ -4052,7 +4081,8 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     }
     #[cfg(not(target_os = "ios"))]
     fn latency(&mut self) -> Result<u32> {
-        Ok(self.current_latency_frames.load(Ordering::SeqCst))
+        // Ok(self.current_latency_frames.load(Ordering::SeqCst))
+        Ok(self.current_latency_frames.load(atomic::Ordering::SeqCst))
     }
     fn set_volume(&mut self, volume: f32) -> Result<()> {
         assert!(!self.output_unit.is_null());
