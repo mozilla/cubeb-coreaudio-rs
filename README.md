@@ -160,6 +160,7 @@ It can be tracked on [*bugzilla* 1530715][bugzilla-cars].
 
 
 ## TODO
+- Remove `#[allow(non_camel_case_types)]`, `#![allow(unused_assignments)]`, `#![allow(unused_must_use)]` and apply *rust* coding styles
 - Use `Atomic{I64, U32, U64}` instead of `Atomic<{i64, u32, u64}>`, once they are stable.
 - Integration Tests
   - Add a test-only API to change the default audio devices

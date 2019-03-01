@@ -2,6 +2,8 @@
 //
 // This program is made available under an ISC-style license.  See the
 // accompanying file LICENSE for details.
+#![allow(unused_assignments)]
+#![allow(unused_must_use)]
 
 extern crate coreaudio_sys;
 extern crate libc;
@@ -137,6 +139,7 @@ const OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS: AudioObjectPropertyAddress =
 };
 
 bitflags! {
+    #[allow(non_camel_case_types)]
     struct device_flags: u32 {
         const DEV_UNKNOWN           = 0b00000000; /* Unknown */
         const DEV_INPUT             = 0b00000001; /* Record device like mic */
@@ -146,6 +149,7 @@ bitflags! {
     }
 }
 
+#[allow(non_camel_case_types)]
 // TODO: Consider replacing it by DeviceType.
 #[derive(Debug, PartialEq)]
 enum io_side {
@@ -176,6 +180,7 @@ fn to_string(side: &io_side) -> &'static str
     }
 }
 
+#[allow(non_camel_case_types)]
 #[derive(Clone, Debug)]
 struct device_info {
     id: AudioDeviceID,
@@ -206,6 +211,7 @@ impl Default for device_info {
 //    to get run-time check for this nullable pointer
 // 2. or refactor the code to avoid the mutual references and guarantee
 //    the `stream` is alive when `property_listener` is called.
+#[allow(non_camel_case_types)]
 #[derive(Debug)]
 struct property_listener<'ctx> {
     device_id: AudioDeviceID,
@@ -320,10 +326,10 @@ fn audiounit_set_global_latency(ctx: &mut AudioUnitContext, latency_frames: u32)
     ctx.global_latency_frames = latency_frames;
 }
 
-fn audiounit_make_silent(ioData: &mut AudioBuffer) {
-    assert!(!ioData.mData.is_null());
+fn audiounit_make_silent(io_data: &mut AudioBuffer) {
+    assert!(!io_data.mData.is_null());
     unsafe {
-        libc::memset(ioData.mData as *mut libc::c_void, 0, ioData.mDataByteSize as usize);
+        libc::memset(io_data.mData as *mut libc::c_void, 0, io_data.mDataByteSize as usize);
     }
 }
 
@@ -487,18 +493,18 @@ fn minimum_resampling_input_frames(stm: &AudioUnitStream, output_frames: i64) ->
 
 extern fn audiounit_output_callback(user_ptr: *mut c_void,
                                     _: *mut AudioUnitRenderActionFlags,
-                                    tstamp: *const AudioTimeStamp,
+                                    _tstamp: *const AudioTimeStamp,
                                     bus: u32,
                                     output_frames: u32,
-                                    outBufferList: *mut AudioBufferList) -> OSStatus
+                                    out_buffer_list: *mut AudioBufferList) -> OSStatus
 {
     assert_eq!(bus, AU_OUT_BUS);
-    assert_eq!(unsafe { (&(*outBufferList)).mNumberBuffers }, 1);
+    assert_eq!(unsafe { (&(*out_buffer_list)).mNumberBuffers }, 1);
 
     let stm = unsafe { &mut *(user_ptr as *mut AudioUnitStream) };
     let buffers = unsafe {
-        let ptr = (&mut (*outBufferList)).mBuffers.as_mut_ptr();
-        let len = (&(*outBufferList)).mNumberBuffers as usize;
+        let ptr = (&mut (*out_buffer_list)).mBuffers.as_mut_ptr();
+        let len = (&(*out_buffer_list)).mNumberBuffers as usize;
         slice::from_raw_parts_mut(ptr, len)
     };
 
@@ -1362,7 +1368,7 @@ fn audiounit_set_channel_layout(unit: AudioUnit,
     // the actual channel orders are. So we set a custom layout.
     assert!(nb_channels >= 1);
     let size = mem::size_of::<AudioChannelLayout>() + (nb_channels as usize - 1) * mem::size_of::<AudioChannelDescription>();
-    let mut au_layout = make_sized_audio_channel_layout(size);
+    let au_layout = make_sized_audio_channel_layout(size);
     au_layout.as_mut().mChannelLayoutTag = kAudioChannelLayoutTag_UseChannelDescriptions;
     au_layout.as_mut().mNumberChannelDescriptions = nb_channels;
     let channel_descriptions = unsafe {
@@ -1373,18 +1379,18 @@ fn audiounit_set_channel_layout(unit: AudioUnit,
     };
 
     let mut channels: usize = 0;
-    let mut channelMap: ffi::cubeb_channel_layout = layout.into();
+    let mut channel_map: ffi::cubeb_channel_layout = layout.into();
     let i = 0;
-    while channelMap != 0 {
+    while channel_map != 0 {
         assert!(channels < nb_channels as usize);
-        let channel = (channelMap & 1) << i;
+        let channel = (channel_map & 1) << i;
         if channel != 0 {
             channel_descriptions[channels].mChannelLabel =
                 cubeb_channel_to_channel_label(ChannelLayout::from(channel));
             channel_descriptions[channels].mChannelFlags = kAudioChannelFlags_AllOff;
             channels += 1;
         }
-        channelMap = channelMap >> 1;
+        channel_map = channel_map >> 1;
     }
 
     // TODO: This call doesn't work all the times, and r is NO_ERR doesn't
@@ -1558,10 +1564,10 @@ fn audiounit_create_blank_aggregate_device(plugin_id: &mut AudioObjectID, aggreg
         CFRelease(aggregate_device_name as *const c_void);
 
         // let device_uid_string = format!("org.mozilla.{}_{}", PRIVATE_AGGREGATE_DEVICE_NAME, time_id);
-        // let aggregate_device_UID = cfstringref_from_string(&device_uid_string);
-        let aggregate_device_UID = CFStringCreateWithFormat(ptr::null(), ptr::null(), cfstringref_from_static_string("org.mozilla.%s_%llx"), prefix.as_ptr(), time_id);
-        CFDictionaryAddValue(aggregate_device_dict, cfstringref_from_static_string(AGGREGATE_DEVICE_UID) as *const c_void, aggregate_device_UID as *const c_void);
-        CFRelease(aggregate_device_UID as *const c_void);
+        // let aggregate_device_uid = cfstringref_from_string(&device_uid_string);
+        let aggregate_device_uid = CFStringCreateWithFormat(ptr::null(), ptr::null(), cfstringref_from_static_string("org.mozilla.%s_%llx"), prefix.as_ptr(), time_id);
+        CFDictionaryAddValue(aggregate_device_dict, cfstringref_from_static_string(AGGREGATE_DEVICE_UID) as *const c_void, aggregate_device_uid as *const c_void);
+        CFRelease(aggregate_device_uid as *const c_void);
 
         let private_value: i32 = 1;
         let aggregate_device_private_key = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType as i64, &private_value as *const i32 as *const c_void);
@@ -1597,30 +1603,30 @@ fn audiounit_create_blank_aggregate_device(plugin_id: &mut AudioObjectID, aggreg
 fn get_device_name(id: AudioDeviceID) -> CFStringRef
 {
     let mut size = mem::size_of::<CFStringRef>();
-    let mut UIname: CFStringRef = ptr::null();
+    let mut uiname: CFStringRef = ptr::null();
     let address_uuid = AudioObjectPropertyAddress {
         mSelector: kAudioDevicePropertyDeviceUID,
         mScope: kAudioObjectPropertyScopeGlobal,
         mElement: kAudioObjectPropertyElementMaster
     };
-    let err = audio_object_get_property_data(id, &address_uuid, &mut size, &mut UIname);
-    if err == NO_ERR { UIname } else { ptr::null() }
+    let err = audio_object_get_property_data(id, &address_uuid, &mut size, &mut uiname);
+    if err == NO_ERR { uiname } else { ptr::null() }
 }
 
 // fn get_device_name(id: AudioDeviceID) -> CString
 // {
 //     let mut size = mem::size_of::<CFStringRef>();
-//     let mut UIname: CFStringRef = ptr::null();
+//     let mut uiname: CFStringRef = ptr::null();
 //     let address_uuid = AudioObjectPropertyAddress {
 //         mSelector: kAudioDevicePropertyDeviceUID,
 //         mScope: kAudioObjectPropertyScopeGlobal,
 //         mElement: kAudioObjectPropertyElementMaster
 //     };
-//     let err = audio_object_get_property_data(id, &address_uuid, &mut size, &mut UIname);
+//     let err = audio_object_get_property_data(id, &address_uuid, &mut size, &mut uiname);
 //     if err != NO_ERR {
-//         UIname = ptr::null();
+//         uiname = ptr::null();
 //     }
-//     audiounit_strref_to_cstr_utf8(UIname)
+//     audiounit_strref_to_cstr_utf8(uiname)
 // }
 
 fn audiounit_set_aggregate_sub_device_list(aggregate_device_id: AudioDeviceID,
@@ -2022,6 +2028,7 @@ fn audiounit_new_unit_instance(unit: &mut AudioUnit, device: &device_info) -> Re
     Ok(())
 }
 
+#[allow(non_camel_case_types)]
 #[derive(PartialEq)]
 enum enable_state {
   DISABLE,
@@ -2204,44 +2211,44 @@ fn audiounit_clamp_latency(stm: &mut AudioUnitStream, latency_frames: u32) -> u3
  * - wait until the listener is executed
  * - property has changed, remove the listener
  * */
-extern fn buffer_size_changed_callback(inClientData: *mut c_void,
-                                       inUnit: AudioUnit,
-                                       inPropertyID: AudioUnitPropertyID,
-                                       inScope: AudioUnitScope,
-                                       inElement: AudioUnitElement)
+extern fn buffer_size_changed_callback(in_client_data: *mut c_void,
+                                       in_unit: AudioUnit,
+                                       in_property_id: AudioUnitPropertyID,
+                                       in_scope: AudioUnitScope,
+                                       in_element: AudioUnitElement)
 {
-    let stm = unsafe { &mut *(inClientData as *mut AudioUnitStream) };
+    let stm = unsafe { &mut *(in_client_data as *mut AudioUnitStream) };
 
-    let au = inUnit;
+    let au = in_unit;
     let mut au_scope = kAudioUnitScope_Input;
-    let au_element = inElement;
+    let au_element = in_element;
     let mut au_type = "output";
 
-    if AU_IN_BUS == inElement {
+    if AU_IN_BUS == in_element {
         au_scope = kAudioUnitScope_Output;
         au_type = "input";
     }
 
-    match inPropertyID {
+    match in_property_id {
         // Using coreaudio_sys as prefix so kAudioDevicePropertyBufferFrameSize
         // won't be treated as a new variable introduced in the match arm.
         coreaudio_sys::kAudioDevicePropertyBufferFrameSize => {
-            if inScope != au_scope { // filter out the callback for global scope
+            if in_scope != au_scope { // filter out the callback for global scope
                 return;
             }
             let mut new_buffer_size: u32 = 0;
-            let mut outSize = mem::size_of::<u32>();
+            let mut out_size = mem::size_of::<u32>();
             let r = audio_unit_get_property(au,
                                             kAudioDevicePropertyBufferFrameSize,
                                             au_scope,
                                             au_element,
                                             &mut new_buffer_size,
-                                            &mut outSize);
+                                            &mut out_size);
             if r != NO_ERR {
                 cubeb_log!("({:p}) Event: kAudioDevicePropertyBufferFrameSize: Cannot get current buffer size", stm as *const AudioUnitStream);
             } else {
                 cubeb_log!("({:p}) Event: kAudioDevicePropertyBufferFrameSize: New {} buffer size = {} for scope {}", stm as *const AudioUnitStream,
-                           au_type, new_buffer_size, inScope);
+                           au_type, new_buffer_size, in_scope);
             }
             *stm.buffer_size_change_state.get_mut() = true;
         }
@@ -2583,7 +2590,7 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
 
     if has_input(stm) && has_output(stm) &&
        stm.input_device.id != stm.output_device.id {
-        if let Err(r) = audiounit_create_aggregate_device(stm) {
+        if audiounit_create_aggregate_device(stm).is_err() {
             // TODO: Use kAudioObjectUnknown instead ?
             stm.aggregate_device_id = 0;
             cubeb_log!("({:p}) Create aggregate devices failed.", stm as *const AudioUnitStream);
@@ -3336,13 +3343,13 @@ fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID>
     return devices_in_scope;
 }
 
-extern fn audiounit_collection_changed_callback(_inObjectID: AudioObjectID,
-                                                _inNumberAddresses: u32,
-                                                _inAddresses: *const AudioObjectPropertyAddress,
-                                                inClientData: *mut c_void) -> OSStatus
+extern fn audiounit_collection_changed_callback(_in_object_id: AudioObjectID,
+                                                _in_number_addresses: u32,
+                                                _in_addresses: *const AudioObjectPropertyAddress,
+                                                in_client_data: *mut c_void) -> OSStatus
 {
-    show_callback_info(_inObjectID, _inNumberAddresses, _inAddresses, inClientData);
-    let context = inClientData as *mut AudioUnitContext;
+    show_callback_info(_in_object_id, _in_number_addresses, _in_addresses, in_client_data);
+    let context = in_client_data as *mut AudioUnitContext;
 
     // Rust compilter doesn't allow a pointer to be passed across threads.
     // A hacky way to do that is to cast the pointer into a value, then

@@ -151,6 +151,7 @@ pub fn audio_object_set_property_data<T>(
 
 // Referece:
 // https://gist.github.com/ChunMinChang/f0f4a71f78d1e1c6390493ab1c9d10d3
+#[allow(non_camel_case_types)]
 pub type audio_object_property_listener_proc = extern fn(
     sys::AudioObjectID,
     u32,
@@ -273,6 +274,7 @@ pub fn audio_unit_get_parameter(
 }
 
 // https://developer.apple.com/documentation/audiotoolbox/1440111-audiounitaddpropertylistener?language=objc
+#[allow(non_camel_case_types)]
 pub type audio_unit_property_listener_proc = extern fn(
     *mut c_void,
     sys::AudioUnit,
@@ -337,22 +339,22 @@ pub fn audio_unit_set_parameter(
 }
 
 pub fn audio_unit_render(
-    inUnit: sys::AudioUnit,
-    ioActionFlags: *mut sys::AudioUnitRenderActionFlags,
-    inTimeStamp: *const sys::AudioTimeStamp,
-    inOutputBusNumber: u32,
-    inNumberFrames: u32,
-    ioData: *mut sys::AudioBufferList
+    in_unit: sys::AudioUnit,
+    io_action_flags: *mut sys::AudioUnitRenderActionFlags,
+    in_time_stamp: *const sys::AudioTimeStamp,
+    in_output_bus_number: u32,
+    in_number_frames: u32,
+    io_data: *mut sys::AudioBufferList
 ) -> sys::OSStatus {
-    assert!(!inUnit.is_null());
+    assert!(!in_unit.is_null());
     unsafe {
         sys::AudioUnitRender(
-            inUnit,
-            ioActionFlags,
-            inTimeStamp,
-            inOutputBusNumber,
-            inNumberFrames,
-            ioData
+            in_unit,
+            io_action_flags,
+            in_time_stamp,
+            in_output_bus_number,
+            in_number_frames,
+            io_data
         )
     }
 }
@@ -893,6 +895,7 @@ fn test_audio_unit_add_then_fire_then_remove_property_listener() {
     assert_eq!(called, 2);
 }
 
+#[cfg(test)]
 fn get_default_input_or_output_device() -> super::device_info {
     use super::{
         audiounit_get_default_device_id,

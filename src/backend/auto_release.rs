@@ -1,7 +1,4 @@
 use std::fmt;
-use std::mem;
-use std::os::raw::c_void;
-use std::ptr;
 
 pub struct AutoRelease<T> {
     ptr: *mut T,
@@ -61,6 +58,10 @@ impl<T> fmt::Debug for AutoRelease<T> {
 
 #[test]
 fn test_auto_release() {
+    use std::mem;
+    use std::os::raw::c_void;
+    use std::ptr;
+
     unsafe extern fn allocate() -> *mut c_void {
         // println!("Allocate!");
         libc::calloc(1, mem::size_of::<u32>())
