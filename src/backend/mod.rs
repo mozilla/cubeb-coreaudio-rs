@@ -695,20 +695,17 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
     NO_ERR
 }
 
-// TODO: Replace DeviceType by io_side
-fn audiounit_set_device_info(stm: &mut AudioUnitStream, id: AudioDeviceID, devtype: DeviceType) -> Result<()>
+fn audiounit_set_device_info(stm: &mut AudioUnitStream, id: AudioDeviceID, side: io_side) -> Result<()>
 {
-    assert!(devtype == DeviceType::INPUT || devtype == DeviceType::OUTPUT);
-
-    let info = if devtype == DeviceType::INPUT {
-        &mut stm.input_device
+    let (info, devtype) = if side == io_side::INPUT {
+        (&mut stm.input_device, DeviceType::INPUT)
     } else {
-        &mut stm.output_device
+        (&mut stm.output_device, DeviceType::OUTPUT)
     };
 
     *info = device_info::default();
     info.id = id;
-    info.flags |= if devtype == DeviceType::INPUT {
+    info.flags |= if side == io_side::INPUT {
         device_flags::DEV_INPUT
     } else {
         device_flags::DEV_OUTPUT
@@ -781,7 +778,7 @@ fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Re
         let input_device = if flags.contains(device_flags::DEV_INPUT) { stm.input_device.id } else { kAudioObjectUnknown };
 
         if flags.contains(device_flags::DEV_INPUT) {
-            if audiounit_set_device_info(stm, input_device, DeviceType::INPUT).is_err() {
+            if audiounit_set_device_info(stm, input_device, io_side::INPUT).is_err() {
                 cubeb_log!("({:p}) Set input device info failed. This can happen when last media device is unplugged", stm as *const AudioUnitStream);
                 return Err(Error::error());
             }
@@ -791,7 +788,7 @@ fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Re
          * case but it is sufficient for Firefox and prevent reinit from reporting
          * failures. It will change soon when reinit mechanism will be updated. */
         // TODO: C version uses 0 instead of kAudioObjectUnknown, but they should be same.
-        if audiounit_set_device_info(stm, kAudioObjectUnknown, DeviceType::OUTPUT).is_err() {
+        if audiounit_set_device_info(stm, kAudioObjectUnknown, io_side::OUTPUT).is_err() {
             cubeb_log!("({:p}) Set output device info failed. This can happen when last media device is unplugged", stm as *const AudioUnitStream);
             return Err(Error::error());
         }
@@ -804,7 +801,7 @@ fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Re
                 // default input device.
                 audiounit_close_stream(stm);
                 // TODO: C version uses 0 instead of kAudioObjectUnknown, but they should be same.
-                if audiounit_set_device_info(stm, kAudioObjectUnknown, DeviceType::INPUT).is_err() ||
+                if audiounit_set_device_info(stm, kAudioObjectUnknown, io_side::INPUT).is_err() ||
                    audiounit_setup_stream(stm).is_err() {
                     cubeb_log!("({:p}) Second stream reinit failed.", stm as *const AudioUnitStream);
                     return Err(Error::error());
@@ -3754,7 +3751,7 @@ impl ContextOps for AudioUnitContext {
         if let Some(stream_params_ref) = input_stream_params {
             assert!(!stream_params_ref.as_ptr().is_null());
             boxed_stream.input_stream_params = StreamParams::from(unsafe { (*stream_params_ref.as_ptr()) });
-            if let Err(r) = audiounit_set_device_info(boxed_stream.as_mut(), input_device as AudioDeviceID, DeviceType::INPUT) {
+            if let Err(r) = audiounit_set_device_info(boxed_stream.as_mut(), input_device as AudioDeviceID, io_side::INPUT) {
                 cubeb_log!("({:p}) Fail to set device info for input.", boxed_stream.as_ref());
                 return Err(r);
             }
@@ -3762,7 +3759,7 @@ impl ContextOps for AudioUnitContext {
         if let Some(stream_params_ref) = output_stream_params {
             assert!(!stream_params_ref.as_ptr().is_null());
             boxed_stream.output_stream_params = StreamParams::from(unsafe { *(stream_params_ref.as_ptr()) });
-            if let Err(r) = audiounit_set_device_info(boxed_stream.as_mut(), output_device as AudioDeviceID, DeviceType::OUTPUT) {
+            if let Err(r) = audiounit_set_device_info(boxed_stream.as_mut(), output_device as AudioDeviceID, io_side::OUTPUT) {
                 cubeb_log!("({:p}) Fail to set device info for output.", boxed_stream.as_ref());
                 return Err(r);
             }

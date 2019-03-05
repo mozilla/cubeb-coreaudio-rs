@@ -61,7 +61,7 @@ fn test_stream_drop_mutex_incorrect() {
         audiounit_set_device_info(
             &mut stream,
             kAudioObjectUnknown,
-            DeviceType::OUTPUT
+            io_side::OUTPUT
         ).is_ok()
     );
 
@@ -154,7 +154,7 @@ fn test_stream_drop_mutex_correct() {
         audiounit_set_device_info(
             &mut stream,
             kAudioObjectUnknown,
-            DeviceType::OUTPUT
+            io_side::OUTPUT
         ).is_ok()
     );
 
@@ -803,7 +803,7 @@ fn test_manual_stream_register_device_changed_callback() {
         audiounit_set_device_info(
             &mut stream,
             kAudioObjectUnknown,
-            DeviceType::OUTPUT
+            io_side::OUTPUT
         ).is_ok()
     );
 
@@ -819,7 +819,7 @@ fn test_manual_stream_register_device_changed_callback() {
         audiounit_set_device_info(
             &mut stream,
             kAudioObjectUnknown,
-            DeviceType::INPUT
+            io_side::INPUT
         ).is_ok()
     );
 
@@ -1323,92 +1323,6 @@ fn test_minimum_resampling_input_frames() {
 // set_device_info
 // ------------------------------------
 #[test]
-#[should_panic]
-fn test_set_device_info_with_unknown_type() {
-    // We need to initialize the members with type OwnedCriticalSection in
-    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
-    // will be used when AudioUnitStream::drop/destroy is called.
-    let mut ctx = AudioUnitContext::new();
-    ctx.init();
-
-    // Add a stream to the context. `AudioUnitStream::drop()` will check
-    // the context has at least one stream.
-    {
-        // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
-        let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-        // The scope of `_lock` is a critical section.
-        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-        audiounit_increment_active_streams(&mut ctx);
-    }
-
-    let mut stream = AudioUnitStream::new(
-        &mut ctx,
-        ptr::null_mut(),
-        None,
-        None,
-        0
-    );
-    stream.init();
-
-    // The first audiounit_set_device_info will get a panic immediately
-    // when it's called, so the second calling won't be executed.
-    assert!(audiounit_set_device_info(
-        &mut stream,
-        kAudioObjectUnknown,
-        DeviceType::UNKNOWN
-    ).is_err());
-
-    assert!(audiounit_set_device_info(
-        &mut stream,
-        kAudioObjectSystemObject,
-        DeviceType::UNKNOWN
-    ).is_err());
-}
-
-#[test]
-#[should_panic]
-fn test_set_device_info_with_inout_type() {
-    // We need to initialize the members with type OwnedCriticalSection in
-    // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
-    // will be used when AudioUnitStream::drop/destroy is called.
-    let mut ctx = AudioUnitContext::new();
-    ctx.init();
-
-    // Add a stream to the context. `AudioUnitStream::drop()` will check
-    // the context has at least one stream.
-    {
-        // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
-        let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-        // The scope of `_lock` is a critical section.
-        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-        audiounit_increment_active_streams(&mut ctx);
-    }
-
-    let mut stream = AudioUnitStream::new(
-        &mut ctx,
-        ptr::null_mut(),
-        None,
-        None,
-        0
-    );
-    stream.init();
-
-    // The first audiounit_set_device_info will get a panic immediately
-    // when it's called, so the second calling won't be executed.
-    assert!(audiounit_set_device_info(
-        &mut stream,
-        kAudioObjectUnknown,
-        DeviceType::INPUT | DeviceType::OUTPUT
-    ).is_err());
-
-    assert!(audiounit_set_device_info(
-        &mut stream,
-        kAudioObjectSystemObject,
-        DeviceType::INPUT | DeviceType::OUTPUT
-    ).is_err());
-}
-
-#[test]
 fn test_set_device_info_for_unknown_input_device() {
     // We need to initialize the members with type OwnedCriticalSection in
     // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
@@ -1445,7 +1359,7 @@ fn test_set_device_info_for_unknown_input_device() {
             audiounit_set_device_info(
                 &mut stream,
                 kAudioObjectUnknown,
-                DeviceType::INPUT
+                io_side::INPUT
             ).unwrap_err(),
             Error::error()
         );
@@ -1456,7 +1370,7 @@ fn test_set_device_info_for_unknown_input_device() {
         audiounit_set_device_info(
             &mut stream,
             kAudioObjectUnknown,
-            DeviceType::INPUT
+            io_side::INPUT
         ).is_ok()
     );
 
@@ -1506,7 +1420,7 @@ fn test_set_device_info_for_unknown_output_device() {
             audiounit_set_device_info(
                 &mut stream,
                 kAudioObjectUnknown,
-                DeviceType::OUTPUT
+                io_side::OUTPUT
             ).unwrap_err(),
             Error::error()
         );
@@ -1517,7 +1431,7 @@ fn test_set_device_info_for_unknown_output_device() {
         audiounit_set_device_info(
             &mut stream,
             kAudioObjectUnknown,
-            DeviceType::OUTPUT
+            io_side::OUTPUT
         ).is_ok()
     );
 
@@ -1570,7 +1484,7 @@ fn test_set_device_info_for_system_input_device() {
             audiounit_set_device_info(
                 &mut stream,
                 kAudioObjectSystemObject,
-                DeviceType::INPUT
+                io_side::INPUT
             ).unwrap_err(),
             Error::error()
         );
@@ -1581,7 +1495,7 @@ fn test_set_device_info_for_system_input_device() {
         audiounit_set_device_info(
             &mut stream,
             kAudioObjectSystemObject,
-            DeviceType::INPUT
+            io_side::INPUT
         ).is_ok()
     );
 
@@ -1634,7 +1548,7 @@ fn test_set_device_info_for_system_output_device() {
             audiounit_set_device_info(
                 &mut stream,
                 kAudioObjectSystemObject,
-                DeviceType::OUTPUT
+                io_side::OUTPUT
             ).unwrap_err(),
             Error::error()
         );
@@ -1645,7 +1559,7 @@ fn test_set_device_info_for_system_output_device() {
         audiounit_set_device_info(
             &mut stream,
             kAudioObjectSystemObject,
-            DeviceType::OUTPUT
+            io_side::OUTPUT
         ).is_ok()
     );
 
@@ -1707,7 +1621,7 @@ fn test_set_device_info_for_nonexistent_input_device() {
         audiounit_set_device_info(
             &mut stream,
             id,
-            DeviceType::INPUT
+            io_side::INPUT
         ).unwrap_err(),
         Error::error()
     );
@@ -1762,7 +1676,7 @@ fn test_set_device_info_for_nonexistent_output_device() {
         audiounit_set_device_info(
             &mut stream,
             id,
-            DeviceType::OUTPUT
+            io_side::OUTPUT
         ).unwrap_err(),
         Error::error()
     );
@@ -2616,7 +2530,7 @@ fn test_layout_init() {
         audiounit_set_device_info(
             &mut stream,
             kAudioObjectUnknown,
-            DeviceType::OUTPUT
+            io_side::OUTPUT
         ).is_ok()
     );
 
@@ -4481,7 +4395,7 @@ fn test_set_buffer_size_for_input()
         audiounit_set_device_info(
             &mut stream,
             kAudioObjectUnknown,
-            DeviceType::INPUT
+            io_side::INPUT
         ).is_ok()
     );
 
@@ -4619,7 +4533,7 @@ fn test_set_buffer_size_for_output()
         audiounit_set_device_info(
             &mut stream,
             kAudioObjectUnknown,
-            DeviceType::OUTPUT
+            io_side::OUTPUT
         ).is_ok()
     );
 
@@ -4756,7 +4670,7 @@ fn test_configure_input_with_zero_latency_frames() {
         audiounit_set_device_info(
             &mut stream,
             kAudioObjectUnknown,
-            DeviceType::INPUT
+            io_side::INPUT
         ).is_ok()
     );
 
@@ -4906,7 +4820,7 @@ fn test_configure_input_impl<T: std::any::Any>(array: &[T]) {
         audiounit_set_device_info(
             &mut stream,
             kAudioObjectUnknown,
-            DeviceType::INPUT
+            io_side::INPUT
         ).is_ok()
     );
 
@@ -5140,7 +5054,7 @@ fn test_configure_output_with_zero_latency_frames() {
         audiounit_set_device_info(
             &mut stream,
             kAudioObjectUnknown,
-            DeviceType::OUTPUT
+            io_side::OUTPUT
         ).is_ok()
     );
 
@@ -5280,7 +5194,7 @@ fn test_configure_output() {
         audiounit_set_device_info(
             &mut stream,
             kAudioObjectUnknown,
-            DeviceType::OUTPUT
+            io_side::OUTPUT
         ).is_ok()
     );
 
@@ -5490,7 +5404,7 @@ fn test_stream_get_volume() {
         audiounit_set_device_info(
             &mut stream,
             kAudioObjectUnknown,
-            DeviceType::OUTPUT
+            io_side::OUTPUT
         ).is_ok()
     );
 

@@ -192,7 +192,6 @@ It can be tracked on [*bugzilla* 1530715][bugzilla-cars].
   - A prototype is in [`test_set_channel_layout_output`](src/backend/test.rs).
 - Make a black/white list for those devices cannot/can get the *datasource*,
   so the tests for `audiounit_get_default_device_datasource` and those APIs based on `audiounit_get_default_device_datasource` can work on different devices.
-- Replace `fn audiounit_set_device_info(..., devtype: DeviceType)` with `fn audiounit_set_device_info(..., side: io_side)`
 - [cubeb-rs][cubeb-rs]
   - Implement `to_owned` in [`StreamParamsRef`][cubeb-rs-stmparamsref]
   - Check the passed parameters like what [cubeb.c][cubeb] does!
