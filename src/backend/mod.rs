@@ -829,8 +829,7 @@ fn audiounit_reinit_stream_async(stm: &mut AudioUnitStream, flags: device_flags)
 {
     if stm.reinit_pending.swap(true, Ordering::SeqCst) {
         // A reinit task is already pending, nothing more to do.
-        // TODO: redundant space! Sync with C version.
-        cubeb_log!("({:p}) re-init stream task already pending, cancelling request ", stm as *const AudioUnitStream);
+        cubeb_log!("({:p}) re-init stream task already pending, cancelling request", stm as *const AudioUnitStream);
         return;
     }
 
@@ -917,8 +916,7 @@ extern fn audiounit_property_listener_callback(id: AudioObjectID, address_count:
                 }
             },
             coreaudio_sys::kAudioDevicePropertyDataSource => {
-                // TODO: Why we use kAudioHardwarePropertyDataSource instead of kAudioDevicePropertyDataSource ?
-                cubeb_log!("Event[{}] - mSelector == kAudioHardwarePropertyDataSource for id={}", i, id);
+                cubeb_log!("Event[{}] - mSelector == kAudioDevicePropertyDataSource for id={}", i, id);
             },
             _ => {
                 cubeb_log!("Event[{}] - mSelector == Unexpected Event id {}, return", i, addr.mSelector);
@@ -1188,7 +1186,6 @@ fn audiounit_get_default_device_id(devtype: DeviceType) -> AudioObjectID
 
 fn audiounit_convert_channel_layout(layout: &AudioChannelLayout) -> ChannelLayout
 {
-    // TODO: Correct `on` to `one` and indents in C version.
     // When having one or two channel, force mono or stereo. Some devices (namely,
     // Bose QC35, mark 1 and 2), expose a single channel mapped to the right for
     // some reason.
@@ -1502,8 +1499,7 @@ fn audiounit_create_blank_aggregate_device(plugin_id: &mut AudioObjectID, aggreg
                                                     &address_plugin_bundle_id,
                                                     &mut size);
     if r != NO_ERR {
-        // TODO: Replace `AudioHardwareGetPropertyInfo` by `AudioObjectGetPropertyDataSize` ?
-        cubeb_log!("AudioHardwareGetPropertyInfo/kAudioHardwarePropertyPlugInForBundleID, rv={}", r);
+        cubeb_log!("AudioObjectGetPropertyDataSize/kAudioHardwarePropertyPlugInForBundleID, rv={}", r);
         return Err(Error::error());
     }
     // TODO: Check if size is larger than 0 ?
@@ -1526,8 +1522,7 @@ fn audiounit_create_blank_aggregate_device(plugin_id: &mut AudioObjectID, aggreg
                                        &mut size,
                                        &mut translation_value);
     if r != NO_ERR {
-        // TODO: Replace `AudioHardwareGetProperty` by `AudioObjectGetPropertyData` ?
-        cubeb_log!("AudioHardwareGetProperty/kAudioHardwarePropertyPlugInForBundleID, rv={}", r);
+        cubeb_log!("AudioObjectGetPropertyData/kAudioHardwarePropertyPlugInForBundleID, rv={}", r);
         return Err(Error::error());
     }
     // TODO: Check if plugin_id is different from the initial value (kAudioObjectUnknown) ?
@@ -2074,24 +2069,20 @@ fn audiounit_create_unit(unit: &mut AudioUnit, device: &device_info) -> Result<(
 
     if device.flags.contains(device_flags::DEV_INPUT) {
         if let Err(r) = audiounit_enable_unit_scope(unit, io_side::INPUT, enable_state::ENABLE) {
-            // TODO: redundant space! Sync with C version.
-            cubeb_log!("Failed to enable audiounit input scope ");
+            cubeb_log!("Failed to enable audiounit input scope");
             return Err(r);
         }
         if let Err(r) = audiounit_enable_unit_scope(unit, io_side::OUTPUT, enable_state::DISABLE) {
-            // TODO: redundant space! Sync with C version.
-            cubeb_log!("Failed to disable audiounit output scope ");
+            cubeb_log!("Failed to disable audiounit output scope");
             return Err(r);
         }
     } else if device.flags.contains(device_flags::DEV_OUTPUT) {
         if let Err(r) = audiounit_enable_unit_scope(unit, io_side::OUTPUT, enable_state::ENABLE) {
-            // TODO: redundant space! Sync with C version.
-            cubeb_log!("Failed to enable audiounit output scope ");
+            cubeb_log!("Failed to enable audiounit output scope");
             return Err(r);
         }
         if let Err(r) = audiounit_enable_unit_scope(unit, io_side::INPUT, enable_state::DISABLE) {
-            // TODO: redundant space! Sync with C version.
-            cubeb_log!("Failed to disable audiounit input scope ");
+            cubeb_log!("Failed to disable audiounit input scope");
             return Err(r);
         }
     } else {
