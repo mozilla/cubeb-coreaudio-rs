@@ -434,6 +434,8 @@ extern fn audiounit_input_callback(user_ptr: *mut c_void,
         assert_eq!(audio_output_unit_stop(stm.input_unit), NO_ERR);
 
         // TODO: C version doesn't check if state_callback is a null pointer.
+        //       Either we allow null callbacks, or we do checks in cubeb.c
+        //       and cubeb-rs.
         if stm.state_callback.is_some() {
             unsafe {
                 (stm.state_callback.unwrap())(
@@ -535,6 +537,8 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
             assert_eq!(audio_output_unit_stop(stm.input_unit), NO_ERR);
         }
         // TODO: C version doesn't check if state_callback is a null pointer.
+        //       Either we allow null callbacks, or we do checks in cubeb.c
+        //       and cubeb-rs.
         if stm.state_callback.is_some() {
             unsafe {
                 (stm.state_callback.unwrap())(
@@ -567,8 +571,6 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
     stm.frames_written.fetch_add(output_frames as i64, atomic::Ordering::SeqCst);
 
     /* If Full duplex get also input buffer */
-    // TODO: fill in additional silence to input_linear_buffer and set it to
-    //       the input_buffer...
     if !stm.input_unit.is_null() {
         /* If the output callback came first and this is a duplex stream, we need to
          * fill in some additional silence in the resampler.
@@ -629,6 +631,8 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
             assert_eq!(audio_output_unit_stop(stm.input_unit), NO_ERR);
         }
         // TODO: C version doesn't check if state_callback is a null pointer.
+        //       Either we allow null callbacks, or we do checks in cubeb.c
+        //       and cubeb-rs.
         if stm.state_callback.is_some() {
             unsafe {
                 (stm.state_callback.unwrap())(
@@ -745,13 +749,14 @@ fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Re
     //         !stm.output_unit.is_null() && flags.contains(device_flags::DEV_OUTPUT));
     // For a stream with input and output units, if the check for input is true,
     // then it won't check the output.
+    assert!(!stm.input_unit.is_null() || !stm.output_unit.is_null());
     assert!((stm.input_unit.is_null() || flags.contains(device_flags::DEV_INPUT)) &&
             (stm.output_unit.is_null() || flags.contains(device_flags::DEV_OUTPUT)));
     if !*stm.shutdown.get_mut() {
         audiounit_stream_stop_internal(stm);
     }
 
-    if let Err(_) = audiounit_uninstall_device_changed_callback(stm) {
+    if audiounit_uninstall_device_changed_callback(stm).is_err() {
         cubeb_log!("({:p}) Could not uninstall all device change listeners.", stm as *const AudioUnitStream);
     }
 
@@ -847,6 +852,8 @@ fn audiounit_reinit_stream_async(stm: &mut AudioUnitStream, flags: device_flags)
                 cubeb_log!("({:p}) Could not uninstall system changed callback", stm as *const AudioUnitStream);
             }
             // TODO: C version doesn't check if state_callback is a null pointer.
+            //       Either we allow null callbacks, or we do checks in cubeb.c
+            //       and cubeb-rs.
             if stm.state_callback.is_some() {
                 unsafe {
                     (stm.state_callback.unwrap())(
@@ -2110,7 +2117,7 @@ fn audiounit_init_input_linear_buffer(stream: &mut AudioUnitStream, capacity: u3
     // FIXIT: Make sure `input_desc` is initialized, or the type of the buffer is set to float!
     // assert_ne!(stream.input_desc.mFormatFlags, 0);
     // assert_ne!(stream.input_desc.mChannelsPerFrame, 0);
-    // TODO: and latency_frames is larger than zero ?
+    // TODO: Make sure latency_frames is larger than zero ?
     // assert_ne!(stream.latency_frames, 0);
     let size = (capacity * stream.latency_frames * stream.input_desc.mChannelsPerFrame) as usize;
     if stream.input_desc.mFormatFlags & kAudioFormatFlagIsSignedInteger != 0 {
@@ -2729,7 +2736,7 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
         stm.expected_output_callbacks_in_a_row = (stm.output_hw_rate / stm.input_hw_rate).ceil() as i32
     }
 
-    if let Err(_) = audiounit_install_device_changed_callback(stm) {
+    if audiounit_install_device_changed_callback(stm).is_err() {
         cubeb_log!("({:p}) Could not install all device change callback.", stm as *const AudioUnitStream);
     }
 
@@ -2766,11 +2773,11 @@ fn audiounit_stream_destroy_internal(stm: &mut AudioUnitStream)
 {
     stm.context.mutex.assert_current_thread_owns();
 
-    if let Err(_) = audiounit_uninstall_system_changed_callback(stm) {
+    if audiounit_uninstall_system_changed_callback(stm).is_err() {
         cubeb_log!("({:p}) Could not uninstall the device changed callback", stm as *const AudioUnitStream);
     }
 
-    if let Err(_) = audiounit_uninstall_device_changed_callback(stm) {
+    if audiounit_uninstall_device_changed_callback(stm).is_err() {
         cubeb_log!("({:p}) Could not uninstall all device change listeners", stm as *const AudioUnitStream);
     }
 
@@ -3234,8 +3241,6 @@ fn audiounit_create_device_from_hwdev(dev_info: &mut ffi::cubeb_device_info, dev
     Ok(())
 }
 
-// TODO: Rename to is_private_aggregate_device ?
-//       Is it possible to have a public aggregate device ?
 fn is_aggregate_device(device_info: &ffi::cubeb_device_info) -> bool
 {
     // https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=dda40d0b40a8d922649521544f260a91
@@ -3253,7 +3258,7 @@ fn audiounit_device_destroy(device: &mut ffi::cubeb_device_info)
 {
     // This should be mapped to the memory allocation in
     // audiounit_create_device_from_hwdev.
-    // Set the pointers to null incase it points to some released
+    // Set the pointers to null in case it points to some released
     // memory. (TODO: C version doesn't do this.)
     unsafe {
         if !device.device_id.is_null() {
@@ -3575,7 +3580,7 @@ impl ContextOps for AudioUnitContext {
     #[cfg(not(target_os = "ios"))]
     fn min_latency(&mut self, _params: StreamParams) -> Result<u32> {
         let mut latency_range = AudioValueRange::default();
-        if let Err(_) = audiounit_get_acceptable_latency_range(&mut latency_range) {
+        if audiounit_get_acceptable_latency_range(&mut latency_range).is_err() {
             cubeb_log!("Could not get acceptable latency range.");
             return Err(Error::error()); // TODO: return the error we get instead?
         }

@@ -170,10 +170,10 @@ It can be tracked on [*bugzilla* 1530715][bugzilla-cars].
 - Move issues below to github issues.
 - Test aggregate devices
   - Test with AirPods, bluethooth devices, or other devices that with special workarounds.
-- Unit test for stream operations
+- Unit tests for stream operations
 - Clean up the tests. Merge the duplicated pieces in to a function.
 - Find a way to catch memory leaks
-  - Try Instrument on OSX
+  - Try *Instrument* on OSX
 - Some of bugs are found when adding tests. Search *FIXIT* to find them.
 - Maybe it's better to move all `fn some_func(stm: &AudioUnitStream, ...)` functions into `impl AudioUnitStream`.
 - Add comments for APIs in `utils`
@@ -187,17 +187,17 @@ It can be tracked on [*bugzilla* 1530715][bugzilla-cars].
   - `audiounit_set_buffer_size` cannot be called in parallel
   - We should not set `kAudioDevicePropertyBufferFrameSize` in parallel when another stream using the same device with smaller buffer size is active. See [here][chg-buf-sz] for reference.
   - *Buffer frame size* within same device may be overwritten (no matter the *AudioUnit*s are different or not) ?
-- Check the input `StreamParams` parameters properly, or we will set a invalid format into `AudioUnit`.
-  - In fact, we should check **all** the parameters properly so we can make sure we don't mess up the streams/devices settings!
 - Find a reliable way to verify `enumerate_devices`
 - Make a list pairing (device-uid/device-name, available channel layouts) so we can check the layout-related APIs properly!
   - A prototype is in [`test_set_channel_layout_output`](src/backend/test.rs).
 - Make a black/white list for those devices cannot/can get the *datasource*,
   so the tests for `audiounit_get_default_device_datasource` and those APIs based on `audiounit_get_default_device_datasource` can work on different devices.
-- Replace `if let Err(_) = some_func(...) { ... }` by `if some_func(...).is_err() { ... }`
 - Replace `fn audiounit_set_device_info(..., devtype: DeviceType)` with `fn audiounit_set_device_info(..., side: io_side)`
 - [cubeb-rs][cubeb-rs]
   - Implement `to_owned` in [`StreamParamsRef`][cubeb-rs-stmparamsref]
+  - Check the passed parameters like what [cubeb.c][cubeb] does!
+    - Check the input `StreamParams` parameters properly, or we will set a invalid format into `AudioUnit`.
+    In fact, we should check **all** the parameters properly so we can make sure we don't mess up the streams/devices settings!
 
 ## Issues
 - See discussion [here][discussion]
@@ -238,6 +238,7 @@ It can be tracked on [*bugzilla* 1530715][bugzilla-cars].
         - The *buffer frame size* within same device may be overwritten (no matter the *AudioUnit*s are different or not) ?
 
 [cubeb]: https://github.com/kinetiknz/cubeb "Cross platform audio library"
+[cubeb]: https://github.com/kinetiknz/cubeb/blob/master/src/cubeb.c "cubeb.c"
 [cubeb-au]: https://github.com/kinetiknz/cubeb/blob/master/src/cubeb_audiounit.cpp "Cubeb AudioUnit"
 
 [integrate-with-cubeb]: https://github.com/ChunMinChang/cubeb-coreaudio-rs/commit/e84c554f18ef054376134c79a112a84cb8f923b4 "patch for integrating within cubeb"
