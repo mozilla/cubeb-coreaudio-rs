@@ -160,6 +160,7 @@ It can be tracked on [*bugzilla* 1530715][bugzilla-cars].
 
 
 ## TODO
+- Replace `CFStringCreateWithFormat` to avoid the problem mentioned in [rust issue 58881][rust-58881]. Passing strings into a *C* **variadic** function makes no sense.
 - Remove `#[allow(non_camel_case_types)]`, `#![allow(unused_assignments)]`, `#![allow(unused_must_use)]` and apply *rust* coding styles
 - Use `Atomic{I64, U32, U64}` instead of `Atomic<{i64, u32, u64}>`, once they are stable.
 - Integration Tests
@@ -275,3 +276,5 @@ It can be tracked on [*bugzilla* 1530715][bugzilla-cars].
 [build-within-gecko]: https://github.com/ChunMinChang/gecko-dev/commits/cubeb-coreaudio-rs
 
 [discussion]: https://docs.google.com/document/d/1ZP6R7d5S9I_8bXOXhplnO6qFM1X4VokWtE7w8ExgJEQ/edit?ts=5c6d5f09
+
+[rust-58881]: https://github.com/rust-lang/rust/issues/58881
