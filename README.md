@@ -158,9 +158,7 @@ It can be tracked on [*bugzilla* 1530715][bugzilla-cars].
 | audiounit_remove_device_listener            | 🐥      |
 -->
 
-
 ## TODO
-- Replace `CFStringCreateWithFormat` to avoid the problem mentioned in [rust issue 58881][rust-58881]. Passing strings into a *C* **variadic** function makes no sense.
 - Remove `#[allow(non_camel_case_types)]`, `#![allow(unused_assignments)]`, `#![allow(unused_must_use)]` and apply *rust* coding styles
 - Use `Atomic{I64, U32, U64}` instead of `Atomic<{i64, u32, u64}>`, once they are stable.
 - Integration Tests
