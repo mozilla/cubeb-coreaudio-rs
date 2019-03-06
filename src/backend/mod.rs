@@ -2326,7 +2326,19 @@ fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, si
     let mut count: u32 = 0;
     while !*stm.buffer_size_change_state.get_mut() && count < 30 {
         count += 1;
-        // TODO: Log time ...
+        unsafe {
+            let req = libc::timespec {
+                tv_sec: 0,
+                tv_nsec: 100_000_000 // 0.1 sec
+            };
+            let mut rem = libc::timespec {
+                tv_sec: 0,
+                tv_nsec: 0
+            };
+            if libc::nanosleep(&req, &mut rem) < 0 {
+                cubeb_log!("({:p}) Warning: nanosleep call failed or interrupted. Remaining time {} nano secs", stm as *const AudioUnitStream, rem.tv_nsec);
+            }
+        }
         cubeb_log!("({:p}) audiounit_set_buffer_size : wait count = {}", stm as *const AudioUnitStream, count);
     }
 
