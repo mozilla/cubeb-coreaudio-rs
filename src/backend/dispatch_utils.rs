@@ -6,7 +6,9 @@
 
 extern crate coreaudio_sys as sys;
 
-use std::os::raw::{c_char, c_void};
+use std::ffi::CString;
+use std::os::raw::c_void;
+use std::ptr;
 
 pub const DISPATCH_QUEUE_SERIAL: sys::dispatch_queue_attr_t = 0 as sys::dispatch_queue_attr_t;
 
@@ -15,12 +17,13 @@ pub fn create_dispatch_queue(
     queue_attr: sys::dispatch_queue_attr_t
 ) -> sys::dispatch_queue_t
 {
-    unsafe {
-        sys::dispatch_queue_create(
-            label.as_ptr() as *const c_char,
-            queue_attr
-        )
-    }
+    let label = CString::new(label);
+    let c_string = if label.is_ok() {
+        label.unwrap().as_ptr()
+    } else {
+        ptr::null()
+    };
+    unsafe { sys::dispatch_queue_create(c_string, queue_attr) }
 }
 
 // Send: Types that can be transferred across thread boundaries.
@@ -75,11 +78,16 @@ fn create_closure_and_executor<F>(
 
 #[test]
 fn test_dispatch_async_f() {
-    let label = "Run with native async dispatch apis";
+    let label = CString::new("Run with native async dispatch apis");
+    let c_string = if label.is_ok() {
+        label.unwrap().as_ptr()
+    } else {
+        ptr::null()
+    };
 
     let queue = unsafe {
         sys::dispatch_queue_create(
-            label.as_ptr() as *const c_char,
+            c_string,
             DISPATCH_QUEUE_SERIAL
         )
     };
@@ -109,11 +117,16 @@ fn test_dispatch_async_f() {
 
 #[test]
 fn test_dispatch_sync_f() {
-    let label = "Run with native sync dispatch apis";
+    let label = CString::new("Run with native sync dispatch apis");
+    let c_string = if label.is_ok() {
+        label.unwrap().as_ptr()
+    } else {
+        ptr::null()
+    };
 
     let queue = unsafe {
         sys::dispatch_queue_create(
-            label.as_ptr() as *const c_char,
+            c_string,
             DISPATCH_QUEUE_SERIAL
         )
     };
