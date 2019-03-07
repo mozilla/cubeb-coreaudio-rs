@@ -3493,7 +3493,9 @@ pub struct AudioUnitContext {
     // Store list of devices to detect changes
     input_device_array: Vec<AudioObjectID>,
     output_device_array: Vec<AudioObjectID>,
-    // The queue is asynchronously deallocated once all references to it are released
+    // serial_queue will be created by dispatch_queue_create(create_dispatch_queue)
+    // without ARC(Automatic Reference Counting) support, so it should be released
+    // by dispatch_release(release_dispatch_queue).
     serial_queue: dispatch_queue_t,
     layout: atomic::Atomic<ChannelLayout>,
     // layout: AtomicU32,
@@ -3860,6 +3862,8 @@ impl Drop for AudioUnitContext {
         if self.output_collection_changed_callback.is_some() {
             audiounit_remove_device_listener(self, DeviceType::OUTPUT);
         }
+
+        release_dispatch_queue(self.serial_queue);
     }
 }
 

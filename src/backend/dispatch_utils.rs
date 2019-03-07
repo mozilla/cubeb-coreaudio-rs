@@ -7,6 +7,7 @@
 extern crate coreaudio_sys as sys;
 
 use std::ffi::CString;
+use std::mem;
 use std::os::raw::c_void;
 use std::ptr;
 
@@ -24,6 +25,16 @@ pub fn create_dispatch_queue(
         ptr::null()
     };
     unsafe { sys::dispatch_queue_create(c_string, queue_attr) }
+}
+
+pub fn release_dispatch_queue(queue: sys::dispatch_queue_t)
+{
+    // TODO: This is incredibly unsafe. Find another way to release the queue.
+    unsafe {
+        sys::dispatch_release(
+            mem::transmute::<sys::dispatch_queue_t, sys::dispatch_object_t>(queue)
+        );
+    }
 }
 
 // Send: Types that can be transferred across thread boundaries.
