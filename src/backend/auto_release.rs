@@ -62,12 +62,12 @@ fn test_auto_release() {
     use std::os::raw::c_void;
     use std::ptr;
 
-    unsafe extern fn allocate() -> *mut c_void {
+    unsafe extern fn allocate() -> *mut libc::c_void {
         // println!("Allocate!");
         libc::calloc(1, mem::size_of::<u32>())
     }
 
-    unsafe extern fn deallocate(ptr: *mut c_void) {
+    unsafe extern fn deallocate(ptr: *mut libc::c_void) {
         // println!("Deallocate!");
         libc::free(ptr);
     }
