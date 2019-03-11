@@ -11,6 +11,7 @@ where
         unsafe { OPS.init.unwrap()(&mut context, name_c_string.as_ptr()) },
         ffi::CUBEB_OK
     );
+    assert!(!context.is_null());
     operation(context);
     unsafe { OPS.destroy.unwrap()(context) }
 }
