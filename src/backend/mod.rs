@@ -4085,7 +4085,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         Ok(())
     }
     fn reset_default_device(&mut self) -> Result<()> {
-        Ok(())
+        Err(Error::not_supported())
     }
     fn position(&mut self) -> Result<u64> {
         // let position = if *self.current_latency_frames.get_mut() as u64 > *self.frames_played.get_mut() {
