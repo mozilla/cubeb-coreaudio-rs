@@ -1661,6 +1661,7 @@ fn audiounit_set_aggregate_sub_device_list(aggregate_device_id: AudioDeviceID,
                 return Err(Error::error());
             }
             CFArrayAppendValue(aggregate_sub_devices_array, strref as *const c_void);
+            CFRelease(strref as *const c_void);
         }
 
         for device in input_sub_devices {
@@ -1670,6 +1671,7 @@ fn audiounit_set_aggregate_sub_device_list(aggregate_device_id: AudioDeviceID,
                 return Err(Error::error());
             }
             CFArrayAppendValue(aggregate_sub_devices_array, strref as *const c_void);
+            CFRelease(strref as *const c_void);
         }
 
         let aggregate_sub_device_list = AudioObjectPropertyAddress {
@@ -1720,6 +1722,9 @@ fn audiounit_set_master_aggregate_device(aggregate_device_id: AudioDeviceID) -> 
                                             &master_aggregate_sub_device,
                                             size,
                                             &master_sub_device);
+    if !master_sub_device.is_null() {
+        unsafe { CFRelease(master_sub_device as *const c_void); }
+    }
     if rv != NO_ERR {
         cubeb_log!("AudioObjectSetPropertyData/kAudioAggregateDevicePropertyMasterSubDevice, rv={}", rv);
         return Err(Error::error());
@@ -3315,8 +3320,7 @@ fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID>
         unsafe {
             let found = CFStringFind(name, private_device, 0).location;
             CFRelease(private_device as *const c_void);
-            // TODO: release name here ? (Sync with C version here.)
-            // CFRelease(name as *const c_void);
+            CFRelease(name as *const c_void);
             found == kCFNotFound
         }
     });
