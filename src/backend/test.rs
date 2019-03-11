@@ -5837,18 +5837,18 @@ fn test_device_destroy_with_different_device_id_and_group_id() {
     let mut device = ffi::cubeb_device_info::default();
 
     device.device_id = CString::new("device id")
-        .expect("Failed on creating device id")
+        .expect("Failed to create device id")
         .into_raw();
     // The result should be same if the group_id is null by comment the
     // following line.
     device.group_id = CString::new("group id")
-        .expect("Failed on creating device id")
+        .expect("Failed to create device id")
         .into_raw();
     device.friendly_name = CString::new("friendly name")
-        .expect("Failed on creating friendly name")
+        .expect("Failed to create friendly name")
         .into_raw();
     device.vendor_name = CString::new("vendor name")
-        .expect("Failed on creating vendor name")
+        .expect("Failed to create vendor name")
         .into_raw();
 
     audiounit_device_destroy(&mut device);
@@ -5864,14 +5864,14 @@ fn test_device_destroy() {
     let mut device = ffi::cubeb_device_info::default();
 
     device.device_id = CString::new("device id")
-        .expect("Failed on creating device id")
+        .expect("Failed to create device id")
         .into_raw();
     device.group_id = device.device_id;
     device.friendly_name = CString::new("friendly name")
-        .expect("Failed on creating friendly name")
+        .expect("Failed to create friendly name")
         .into_raw();
     device.vendor_name = CString::new("vendor name")
-        .expect("Failed on creating vendor name")
+        .expect("Failed to create vendor name")
         .into_raw();
 
     audiounit_device_destroy(&mut device);
