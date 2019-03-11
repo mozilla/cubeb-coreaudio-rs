@@ -3695,6 +3695,7 @@ impl ContextOps for AudioUnitContext {
         Ok(())
     }
     fn device_collection_destroy(&mut self, collection: &mut DeviceCollectionRef) -> Result<()> {
+        assert!(!collection.as_ptr().is_null());
         let coll = unsafe { &mut *collection.as_ptr() };
         if coll.device.is_null() {
             return Ok(());
