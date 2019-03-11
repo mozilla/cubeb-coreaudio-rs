@@ -3724,20 +3724,20 @@ impl ContextOps for AudioUnitContext {
         state_callback: ffi::cubeb_state_callback,
         user_ptr: *mut c_void,
     ) -> Result<Stream> {
-        // TODO: Check stm.input_stream_params and stm.output_stream_params
-        //       are valid and matched ? The code can easily fail if
-        //       {input, output}_stream_params is
-        //       ffi::cubeb_stream_params::default().
-        //       (I added some easy checks in `audio_stream_desc_init` to prevent
-        //        the wrong values are set.)
-        //   1. What if the `stm.output_stream_params.format()` is different
-        //      from `stm.input_stream_params.format()` ?
-        //   2. What if the channels is different from the channels for the
-        //      layout ?
-        //   3. Should stm.output_stream_params.layout() always be undefined ?
-        //   4. In C version. we always call `state_callback` without checking
-        //      if it's null or not. It's better to add an assert here to check
-        //      state_callback is some!
+        // TODO: Check stm.input_stream_params and stm.output_stream_params are valid and matched ?
+        // The code can easily fail if {input, output}_stream_params is
+        // ffi::cubeb_stream_params::default(). To prevent the stream from being initialized with
+        // wrong values, some easy checks in `audio_stream_desc_init` are added.
+        // I believe we can do more. For example,
+        // 1. the resampler will be initialized in `audiounit_setup_stream` and it only accepts
+        //    the formats with FLOAT32NE or S16NE.
+        // 2. If channels is 0, then size of input buffer is zero!
+        // 3. What if the channels is different from the channels for the layout ?
+        //
+        // TODO: Check data_callback and state_callback is not null!
+        // In C version. we always call `state_callback` without checking if it's null or not.
+        // It can easily fail if they are null pointers. It's better to add assertions upon they
+        // are passed here.
 
         // Since we cannot call `AutoLock::new(&mut self.mutex)` and
         // `AudioUnitStream::new(self, ...)` at the same time.
