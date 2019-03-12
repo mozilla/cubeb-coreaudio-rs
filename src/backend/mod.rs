@@ -276,9 +276,9 @@ fn cubeb_channel_to_channel_label(channel: ChannelLayout) -> AudioChannelLabel
 {
     // Make sure the argument is a channel (only one bit set to 1)
     // If channel.bits() is 0, channel.bits() - 1 will get a panic on subtraction with overflow.
-    assert_eq!(channel.bits() & channel.bits() - 1, 0);
+    assert_eq!(channel.bits() & (channel.bits() - 1), 0);
     // TODO: Allow ffi::CHANNEL_UNKNOWN / ChannelLayout::UNDEFINED / ChannelLayout::from(0) ?
-    // assert!(channel.bits() == 0 || channel.bits() & channel.bits() - 1 == 0);
+    // assert!(channel.bits() == 0 || channel.bits() & (channel.bits() - 1) == 0);
     match channel {
         ChannelLayout::FRONT_LEFT => kAudioChannelLabel_Left,
         ChannelLayout::FRONT_RIGHT => kAudioChannelLabel_Right,
