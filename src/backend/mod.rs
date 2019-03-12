@@ -377,8 +377,8 @@ fn audiounit_render_input(stm: &mut AudioUnitStream,
 
     /* Advance input frame counter. */
     assert!(input_frames > 0);
-    // *stm.frames_read.get_mut() += input_frames as i64;
-    stm.frames_read.fetch_add(input_frames as i64, atomic::Ordering::SeqCst);
+    // *stm.frames_read.get_mut() += i64::from(input_frames);
+    stm.frames_read.fetch_add(i64::from(input_frames), atomic::Ordering::SeqCst);
 
     cubeb_logv!("({:p}) input: buffers {}, size {}, channels {}, rendered frames {}, total frames {}.",
                 stm as *const AudioUnitStream,
@@ -486,11 +486,11 @@ fn minimum_resampling_input_frames(stm: &AudioUnitStream, output_frames: i64) ->
     // TODO: Check the arguments ?
     assert_ne!(stm.input_hw_rate, 0_f64);
     assert_ne!(stm.output_stream_params.rate(), 0);
-    if stm.input_hw_rate == stm.output_stream_params.rate() as f64 {
+    if stm.input_hw_rate == f64::from(stm.output_stream_params.rate()) {
         // Fast path.
         return output_frames;
     }
-    (stm.input_hw_rate * output_frames as f64 / stm.output_stream_params.rate() as f64).ceil() as i64
+    (stm.input_hw_rate * output_frames as f64 / f64::from(stm.output_stream_params.rate())).ceil() as i64
 }
 
 extern fn audiounit_output_callback(user_ptr: *mut c_void,
@@ -567,8 +567,8 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
         output_buffer = stm.temp_buffer.as_mut_ptr() as *mut c_void;
     }
 
-    // *stm.frames_written.get_mut() += output_frames as i64;
-    stm.frames_written.fetch_add(output_frames as i64, atomic::Ordering::SeqCst);
+    // *stm.frames_written.get_mut() += i64::from(output_frames);
+    stm.frames_written.fetch_add(i64::from(output_frames), atomic::Ordering::SeqCst);
 
     /* If Full duplex get also input buffer */
     if !stm.input_unit.is_null() {
@@ -583,7 +583,7 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
         // let missing_frames = input_frames_needed - *stm.frames_read.get_mut();
         let missing_frames = input_frames_needed - stm.frames_read.load(atomic::Ordering::SeqCst);
         if missing_frames > 0 {
-            stm.input_linear_buffer.as_mut().unwrap().push_zeros((missing_frames * stm.input_desc.mChannelsPerFrame as i64) as usize);
+            stm.input_linear_buffer.as_mut().unwrap().push_zeros((missing_frames * i64::from(stm.input_desc.mChannelsPerFrame)) as usize);
             // *stm.frames_read.get_mut() = input_frames_needed;
             stm.frames_read.store(input_frames_needed, atomic::Ordering::SeqCst);
             // Using `stm_ptr` to avoid the borrowing issue below.
@@ -616,7 +616,7 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
                                   input_buffer,
                                   if input_buffer.is_null() { ptr::null_mut() } else { &mut input_frames },
                                   output_buffer,
-                                  output_frames as i64)
+                                  i64::from(output_frames))
     };
 
     if !input_buffer.is_null() {
@@ -624,7 +624,7 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
         stm.input_linear_buffer.as_mut().unwrap().pop(input_frames as usize * stm.input_desc.mChannelsPerFrame as usize);
     }
 
-    if outframes < 0 || outframes > output_frames as i64 {
+    if outframes < 0 || outframes > i64::from(output_frames) {
         *stm.shutdown.get_mut() = true;
         assert_eq!(audio_output_unit_stop(stm.output_unit), NO_ERR);
         if !stm.input_unit.is_null() {
@@ -645,7 +645,7 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
         return NO_ERR;
     }
 
-    *stm.draining.get_mut() = outframes < output_frames as i64;
+    *stm.draining.get_mut() = outframes < i64::from(output_frames);
     // *stm.frames_played.get_mut() = stm.frames_queued;
     stm.frames_played.store(stm.frames_queued, atomic::Ordering::SeqCst);
     stm.frames_queued += outframes as u64;
@@ -663,7 +663,7 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
         /* Clear missing frames (silence) */
         unsafe {
             let dest = (output_buffer as *mut u8).add(outframes as usize * outbpf) as *mut libc::c_void;
-            let len = (output_frames as i64 - outframes) as usize * outbpf;
+            let len = (i64::from(output_frames) - outframes) as usize * outbpf;
             libc::memset(dest, 0, len);
         }
     }
@@ -1320,7 +1320,7 @@ fn audio_stream_desc_init(ss: &mut AudioStreamBasicDescription,
 
     ss.mFormatID = kAudioFormatLinearPCM;
     ss.mFormatFlags |= kLinearPCMFormatFlagIsPacked;
-    ss.mSampleRate = stream_params.rate() as f64;
+    ss.mSampleRate = f64::from(stream_params.rate());
     ss.mChannelsPerFrame = stream_params.channels();
 
     ss.mBytesPerFrame = (ss.mBitsPerChannel / 8) * ss.mChannelsPerFrame;
@@ -1551,7 +1551,7 @@ fn audiounit_create_blank_aggregate_device(plugin_id: &mut AudioObjectID, aggreg
             tv_usec: 0,
         };
         libc::gettimeofday(&mut timestamp, ptr::null_mut());
-        let time_id = timestamp.tv_sec as i64 * 1000000 + timestamp.tv_usec as i64;
+        let time_id = timestamp.tv_sec as i64 * 1000000 + i64::from(timestamp.tv_usec);
         // TODO: Check if time_id is larger than 0 ?
         // assert!(time_id > 0);
 
@@ -1572,12 +1572,12 @@ fn audiounit_create_blank_aggregate_device(plugin_id: &mut AudioObjectID, aggreg
         CFRelease(aggregate_device_uid as *const c_void);
 
         let private_value: i32 = 1;
-        let aggregate_device_private_key = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType as i64, &private_value as *const i32 as *const c_void);
+        let aggregate_device_private_key = CFNumberCreate(kCFAllocatorDefault, i64::from(kCFNumberIntType), &private_value as *const i32 as *const c_void);
         CFDictionaryAddValue(aggregate_device_dict, cfstringref_from_static_string(AGGREGATE_DEVICE_PRIVATE_KEY) as *const c_void, aggregate_device_private_key as *const c_void);
         CFRelease(aggregate_device_private_key as *const c_void);
 
         let stacked_value: i32 = 0;
-        let aggregate_device_stacked_key = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType as i64, &stacked_value as *const i32 as *const c_void);
+        let aggregate_device_stacked_key = CFNumberCreate(kCFAllocatorDefault, i64::from(kCFNumberIntType), &stacked_value as *const i32 as *const c_void);
         CFDictionaryAddValue(aggregate_device_dict, cfstringref_from_static_string(AGGREGATE_DEVICE_STACKED_KEY) as *const c_void, aggregate_device_stacked_key as *const c_void);
         CFRelease(aggregate_device_stacked_key as *const c_void);
 
@@ -1851,7 +1851,7 @@ fn audiounit_workaround_for_airpod(stm: &AudioUnitStream)
         cubeb_log!("({:p}) Output device {}, name: {}, min: {}, max: {}, nominal rate: {}", stm as *const AudioUnitStream, stm.output_device.id
         , output_name_str, output_min_rate, output_max_rate, output_nominal_rate);
 
-        let rate = input_nominal_rate as f64;
+        let rate = f64::from(input_nominal_rate);
         let addr = AudioObjectPropertyAddress {
             mSelector: kAudioDevicePropertyNominalSampleRate,
             mScope: kAudioObjectPropertyScopeGlobal,
@@ -4090,12 +4090,12 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         Err(Error::not_supported())
     }
     fn position(&mut self) -> Result<u64> {
-        // let position = if *self.current_latency_frames.get_mut() as u64 > *self.frames_played.get_mut() {
-        let position = if self.current_latency_frames.load(atomic::Ordering::SeqCst) as u64 > self.frames_played.load(atomic::Ordering::SeqCst) {
+        // let position = if u64::from(*self.current_latency_frames.get_mut()) > *self.frames_played.get_mut() {
+        let position = if u64::from(self.current_latency_frames.load(atomic::Ordering::SeqCst)) > self.frames_played.load(atomic::Ordering::SeqCst) {
             0
         } else {
-            // *self.frames_played.get_mut() - *self.current_latency_frames.get_mut() as u64
-            self.frames_played.load(atomic::Ordering::SeqCst) - self.current_latency_frames.load(atomic::Ordering::SeqCst) as u64
+            // *self.frames_played.get_mut() - u64::from(*self.current_latency_frames.get_mut())
+            self.frames_played.load(atomic::Ordering::SeqCst) - u64::from(self.current_latency_frames.load(atomic::Ordering::SeqCst))
         };
         Ok(position)
     }
