@@ -69,24 +69,25 @@ const NO_ERR: OSStatus = 0;
 const AU_OUT_BUS: AudioUnitElement = 0;
 const AU_IN_BUS: AudioUnitElement = 1;
 
-const DISPATCH_QUEUE_LABEL: &'static str = "org.mozilla.cubeb";
-const PRIVATE_AGGREGATE_DEVICE_NAME: &'static str = "CubebAggregateDevice";
+// Constants have by default a `'static` lifetime
+const DISPATCH_QUEUE_LABEL: &str = "org.mozilla.cubeb";
+const PRIVATE_AGGREGATE_DEVICE_NAME: &str = "CubebAggregateDevice";
 
 // A compile-time static string mapped to kAudioAggregateDeviceNameKey
 // https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.12.sdk/System/Library/Frameworks/CoreAudio.framework/Versions/A/Headers/AudioHardware.h#L1513
-const AGGREGATE_DEVICE_NAME_KEY: &'static str = "name";
+const AGGREGATE_DEVICE_NAME_KEY: &str = "name";
 
 // A compile-time static string mapped to kAudioAggregateDeviceUIDKey
 // https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.12.sdk/System/Library/Frameworks/CoreAudio.framework/Versions/A/Headers/AudioHardware.h#L1505
-const AGGREGATE_DEVICE_UID: &'static str = "uid";
+const AGGREGATE_DEVICE_UID: &str = "uid";
 
 // A compile-time static string mapped to kAudioAggregateDeviceIsPrivateKey
 // https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.12.sdk/System/Library/Frameworks/CoreAudio.framework/Versions/A/Headers/AudioHardware.h#L1553
-const AGGREGATE_DEVICE_PRIVATE_KEY: &'static str = "private";
+const AGGREGATE_DEVICE_PRIVATE_KEY: &str = "private";
 
 // A compile-time static string mapped to kAudioAggregateDeviceIsStackedKey
 // https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.12.sdk/System/Library/Frameworks/CoreAudio.framework/Versions/A/Headers/AudioHardware.h#L1562
-const AGGREGATE_DEVICE_STACKED_KEY: &'static str = "stacked";
+const AGGREGATE_DEVICE_STACKED_KEY: &str = "stacked";
 
 /* Testing empirically, some headsets report a minimal latency that is very
  * low, but this does not work in practice. Lie and say the minimum is 256
