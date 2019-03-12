@@ -23,7 +23,7 @@ impl<T> AutoRelease<T> {
         unsafe { &*self.ptr }
     }
 
-    pub fn as_mut(&self) -> &mut T {
+    pub fn as_mut(&mut self) -> &mut T {
         assert!(!self.ptr.is_null());
         unsafe { &mut *self.ptr }
     }

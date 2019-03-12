@@ -454,7 +454,7 @@ extern fn audiounit_input_callback(user_ptr: *mut c_void,
     NO_ERR
 }
 
-fn audiounit_mix_output_buffer(stm: &AudioUnitStream,
+fn audiounit_mix_output_buffer(stm: &mut AudioUnitStream,
                                output_frames: usize,
                                input_buffer: *mut c_void,
                                input_buffer_size: usize,
@@ -684,10 +684,11 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
         assert!(!stm.temp_buffer.is_empty());
         assert_eq!(stm.temp_buffer_size, stm.temp_buffer.len() * mem::size_of::<u8>());
         assert_eq!(output_buffer, stm.temp_buffer.as_mut_ptr() as *mut c_void);
+        let temp_buffer_size = stm.temp_buffer_size;
         audiounit_mix_output_buffer(stm,
                                     output_frames as usize,
                                     output_buffer,
-                                    stm.temp_buffer_size,
+                                    temp_buffer_size,
                                     buffers[0].mData,
                                     buffers[0].mDataByteSize as usize);
     }
@@ -1237,7 +1238,7 @@ fn audiounit_get_preferred_channel_layout(output_unit: AudioUnit) -> ChannelLayo
     }
     assert!(size > 0);
 
-    let layout = make_sized_audio_channel_layout(size);
+    let mut layout = make_sized_audio_channel_layout(size);
     rv = audio_unit_get_property(output_unit,
                                  kAudioDevicePropertyPreferredChannelLayout,
                                  kAudioUnitScope_Output,
@@ -1269,7 +1270,7 @@ fn audiounit_get_current_channel_layout(output_unit: AudioUnit) -> ChannelLayout
     }
     assert!(size > 0);
 
-    let layout = make_sized_audio_channel_layout(size);
+    let mut layout = make_sized_audio_channel_layout(size);
     rv = audio_unit_get_property(output_unit,
                                  kAudioUnitProperty_AudioChannelLayout,
                                  kAudioUnitScope_Output,
@@ -1369,7 +1370,7 @@ fn audiounit_set_channel_layout(unit: AudioUnit,
     // the actual channel orders are. So we set a custom layout.
     assert!(nb_channels >= 1);
     let size = mem::size_of::<AudioChannelLayout>() + (nb_channels as usize - 1) * mem::size_of::<AudioChannelDescription>();
-    let au_layout = make_sized_audio_channel_layout(size);
+    let mut au_layout = make_sized_audio_channel_layout(size);
     au_layout.as_mut().mChannelLayoutTag = kAudioChannelLayoutTag_UseChannelDescriptions;
     au_layout.as_mut().mNumberChannelDescriptions = nb_channels;
     let channel_descriptions = unsafe {
