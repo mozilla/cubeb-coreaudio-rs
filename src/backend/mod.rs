@@ -502,12 +502,15 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
                                     out_buffer_list: *mut AudioBufferList) -> OSStatus
 {
     assert_eq!(bus, AU_OUT_BUS);
-    assert_eq!(unsafe { (&(*out_buffer_list)).mNumberBuffers }, 1);
+    assert!(!out_buffer_list.is_null());
+    let out_buffer_list_ref = unsafe { &mut (*out_buffer_list) };
+
+    assert_eq!(out_buffer_list_ref.mNumberBuffers, 1);
 
     let stm = unsafe { &mut *(user_ptr as *mut AudioUnitStream) };
     let buffers = unsafe {
-        let ptr = (&mut (*out_buffer_list)).mBuffers.as_mut_ptr();
-        let len = (&(*out_buffer_list)).mNumberBuffers as usize;
+        let ptr = out_buffer_list_ref.mBuffers.as_mut_ptr();
+        let len = out_buffer_list_ref.mNumberBuffers as usize;
         slice::from_raw_parts_mut(ptr, len)
     };
 
