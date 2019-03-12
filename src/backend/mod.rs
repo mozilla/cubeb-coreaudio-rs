@@ -594,12 +594,10 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
                        // if *stm.frames_read.get_mut() == 0 {
                        if stm.frames_read.load(atomic::Ordering::SeqCst) == 0 {
                            "Input hasn't started,"
+                       } else if *stm.switching_device.get_mut() {
+                            "Device switching,"
                        } else {
-                           if *stm.switching_device.get_mut() {
-                               "Device switching,"
-                           } else {
-                               "Drop out,"
-                           }
+                            "Drop out,"
                        },
                        missing_frames);
         }
@@ -763,10 +761,11 @@ fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Re
         let mutex_ptr = &mut stm.mutex as *mut OwnedCriticalSection;
         let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
         let mut volume: f32 = 0.0;
-        let mut vol_ok = false;
-        if !stm.output_unit.is_null() {
-            vol_ok = audiounit_stream_get_volume(stm, &mut volume).is_ok();
-        }
+        let vol_rv = if stm.output_unit.is_null() {
+            false
+        } else {
+            audiounit_stream_get_volume(stm, &mut volume).is_ok()
+        };
 
         audiounit_close_stream(stm);
 
@@ -779,11 +778,9 @@ fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Re
         // TODO: C version uses 0 instead of kAudioObjectUnknown, but they should be same.
         let input_device = if flags.contains(device_flags::DEV_INPUT) { stm.input_device.id } else { kAudioObjectUnknown };
 
-        if flags.contains(device_flags::DEV_INPUT) {
-            if audiounit_set_device_info(stm, input_device, io_side::INPUT).is_err() {
-                cubeb_log!("({:p}) Set input device info failed. This can happen when last media device is unplugged", stm as *const AudioUnitStream);
-                return Err(Error::error());
-            }
+        if flags.contains(device_flags::DEV_INPUT) && audiounit_set_device_info(stm, input_device, io_side::INPUT).is_err() {
+            cubeb_log!("({:p}) Set input device info failed. This can happen when last media device is unplugged", stm as *const AudioUnitStream);
+            return Err(Error::error());
         }
 
         /* Always use the default output on reinit. This is not correct in every
@@ -811,7 +808,7 @@ fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Re
             }
         }
 
-        if vol_ok {
+        if vol_rv {
             stm.set_volume(volume);
         }
 
@@ -2224,14 +2221,13 @@ extern fn buffer_size_changed_callback(in_client_data: *mut c_void,
     let stm = unsafe { &mut *(in_client_data as *mut AudioUnitStream) };
 
     let au = in_unit;
-    let mut au_scope = kAudioUnitScope_Input;
     let au_element = in_element;
-    let mut au_type = "output";
 
-    if AU_IN_BUS == in_element {
-        au_scope = kAudioUnitScope_Output;
-        au_type = "input";
-    }
+    let (au_scope, au_type) = if AU_IN_BUS == in_element {
+        (kAudioUnitScope_Output, "input")
+    } else {
+        (kAudioUnitScope_Input, "output")
+    };
 
     match in_property_id {
         // Using coreaudio_sys as prefix so kAudioDevicePropertyBufferFrameSize
@@ -2266,16 +2262,12 @@ fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, si
     // Surprisingly, it's ok to set `new_size_frames` to zero without getting
     // any error. However, the `buffer frames size` won't become 0 even it's
     // ok to set it to 0. Maybe we should fix it!
+    let (au, au_scope, au_element) = if side == io_side::INPUT {
+        (stm.input_unit, kAudioUnitScope_Output, AU_IN_BUS)
+    } else {
+        (stm.output_unit, kAudioUnitScope_Input, AU_OUT_BUS)
+    };
 
-    let mut au = stm.output_unit;
-    let mut au_scope = kAudioUnitScope_Input;
-    let mut au_element = AU_OUT_BUS;
-
-    if side == io_side::INPUT {
-        au = stm.input_unit;
-        au_scope = kAudioUnitScope_Output;
-        au_element = AU_IN_BUS;
-    }
     // TODO: Check au is not null ?
 
     let mut buffer_frames: u32 = 0;
@@ -2445,12 +2437,12 @@ fn audiounit_configure_input(stm: &mut AudioUnitStream) -> Result<()>
         return Err(Error::error());
     }
 
-    // Input only capacity
-    let mut array_capacity = 1;
-    if has_output(stm) {
-        // Full-duplex increase capacity
-        array_capacity = 8;
-    }
+    let array_capacity = if has_output(stm) {
+        8 // Full-duplex increase capacity
+    } else {
+        1 // Input only capacity
+    };
+
     if audiounit_init_input_linear_buffer(stm, array_capacity).is_err() {
         return Err(Error::error());
     }
@@ -3637,22 +3629,23 @@ impl ContextOps for AudioUnitContext {
         devtype: DeviceType,
         collection: &DeviceCollectionRef,
     ) -> Result<()> {
-        let mut input_devs = Vec::<AudioObjectID>::new();
-        let mut output_devs = Vec::<AudioObjectID>::new();
+        let input_devs = if devtype.contains(DeviceType::INPUT) {
+            audiounit_get_devices_of_type(DeviceType::INPUT)
+        } else {
+            Vec::<AudioObjectID>::new()
+        };
+
+        let output_devs = if devtype.contains(DeviceType::OUTPUT) {
+            audiounit_get_devices_of_type(DeviceType::OUTPUT)
+        } else {
+            Vec::<AudioObjectID>::new()
+        };
 
         // Count number of input and output devices.  This is not
         // necessarily the same as the count of raw devices supported by the
         // system since, for example, with Soundflower installed, some
         // devices may report as being both input *and* output and cubeb
         // separates those into two different devices.
-
-        if devtype.contains(DeviceType::OUTPUT) {
-            output_devs = audiounit_get_devices_of_type(DeviceType::OUTPUT);
-        }
-
-        if devtype.contains(DeviceType::INPUT) {
-            input_devs = audiounit_get_devices_of_type(DeviceType::INPUT);
-        }
 
         let mut devices: Vec<ffi::cubeb_device_info> = allocate_array(
             output_devs.len() + input_devs.len()
