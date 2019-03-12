@@ -1,4 +1,6 @@
-use super::utils::{get_default_device_id, test_context_operation, test_stream_operation, Scope};
+use super::utils::{
+    test_context_operation, test_get_default_device_id, test_stream_operation, Scope,
+};
 use super::*;
 
 // Context Operations
@@ -22,7 +24,7 @@ fn test_ops_context_backend_id() {
 #[test]
 fn test_ops_context_max_channel_count() {
     test_context_operation("context: max channel count", |context_ptr| {
-        let having_output = get_default_device_id(Scope::Output).is_some();
+        let having_output = test_get_default_device_id(Scope::Output).is_some();
         let mut max_channel_count = 0;
         let r = unsafe { OPS.get_max_channel_count.unwrap()(context_ptr, &mut max_channel_count) };
         if having_output {
@@ -38,7 +40,7 @@ fn test_ops_context_max_channel_count() {
 #[test]
 fn test_ops_context_min_latency() {
     test_context_operation("context: min latency", |context_ptr| {
-        let having_output = get_default_device_id(Scope::Output).is_some();
+        let having_output = test_get_default_device_id(Scope::Output).is_some();
         let params = ffi::cubeb_stream_params::default();
         let mut latency = u32::max_value();
         let r = unsafe { OPS.get_min_latency.unwrap()(context_ptr, params, &mut latency) };
@@ -56,7 +58,7 @@ fn test_ops_context_min_latency() {
 #[test]
 fn test_ops_context_preferred_sample_rate() {
     test_context_operation("context: preferred sample rate", |context_ptr| {
-        let having_output = get_default_device_id(Scope::Output).is_some();
+        let having_output = test_get_default_device_id(Scope::Output).is_some();
         let mut rate = u32::max_value();
         let r = unsafe { OPS.get_preferred_sample_rate.unwrap()(context_ptr, &mut rate) };
         if having_output {
@@ -101,7 +103,7 @@ fn test_ops_context_enumerate_devices_unknown() {
 #[test]
 fn test_ops_context_enumerate_devices_input() {
     test_context_operation("context: enumerate devices (input)", |context_ptr| {
-        let having_input = get_default_device_id(Scope::Input).is_some();
+        let having_input = test_get_default_device_id(Scope::Input).is_some();
         let mut coll = ffi::cubeb_device_collection {
             device: ptr::null_mut(),
             count: 0,
@@ -131,7 +133,7 @@ fn test_ops_context_enumerate_devices_input() {
 #[test]
 fn test_ops_context_enumerate_devices_output() {
     test_context_operation("context: enumerate devices (output)", |context_ptr| {
-        let having_output = get_default_device_id(Scope::Output).is_some();
+        let having_output = test_get_default_device_id(Scope::Output).is_some();
         let mut coll = ffi::cubeb_device_collection {
             device: ptr::null_mut(),
             count: 0,

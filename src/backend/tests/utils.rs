@@ -8,7 +8,7 @@ pub enum Scope {
     Output,
 }
 
-pub fn get_default_device_id(scope: Scope) -> Option<AudioObjectID> {
+pub fn test_get_default_device_id(scope: Scope) -> Option<AudioObjectID> {
     let address = AudioObjectPropertyAddress {
         mSelector: if scope == Scope::Input {
             kAudioHardwarePropertyDefaultInputDevice
