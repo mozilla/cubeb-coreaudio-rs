@@ -105,3 +105,4 @@ fn test_stream_operation<F>(
 }
 
 mod interfaces;
+mod tone;
