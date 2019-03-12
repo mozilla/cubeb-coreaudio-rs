@@ -1390,7 +1390,7 @@ fn audiounit_set_channel_layout(unit: AudioUnit,
             channel_descriptions[channels].mChannelFlags = kAudioChannelFlags_AllOff;
             channels += 1;
         }
-        channel_map = channel_map >> 1;
+        channel_map >>= 1;
     }
 
     // TODO: This call doesn't work all the times, and r is NO_ERR doesn't
