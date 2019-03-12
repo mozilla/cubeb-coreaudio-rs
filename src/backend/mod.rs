@@ -2680,7 +2680,7 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
 
     let mut input_unconverted_params: ffi::cubeb_stream_params = unsafe { ::std::mem::zeroed() };
     if has_input(stm) {
-        input_unconverted_params = unsafe { (*(stm.input_stream_params.as_ptr())).clone() };
+        input_unconverted_params = unsafe { (*(stm.input_stream_params.as_ptr())) }; // Perform copy.
         input_unconverted_params.rate = stm.input_hw_rate as u32;
     }
 
