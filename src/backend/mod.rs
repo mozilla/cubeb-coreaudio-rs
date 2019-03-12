@@ -1177,7 +1177,7 @@ fn audiounit_get_default_device_id(devtype: DeviceType) -> AudioObjectID
         return kAudioObjectUnknown;
     }
 
-    return devid;
+    devid
 }
 
 fn audiounit_convert_channel_layout(layout: &AudioChannelLayout) -> ChannelLayout
@@ -1217,7 +1217,7 @@ fn audiounit_convert_channel_layout(layout: &AudioChannelLayout) -> ChannelLayou
         cl |= channel;
     }
 
-    return cl;
+    cl
 }
 
 fn audiounit_get_preferred_channel_layout(output_unit: AudioUnit) -> ChannelLayout
@@ -3345,7 +3345,7 @@ fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID>
         }
     }
 
-    return devices_in_scope;
+    devices_in_scope
 }
 
 extern fn audiounit_collection_changed_callback(_in_object_id: AudioObjectID,
