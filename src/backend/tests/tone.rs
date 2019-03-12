@@ -1,3 +1,4 @@
+use super::utils::test_stream_operation;
 use super::*;
 
 #[test]

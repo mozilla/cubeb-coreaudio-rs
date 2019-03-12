@@ -1,3 +1,4 @@
+use super::utils::{get_default_device_id, test_context_operation, test_stream_operation, Scope};
 use super::*;
 
 // Context Operations
