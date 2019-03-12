@@ -142,11 +142,11 @@ const OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS: AudioObjectPropertyAddress =
 bitflags! {
     #[allow(non_camel_case_types)]
     struct device_flags: u32 {
-        const DEV_UNKNOWN           = 0b00000000; /* Unknown */
-        const DEV_INPUT             = 0b00000001; /* Record device like mic */
-        const DEV_OUTPUT            = 0b00000010; /* Playback device like speakers */
-        const DEV_SYSTEM_DEFAULT    = 0b00000100; /* System default device */
-        const DEV_SELECTED_DEFAULT  = 0b00001000; /* User selected to use the system default device */
+        const DEV_UNKNOWN           = 0b0000_0000; /* Unknown */
+        const DEV_INPUT             = 0b0000_0001; /* Record device like mic */
+        const DEV_OUTPUT            = 0b0000_0010; /* Playback device like speakers */
+        const DEV_SYSTEM_DEFAULT    = 0b0000_0100; /* System default device */
+        const DEV_SELECTED_DEFAULT  = 0b0000_1000; /* User selected to use the system default device */
     }
 }
 
@@ -1552,7 +1552,7 @@ fn audiounit_create_blank_aggregate_device(plugin_id: &mut AudioObjectID, aggreg
             tv_usec: 0,
         };
         libc::gettimeofday(&mut timestamp, ptr::null_mut());
-        let time_id = timestamp.tv_sec as i64 * 1000000 + i64::from(timestamp.tv_usec);
+        let time_id = timestamp.tv_sec as i64 * 1_000_000 + i64::from(timestamp.tv_usec);
         // TODO: Check if time_id is larger than 0 ?
         // assert!(time_id > 0);
 
@@ -3057,7 +3057,7 @@ fn audiounit_get_available_samplerate(devid: AudioObjectID, scope: AudioObjectPr
     if audio_object_has_property(devid, &adr) &&
        audio_object_get_property_data_size(devid, &adr, &mut size) == NO_ERR {
         let mut ranges: Vec<AudioValueRange> = allocate_array_by_size(size);
-        range.mMinimum = 9999999999.0; // TODO: why not f64::MAX?
+        range.mMinimum = 9_999_999_999.0; // TODO: why not f64::MAX?
         range.mMaximum = 0.0; // TODO: why not f64::MIN?
         if audio_object_get_property_data(devid, &adr, &mut size, ranges.as_mut_ptr()) == NO_ERR {
             for rng in &ranges {
