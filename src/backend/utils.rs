@@ -407,24 +407,6 @@ pub fn audio_output_unit_stop(
     }
 }
 
-pub fn show_callback_info(
-    id: sys::AudioObjectID,
-    number_of_addresses: u32,
-    addresses: *const sys::AudioObjectPropertyAddress,
-    data: *mut c_void) {
-    use std::slice;
-
-    println!("\n\n---------------------\ndevice: {}, data @ {:p}", id, data);
-    let addrs = unsafe {
-        slice::from_raw_parts(addresses, number_of_addresses as usize)
-    };
-    for (i, addr) in addrs.iter().enumerate() {
-        println!("address {}\n\tselector {}\n\tscope {}\n\telement {}",
-                 i, addr.mSelector, addr.mScope, addr.mElement);
-    }
-    println!("---------------------\n\n");
-}
-
 #[test]
 fn test_leak_vec_and_retake_it() {
     let expected: Vec<u32> = (10..20).collect();
@@ -597,7 +579,6 @@ fn test_manual_audio_object_add_property_listener() {
         addresses: *const sys::AudioObjectPropertyAddress,
         data: *mut c_void
     ) -> sys::OSStatus {
-        show_callback_info(id, number_of_addresses, addresses, data);
         let called = unsafe {
             &mut (*(data as *mut u32))
         };

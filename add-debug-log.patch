@@ -1,0 +1,74 @@
+diff --git a/src/backend/mod.rs b/src/backend/mod.rs
+--- a/src/backend/mod.rs
++++ b/src/backend/mod.rs
+@@ -3356,6 +3356,7 @@ extern fn audiounit_collection_changed_callback(_in_object_id: AudioObjectID,
+                                                 _in_addresses: *const AudioObjectPropertyAddress,
+                                                 in_client_data: *mut c_void) -> OSStatus
+ {
++    show_callback_info(_in_object_id, _in_number_addresses, _in_addresses, in_client_data);
+     let context = in_client_data as *mut AudioUnitContext;
+ 
+     // Rust compilter doesn't allow a pointer to be passed across threads.
+@@ -3807,6 +3808,8 @@ impl ContextOps for AudioUnitContext {
+             return Err(r);
+         }
+ 
++        println!("<Initialize> stream @ {:p}\nstream.context @ {:p}\n{:?}",
++                 boxed_stream.as_ref(), boxed_stream.context, boxed_stream.as_ref());
+         let cubeb_stream = unsafe {
+             Stream::from_ptr(Box::into_raw(boxed_stream) as *mut _)
+         };
+@@ -3844,6 +3847,7 @@ impl ContextOps for AudioUnitContext {
+ 
+ impl Drop for AudioUnitContext {
+     fn drop(&mut self) {
++        println!("Drop context @ {:p}", self as *const AudioUnitContext);
+         let mutex_ptr = &mut self.mutex as *mut OwnedCriticalSection;
+         let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+ 
+@@ -4025,6 +4029,8 @@ impl<'ctx> AudioUnitStream<'ctx> {
+ impl<'ctx> Drop for AudioUnitStream<'ctx> {
+     fn drop(&mut self) {
+         self.destroy();
++        println!("<Drop> stream @ {:p}\nstream.context @ {:p}\n{:?}",
++                 self as *const AudioUnitStream, self.context as *const AudioUnitContext, self);
+     }
+ }
+ 
+diff --git a/src/backend/utils.rs b/src/backend/utils.rs
+index e9703a5..15ad383 100644
+--- a/src/backend/utils.rs
++++ b/src/backend/utils.rs
+@@ -407,6 +407,24 @@ pub fn audio_output_unit_stop(
+     }
+ }
+ 
++pub fn show_callback_info(
++    id: sys::AudioObjectID,
++    number_of_addresses: u32,
++    addresses: *const sys::AudioObjectPropertyAddress,
++    data: *mut c_void) {
++    use std::slice;
++
++    println!("\n\n---------------------\ndevice: {}, data @ {:p}", id, data);
++    let addrs = unsafe {
++        slice::from_raw_parts(addresses, number_of_addresses as usize)
++    };
++    for (i, addr) in addrs.iter().enumerate() {
++        println!("address {}\n\tselector {}\n\tscope {}\n\telement {}",
++                 i, addr.mSelector, addr.mScope, addr.mElement);
++    }
++    println!("---------------------\n\n");
++}
++
+ #[test]
+ fn test_leak_vec_and_retake_it() {
+     let expected: Vec<u32> = (10..20).collect();
+@@ -579,6 +597,7 @@ fn test_manual_audio_object_add_property_listener() {
+         addresses: *const sys::AudioObjectPropertyAddress,
+         data: *mut c_void
+     ) -> sys::OSStatus {
++        show_callback_info(id, number_of_addresses, addresses, data);
+         let called = unsafe {
+             &mut (*(data as *mut u32))
+         };

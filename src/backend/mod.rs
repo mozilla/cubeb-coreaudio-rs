@@ -3356,7 +3356,6 @@ extern fn audiounit_collection_changed_callback(_in_object_id: AudioObjectID,
                                                 _in_addresses: *const AudioObjectPropertyAddress,
                                                 in_client_data: *mut c_void) -> OSStatus
 {
-    show_callback_info(_in_object_id, _in_number_addresses, _in_addresses, in_client_data);
     let context = in_client_data as *mut AudioUnitContext;
 
     // Rust compilter doesn't allow a pointer to be passed across threads.
@@ -3808,8 +3807,6 @@ impl ContextOps for AudioUnitContext {
             return Err(r);
         }
 
-        println!("<Initialize> stream @ {:p}\nstream.context @ {:p}\n{:?}",
-                 boxed_stream.as_ref(), boxed_stream.context, boxed_stream.as_ref());
         let cubeb_stream = unsafe {
             Stream::from_ptr(Box::into_raw(boxed_stream) as *mut _)
         };
@@ -3847,7 +3844,6 @@ impl ContextOps for AudioUnitContext {
 
 impl Drop for AudioUnitContext {
     fn drop(&mut self) {
-        println!("Drop context @ {:p}", self as *const AudioUnitContext);
         let mutex_ptr = &mut self.mutex as *mut OwnedCriticalSection;
         let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
 
@@ -4029,8 +4025,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
 impl<'ctx> Drop for AudioUnitStream<'ctx> {
     fn drop(&mut self) {
         self.destroy();
-        println!("<Drop> stream @ {:p}\nstream.context @ {:p}\n{:?}",
-                 self as *const AudioUnitStream, self.context as *const AudioUnitContext, self);
     }
 }
 
