@@ -188,7 +188,7 @@ It can be tracked on [*bugzilla* 1530715][bugzilla-cars].
   - *Buffer frame size* within same device may be overwritten (no matter the *AudioUnit*s are different or not) ?
 - Find a reliable way to verify `enumerate_devices`
 - Make a list pairing (device-uid/device-name, available channel layouts) so we can check the layout-related APIs properly!
-  - A prototype is in [`test_set_channel_layout_output`](src/backend/test.rs).
+  - A prototype is in [`test_set_channel_layout_output`](src/backend/tests/test.rs).
 - Make a black/white list for those devices cannot/can get the *datasource*,
   so the tests for `audiounit_get_default_device_datasource` and those APIs based on `audiounit_get_default_device_datasource` can work on different devices.
 - [cubeb-rs][cubeb-rs]
@@ -202,7 +202,7 @@ It can be tracked on [*bugzilla* 1530715][bugzilla-cars].
 - Mutex: Find a replacement for [`owned_critical_section`][ocs]
   - A dummy mutex like `Mutex<()>` should work (see [`test_dummy_mutex_multithread`][ocs-rust]) as what `owned_critical_section` does in [_C_ version][ocs], but it doens't has equivalent API for `assert_current_thread_owns`.
   - We implement a [`OwnedCriticalSection` around `pthread_mutex_t`][ocs-rust] like what we do in [_C_ version][ocs] for now.
-  - It's hard to debug with the variables using `OwnedCriticalSection`. Within a test with a variable using `OwnedCriticalSection`, if the `OwnedCriticalSection` used in the test isn't be dropped in a correct order, then the test will get a crash in `OwnedCriticalSection`. The examples are [`test_stream_drop_mutex_(in)correct`](src/backend/test.rs). The tests must be created very carefully.
+  - It's hard to debug with the variables using `OwnedCriticalSection`. Within a test with a variable using `OwnedCriticalSection`, if the `OwnedCriticalSection` used in the test isn't be dropped in a correct order, then the test will get a crash in `OwnedCriticalSection`. The examples are [`test_stream_drop_mutex_(in)correct`](src/backend/tests/test.rs). The tests must be created very carefully.
 - Atomic:
   - The stable atomic types only support `bool`, `usize`, `isize`, and `ptr`, but we need `u64`, `i64`, and `f32`.
   - Using [atomic-rs](https://github.com/Amanieu/atomic-rs) instead.
