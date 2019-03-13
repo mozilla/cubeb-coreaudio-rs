@@ -4181,7 +4181,4 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
 }
 
 #[cfg(test)]
-mod test;
-
-#[cfg(test)]
 mod tests;
