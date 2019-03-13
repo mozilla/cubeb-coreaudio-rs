@@ -1,4 +1,4 @@
-use super::utils::test_stream_operation;
+use super::utils::test_ops_stream_operation;
 use super::*;
 
 #[test]
@@ -65,8 +65,8 @@ fn test_dial_tone() {
     output_params.layout = ffi::CUBEB_LAYOUT_MONO;
     output_params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
 
-    // TODO: test_stream_operation fails and hit an assertion when there is no output device.
-    test_stream_operation(
+    // TODO: test_ops_stream_operation fails and hit an assertion when there is no output device.
+    test_ops_stream_operation(
         "stream: North American dial tone",
         ptr::null_mut(), // Use default input device.
         ptr::null_mut(), // No input parameters.

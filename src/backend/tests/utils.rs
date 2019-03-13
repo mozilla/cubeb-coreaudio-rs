@@ -39,7 +39,7 @@ pub fn test_get_default_device_id(scope: Scope) -> Option<AudioObjectID> {
 
 // Test Templates
 // ------------------------------------------------------------------------------------------------
-pub fn test_context_operation<F>(name: &'static str, operation: F)
+pub fn test_ops_context_operation<F>(name: &'static str, operation: F)
 where
     F: FnOnce(*mut ffi::cubeb),
 {
@@ -59,7 +59,7 @@ where
 //       result in firing device-collection-changed callbacks. Run in-out streams with tests
 //       capturing device-collection-changed callbacks may cause troubles. See more details in the
 //       comments for test_create_blank_aggregate_device.
-pub fn test_stream_operation<F>(
+pub fn test_ops_stream_operation<F>(
     name: &'static str,
     input_device: ffi::cubeb_devid,
     input_stream_params: *mut ffi::cubeb_stream_params,
@@ -73,7 +73,7 @@ pub fn test_stream_operation<F>(
 ) where
     F: FnOnce(*mut ffi::cubeb_stream),
 {
-    test_context_operation("context: stream operation", |context_ptr| {
+    test_ops_context_operation("context: stream operation", |context_ptr| {
         let mut stream: *mut ffi::cubeb_stream = ptr::null_mut();
         let stream_name = CString::new(name).expect("Failed to create stream name");
         // TODO: stream_init fails when there is no input/output device when the stream parameter

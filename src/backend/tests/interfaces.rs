@@ -1,5 +1,5 @@
 use super::utils::{
-    test_context_operation, test_get_default_device_id, test_stream_operation, Scope,
+    test_get_default_device_id, test_ops_context_operation, test_ops_stream_operation, Scope,
 };
 use super::*;
 
@@ -7,12 +7,12 @@ use super::*;
 // ------------------------------------------------------------------------------------------------
 #[test]
 fn test_ops_context_init_and_destroy() {
-    test_context_operation("context: init and destroy", |_context_ptr| {});
+    test_ops_context_operation("context: init and destroy", |_context_ptr| {});
 }
 
 #[test]
 fn test_ops_context_backend_id() {
-    test_context_operation("context: backend id", |context_ptr| {
+    test_ops_context_operation("context: backend id", |context_ptr| {
         let backend = unsafe {
             let ptr = OPS.get_backend_id.unwrap()(context_ptr);
             CStr::from_ptr(ptr).to_string_lossy().into_owned()
@@ -23,7 +23,7 @@ fn test_ops_context_backend_id() {
 
 #[test]
 fn test_ops_context_max_channel_count() {
-    test_context_operation("context: max channel count", |context_ptr| {
+    test_ops_context_operation("context: max channel count", |context_ptr| {
         let having_output = test_get_default_device_id(Scope::Output).is_some();
         let mut max_channel_count = 0;
         let r = unsafe { OPS.get_max_channel_count.unwrap()(context_ptr, &mut max_channel_count) };
@@ -39,7 +39,7 @@ fn test_ops_context_max_channel_count() {
 
 #[test]
 fn test_ops_context_min_latency() {
-    test_context_operation("context: min latency", |context_ptr| {
+    test_ops_context_operation("context: min latency", |context_ptr| {
         let having_output = test_get_default_device_id(Scope::Output).is_some();
         let params = ffi::cubeb_stream_params::default();
         let mut latency = u32::max_value();
@@ -57,7 +57,7 @@ fn test_ops_context_min_latency() {
 
 #[test]
 fn test_ops_context_preferred_sample_rate() {
-    test_context_operation("context: preferred sample rate", |context_ptr| {
+    test_ops_context_operation("context: preferred sample rate", |context_ptr| {
         let having_output = test_get_default_device_id(Scope::Output).is_some();
         let mut rate = u32::max_value();
         let r = unsafe { OPS.get_preferred_sample_rate.unwrap()(context_ptr, &mut rate) };
@@ -74,7 +74,7 @@ fn test_ops_context_preferred_sample_rate() {
 
 #[test]
 fn test_ops_context_enumerate_devices_unknown() {
-    test_context_operation("context: enumerate devices (unknown)", |context_ptr| {
+    test_ops_context_operation("context: enumerate devices (unknown)", |context_ptr| {
         let mut coll = ffi::cubeb_device_collection {
             device: ptr::null_mut(),
             count: 0,
@@ -102,7 +102,7 @@ fn test_ops_context_enumerate_devices_unknown() {
 
 #[test]
 fn test_ops_context_enumerate_devices_input() {
-    test_context_operation("context: enumerate devices (input)", |context_ptr| {
+    test_ops_context_operation("context: enumerate devices (input)", |context_ptr| {
         let having_input = test_get_default_device_id(Scope::Input).is_some();
         let mut coll = ffi::cubeb_device_collection {
             device: ptr::null_mut(),
@@ -132,7 +132,7 @@ fn test_ops_context_enumerate_devices_input() {
 
 #[test]
 fn test_ops_context_enumerate_devices_output() {
-    test_context_operation("context: enumerate devices (output)", |context_ptr| {
+    test_ops_context_operation("context: enumerate devices (output)", |context_ptr| {
         let having_output = test_get_default_device_id(Scope::Output).is_some();
         let mut coll = ffi::cubeb_device_collection {
             device: ptr::null_mut(),
@@ -167,7 +167,7 @@ fn test_ops_context_enumerate_devices_output() {
 #[test]
 fn test_ops_context_device_collection_destroy() {
     // Destroy a dummy device collection, without calling enumerate_devices to allocate memory for the device collection
-    test_context_operation("context: device collection destroy", |context_ptr| {
+    test_ops_context_operation("context: device collection destroy", |context_ptr| {
         let mut coll = ffi::cubeb_device_collection {
             device: ptr::null_mut(),
             count: 0,
@@ -183,7 +183,7 @@ fn test_ops_context_device_collection_destroy() {
 
 #[test]
 fn test_ops_context_register_device_collection_changed_unknown() {
-    test_context_operation(
+    test_ops_context_operation(
         "context: register device collection changed (unknown)",
         |context_ptr| {
             assert_eq!(
@@ -216,7 +216,7 @@ fn test_ops_context_register_device_collection_changed_twice(devtype: u32) {
         return;
     };
 
-    test_context_operation(label, |context_ptr| {
+    test_ops_context_operation(label, |context_ptr| {
         // Register a callback within the defined scope.
         assert_eq!(
             unsafe {
@@ -268,7 +268,7 @@ fn test_ops_context_register_device_collection_changed_twice_inout() {
 #[test]
 fn test_ops_context_register_device_collection_changed() {
     extern "C" fn callback(_: *mut ffi::cubeb, _: *mut c_void) {}
-    test_context_operation(
+    test_ops_context_operation(
         "context: register device collection changed",
         |context_ptr| {
             let devtypes: [ffi::cubeb_device_type; 3] = [
@@ -337,7 +337,7 @@ fn test_ops_context_register_device_collection_changed() {
 #[test]
 #[ignore]
 fn test_ops_context_register_device_collection_changed_manual() {
-    test_context_operation(
+    test_ops_context_operation(
         "(manual) context: register device collection changed",
         |context_ptr| {
             println!("context @ {:p}", context_ptr);
@@ -412,8 +412,8 @@ where
     output_params.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
     output_params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
 
-    // TODO: test_stream_operation fails and hit an assertion when there is no output device.
-    test_stream_operation(
+    // TODO: test_ops_stream_operation fails and hit an assertion when there is no output device.
+    test_ops_stream_operation(
         name,
         ptr::null_mut(), // Use default input device.
         ptr::null_mut(), // No input parameters.
