@@ -1,0 +1,11 @@
+diff --git a/src/backend/mod.rs b/src/backend/mod.rs
+index 6310a8a..b2a1eb5 100644
+--- a/src/backend/mod.rs
++++ b/src/backend/mod.rs
+@@ -4173,6 +4173,3 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
+         Ok(())
+     }
+ }
+-
+-#[cfg(test)]
+-mod tests;
