@@ -2,10 +2,19 @@ use super::*;
 
 // Common Utils
 // ------------------------------------------------------------------------------------------------
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum Scope {
     Input,
     Output,
+}
+
+impl From<Scope> for io_side {
+    fn from(scope: Scope) -> Self {
+        match scope {
+            Scope::Input => io_side::INPUT,
+            Scope::Output => io_side::OUTPUT,
+        }
+    }
 }
 
 pub fn test_get_default_device_id(scope: Scope) -> Option<AudioObjectID> {
