@@ -108,6 +108,8 @@ pub fn test_get_locked_context<F>(operation: F)
 where
     F: FnOnce(&mut AudioUnitContext),
 {
+    // Initialize the the mutex (whose type is OwnedCriticalSection) within AudioUnitContext,
+    // by AudioUnitContext::Init, to make the mutex work.
     let mut context = AudioUnitContext::new();
     context.init();
 
@@ -117,4 +119,47 @@ where
     let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
 
     operation(&mut context);
+}
+
+pub fn test_get_stream<F>(
+    user_ptr: *mut c_void,
+    data_callback: ffi::cubeb_data_callback,
+    state_callback: ffi::cubeb_state_callback,
+    latency_frames: u32,
+    operation: F,
+) where
+    F: FnOnce(&mut AudioUnitStream),
+{
+    // Initialize the the mutex (whose type is OwnedCriticalSection) within AudioUnitContext,
+    // by AudioUnitContext::Init, to make the mutex work.
+    let mut context = AudioUnitContext::new();
+    context.init();
+
+    // Add a stream to the context since we are about to create one.
+    // AudioUnitStream::drop() will check the context has at least one stream.
+    {
+        // Create a `mutext_ptr` here to avoid the borrowing-twice issue.
+        let mutex_ptr = &mut context.mutex as *mut OwnedCriticalSection;
+        // The scope of `_lock` is a critical section.
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        audiounit_increment_active_streams(&mut context);
+    }
+
+    let mut stream = AudioUnitStream::new(
+        &mut context,
+        user_ptr,
+        data_callback,
+        state_callback,
+        latency_frames,
+    );
+    stream.init();
+
+    operation(&mut stream);
+}
+
+pub fn test_get_empty_stream<F>(operation: F)
+where
+    F: FnOnce(&mut AudioUnitStream),
+{
+    test_get_stream(ptr::null_mut(), None, None, 0, operation);
 }
