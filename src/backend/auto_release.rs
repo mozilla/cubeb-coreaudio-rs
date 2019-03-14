@@ -59,7 +59,6 @@ impl<T> fmt::Debug for AutoRelease<T> {
 #[test]
 fn test_auto_release() {
     use std::mem;
-    use std::os::raw::c_void;
     use std::ptr;
 
     unsafe extern fn allocate() -> *mut libc::c_void {
