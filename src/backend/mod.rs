@@ -329,8 +329,15 @@ fn audiounit_set_global_latency(ctx: &mut AudioUnitContext, latency_frames: u32)
 
 fn audiounit_make_silent(io_data: &mut AudioBuffer) {
     assert!(!io_data.mData.is_null());
-    unsafe {
-        libc::memset(io_data.mData as *mut libc::c_void, 0, io_data.mDataByteSize as usize);
+    // Get a byte slice from io_data.
+    let bytes = unsafe {
+        let ptr = io_data.mData as *mut u8;
+        let len = io_data.mDataByteSize as usize;
+        slice::from_raw_parts_mut(ptr, len)
+    };
+    // Compiler will optimize it by using memset.
+    for data in bytes.iter_mut() {
+        *data = 0;
     }
 }
 
