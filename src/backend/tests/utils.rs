@@ -103,3 +103,18 @@ pub fn test_ops_stream_operation<F>(
         }
     });
 }
+
+pub fn test_get_locked_context<F>(operation: F)
+where
+    F: FnOnce(&mut AudioUnitContext),
+{
+    let mut context = AudioUnitContext::new();
+    context.init();
+
+    // Create a `mutext_ptr` here to avoid the borrowing-twice issue.
+    let mutex_ptr = &mut context.mutex as *mut OwnedCriticalSection;
+    // The scope of `_lock` is a critical section.
+    let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+
+    operation(&mut context);
+}
