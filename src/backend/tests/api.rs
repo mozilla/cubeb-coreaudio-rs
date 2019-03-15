@@ -1,5 +1,6 @@
 use super::utils::{
-    test_get_default_device, test_get_empty_stream, test_get_locked_context, Scope,
+    test_get_default_audiounit, test_get_default_device, test_get_empty_stream,
+    test_get_locked_context, Scope,
 };
 use super::*;
 
@@ -903,3 +904,39 @@ fn test_convert_channel_layout() {
         );
     }
 }
+
+// get_preferred_channel_layout
+// ------------------------------------
+#[test]
+fn test_get_preferred_channel_layout_output() {
+    if let Some(unit) = test_get_default_audiounit(Scope::Output) {
+        // TODO: The preferred layout might be undefined for some devices.
+        assert_ne!(
+            audiounit_get_preferred_channel_layout(unit),
+            ChannelLayout::UNDEFINED
+        );
+    }
+}
+
+// TODO: Should it be banned ? It only works with output audiounit for now.
+// #[test]
+// fn test_get_preferred_channel_layout_input() {
+// }
+
+// get_current_channel_layout
+// ------------------------------------
+#[test]
+fn test_get_current_channel_layout_output() {
+    if let Some(unit) = test_get_default_audiounit(Scope::Output) {
+        // TODO: The preferred layout might be undefined for some devices.
+        assert_ne!(
+            audiounit_get_current_channel_layout(unit),
+            ChannelLayout::UNDEFINED
+        );
+    }
+}
+
+// TODO: Should it be banned ? It only works with output audiounit for now.
+// #[test]
+// fn test_get_current_channel_layout_input() {
+// }
