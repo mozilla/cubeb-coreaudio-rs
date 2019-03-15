@@ -46,6 +46,101 @@ pub fn test_get_default_device(scope: Scope) -> Option<AudioObjectID> {
     Some(devid)
 }
 
+// TODO: 1. Return Result with custom errors.
+//       2. Allow to create a in-out unit.
+pub fn test_get_default_audiounit(scope: Scope) -> Option<AudioUnit> {
+    let device = test_get_default_device(scope.clone());
+    let unit = test_create_haloutput_audiounit();
+    if device.is_none() || unit.is_none() {
+        return None;
+    }
+    let unit = unit.unwrap();
+    let device = device.unwrap();
+    match scope {
+        Scope::Input => {
+            if test_enable_audiounit_in_scope(unit, Scope::Input, true).is_err()
+                || test_enable_audiounit_in_scope(unit, Scope::Output, false).is_err()
+            {
+                return None;
+            }
+        }
+        Scope::Output => {
+            if test_enable_audiounit_in_scope(unit, Scope::Input, false).is_err()
+                || test_enable_audiounit_in_scope(unit, Scope::Output, true).is_err()
+            {
+                return None;
+            }
+        }
+    }
+
+    let status = unsafe {
+        AudioUnitSetProperty(
+            unit,
+            kAudioOutputUnitProperty_CurrentDevice,
+            kAudioUnitScope_Global,
+            0, // Global bus
+            &device as *const AudioObjectID as *const c_void,
+            mem::size_of::<AudioObjectID>() as u32,
+        )
+    };
+    if status == NO_ERR {
+        Some(unit)
+    } else {
+        None
+    }
+}
+
+// TODO: Return Result with custom errors.
+fn test_create_haloutput_audiounit() -> Option<AudioUnit> {
+    let desc = AudioComponentDescription {
+        componentType: kAudioUnitType_Output,
+        componentSubType: kAudioUnitSubType_HALOutput,
+        componentManufacturer: kAudioUnitManufacturer_Apple,
+        componentFlags: 0,
+        componentFlagsMask: 0,
+    };
+    let comp = unsafe { AudioComponentFindNext(ptr::null_mut(), &desc) };
+    if comp.is_null() {
+        return None;
+    }
+    let mut unit: AudioUnit = ptr::null_mut();
+    let status = unsafe { AudioComponentInstanceNew(comp, &mut unit) };
+    // TODO: Is unit possible to be null when no error returns ?
+    if status != NO_ERR || unit.is_null() {
+        None
+    } else {
+        Some(unit)
+    }
+}
+
+fn test_enable_audiounit_in_scope(
+    unit: AudioUnit,
+    scope: Scope,
+    enable: bool,
+) -> std::result::Result<(), OSStatus> {
+    assert!(!unit.is_null());
+    let (scope, element) = match scope {
+        Scope::Input => (kAudioUnitScope_Input, AU_IN_BUS),
+        Scope::Output => (kAudioUnitScope_Output, AU_OUT_BUS),
+    };
+    let on_off: u32 = if enable { 1 } else { 0 };
+    let status = unsafe {
+        AudioUnitSetProperty(
+            unit,
+            kAudioOutputUnitProperty_EnableIO,
+            scope,
+            element,
+            &on_off as *const u32 as *const c_void,
+            mem::size_of::<u32>() as u32,
+        )
+    };
+    if status == NO_ERR {
+        Ok(())
+    } else {
+        Err(status)
+    }
+}
+
 // Test Templates
 // ------------------------------------------------------------------------------------------------
 pub fn test_ops_context_operation<F>(name: &'static str, operation: F)
