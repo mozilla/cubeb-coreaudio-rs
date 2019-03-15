@@ -15,9 +15,8 @@ pub const DISPATCH_QUEUE_SERIAL: sys::dispatch_queue_attr_t = 0 as sys::dispatch
 
 pub fn create_dispatch_queue(
     label: &'static str,
-    queue_attr: sys::dispatch_queue_attr_t
-) -> sys::dispatch_queue_t
-{
+    queue_attr: sys::dispatch_queue_attr_t,
+) -> sys::dispatch_queue_t {
     let label = CString::new(label);
     let c_string = if label.is_ok() {
         label.unwrap().as_ptr()
@@ -27,20 +26,21 @@ pub fn create_dispatch_queue(
     unsafe { sys::dispatch_queue_create(c_string, queue_attr) }
 }
 
-pub fn release_dispatch_queue(queue: sys::dispatch_queue_t)
-{
+pub fn release_dispatch_queue(queue: sys::dispatch_queue_t) {
     // TODO: This is incredibly unsafe. Find another way to release the queue.
     unsafe {
-        sys::dispatch_release(
-            mem::transmute::<sys::dispatch_queue_t, sys::dispatch_object_t>(queue)
-        );
+        sys::dispatch_release(mem::transmute::<
+            sys::dispatch_queue_t,
+            sys::dispatch_object_t,
+        >(queue));
     }
 }
 
 // Send: Types that can be transferred across thread boundaries.
 // FnOnce: One-time function.
 pub fn async_dispatch<F>(queue: sys::dispatch_queue_t, work: F)
-  where F: 'static + Send + FnOnce()
+where
+    F: 'static + Send + FnOnce(),
 {
     let (closure, executor) = create_closure_and_executor(work);
     unsafe {
@@ -51,7 +51,8 @@ pub fn async_dispatch<F>(queue: sys::dispatch_queue_t, work: F)
 // Send: Types that can be transferred across thread boundaries.
 // FnOnce: One-time function.
 pub fn sync_dispatch<F>(queue: sys::dispatch_queue_t, work: F)
-  where F: 'static + Send + FnOnce()
+where
+    F: 'static + Send + FnOnce(),
 {
     let (closure, executor) = create_closure_and_executor(work);
     unsafe {
@@ -61,18 +62,16 @@ pub fn sync_dispatch<F>(queue: sys::dispatch_queue_t, work: F)
 
 // Return an raw pointer to a (unboxed) closure and an executor that
 // will run the closure (after re-boxing the closure) when it's called.
-fn create_closure_and_executor<F>(
-    closure: F
-) -> (*mut c_void, sys::dispatch_function_t)
-    where F: FnOnce()
+fn create_closure_and_executor<F>(closure: F) -> (*mut c_void, sys::dispatch_function_t)
+where
+    F: FnOnce(),
 {
-    extern fn closure_executer<F>(unboxed_closure: *mut c_void)
-        where F: FnOnce()
+    extern "C" fn closure_executer<F>(unboxed_closure: *mut c_void)
+    where
+        F: FnOnce(),
     {
         // Retake the leaked closure.
-        let closure: Box<F> = unsafe {
-            Box::from_raw(unboxed_closure as *mut F)
-        };
+        let closure: Box<F> = unsafe { Box::from_raw(unboxed_closure as *mut F) };
         // Execute the closure.
         (*closure)();
         // closure is released after finishiing this function call.
@@ -83,7 +82,7 @@ fn create_closure_and_executor<F>(
 
     (
         Box::into_raw(closure) as *mut c_void, // Leak the closure.
-        executor
+        executor,
     )
 }
 
@@ -96,19 +95,14 @@ fn test_dispatch_async_f() {
         ptr::null()
     };
 
-    let queue = unsafe {
-        sys::dispatch_queue_create(
-            c_string,
-            DISPATCH_QUEUE_SERIAL
-        )
-    };
+    let queue = unsafe { sys::dispatch_queue_create(c_string, DISPATCH_QUEUE_SERIAL) };
 
     // Allocate the `context` on heap, otherwise the `context` will be
     // freed before `work` is fired and after program goes out of the
     // scope of the unsafe block.
     let context: Box<i32> = Box::new(123);
 
-    extern fn work(leaked_ptr: *mut c_void) {
+    extern "C" fn work(leaked_ptr: *mut c_void) {
         let leaked_context = leaked_ptr as *mut i32;
 
         // Retake the leaked `context`.
@@ -121,7 +115,7 @@ fn test_dispatch_async_f() {
         sys::dispatch_async_f(
             queue,
             Box::into_raw(context) as *mut c_void, // Leak the `context`.
-            Some(work)
+            Some(work),
         );
     }
 }
@@ -135,30 +129,19 @@ fn test_dispatch_sync_f() {
         ptr::null()
     };
 
-    let queue = unsafe {
-        sys::dispatch_queue_create(
-            c_string,
-            DISPATCH_QUEUE_SERIAL
-        )
-    };
+    let queue = unsafe { sys::dispatch_queue_create(c_string, DISPATCH_QUEUE_SERIAL) };
 
     let mut context: i32 = 20;
 
-    extern fn work(context_ptr: *mut c_void) {
-        let ctx_mut_ref = unsafe {
-            &mut (*(context_ptr as *mut i32))
-        };
+    extern "C" fn work(context_ptr: *mut c_void) {
+        let ctx_mut_ref = unsafe { &mut (*(context_ptr as *mut i32)) };
 
         assert_eq!(ctx_mut_ref, &20);
         *ctx_mut_ref = 30;
     }
 
     unsafe {
-        sys::dispatch_sync_f(
-            queue,
-            &mut context as *mut i32 as *mut c_void,
-            Some(work)
-        );
+        sys::dispatch_sync_f(queue, &mut context as *mut i32 as *mut c_void, Some(work));
     }
 
     assert_eq!(context, 30);
@@ -168,10 +151,7 @@ fn test_dispatch_sync_f() {
 fn test_async_dispatch() {
     let label = "Run with async dispatch api wrappers";
 
-    let queue = create_dispatch_queue(
-        label,
-        DISPATCH_QUEUE_SERIAL
-    );
+    let queue = create_dispatch_queue(label, DISPATCH_QUEUE_SERIAL);
 
     struct Resource {
         last_touched: Option<u32>,
@@ -232,7 +212,7 @@ fn test_async_dispatch() {
     });
 
     // Make sure the resource won't be freed before the tasks are finished.
-    while resource.touched_count < 2 {};
+    while resource.touched_count < 2 {}
     assert!(resource.last_touched.is_some());
     assert_eq!(resource.last_touched.unwrap(), 2);
 }
@@ -241,10 +221,7 @@ fn test_async_dispatch() {
 fn test_sync_dispatch() {
     let label = "Run with sync dispatch api wrappers";
 
-    let queue = create_dispatch_queue(
-        label,
-        DISPATCH_QUEUE_SERIAL
-    );
+    let queue = create_dispatch_queue(label, DISPATCH_QUEUE_SERIAL);
 
     struct Resource {
         last_touched: Option<u32>,

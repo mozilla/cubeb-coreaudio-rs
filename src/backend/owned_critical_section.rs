@@ -9,7 +9,7 @@ use self::libc::*;
 use std::{fmt, mem};
 
 pub struct OwnedCriticalSection {
-    mutex: pthread_mutex_t
+    mutex: pthread_mutex_t,
 }
 
 // Notice that `OwnedCriticalSection` only works after `init` is called.
@@ -26,7 +26,7 @@ pub struct OwnedCriticalSection {
 impl OwnedCriticalSection {
     pub fn new() -> Self {
         OwnedCriticalSection {
-            mutex: PTHREAD_MUTEX_INITIALIZER
+            mutex: PTHREAD_MUTEX_INITIALIZER,
         }
     }
 
@@ -91,9 +91,7 @@ pub struct AutoLock<'a> {
 impl<'a> AutoLock<'a> {
     pub fn new(mutex: &'a mut OwnedCriticalSection) -> Self {
         mutex.lock();
-        AutoLock {
-            mutex,
-        }
+        AutoLock { mutex }
     }
 }
 

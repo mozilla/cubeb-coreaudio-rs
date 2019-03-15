@@ -78,11 +78,15 @@ pub trait Zero {
 }
 
 impl Zero for f32 {
-    fn zero() -> Self { 0.0 }
+    fn zero() -> Self {
+        0.0
+    }
 }
 
 impl Zero for i16 {
-    fn zero() -> Self { 0 }
+    fn zero() -> Self {
+        0
+    }
 }
 
 #[cfg(test)]
@@ -139,7 +143,10 @@ fn test_auto_array_wrapper<T: Clone + Debug + PartialEq + Zero>(buf: &[T]) {
     assert!(data.is_null());
 
     // Check if push works.
-    auto_array.as_mut().unwrap().push(buf.as_ptr() as *const c_void, buf.len());
+    auto_array
+        .as_mut()
+        .unwrap()
+        .push(buf.as_ptr() as *const c_void, buf.len());
     assert_eq!(auto_array.as_ref().unwrap().elements(), buf.len());
 
     let data = auto_array.as_ref().unwrap().as_ptr() as *const T;

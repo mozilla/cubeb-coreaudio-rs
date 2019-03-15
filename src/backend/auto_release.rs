@@ -2,15 +2,12 @@ use std::fmt;
 
 pub struct AutoRelease<T> {
     ptr: *mut T,
-    release_func: unsafe extern fn(*mut T)
+    release_func: unsafe extern "C" fn(*mut T),
 }
 
 impl<T> AutoRelease<T> {
-    pub fn new(ptr: *mut T, release_func: unsafe extern fn(*mut T)) -> Self {
-        Self {
-            ptr,
-            release_func
-        }
+    pub fn new(ptr: *mut T, release_func: unsafe extern "C" fn(*mut T)) -> Self {
+        Self { ptr, release_func }
     }
 
     pub fn reset(&mut self, ptr: *mut T) {
@@ -34,7 +31,9 @@ impl<T> AutoRelease<T> {
 
     fn release(&self) {
         if !self.ptr.is_null() {
-            unsafe { (self.release_func)(self.ptr); }
+            unsafe {
+                (self.release_func)(self.ptr);
+            }
         }
     }
 }
@@ -61,12 +60,12 @@ fn test_auto_release() {
     use std::mem;
     use std::ptr;
 
-    unsafe extern fn allocate() -> *mut libc::c_void {
+    unsafe extern "C" fn allocate() -> *mut libc::c_void {
         // println!("Allocate!");
         libc::calloc(1, mem::size_of::<u32>())
     }
 
-    unsafe extern fn deallocate(ptr: *mut libc::c_void) {
+    unsafe extern "C" fn deallocate(ptr: *mut libc::c_void) {
         // println!("Deallocate!");
         libc::free(ptr);
     }
