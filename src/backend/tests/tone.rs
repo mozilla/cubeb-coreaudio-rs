@@ -1,4 +1,4 @@
-use super::utils::test_ops_stream_operation;
+use super::utils::{test_get_default_device_id, test_ops_stream_operation, Scope};
 use super::*;
 
 #[test]
@@ -54,6 +54,11 @@ fn test_dial_tone() {
         }
 
         nframes
+    }
+
+    // Do nothing if there is no available output device.
+    if test_get_default_device_id(Scope::Output).is_none() {
+        return;
     }
 
     // Make sure the parameters meet the requirements of AudioUnitContext::stream_init
