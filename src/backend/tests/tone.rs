@@ -1,4 +1,4 @@
-use super::utils::{test_get_default_device_id, test_ops_stream_operation, Scope};
+use super::utils::{test_get_default_device, test_ops_stream_operation, Scope};
 use super::*;
 
 #[test]
@@ -57,7 +57,7 @@ fn test_dial_tone() {
     }
 
     // Do nothing if there is no available output device.
-    if test_get_default_device_id(Scope::Output).is_none() {
+    if test_get_default_device(Scope::Output).is_none() {
         return;
     }
 

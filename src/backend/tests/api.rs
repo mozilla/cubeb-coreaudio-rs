@@ -1,5 +1,5 @@
 use super::utils::{
-    test_get_default_device_id, test_get_empty_stream, test_get_locked_context, Scope,
+    test_get_default_device, test_get_empty_stream, test_get_locked_context, Scope,
 };
 use super::*;
 
@@ -462,7 +462,7 @@ fn test_set_device_info_and_get_default_device(
     assert_eq!(stream.output_device.id, kAudioObjectUnknown);
     assert_eq!(stream.output_device.flags, device_flags::DEV_UNKNOWN);
 
-    let default_device = test_get_default_device_id(scope.clone().into());
+    let default_device = test_get_default_device(scope.clone().into());
     // Fail to call audiounit_set_device_info when there is no available device.
     if default_device.is_none() {
         assert_eq!(
