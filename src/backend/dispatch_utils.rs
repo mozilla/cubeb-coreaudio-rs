@@ -87,67 +87,6 @@ where
 }
 
 #[test]
-fn test_dispatch_async_f() {
-    let label = CString::new("Run with native async dispatch apis");
-    let c_string = if label.is_ok() {
-        label.unwrap().as_ptr()
-    } else {
-        ptr::null()
-    };
-
-    let queue = unsafe { sys::dispatch_queue_create(c_string, DISPATCH_QUEUE_SERIAL) };
-
-    // Allocate the `context` on heap, otherwise the `context` will be
-    // freed before `work` is fired and after program goes out of the
-    // scope of the unsafe block.
-    let context: Box<i32> = Box::new(123);
-
-    extern "C" fn work(leaked_ptr: *mut c_void) {
-        let leaked_context = leaked_ptr as *mut i32;
-
-        // Retake the leaked `context`.
-        let context = unsafe { Box::from_raw(leaked_context) };
-        assert_eq!(context.as_ref(), &123);
-        // `context` is released after finishing this function call.
-    }
-
-    unsafe {
-        sys::dispatch_async_f(
-            queue,
-            Box::into_raw(context) as *mut c_void, // Leak the `context`.
-            Some(work),
-        );
-    }
-}
-
-#[test]
-fn test_dispatch_sync_f() {
-    let label = CString::new("Run with native sync dispatch apis");
-    let c_string = if label.is_ok() {
-        label.unwrap().as_ptr()
-    } else {
-        ptr::null()
-    };
-
-    let queue = unsafe { sys::dispatch_queue_create(c_string, DISPATCH_QUEUE_SERIAL) };
-
-    let mut context: i32 = 20;
-
-    extern "C" fn work(context_ptr: *mut c_void) {
-        let ctx_mut_ref = unsafe { &mut (*(context_ptr as *mut i32)) };
-
-        assert_eq!(ctx_mut_ref, &20);
-        *ctx_mut_ref = 30;
-    }
-
-    unsafe {
-        sys::dispatch_sync_f(queue, &mut context as *mut i32 as *mut c_void, Some(work));
-    }
-
-    assert_eq!(context, 30);
-}
-
-#[test]
 fn test_async_dispatch() {
     let label = "Run with async dispatch api wrappers";
 
@@ -213,8 +152,12 @@ fn test_async_dispatch() {
 
     // Make sure the resource won't be freed before the tasks are finished.
     while resource.touched_count < 2 {}
+
     assert!(resource.last_touched.is_some());
     assert_eq!(resource.last_touched.unwrap(), 2);
+
+    // Release the queue.
+    release_dispatch_queue(queue);
 }
 
 #[test]
@@ -275,4 +218,7 @@ fn test_sync_dispatch() {
 
     assert!(resource.last_touched.is_some());
     assert_eq!(resource.last_touched.unwrap(), 2);
+
+    // Release the queue.
+    release_dispatch_queue(queue);
 }
