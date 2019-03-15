@@ -225,7 +225,14 @@ where
     operation(&mut context);
 }
 
-pub fn test_get_stream<F>(
+pub fn test_get_empty_stream<F>(operation: F)
+where
+    F: FnOnce(&mut AudioUnitStream),
+{
+    test_get_stream(ptr::null_mut(), None, None, 0, operation);
+}
+
+fn test_get_stream<F>(
     user_ptr: *mut c_void,
     data_callback: ffi::cubeb_data_callback,
     state_callback: ffi::cubeb_state_callback,
@@ -259,11 +266,4 @@ pub fn test_get_stream<F>(
     stream.init();
 
     operation(&mut stream);
-}
-
-pub fn test_get_empty_stream<F>(operation: F)
-where
-    F: FnOnce(&mut AudioUnitStream),
-{
-    test_get_stream(ptr::null_mut(), None, None, 0, operation);
 }
