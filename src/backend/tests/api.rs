@@ -455,8 +455,8 @@ fn test_set_device_info_to_nonexistent_output_device() {
 fn test_set_device_info_and_get_default_device(
     stream: &mut AudioUnitStream,
     scope: Scope,
-    predefined_device: AudioDeviceID,
-) -> std::result::Result<AudioDeviceID, ()> {
+    predefined_device: AudioObjectID,
+) -> std::result::Result<AudioObjectID, ()> {
     assert_eq!(stream.input_device.id, kAudioObjectUnknown);
     assert_eq!(stream.input_device.flags, device_flags::DEV_UNKNOWN);
     assert_eq!(stream.output_device.id, kAudioObjectUnknown);

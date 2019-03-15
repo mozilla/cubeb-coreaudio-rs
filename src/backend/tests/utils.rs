@@ -28,8 +28,8 @@ pub fn test_get_default_device(scope: Scope) -> Option<AudioObjectID> {
         mElement: kAudioObjectPropertyElementMaster,
     };
 
-    let mut devid: AudioDeviceID = kAudioObjectUnknown;
-    let mut size = mem::size_of::<AudioDeviceID>();
+    let mut devid: AudioObjectID = kAudioObjectUnknown;
+    let mut size = mem::size_of::<AudioObjectID>();
     let status = unsafe {
         AudioObjectGetPropertyData(
             kAudioObjectSystemObject,
@@ -37,7 +37,7 @@ pub fn test_get_default_device(scope: Scope) -> Option<AudioObjectID> {
             0,
             ptr::null(),
             &mut size as *mut usize as *mut UInt32,
-            &mut devid as *mut AudioDeviceID as *mut c_void,
+            &mut devid as *mut AudioObjectID as *mut c_void,
         )
     };
     if status != NO_ERR || devid == kAudioObjectUnknown {
