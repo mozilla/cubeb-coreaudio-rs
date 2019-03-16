@@ -263,6 +263,8 @@ fn test_get_stream<F>(
         state_callback,
         latency_frames,
     );
+    // Initialize the the mutex (whose type is OwnedCriticalSection) within AudioUnitStream,
+    // by AudioUnitStream::Init, to make the mutex work.
     stream.init();
 
     operation(&mut stream);
