@@ -940,3 +940,56 @@ fn test_get_current_channel_layout_output() {
 // #[test]
 // fn test_get_current_channel_layout_input() {
 // }
+
+// audio_stream_desc_init
+// ------------------------------------
+#[test]
+fn test_audio_stream_desc_init() {
+    let mut channels = 0;
+    for (bits, format, flags) in [
+        (16_u32, ffi::CUBEB_SAMPLE_S16LE, kAudioFormatFlagIsSignedInteger),
+        (16_u32, ffi::CUBEB_SAMPLE_S16BE, kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsBigEndian),
+        (32_u32, ffi::CUBEB_SAMPLE_FLOAT32LE, kAudioFormatFlagIsFloat),
+        (32_u32, ffi::CUBEB_SAMPLE_FLOAT32BE, kAudioFormatFlagIsFloat | kAudioFormatFlagIsBigEndian),
+    ].iter() {
+        channels += 1;
+
+        let mut raw = ffi::cubeb_stream_params::default();
+        raw.format = *format;
+        raw.rate = 48_000;
+        raw.channels = channels;
+        raw.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
+        raw.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+
+        let params = StreamParams::from(raw);
+
+        let mut stream_description = AudioStreamBasicDescription::default();
+
+        assert!(
+            audio_stream_desc_init(
+                &mut stream_description,
+                &params
+            ).is_ok()
+        );
+
+        assert_eq!(stream_description.mFormatID, kAudioFormatLinearPCM);
+        assert_eq!(stream_description.mFormatFlags, flags | kLinearPCMFormatFlagIsPacked);
+        assert_eq!(stream_description.mSampleRate as u32, raw.rate);
+        assert_eq!(stream_description.mChannelsPerFrame, raw.channels);
+        assert_eq!(stream_description.mBytesPerFrame, (bits / 8) * raw.channels);
+        assert_eq!(stream_description.mFramesPerPacket, 1);
+        assert_eq!(stream_description.mBytesPerPacket, (bits / 8) * raw.channels);
+        assert_eq!(stream_description.mReserved, 0);
+    }
+}
+
+// init_mixer
+// ------------------------------------
+#[test]
+fn test_init_mixer() {
+    test_get_empty_stream(|stream| {
+        audiounit_init_mixer(stream);
+        assert!(!stream.mixer.as_mut_ptr().is_null());
+        // stream.mixer will be deallocated when stream is destroyed.
+    });
+}
