@@ -1,6 +1,6 @@
 use super::utils::{
-    test_get_default_audiounit, test_get_default_device, test_get_empty_stream,
-    test_get_locked_context, Scope, test_get_default_source_name,
+    test_get_default_audiounit, test_get_default_device, test_get_default_source_name,
+    test_get_empty_stream, test_get_locked_context, Scope,
 };
 use super::*;
 
@@ -915,7 +915,10 @@ fn test_get_preferred_channel_layout_output() {
         ("hdpn", ChannelLayout::STEREO),
         ("ispk", ChannelLayout::STEREO),
         ("FApd", ChannelLayout::STEREO),
-    ].into_iter().cloned().collect();
+    ]
+    .into_iter()
+    .cloned()
+    .collect();
 
     let source = test_get_default_source_name(Scope::Output);
     let unit = test_get_default_audiounit(Scope::Output);
@@ -926,10 +929,7 @@ fn test_get_preferred_channel_layout_output() {
     let source = source.unwrap();
     let unit = unit.unwrap();
     if let Some(layout) = devices_layouts.get(source.as_str()) {
-        assert_eq!(
-            audiounit_get_preferred_channel_layout(unit),
-            *layout
-        );
+        assert_eq!(audiounit_get_preferred_channel_layout(unit), *layout);
     }
 }
 
@@ -948,7 +948,10 @@ fn test_get_current_channel_layout_output() {
         ("hdpn", ChannelLayout::STEREO),
         ("ispk", ChannelLayout::STEREO),
         ("FApd", ChannelLayout::STEREO),
-    ].into_iter().cloned().collect();
+    ]
+    .into_iter()
+    .cloned()
+    .collect();
 
     let source = test_get_default_source_name(Scope::Output);
     let unit = test_get_default_audiounit(Scope::Output);
@@ -959,10 +962,7 @@ fn test_get_current_channel_layout_output() {
     let source = source.unwrap();
     let unit = unit.unwrap();
     if let Some(layout) = devices_layouts.get(source.as_str()) {
-        assert_eq!(
-            audiounit_get_current_channel_layout(unit),
-            *layout
-        );
+        assert_eq!(audiounit_get_current_channel_layout(unit), *layout);
     }
 }
 
@@ -977,11 +977,25 @@ fn test_get_current_channel_layout_output() {
 fn test_audio_stream_desc_init() {
     let mut channels = 0;
     for (bits, format, flags) in [
-        (16_u32, ffi::CUBEB_SAMPLE_S16LE, kAudioFormatFlagIsSignedInteger),
-        (16_u32, ffi::CUBEB_SAMPLE_S16BE, kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsBigEndian),
+        (
+            16_u32,
+            ffi::CUBEB_SAMPLE_S16LE,
+            kAudioFormatFlagIsSignedInteger,
+        ),
+        (
+            16_u32,
+            ffi::CUBEB_SAMPLE_S16BE,
+            kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsBigEndian,
+        ),
         (32_u32, ffi::CUBEB_SAMPLE_FLOAT32LE, kAudioFormatFlagIsFloat),
-        (32_u32, ffi::CUBEB_SAMPLE_FLOAT32BE, kAudioFormatFlagIsFloat | kAudioFormatFlagIsBigEndian),
-    ].iter() {
+        (
+            32_u32,
+            ffi::CUBEB_SAMPLE_FLOAT32BE,
+            kAudioFormatFlagIsFloat | kAudioFormatFlagIsBigEndian,
+        ),
+    ]
+    .iter()
+    {
         let bytes = bits / 8;
         channels += 1;
 
@@ -996,15 +1010,13 @@ fn test_audio_stream_desc_init() {
 
         let mut stream_description = AudioStreamBasicDescription::default();
 
-        assert!(
-            audio_stream_desc_init(
-                &mut stream_description,
-                &params
-            ).is_ok()
-        );
+        assert!(audio_stream_desc_init(&mut stream_description, &params).is_ok());
 
         assert_eq!(stream_description.mFormatID, kAudioFormatLinearPCM);
-        assert_eq!(stream_description.mFormatFlags, flags | kLinearPCMFormatFlagIsPacked);
+        assert_eq!(
+            stream_description.mFormatFlags,
+            flags | kLinearPCMFormatFlagIsPacked
+        );
         assert_eq!(stream_description.mSampleRate as u32, raw.rate);
         assert_eq!(stream_description.mChannelsPerFrame, raw.channels);
         assert_eq!(stream_description.mBytesPerFrame, bytes * raw.channels);
