@@ -1,6 +1,6 @@
 use super::utils::{
     test_get_default_audiounit, test_get_default_device, test_get_empty_stream,
-    test_get_locked_context, Scope,
+    test_get_locked_context, Scope, test_get_default_source_name,
 };
 use super::*;
 
@@ -909,11 +909,26 @@ fn test_convert_channel_layout() {
 // ------------------------------------
 #[test]
 fn test_get_preferred_channel_layout_output() {
-    if let Some(unit) = test_get_default_audiounit(Scope::Output) {
-        // TODO: The preferred layout might be undefined for some devices.
-        assert_ne!(
+    // Predefined whitelist
+    use std::collections::HashMap;
+    let devices_layouts: HashMap<&'static str, ChannelLayout> = [
+        ("hdpn", ChannelLayout::STEREO),
+        ("ispk", ChannelLayout::STEREO),
+        ("FApd", ChannelLayout::STEREO),
+    ].into_iter().cloned().collect();
+
+    let source = test_get_default_source_name(Scope::Output);
+    let unit = test_get_default_audiounit(Scope::Output);
+    if source.is_none() || unit.is_none() {
+        return;
+    }
+
+    let source = source.unwrap();
+    let unit = unit.unwrap();
+    if let Some(layout) = devices_layouts.get(source.as_str()) {
+        assert_eq!(
             audiounit_get_preferred_channel_layout(unit),
-            ChannelLayout::UNDEFINED
+            *layout
         );
     }
 }
@@ -927,11 +942,26 @@ fn test_get_preferred_channel_layout_output() {
 // ------------------------------------
 #[test]
 fn test_get_current_channel_layout_output() {
-    if let Some(unit) = test_get_default_audiounit(Scope::Output) {
-        // TODO: The preferred layout might be undefined for some devices.
-        assert_ne!(
+    // Predefined whitelist
+    use std::collections::HashMap;
+    let devices_layouts: HashMap<&'static str, ChannelLayout> = [
+        ("hdpn", ChannelLayout::STEREO),
+        ("ispk", ChannelLayout::STEREO),
+        ("FApd", ChannelLayout::STEREO),
+    ].into_iter().cloned().collect();
+
+    let source = test_get_default_source_name(Scope::Output);
+    let unit = test_get_default_audiounit(Scope::Output);
+    if source.is_none() || unit.is_none() {
+        return;
+    }
+
+    let source = source.unwrap();
+    let unit = unit.unwrap();
+    if let Some(layout) = devices_layouts.get(source.as_str()) {
+        assert_eq!(
             audiounit_get_current_channel_layout(unit),
-            ChannelLayout::UNDEFINED
+            *layout
         );
     }
 }
