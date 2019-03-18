@@ -1036,3 +1036,92 @@ fn test_init_mixer() {
         // stream.mixer will be deallocated when stream is destroyed.
     });
 }
+
+// set_channel_layout
+// ------------------------------------
+#[test]
+fn test_set_channel_layout_output() {
+    // Predefined whitelist
+    use std::collections::HashMap;
+    let devices_layouts: HashMap<&'static str, ChannelLayout> = [
+        ("hdpn", ChannelLayout::STEREO),
+        ("ispk", ChannelLayout::STEREO),
+        ("FApd", ChannelLayout::STEREO),
+    ]
+    .into_iter()
+    .cloned()
+    .collect();
+
+    let source = test_get_default_source_name(Scope::Output);
+    let unit = test_get_default_audiounit(Scope::Output);
+    if source.is_none() || unit.is_none() {
+        return;
+    }
+
+    let source = source.unwrap();
+    let unit = unit.unwrap();
+    if let Some(layout) = devices_layouts.get(source.as_str()) {
+        assert!(audiounit_set_channel_layout(unit, io_side::OUTPUT, *layout).is_ok());
+        assert_eq!(audiounit_get_current_channel_layout(unit), *layout);
+    }
+}
+
+#[test]
+fn test_set_channel_layout_output_undefind() {
+    if let Some(unit) = test_get_default_audiounit(Scope::Output) {
+        // Get original layout.
+        let original_layout = audiounit_get_current_channel_layout(unit);
+
+        // Leave layout as it is.
+        assert!(
+            audiounit_set_channel_layout(unit, io_side::OUTPUT, ChannelLayout::UNDEFINED).is_ok()
+        );
+
+        // Check the layout is same as the original one.
+        assert_eq!(audiounit_get_current_channel_layout(unit), original_layout);
+    }
+}
+
+#[test]
+fn test_set_channel_layout_input() {
+    if let Some(unit) = test_get_default_audiounit(Scope::Input) {
+        assert_eq!(
+            audiounit_set_channel_layout(unit, io_side::INPUT, ChannelLayout::UNDEFINED)
+                .unwrap_err(),
+            Error::error()
+        );
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_set_channel_layout_with_null_unit() {
+    assert!(audiounit_set_channel_layout(
+        ptr::null_mut(),
+        io_side::OUTPUT,
+        ChannelLayout::UNDEFINED
+    )
+    .is_err());
+}
+
+// layout_init
+// ------------------------------------
+#[test]
+fn test_layout_init() {
+    if let Some(unit) = test_get_default_audiounit(Scope::Output) {
+        test_get_empty_stream(move |stream| {
+            stream.output_unit = unit;
+
+            assert_eq!(
+                stream.context.layout.load(atomic::Ordering::SeqCst),
+                ChannelLayout::UNDEFINED
+            );
+
+            let layout = audiounit_get_current_channel_layout(stream.output_unit);
+
+            audiounit_layout_init(stream, io_side::OUTPUT);
+
+            assert_eq!(stream.context.layout.load(atomic::Ordering::SeqCst), layout);
+        });
+    }
+}
