@@ -19,10 +19,9 @@ impl From<Scope> for io_side {
 
 pub fn test_get_default_device(scope: Scope) -> Option<AudioObjectID> {
     let address = AudioObjectPropertyAddress {
-        mSelector: if scope == Scope::Input {
-            kAudioHardwarePropertyDefaultInputDevice
-        } else {
-            kAudioHardwarePropertyDefaultOutputDevice
+        mSelector: match scope {
+            Scope::Input => kAudioHardwarePropertyDefaultInputDevice,
+            Scope::Output => kAudioHardwarePropertyDefaultOutputDevice,
         },
         mScope: kAudioObjectPropertyScopeGlobal,
         mElement: kAudioObjectPropertyElementMaster,

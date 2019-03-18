@@ -952,6 +952,7 @@ fn test_audio_stream_desc_init() {
         (32_u32, ffi::CUBEB_SAMPLE_FLOAT32LE, kAudioFormatFlagIsFloat),
         (32_u32, ffi::CUBEB_SAMPLE_FLOAT32BE, kAudioFormatFlagIsFloat | kAudioFormatFlagIsBigEndian),
     ].iter() {
+        let bytes = bits / 8;
         channels += 1;
 
         let mut raw = ffi::cubeb_stream_params::default();
@@ -976,9 +977,9 @@ fn test_audio_stream_desc_init() {
         assert_eq!(stream_description.mFormatFlags, flags | kLinearPCMFormatFlagIsPacked);
         assert_eq!(stream_description.mSampleRate as u32, raw.rate);
         assert_eq!(stream_description.mChannelsPerFrame, raw.channels);
-        assert_eq!(stream_description.mBytesPerFrame, (bits / 8) * raw.channels);
+        assert_eq!(stream_description.mBytesPerFrame, bytes * raw.channels);
         assert_eq!(stream_description.mFramesPerPacket, 1);
-        assert_eq!(stream_description.mBytesPerPacket, (bits / 8) * raw.channels);
+        assert_eq!(stream_description.mBytesPerPacket, bytes * raw.channels);
         assert_eq!(stream_description.mReserved, 0);
     }
 }
