@@ -140,6 +140,61 @@ fn test_enable_audiounit_in_scope(
     }
 }
 
+pub fn test_get_default_source_name(scope: Scope) -> Option<String> {
+    if let Some(source) = test_get_default_source(scope) {
+        Some(u32_to_string(source))
+    } else {
+        None
+    }
+}
+
+fn test_get_default_source(scope: Scope) -> Option<u32> {
+    let device = test_get_default_device(scope.clone());
+    if device.is_none() {
+        return None;
+    }
+
+    let device = device.unwrap();
+    let address = AudioObjectPropertyAddress {
+        mSelector: kAudioDevicePropertyDataSource,
+        mScope: match scope {
+            Scope::Input => kAudioDevicePropertyScopeInput,
+            Scope::Output => kAudioDevicePropertyScopeOutput,
+        },
+        mElement: kAudioObjectPropertyElementMaster,
+    };
+    let mut size = mem::size_of::<u32>();
+    let mut data: u32 = 0;
+
+    let status = unsafe {
+        AudioObjectGetPropertyData(
+            device,
+            &address,
+            0,
+            ptr::null(),
+            &mut size as *mut usize as *mut u32,
+            &mut data as *mut u32 as *mut c_void,
+        )
+    };
+
+    // TODO: Can data be 0 when no error returns ?
+    if status == NO_ERR && data > 0 {
+        Some(data)
+    } else {
+        None
+    }
+}
+
+fn u32_to_string(data: u32) -> String {
+    // Reverse 0xWXYZ into 0xZYXW.
+    let mut buffer = [b'\x00'; 4]; // 4 bytes for u32.
+    buffer[0] = (data >> 24) as u8;
+    buffer[1] = (data >> 16) as u8;
+    buffer[2] = (data >> 8) as u8;
+    buffer[3] = (data) as u8;
+    String::from_utf8_lossy(&buffer).to_string()
+}
+
 // Test Templates
 // ------------------------------------------------------------------------------------------------
 pub fn test_ops_context_operation<F>(name: &'static str, operation: F)
