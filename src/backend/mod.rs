@@ -778,7 +778,6 @@ fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Re
          * - The bluetooth device changed from A2DP to/from HFP/HSP profile
          * We first attempt to re-use the same device id, should that fail we will
          * default to the (potentially new) default device. */
-        // TODO: C version uses 0 instead of kAudioObjectUnknown, but they should be same.
         let input_device = if flags.contains(device_flags::DEV_INPUT) { stm.input_device.id } else { kAudioObjectUnknown };
 
         if flags.contains(device_flags::DEV_INPUT) && audiounit_set_device_info(stm, input_device, io_side::INPUT).is_err() {
@@ -789,7 +788,6 @@ fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Re
         /* Always use the default output on reinit. This is not correct in every
          * case but it is sufficient for Firefox and prevent reinit from reporting
          * failures. It will change soon when reinit mechanism will be updated. */
-        // TODO: C version uses 0 instead of kAudioObjectUnknown, but they should be same.
         if audiounit_set_device_info(stm, kAudioObjectUnknown, io_side::OUTPUT).is_err() {
             cubeb_log!("({:p}) Set output device info failed. This can happen when last media device is unplugged", stm as *const AudioUnitStream);
             return Err(Error::error());
@@ -797,12 +795,10 @@ fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Re
 
         if audiounit_setup_stream(stm).is_err() {
             cubeb_log!("({:p}) Stream reinit failed.", stm as *const AudioUnitStream);
-            // TODO: C version uses 0 instead of kAudioObjectUnknown, but they should be same.
             if flags.contains(device_flags::DEV_INPUT) && input_device != kAudioObjectUnknown {
                 // Attempt to re-use the same device-id failed, so attempt again with
                 // default input device.
                 audiounit_close_stream(stm);
-                // TODO: C version uses 0 instead of kAudioObjectUnknown, but they should be same.
                 if audiounit_set_device_info(stm, kAudioObjectUnknown, io_side::INPUT).is_err() ||
                    audiounit_setup_stream(stm).is_err() {
                     cubeb_log!("({:p}) Second stream reinit failed.", stm as *const AudioUnitStream);
@@ -1966,8 +1962,7 @@ fn audiounit_destroy_aggregate_device(plugin_id: AudioObjectID, aggregate_device
     }
 
     cubeb_log!("Destroyed aggregate device {}", *aggregate_device_id);
-    // TODO: Use kAudioObjectUnknown instead ?
-    *aggregate_device_id = 0;
+    *aggregate_device_id = kAudioObjectUnknown;
 
     Ok(())
 }
@@ -2603,8 +2598,7 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
     if has_input(stm) && has_output(stm) &&
        stm.input_device.id != stm.output_device.id {
         if audiounit_create_aggregate_device(stm).is_err() {
-            // TODO: Use kAudioObjectUnknown instead ?
-            stm.aggregate_device_id = 0;
+            stm.aggregate_device_id = kAudioObjectUnknown;
             cubeb_log!("({:p}) Create aggregate devices failed.", stm as *const AudioUnitStream);
             // !!!NOTE: It is not necessary to return here. If it does not
             // return it will fallback to the old implementation. The intention
@@ -3987,9 +3981,8 @@ impl<'ctx> AudioUnitStream<'ctx> {
             resampler: AutoRelease::new(ptr::null_mut(), ffi::cubeb_resampler_destroy),
             switching_device: AtomicBool::new(false),
             buffer_size_change_state: AtomicBool::new(false),
-            // TODO: C version uses 0 instead.
             aggregate_device_id: kAudioObjectUnknown,
-            plugin_id: 0,
+            plugin_id: kAudioObjectUnknown,
             mixer: AutoRelease::new(ptr::null_mut(), ffi::cubeb_mixer_destroy),
             temp_buffer: Vec::new(),
             temp_buffer_size: 0,
