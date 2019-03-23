@@ -24,10 +24,10 @@ fn test_ops_context_backend_id() {
 #[test]
 fn test_ops_context_max_channel_count() {
     test_ops_context_operation("context: max channel count", |context_ptr| {
-        let having_output = test_get_default_device(Scope::Output).is_some();
+        let output_exists = test_get_default_device(Scope::Output).is_some();
         let mut max_channel_count = 0;
         let r = unsafe { OPS.get_max_channel_count.unwrap()(context_ptr, &mut max_channel_count) };
-        if having_output {
+        if output_exists {
             assert_eq!(r, ffi::CUBEB_OK);
             assert_ne!(max_channel_count, 0);
         } else {
@@ -40,11 +40,11 @@ fn test_ops_context_max_channel_count() {
 #[test]
 fn test_ops_context_min_latency() {
     test_ops_context_operation("context: min latency", |context_ptr| {
-        let having_output = test_get_default_device(Scope::Output).is_some();
+        let output_exists = test_get_default_device(Scope::Output).is_some();
         let params = ffi::cubeb_stream_params::default();
         let mut latency = u32::max_value();
         let r = unsafe { OPS.get_min_latency.unwrap()(context_ptr, params, &mut latency) };
-        if having_output {
+        if output_exists {
             assert_eq!(r, ffi::CUBEB_OK);
             assert!(latency >= SAFE_MIN_LATENCY_FRAMES);
             assert!(SAFE_MAX_LATENCY_FRAMES >= latency);
@@ -58,10 +58,10 @@ fn test_ops_context_min_latency() {
 #[test]
 fn test_ops_context_preferred_sample_rate() {
     test_ops_context_operation("context: preferred sample rate", |context_ptr| {
-        let having_output = test_get_default_device(Scope::Output).is_some();
+        let output_exists = test_get_default_device(Scope::Output).is_some();
         let mut rate = u32::max_value();
         let r = unsafe { OPS.get_preferred_sample_rate.unwrap()(context_ptr, &mut rate) };
-        if having_output {
+        if output_exists {
             assert_eq!(r, ffi::CUBEB_OK);
             assert_ne!(rate, u32::max_value());
             assert_ne!(rate, 0);
@@ -133,7 +133,7 @@ fn test_ops_context_enumerate_devices_input() {
 #[test]
 fn test_ops_context_enumerate_devices_output() {
     test_ops_context_operation("context: enumerate devices (output)", |context_ptr| {
-        let having_output = test_get_default_device(Scope::Output).is_some();
+        let output_exists = test_get_default_device(Scope::Output).is_some();
         let mut coll = ffi::cubeb_device_collection {
             device: ptr::null_mut(),
             count: 0,
@@ -148,7 +148,7 @@ fn test_ops_context_enumerate_devices_output() {
             },
             ffi::CUBEB_OK
         );
-        if having_output {
+        if output_exists {
             assert_ne!(coll.count, 0);
             assert_ne!(coll.device, ptr::null_mut());
         } else {
