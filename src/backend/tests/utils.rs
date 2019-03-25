@@ -239,6 +239,63 @@ pub fn test_get_all_devices() -> Vec<AudioObjectID> {
     devices
 }
 
+pub fn test_device_channels_in_scope(
+    id: AudioObjectID,
+    scope: Scope,
+) -> std::result::Result<u32, OSStatus> {
+    let address = AudioObjectPropertyAddress {
+        mSelector: kAudioDevicePropertyStreamConfiguration,
+        mScope: match scope {
+            Scope::Input => kAudioDevicePropertyScopeInput,
+            Scope::Output => kAudioDevicePropertyScopeOutput,
+        },
+        mElement: kAudioObjectPropertyElementMaster,
+    };
+    let mut size: usize = 0;
+    let status = unsafe {
+        AudioObjectGetPropertyDataSize(
+            id,
+            &address,
+            0,
+            ptr::null(),
+            &mut size as *mut usize as *mut u32,
+        )
+    };
+    if status != NO_ERR {
+        return Err(status);
+    }
+    if size == 0 {
+        return Ok(0);
+    }
+    let byte_len = size / mem::size_of::<u8>();
+    let mut bytes = vec![0u8; byte_len];
+    let status = unsafe {
+        AudioObjectGetPropertyData(
+            id,
+            &address,
+            0,
+            ptr::null(),
+            &mut size as *mut usize as *mut u32,
+            bytes.as_mut_ptr() as *mut c_void,
+        )
+    };
+    if status != NO_ERR {
+        return Err(status);
+    }
+    let buf_list = unsafe { &*(bytes.as_mut_ptr() as *mut AudioBufferList) };
+    let buf_len = buf_list.mNumberBuffers as usize;
+    if buf_len == 0 {
+        return Ok(0);
+    }
+    let buf_ptr = buf_list.mBuffers.as_ptr() as *const AudioBuffer;
+    let buffers = unsafe { slice::from_raw_parts(buf_ptr, buf_len) };
+    let mut channels: u32 = 0;
+    for buffer in buffers {
+        channels += buffer.mNumberChannels;
+    }
+    Ok(channels)
+}
+
 // Test Templates
 // ------------------------------------------------------------------------------------------------
 pub fn test_ops_context_operation<F>(name: &'static str, operation: F)
