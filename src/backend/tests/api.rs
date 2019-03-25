@@ -1,6 +1,6 @@
 use super::utils::{
-    test_get_default_audiounit, test_get_default_device, test_get_default_source_name,
-    test_get_empty_stream, test_get_locked_context, Scope,
+    test_get_all_devices, test_get_default_audiounit, test_get_default_device,
+    test_get_default_source_name, test_get_empty_stream, test_get_locked_context, Scope,
 };
 use super::*;
 
@@ -1124,4 +1124,32 @@ fn test_layout_init() {
             assert_eq!(stream.context.layout.load(atomic::Ordering::SeqCst), layout);
         });
     }
+}
+
+// get_sub_devices
+// ------------------------------------
+// You can check this by creating an aggregate device in `Audio MIDI Setup`
+// application and print out the sub devices of them!
+#[test]
+fn test_get_sub_devices() {
+    let devices = test_get_all_devices();
+    for device in devices {
+        println!("{}", device);
+        assert_ne!(device, kAudioObjectUnknown);
+        // `audiounit_get_sub_devices(device)` will return a single-element vector
+        //  containing `device` itself if it's not an aggregate device.
+        let sub_devices = audiounit_get_sub_devices(device);
+        // TODO: If the device is a blank aggregate device, then the assertion fails!
+        assert!(!sub_devices.is_empty());
+    }
+}
+
+// FIXIT: It doesn't make any sense to return the sub devices for an unknown
+//        device! It should either get a panic or return an empty list!
+#[test]
+#[should_panic]
+#[ignore]
+fn test_get_sub_devices_for_a_unknown_device() {
+    let devices = audiounit_get_sub_devices(kAudioObjectUnknown);
+    assert!(devices.is_empty());
 }

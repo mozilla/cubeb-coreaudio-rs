@@ -233,31 +233,6 @@ fn test_context_register_device_collection_changed_twice_inout() {
 // ============================================================================
 // get_sub_devices
 // ------------------------------------
-// FIXIT: It doesn't make any sense to return the sub devices for an unknown
-//        device! It should either get a panic or return an empty list!
-#[test]
-// #[should_panic]
-#[ignore]
-fn test_get_sub_devices_for_a_unknown_device() {
-    let devices = audiounit_get_sub_devices(kAudioObjectUnknown);
-    assert!(devices.is_empty());
-}
-
-// You can check this by creating an aggregate device in `Audio MIDI Setup`
-// application and print out the sub devices of them!
-#[test]
-fn test_get_sub_devices() {
-    let devices = audiounit_get_devices_of_type(DeviceType::INPUT | DeviceType::OUTPUT);
-    for device in devices {
-        assert!(valid_id(device));
-        // `audiounit_get_sub_devices(device)` will return a one-element vector
-        //  containing `device` itself if it's not an aggregate device.
-        let sub_devices = audiounit_get_sub_devices(device);
-        // TODO: If device is a blank aggregate device, then the assertion fails!
-        assert!(!sub_devices.is_empty());
-    }
-}
-
 // Ignore this by default. The reason is same as below.
 #[test]
 #[ignore]
