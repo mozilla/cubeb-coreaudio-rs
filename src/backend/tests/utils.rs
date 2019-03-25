@@ -232,10 +232,19 @@ pub fn test_ops_stream_operation<F>(
     F: FnOnce(*mut ffi::cubeb_stream),
 {
     test_ops_context_operation("context: stream operation", |context_ptr| {
+        // Do nothing if there is no input/output device to perform input/output tests.
+        if !input_stream_params.is_null() && test_get_default_device(Scope::Input).is_none() {
+            println!("No input device to perform input tests for \"{}\".", name);
+            return;
+        }
+
+        if !output_stream_params.is_null() && test_get_default_device(Scope::Output).is_none() {
+            println!("No output device to perform output tests for \"{}\".", name);
+            return;
+        }
+
         let mut stream: *mut ffi::cubeb_stream = ptr::null_mut();
         let stream_name = CString::new(name).expect("Failed to create stream name");
-        // TODO: stream_init fails when there is no input/output device when the stream parameter
-        //       for input/output is given.
         assert_eq!(
             unsafe {
                 OPS.stream_init.unwrap()(

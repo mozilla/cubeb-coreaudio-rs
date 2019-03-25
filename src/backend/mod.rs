@@ -2160,7 +2160,7 @@ fn audiounit_clamp_latency(stm: &mut AudioUnitStream, latency_frames: u32) -> u3
                                     AU_OUT_BUS,
                                     &mut output_buffer_size,
                                     &mut size);
-        if r != NO_ERR {
+        if r != NO_ERR { // Hit this when there is no output device.
             cubeb_log!("AudioUnitGetProperty/output/kAudioDevicePropertyBufferFrameSize rv={}", r);
             // TODO: Shouldn't it return something in range between
             //       SAFE_MIN_LATENCY_FRAMES and SAFE_MAX_LATENCY_FRAMES ?

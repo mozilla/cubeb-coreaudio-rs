@@ -593,6 +593,10 @@ fn test_audio_unit_remove_property_listener_with_user_data_without_adding_any() 
     }
 
     let default_device = get_default_input_or_output_device();
+    if default_device.is_none() {
+        return;
+    }
+    let default_device = default_device.unwrap();
     let mut unit = ptr::null_mut();
     super::audiounit_create_unit(&mut unit, &default_device).unwrap();
     assert!(!unit.is_null());
@@ -621,6 +625,10 @@ fn test_audio_unit_add_then_remove_property_listener() {
     }
 
     let default_device = get_default_input_or_output_device();
+    if default_device.is_none() {
+        return;
+    }
+    let default_device = default_device.unwrap();
     let mut unit = ptr::null_mut();
     super::audiounit_create_unit(&mut unit, &default_device).unwrap();
     assert!(!unit.is_null());
@@ -721,11 +729,10 @@ fn test_audio_unit_add_then_fire_then_remove_property_listener() {
     }
 
     let default_device = get_default_input_or_output_device();
-    if default_device.id == sys::kAudioObjectUnknown
-        || default_device.flags == device_flags::DEV_UNKNOWN
-    {
+    if default_device.is_none() {
         return;
     }
+    let default_device = default_device.unwrap();
 
     assert!(default_device
         .flags
@@ -819,15 +826,14 @@ fn test_audio_unit_add_then_fire_then_remove_property_listener() {
 }
 
 #[cfg(test)]
-fn get_default_input_or_output_device() -> super::device_info {
+fn get_default_input_or_output_device() -> Option<super::device_info> {
     use super::{audiounit_get_default_device_id, device_flags, device_info, DeviceType};
 
     let mut device = device_info::new();
     assert_eq!(device.id, sys::kAudioObjectUnknown);
     assert_eq!(device.flags, device_flags::DEV_UNKNOWN);
 
-    // let default_output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-    let default_output_id = sys::kAudioObjectUnknown;
+    let default_output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
     let default_input_id = audiounit_get_default_device_id(DeviceType::INPUT);
 
     if default_output_id != sys::kAudioObjectUnknown {
@@ -836,7 +842,9 @@ fn get_default_input_or_output_device() -> super::device_info {
     } else if default_input_id != sys::kAudioObjectUnknown {
         device.flags |= device_flags::DEV_INPUT | device_flags::DEV_SYSTEM_DEFAULT;
         device.id = default_input_id;
+    } else {
+        return None;
     }
 
-    device
+    Some(device)
 }
