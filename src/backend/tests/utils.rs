@@ -195,6 +195,50 @@ fn u32_to_string(data: u32) -> String {
     String::from_utf8_lossy(&buffer).to_string()
 }
 
+pub fn test_get_all_devices() -> Vec<AudioObjectID> {
+    let mut devices = Vec::new();
+    let address = AudioObjectPropertyAddress {
+        mSelector: kAudioHardwarePropertyDevices,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMaster,
+    };
+    let mut size: usize = 0;
+    let status = unsafe {
+        AudioObjectGetPropertyDataSize(
+            kAudioObjectSystemObject,
+            &address,
+            0,
+            ptr::null(),
+            &mut size as *mut usize as *mut u32,
+        )
+    };
+    // size will be 0 if there is no device at all.
+    if status != NO_ERR || size == 0 {
+        return devices;
+    }
+    assert_eq!(size % mem::size_of::<AudioObjectID>(), 0);
+    let elements = size / mem::size_of::<AudioObjectID>();
+    devices.resize(elements, kAudioObjectUnknown);
+    let status = unsafe {
+        AudioObjectGetPropertyData(
+            kAudioObjectSystemObject,
+            &address,
+            0,
+            ptr::null(),
+            &mut size as *mut usize as *mut u32,
+            devices.as_mut_ptr() as *mut c_void,
+        )
+    };
+    if status != NO_ERR {
+        devices.clear();
+        return devices;
+    }
+    for device in devices.iter() {
+        assert_ne!(*device, kAudioObjectUnknown);
+    }
+    devices
+}
+
 // Test Templates
 // ------------------------------------------------------------------------------------------------
 pub fn test_ops_context_operation<F>(name: &'static str, operation: F)
