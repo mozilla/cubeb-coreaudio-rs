@@ -2787,40 +2787,6 @@ fn audiounit_stream_destroy_internal(stm: &mut AudioUnitStream)
     audiounit_decrement_active_streams(&mut stm.context);
 }
 
-// TODO: Move to AudioUnitStream::destroy/drop() directly
-fn audiounit_stream_destroy(stm: &mut AudioUnitStream)
-{
-    if !stm.shutdown.load(Ordering::SeqCst) {
-        // Since we cannot call `AutoLock::new(&mut stm.context.mutex)` and
-        // `audiounit_stream_destroy_internal(stm)` at the same time,
-        // We take the pointer to `stm.context.mutex` first and then dereference
-        // it to the mutex to avoid this problem for now.
-        let mutex_ptr = &mut stm.context.mutex as *mut OwnedCriticalSection;
-        // The scope of `_context_lock` is a critical section.
-        let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-        audiounit_stream_stop_internal(stm);
-        *stm.shutdown.get_mut() = true;
-    }
-
-    *stm.destroy_pending.get_mut() = true;
-    // Rust compilter doesn't allow a pointer to be passed across threads.
-    // A hacky way to do that is to cast the pointer into a value, then
-    // the value, which is actually an address, can be copied into threads.
-    let stm_ptr = stm as *mut AudioUnitStream as usize;
-    // Execute close in serial queue to avoid collision
-    // with reinit when un/plug devices
-    sync_dispatch(stm.context.serial_queue, move || {
-        let stm = unsafe { &mut (*(stm_ptr as *mut AudioUnitStream)) };
-        // Use `mutex_ptr` to avoid the same borrowing issue as above.
-        let mutex_ptr = &mut stm.context.mutex as *mut OwnedCriticalSection;
-        // The scope of `_context_lock` is a critical section.
-        let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-        audiounit_stream_destroy_internal(stm);
-    });
-
-    cubeb_log!("Cubeb stream ({:p}) destroyed successful.", stm as *const AudioUnitStream);
-}
-
 fn audiounit_stream_start_internal(stm: &AudioUnitStream)
 {
     if !stm.input_unit.is_null() {
@@ -4000,7 +3966,35 @@ impl<'ctx> AudioUnitStream<'ctx> {
     }
 
     fn destroy(&mut self) {
-        audiounit_stream_destroy(self);
+        if !self.shutdown.load(Ordering::SeqCst) {
+            // Since we cannot call `AutoLock::new(&mut stm.context.mutex)` and
+            // `audiounit_stream_destroy_internal(stm)` at the same time,
+            // We take the pointer to `stm.context.mutex` first and then dereference
+            // it to the mutex to avoid this problem for now.
+            let mutex_ptr = &mut self.context.mutex as *mut OwnedCriticalSection;
+            // The scope of `_context_lock` is a critical section.
+            let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+            audiounit_stream_stop_internal(self);
+            *self.shutdown.get_mut() = true;
+        }
+
+        *self.destroy_pending.get_mut() = true;
+        // Rust compilter doesn't allow a pointer to be passed across threads.
+        // A hacky way to do that is to cast the pointer into a value, then
+        // the value, which is actually an address, can be copied into threads.
+        let stm_ptr = self as *mut AudioUnitStream as usize;
+        // Execute close in serial queue to avoid collision
+        // with reinit when un/plug devices
+        sync_dispatch(self.context.serial_queue, move || {
+            let stm = unsafe { &mut (*(stm_ptr as *mut AudioUnitStream)) };
+            // Use `mutex_ptr` to avoid the same borrowing issue as above.
+            let mutex_ptr = &mut stm.context.mutex as *mut OwnedCriticalSection;
+            // The scope of `_context_lock` is a critical section.
+            let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+            audiounit_stream_destroy_internal(stm);
+        });
+
+        cubeb_log!("Cubeb stream ({:p}) destroyed successful.", self as *const AudioUnitStream);
     }
 }
 
