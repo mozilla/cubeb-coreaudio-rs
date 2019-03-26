@@ -1,7 +1,8 @@
 use super::utils::{
-    test_create_audiounit, test_get_all_devices, test_get_default_audiounit,
-    test_get_default_device, test_get_default_source_name, test_get_empty_stream,
-    test_get_locked_context, ComponentSubType, Scope,
+    test_audiounit_scope_is_enabled, test_create_audiounit, test_device_in_scope,
+    test_get_all_devices, test_get_default_audiounit, test_get_default_device,
+    test_get_default_source_name, test_get_empty_stream, test_get_locked_context, ComponentSubType,
+    Scope,
 };
 use super::*;
 
@@ -1393,4 +1394,112 @@ fn test_enable_unit_scope_with_null_unit() {
         audiounit_enable_unit_scope(&unit, io_side::INPUT, enable_state::DISABLE).unwrap_err(),
         Error::error()
     );
+}
+
+// create_unit
+// ------------------------------------
+#[test]
+fn test_create_unit() {
+    let flags_list = [
+        device_flags::DEV_INPUT,
+        device_flags::DEV_OUTPUT,
+        device_flags::DEV_INPUT | device_flags::DEV_OUTPUT,
+        device_flags::DEV_INPUT | device_flags::DEV_SYSTEM_DEFAULT,
+        device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT,
+        device_flags::DEV_INPUT | device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT,
+    ];
+
+    let default_input = test_get_default_device(Scope::Input);
+    let default_output = test_get_default_device(Scope::Output);
+
+    for flags in flags_list.iter() {
+        let mut device = device_info::new();
+        device.flags |= *flags;
+
+        // Check the output scope is enabled.
+        if device.flags.contains(device_flags::DEV_OUTPUT) && default_output.is_some() {
+            let device_id = default_output.unwrap();
+            device.id = device_id;
+            let mut unit: AudioUnit = ptr::null_mut();
+            assert!(audiounit_create_unit(&mut unit, &device).is_ok());
+            assert!(!unit.is_null());
+            assert!(test_audiounit_scope_is_enabled(unit, Scope::Output));
+
+            // For default output device, the input scope is enabled
+            // if it's also a input device. Otherwise, it's disabled.
+            if device
+                .flags
+                .contains(device_flags::DEV_INPUT | device_flags::DEV_SYSTEM_DEFAULT)
+            {
+                assert_eq!(
+                    test_device_in_scope(device_id, Scope::Input),
+                    test_audiounit_scope_is_enabled(unit, Scope::Input)
+                );
+
+                // Destroy the audioUnit.
+                unsafe {
+                    AudioUnitUninitialize(unit);
+                    AudioComponentInstanceDispose(unit);
+                }
+                continue;
+            }
+
+            // Destroy the audioUnit.
+            unsafe {
+                AudioUnitUninitialize(unit);
+                AudioComponentInstanceDispose(unit);
+            }
+        }
+
+        // Check the input scope is enabled.
+        if device.flags.contains(device_flags::DEV_INPUT) && default_input.is_some() {
+            let device_id = default_input.unwrap();
+            device.id = device_id;
+            let mut unit: AudioUnit = ptr::null_mut();
+            assert!(audiounit_create_unit(&mut unit, &device).is_ok());
+            assert!(!unit.is_null());
+            assert!(test_audiounit_scope_is_enabled(unit, Scope::Input));
+            // Destroy the audioUnit.
+            unsafe {
+                AudioUnitUninitialize(unit);
+                AudioComponentInstanceDispose(unit);
+            }
+        }
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_create_unit_with_unknown_scope() {
+    let device = device_info::new();
+    let mut unit: AudioUnit = ptr::null_mut();
+    assert!(audiounit_create_unit(&mut unit, &device).is_ok());
+    assert!(!unit.is_null());
+}
+
+#[test]
+#[should_panic]
+fn test_create_unit_twice() {
+    let flags_list = [
+        device_flags::DEV_INPUT,
+        device_flags::DEV_OUTPUT,
+        device_flags::DEV_INPUT | device_flags::DEV_OUTPUT,
+        device_flags::DEV_INPUT | device_flags::DEV_SYSTEM_DEFAULT,
+        device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT,
+        device_flags::DEV_INPUT | device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT,
+    ];
+
+    // The first audiounit_create_unit calling will get a panic immediately
+    // so the loop is executed once.
+    for flags in flags_list.iter() {
+        let mut device = device_info::new();
+        device.flags |= *flags;
+        let mut unit: AudioUnit = ptr::null_mut();
+        assert!(audiounit_create_unit(&mut unit, &device).is_ok());
+        assert!(!unit.is_null());
+        assert_eq!(
+            audiounit_create_unit(&mut unit, &device).unwrap_err(),
+            Error::error()
+        );
+    }
 }

@@ -308,6 +308,32 @@ pub fn test_device_channels_in_scope(
     Ok(channels)
 }
 
+pub fn test_device_in_scope(id: AudioObjectID, scope: Scope) -> bool {
+    let channels = test_device_channels_in_scope(id, scope);
+    channels.is_ok() && channels.unwrap() > 0
+}
+
+pub fn test_audiounit_scope_is_enabled(unit: AudioUnit, scope: Scope) -> bool {
+    assert!(!unit.is_null());
+    let mut has_io: UInt32 = 0;
+    let (scope, element) = match scope {
+        Scope::Input => (kAudioUnitScope_Input, AU_IN_BUS),
+        Scope::Output => (kAudioUnitScope_Output, AU_OUT_BUS),
+    };
+    assert_eq!(
+        audio_unit_get_property(
+            unit,
+            kAudioOutputUnitProperty_HasIO,
+            scope,
+            element,
+            &mut has_io,
+            &mut mem::size_of::<UInt32>()
+        ),
+        NO_ERR
+    );
+    has_io != 0
+}
+
 // Test Templates
 // ------------------------------------------------------------------------------------------------
 pub fn test_ops_context_operation<F>(name: &'static str, operation: F)
