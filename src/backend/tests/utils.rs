@@ -45,9 +45,31 @@ pub fn test_get_default_device(scope: Scope) -> Option<AudioObjectID> {
     Some(devid)
 }
 
+#[derive(Debug)]
+pub struct TestAudioUnit(AudioUnit);
+
+impl TestAudioUnit {
+    fn new(unit: AudioUnit) -> Self {
+        assert!(!unit.is_null());
+        Self(unit)
+    }
+    pub fn get_inner(&self) -> AudioUnit {
+        self.0
+    }
+}
+
+impl Drop for TestAudioUnit {
+    fn drop(&mut self) {
+        unsafe {
+            AudioUnitUninitialize(self.0);
+            AudioComponentInstanceDispose(self.0);
+        }
+    }
+}
+
 // TODO: 1. Return Result with custom errors.
 //       2. Allow to create a in-out unit.
-pub fn test_get_default_audiounit(scope: Scope) -> Option<AudioUnit> {
+pub fn test_get_default_audiounit(scope: Scope) -> Option<TestAudioUnit> {
     let device = test_get_default_device(scope.clone());
     let unit = test_create_audiounit(ComponentSubType::HALOutput);
     if device.is_none() || unit.is_none() {
@@ -57,15 +79,15 @@ pub fn test_get_default_audiounit(scope: Scope) -> Option<AudioUnit> {
     let device = device.unwrap();
     match scope {
         Scope::Input => {
-            if test_enable_audiounit_in_scope(unit, Scope::Input, true).is_err()
-                || test_enable_audiounit_in_scope(unit, Scope::Output, false).is_err()
+            if test_enable_audiounit_in_scope(unit.get_inner(), Scope::Input, true).is_err()
+                || test_enable_audiounit_in_scope(unit.get_inner(), Scope::Output, false).is_err()
             {
                 return None;
             }
         }
         Scope::Output => {
-            if test_enable_audiounit_in_scope(unit, Scope::Input, false).is_err()
-                || test_enable_audiounit_in_scope(unit, Scope::Output, true).is_err()
+            if test_enable_audiounit_in_scope(unit.get_inner(), Scope::Input, false).is_err()
+                || test_enable_audiounit_in_scope(unit.get_inner(), Scope::Output, true).is_err()
             {
                 return None;
             }
@@ -74,7 +96,7 @@ pub fn test_get_default_audiounit(scope: Scope) -> Option<AudioUnit> {
 
     let status = unsafe {
         AudioUnitSetProperty(
-            unit,
+            unit.get_inner(),
             kAudioOutputUnitProperty_CurrentDevice,
             kAudioUnitScope_Global,
             0, // Global bus
@@ -83,7 +105,6 @@ pub fn test_get_default_audiounit(scope: Scope) -> Option<AudioUnit> {
         )
     };
     if status == NO_ERR {
-        assert!(!unit.is_null());
         Some(unit)
     } else {
         None
@@ -98,7 +119,7 @@ pub enum ComponentSubType {
 // TODO: Return Result with custom errors.
 // Surprisingly the AudioUnit can be created even when there is no any device on the platform,
 // no matter its subtype is HALOutput or DefaultOutput.
-pub fn test_create_audiounit(unit_type: ComponentSubType) -> Option<AudioUnit> {
+pub fn test_create_audiounit(unit_type: ComponentSubType) -> Option<TestAudioUnit> {
     let desc = AudioComponentDescription {
         componentType: kAudioUnitType_Output,
         componentSubType: match unit_type {
@@ -120,7 +141,7 @@ pub fn test_create_audiounit(unit_type: ComponentSubType) -> Option<AudioUnit> {
         None
     } else {
         assert!(!unit.is_null());
-        Some(unit)
+        Some(TestAudioUnit::new(unit))
     }
 }
 

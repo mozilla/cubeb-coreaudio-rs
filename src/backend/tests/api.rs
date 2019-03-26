@@ -931,13 +931,10 @@ fn test_get_preferred_channel_layout_output() {
     let source = source.unwrap();
     let unit = unit.unwrap();
     if let Some(layout) = devices_layouts.get(source.as_str()) {
-        assert_eq!(audiounit_get_preferred_channel_layout(unit), *layout);
-    }
-
-    // Destroy the AudioUnit
-    unsafe {
-        AudioUnitUninitialize(unit);
-        AudioComponentInstanceDispose(unit);
+        assert_eq!(
+            audiounit_get_preferred_channel_layout(unit.get_inner()),
+            *layout
+        );
     }
 }
 
@@ -970,13 +967,10 @@ fn test_get_current_channel_layout_output() {
     let source = source.unwrap();
     let unit = unit.unwrap();
     if let Some(layout) = devices_layouts.get(source.as_str()) {
-        assert_eq!(audiounit_get_current_channel_layout(unit), *layout);
-    }
-
-    // Destroy the AudioUnit
-    unsafe {
-        AudioUnitUninitialize(unit);
-        AudioComponentInstanceDispose(unit);
+        assert_eq!(
+            audiounit_get_current_channel_layout(unit.get_inner()),
+            *layout
+        );
     }
 }
 
@@ -1075,14 +1069,11 @@ fn test_set_channel_layout_output() {
     let source = source.unwrap();
     let unit = unit.unwrap();
     if let Some(layout) = devices_layouts.get(source.as_str()) {
-        assert!(audiounit_set_channel_layout(unit, io_side::OUTPUT, *layout).is_ok());
-        assert_eq!(audiounit_get_current_channel_layout(unit), *layout);
-    }
-
-    // Destroy the AudioUnit
-    unsafe {
-        AudioUnitUninitialize(unit);
-        AudioComponentInstanceDispose(unit);
+        assert!(audiounit_set_channel_layout(unit.get_inner(), io_side::OUTPUT, *layout).is_ok());
+        assert_eq!(
+            audiounit_get_current_channel_layout(unit.get_inner()),
+            *layout
+        );
     }
 }
 
@@ -1090,21 +1081,19 @@ fn test_set_channel_layout_output() {
 fn test_set_channel_layout_output_undefind() {
     if let Some(unit) = test_get_default_audiounit(Scope::Output) {
         // Get original layout.
-        let original_layout = audiounit_get_current_channel_layout(unit);
-
+        let original_layout = audiounit_get_current_channel_layout(unit.get_inner());
         // Leave layout as it is.
-        assert!(
-            audiounit_set_channel_layout(unit, io_side::OUTPUT, ChannelLayout::UNDEFINED).is_ok()
-        );
-
+        assert!(audiounit_set_channel_layout(
+            unit.get_inner(),
+            io_side::OUTPUT,
+            ChannelLayout::UNDEFINED
+        )
+        .is_ok());
         // Check the layout is same as the original one.
-        assert_eq!(audiounit_get_current_channel_layout(unit), original_layout);
-
-        // Destroy the AudioUnit
-        unsafe {
-            AudioUnitUninitialize(unit);
-            AudioComponentInstanceDispose(unit);
-        }
+        assert_eq!(
+            audiounit_get_current_channel_layout(unit.get_inner()),
+            original_layout
+        );
     }
 }
 
@@ -1112,16 +1101,14 @@ fn test_set_channel_layout_output_undefind() {
 fn test_set_channel_layout_input() {
     if let Some(unit) = test_get_default_audiounit(Scope::Input) {
         assert_eq!(
-            audiounit_set_channel_layout(unit, io_side::INPUT, ChannelLayout::UNDEFINED)
-                .unwrap_err(),
+            audiounit_set_channel_layout(
+                unit.get_inner(),
+                io_side::INPUT,
+                ChannelLayout::UNDEFINED
+            )
+            .unwrap_err(),
             Error::error()
         );
-
-        // Destroy the AudioUnit
-        unsafe {
-            AudioUnitUninitialize(unit);
-            AudioComponentInstanceDispose(unit);
-        }
     }
 }
 
@@ -1142,7 +1129,7 @@ fn test_set_channel_layout_with_null_unit() {
 fn test_layout_init() {
     if let Some(unit) = test_get_default_audiounit(Scope::Output) {
         test_get_empty_stream(move |stream| {
-            stream.output_unit = unit;
+            stream.output_unit = unit.get_inner();
 
             assert_eq!(
                 stream.context.layout.load(atomic::Ordering::SeqCst),
@@ -1155,12 +1142,6 @@ fn test_layout_init() {
 
             assert_eq!(stream.context.layout.load(atomic::Ordering::SeqCst), layout);
         });
-
-        // Destroy the AudioUnit
-        unsafe {
-            AudioUnitUninitialize(unit);
-            AudioComponentInstanceDispose(unit);
-        }
     }
 }
 
@@ -1352,15 +1333,30 @@ fn test_enable_unit_scope() {
     // for the unit whose subtype is kAudioUnitSubType_HALOutput
     // even when there is no available input or output devices.
     if let Some(unit) = test_create_audiounit(ComponentSubType::HALOutput) {
-        assert!(audiounit_enable_unit_scope(&unit, io_side::OUTPUT, enable_state::ENABLE).is_ok());
-        assert!(audiounit_enable_unit_scope(&unit, io_side::OUTPUT, enable_state::DISABLE).is_ok());
-        assert!(audiounit_enable_unit_scope(&unit, io_side::INPUT, enable_state::ENABLE).is_ok());
-        assert!(audiounit_enable_unit_scope(&unit, io_side::INPUT, enable_state::DISABLE).is_ok());
-        // Destroy the AudioUnit
-        unsafe {
-            AudioUnitUninitialize(unit);
-            AudioComponentInstanceDispose(unit);
-        }
+        assert!(audiounit_enable_unit_scope(
+            &(unit.get_inner()),
+            io_side::OUTPUT,
+            enable_state::ENABLE
+        )
+        .is_ok());
+        assert!(audiounit_enable_unit_scope(
+            &(unit.get_inner()),
+            io_side::OUTPUT,
+            enable_state::DISABLE
+        )
+        .is_ok());
+        assert!(audiounit_enable_unit_scope(
+            &(unit.get_inner()),
+            io_side::INPUT,
+            enable_state::ENABLE
+        )
+        .is_ok());
+        assert!(audiounit_enable_unit_scope(
+            &(unit.get_inner()),
+            io_side::INPUT,
+            enable_state::DISABLE
+        )
+        .is_ok());
     }
 }
 
@@ -1368,19 +1364,27 @@ fn test_enable_unit_scope() {
 fn test_enable_unit_output_scope_for_default_output_unit() {
     if let Some(unit) = test_create_audiounit(ComponentSubType::DefaultOutput) {
         assert_eq!(
-            audiounit_enable_unit_scope(&unit, io_side::OUTPUT, enable_state::ENABLE).unwrap_err(),
+            audiounit_enable_unit_scope(&(unit.get_inner()), io_side::OUTPUT, enable_state::ENABLE)
+                .unwrap_err(),
             Error::error()
         );
         assert_eq!(
-            audiounit_enable_unit_scope(&unit, io_side::OUTPUT, enable_state::DISABLE).unwrap_err(),
+            audiounit_enable_unit_scope(
+                &(unit.get_inner()),
+                io_side::OUTPUT,
+                enable_state::DISABLE
+            )
+            .unwrap_err(),
             Error::error()
         );
         assert_eq!(
-            audiounit_enable_unit_scope(&unit, io_side::INPUT, enable_state::ENABLE).unwrap_err(),
+            audiounit_enable_unit_scope(&(unit.get_inner()), io_side::INPUT, enable_state::ENABLE)
+                .unwrap_err(),
             Error::error()
         );
         assert_eq!(
-            audiounit_enable_unit_scope(&unit, io_side::INPUT, enable_state::DISABLE).unwrap_err(),
+            audiounit_enable_unit_scope(&(unit.get_inner()), io_side::INPUT, enable_state::DISABLE)
+                .unwrap_err(),
             Error::error()
         );
     }
