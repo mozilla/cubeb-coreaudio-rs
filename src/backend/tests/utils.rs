@@ -2,7 +2,7 @@ use super::*;
 
 // Common Utils
 // ------------------------------------------------------------------------------------------------
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Scope {
     Input,
     Output,

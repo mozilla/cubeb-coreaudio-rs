@@ -5,6 +5,8 @@ use super::utils::{
     Scope,
 };
 use super::*;
+use std::any::Any;
+use std::fmt::Debug;
 
 // make_sized_audio_channel_layout
 // ------------------------------------
@@ -1506,4 +1508,138 @@ fn test_create_unit_twice() {
             Error::error()
         );
     }
+}
+
+// init_input_linear_buffer
+// ------------------------------------
+#[test]
+fn test_init_input_linear_buffer() {
+    test_init_input_linear_buffer_impl(&[3.1_f32, 4.1, 5.9, 2.6, 5.35], 4096);
+    test_init_input_linear_buffer_impl(&[13_i16, 21, 34, 55, 89, 144], 4096);
+}
+
+// TODO: Is it ok without setting latency ?
+#[test]
+fn test_init_input_linear_buffer_without_latency() {
+    test_init_input_linear_buffer_impl(&[3.1_f32, 4.1, 5.9, 2.6, 5.35], 0);
+    test_init_input_linear_buffer_impl(&[13_i16, 21, 34, 55, 89, 144], 0);
+}
+
+// FIXIT: We should get a panic! The type is unknown before the audio description is set!
+#[ignore]
+#[test]
+#[should_panic]
+fn test_init_input_linear_buffer_without_valid_audiodescription() {
+    test_get_empty_stream(|stream| {
+        stream.latency_frames = 4096;
+        assert!(stream.input_linear_buffer.is_none());
+        assert!(audiounit_init_input_linear_buffer(stream, 1).is_err());
+    });
+}
+
+fn test_init_input_linear_buffer_impl<T: Any + Debug + PartialEq>(array: &[T], latency: u32) {
+    const CHANNEL: u32 = 2;
+    const BUF_CAPACITY: u32 = 1;
+
+    let type_id = std::any::TypeId::of::<T>();
+    let format = if type_id == std::any::TypeId::of::<f32>() {
+        kAudioFormatFlagIsFloat
+    } else if type_id == std::any::TypeId::of::<i16>() {
+        kAudioFormatFlagIsSignedInteger
+    } else {
+        panic!("Unsupported type!");
+    };
+
+    test_get_empty_stream(|stream| {
+        stream.latency_frames = latency;
+        stream.input_desc.mFormatFlags |= format;
+        stream.input_desc.mChannelsPerFrame = CHANNEL;
+
+        assert!(stream.input_linear_buffer.is_none());
+        assert!(audiounit_init_input_linear_buffer(stream, BUF_CAPACITY).is_ok());
+        assert!(stream.input_linear_buffer.is_some());
+
+        let buffer_ref = stream.input_linear_buffer.as_mut().unwrap();
+        buffer_ref.push(array.as_ptr() as *const c_void, array.len());
+
+        assert_eq!(buffer_ref.elements(), array.len());
+        let data = buffer_ref.as_ptr() as *const T;
+        for (idx, item) in array.iter().enumerate() {
+            unsafe {
+                assert_eq!(*data.add(idx), *item);
+            }
+        }
+    });
+}
+
+// set_buffer_size
+// ------------------------------------
+#[test]
+fn test_set_buffer_size() {
+    test_set_buffer_size_by_scope(Scope::Input);
+    test_set_buffer_size_by_scope(Scope::Output);
+}
+
+fn test_set_buffer_size_by_scope(scope: Scope) {
+    test_get_empty_stream(|stream| {
+        let default_unit = test_get_default_audiounit(scope.clone());
+        if default_unit.is_none() {
+            return;
+        }
+        let default_unit = default_unit.unwrap();
+
+        let (unit, unit_scope, element) = match scope {
+            Scope::Input => {
+                stream.input_unit = default_unit.get_inner();
+                (stream.input_unit, kAudioUnitScope_Output, AU_IN_BUS)
+            }
+            Scope::Output => {
+                stream.output_unit = default_unit.get_inner();
+                (stream.output_unit, kAudioUnitScope_Input, AU_OUT_BUS)
+            }
+        };
+
+        let mut buffer_frames: u32 = 0;
+        let mut size = mem::size_of::<u32>();
+        assert_eq!(
+            audio_unit_get_property(
+                unit,
+                kAudioDevicePropertyBufferFrameSize,
+                unit_scope,
+                element,
+                &mut buffer_frames,
+                &mut size
+            ),
+            NO_ERR
+        );
+        assert_ne!(buffer_frames, 0);
+        buffer_frames *= 2;
+        assert!(audiounit_set_buffer_size(stream, buffer_frames, scope.into()).is_ok());
+    });
+}
+
+#[test]
+#[should_panic]
+fn test_set_buffer_size_for_input_with_null_input_unit() {
+    test_set_buffer_size_by_scope_with_null_unit(Scope::Input);
+}
+
+#[test]
+#[should_panic]
+fn test_set_buffer_size_for_output_with_null_output_unit() {
+    test_set_buffer_size_by_scope_with_null_unit(Scope::Output);
+}
+
+fn test_set_buffer_size_by_scope_with_null_unit(scope: Scope) {
+    test_get_empty_stream(|stream| {
+        let unit = match scope {
+            Scope::Input => stream.input_unit,
+            Scope::Output => stream.output_unit,
+        };
+        assert!(unit.is_null());
+        assert_eq!(
+            audiounit_set_buffer_size(stream, 2048, scope.into()).unwrap_err(),
+            Error::error()
+        );
+    });
 }
