@@ -52,6 +52,7 @@ use std::slice;
 // Replace Atomic{I64, U32, U64} by Atomic<{i64, u32, u64}> for now so
 // this can be compiled with the stable rustc.
 use std::sync::atomic::{AtomicBool, /*AtomicI64, AtomicU32, AtomicU64,*/ Ordering};
+use std::sync::{Arc, Mutex};
 
 // TODO:
 // 1. We use AudioDeviceID and AudioObjectID at the same time.
@@ -815,14 +816,13 @@ fn audiounit_reinit_stream_async(stm: &mut AudioUnitStream, flags: device_flags)
         return;
     }
 
-    // Rust compilter doesn't allow a pointer to be passed across threads.
-    // A hacky way to do that is to cast the pointer into a value, then
-    // the value, which is actually an address, can be copied into threads.
-    let stm_ptr = stm as *mut AudioUnitStream as usize;
+    let queue = stm.context.serial_queue;
+    let mutexed_ref = Arc::new(Mutex::new(stm));
     // Use a new thread, through the queue, to avoid deadlock when calling
     // Get/SetProperties method from inside notify callback
-    async_dispatch(stm.context.serial_queue, move || {
-        let stm = unsafe { &mut *(stm_ptr as *mut AudioUnitStream) };
+    async_dispatch(queue, move || {
+        let mut ref_guard = mutexed_ref.lock().unwrap();
+        let stm = &mut *(*ref_guard);
         if *stm.destroy_pending.get_mut() {
             cubeb_log!("({:p}) stream pending destroy, cancelling reinit task", stm as *const AudioUnitStream);
             return;
@@ -4109,6 +4109,10 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         Ok(())
     }
 }
+
+// An unsafe workaround to pass AudioUnitStream across threads.
+unsafe impl<'ctx> Send for AudioUnitStream<'ctx> {}
+unsafe impl<'ctx> Sync for AudioUnitStream<'ctx> {}
 
 #[cfg(test)]
 mod tests;

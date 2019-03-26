@@ -31,7 +31,7 @@ pub fn release_dispatch_queue(queue: dispatch_queue_t) {
 // FnOnce: One-time function.
 pub fn async_dispatch<F>(queue: dispatch_queue_t, work: F)
 where
-    F: 'static + Send + FnOnce(),
+    F: Send + FnOnce(),
 {
     let (closure, executor) = create_closure_and_executor(work);
     unsafe {
