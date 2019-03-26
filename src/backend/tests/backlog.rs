@@ -69,29 +69,15 @@ fn test_get_sub_devices_for_blank_aggregate_devices() {
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;
     assert!(
-        audiounit_create_blank_aggregate_device(
-            &mut plugin_id,
-            &mut aggregate_device_id
-        ).is_ok()
+        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
     );
-    assert_ne!(
-        plugin_id,
-        kAudioObjectUnknown
-    );
-    assert_ne!(
-        aggregate_device_id,
-        kAudioObjectUnknown
-    );
+    assert_ne!(plugin_id, kAudioObjectUnknown);
+    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
     // There is no sub devices for a blank aggregate device!
     let devices = audiounit_get_sub_devices(aggregate_device_id);
     assert!(devices.is_empty());
 
-    assert!(
-        audiounit_destroy_aggregate_device(
-            plugin_id,
-            &mut aggregate_device_id
-        ).is_ok()
-    );
+    assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
 }
 
 // create_blank_aggregate_device
@@ -174,19 +160,10 @@ fn test_create_blank_aggregate_device() {
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;
     assert!(
-        audiounit_create_blank_aggregate_device(
-            &mut plugin_id,
-            &mut aggregate_device_id
-        ).is_ok()
+        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
     );
-    assert_ne!(
-        plugin_id,
-        kAudioObjectUnknown
-    );
-    assert_ne!(
-        aggregate_device_id,
-        kAudioObjectUnknown
-    );
+    assert_ne!(plugin_id, kAudioObjectUnknown);
+    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
 
     let all_devices = get_all_devices();
     assert!(!all_devices.is_empty());
@@ -205,19 +182,14 @@ fn test_create_blank_aggregate_device() {
     }
     assert!(aggregate_device_found);
 
-    assert!(
-        audiounit_destroy_aggregate_device(
-            plugin_id,
-            &mut aggregate_device_id
-        ).is_ok()
-    );
+    assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
 
     fn get_all_devices() -> Vec<AudioObjectID> {
         let mut size: usize = 0;
         let mut ret = audio_object_get_property_data_size(
             kAudioObjectSystemObject,
             &DEVICES_PROPERTY_ADDRESS,
-            &mut size
+            &mut size,
         );
         if ret != NO_ERR {
             return Vec::new();
@@ -228,7 +200,7 @@ fn test_create_blank_aggregate_device() {
             kAudioObjectSystemObject,
             &DEVICES_PROPERTY_ADDRESS,
             &mut size,
-            devices.as_mut_ptr()
+            devices.as_mut_ptr(),
         );
         if ret != NO_ERR {
             return Vec::new();
@@ -247,10 +219,7 @@ fn test_set_aggregate_sub_device_list_for_unknown_input_output_devices() {
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;
     assert!(
-        audiounit_create_blank_aggregate_device(
-            &mut plugin_id,
-            &mut aggregate_device_id
-        ).is_ok()
+        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
     );
     assert_ne!(plugin_id, kAudioObjectUnknown);
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
@@ -266,7 +235,8 @@ fn test_set_aggregate_sub_device_list_for_unknown_input_output_devices() {
             aggregate_device_id,
             kAudioObjectUnknown,
             kAudioObjectUnknown
-        ).unwrap_err(),
+        )
+        .unwrap_err(),
         Error::error()
     );
 
@@ -280,7 +250,8 @@ fn test_set_aggregate_sub_device_list_for_unknown_input_output_devices() {
                 aggregate_device_id,
                 kAudioObjectUnknown,
                 output_id
-            ).unwrap_err(),
+            )
+            .unwrap_err(),
             Error::error()
         );
     }
@@ -292,17 +263,13 @@ fn test_set_aggregate_sub_device_list_for_unknown_input_output_devices() {
                 aggregate_device_id,
                 input_id,
                 kAudioObjectUnknown
-            ).unwrap_err(),
+            )
+            .unwrap_err(),
             Error::error()
         );
     }
 
-    assert!(
-        audiounit_destroy_aggregate_device(
-            plugin_id,
-            &mut aggregate_device_id
-        ).is_ok()
-    );
+    assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
 }
 
 // Ignore this by default. The reason is same as test_create_blank_aggregate_device.
@@ -311,7 +278,9 @@ fn test_set_aggregate_sub_device_list_for_unknown_input_output_devices() {
 fn test_set_aggregate_sub_device_list() {
     let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
     let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-    if !valid_id(input_id) || !valid_id(output_id) /* || input_id == output_id */ {
+    if !valid_id(input_id) || !valid_id(output_id)
+    /* || input_id == output_id */
+    {
         return;
     }
 
@@ -322,21 +291,14 @@ fn test_set_aggregate_sub_device_list() {
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;
     assert!(
-        audiounit_create_blank_aggregate_device(
-            &mut plugin_id,
-            &mut aggregate_device_id
-        ).is_ok()
+        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
     );
     assert_ne!(plugin_id, kAudioObjectUnknown);
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
 
     // Set sub devices for the created aggregate device.
     assert!(
-        audiounit_set_aggregate_sub_device_list(
-            aggregate_device_id,
-            input_id,
-            output_id
-        ).is_ok()
+        audiounit_set_aggregate_sub_device_list(aggregate_device_id, input_id, output_id).is_ok()
     );
     let sub_devices = audiounit_get_sub_devices(aggregate_device_id);
 
@@ -371,12 +333,7 @@ fn test_set_aggregate_sub_device_list() {
         assert!(owned_devices_names.contains(name_opt));
     }
 
-    assert!(
-        audiounit_destroy_aggregate_device(
-            plugin_id,
-            &mut aggregate_device_id
-        ).is_ok()
-    );
+    assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
 
     fn show_devices_names(title: &'static str, names: &Vec<Option<String>>) {
         println!("\n{}\n-----------", title);
@@ -398,10 +355,7 @@ fn test_set_master_aggregate_device_for_a_blank_aggregate_device() {
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;
     assert!(
-        audiounit_create_blank_aggregate_device(
-            &mut plugin_id,
-            &mut aggregate_device_id
-        ).is_ok()
+        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
     );
     assert_ne!(plugin_id, kAudioObjectUnknown);
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
@@ -414,11 +368,7 @@ fn test_set_master_aggregate_device_for_a_blank_aggregate_device() {
     //       device whose sub devices list doesn't include default ouput device!
     //       This is weird to me. Maybe we should return errors when above
     //       conditions are met.
-    assert!(
-        audiounit_set_master_aggregate_device(
-            aggregate_device_id
-        ).is_ok()
-    );
+    assert!(audiounit_set_master_aggregate_device(aggregate_device_id).is_ok());
 
     // Make sure this blank aggregate device owns nothing.
     // TODO: it's really weird it actually own nothing but
@@ -430,12 +380,7 @@ fn test_set_master_aggregate_device_for_a_blank_aggregate_device() {
     let master_device = get_master_device(aggregate_device_id);
     assert!(master_device.is_empty());
 
-    assert!(
-        audiounit_destroy_aggregate_device(
-            plugin_id,
-            &mut aggregate_device_id
-        ).is_ok()
-    );
+    assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
 }
 
 // Ignore this by default. The reason is same as test_create_blank_aggregate_device.
@@ -444,7 +389,9 @@ fn test_set_master_aggregate_device_for_a_blank_aggregate_device() {
 fn test_set_master_aggregate_device() {
     let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
     let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-    if !valid_id(input_id) || !valid_id(output_id) /* || input_id == output_id */ {
+    if !valid_id(input_id) || !valid_id(output_id)
+    /* || input_id == output_id */
+    {
         return;
     }
 
@@ -457,37 +404,23 @@ fn test_set_master_aggregate_device() {
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;
     assert!(
-        audiounit_create_blank_aggregate_device(
-            &mut plugin_id,
-            &mut aggregate_device_id
-        ).is_ok()
+        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
     );
     assert_ne!(plugin_id, kAudioObjectUnknown);
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
 
     // Set the sub devices into the created aggregate device.
     assert!(
-        audiounit_set_aggregate_sub_device_list(
-            aggregate_device_id,
-            input_id,
-            output_id
-        ).is_ok()
+        audiounit_set_aggregate_sub_device_list(aggregate_device_id, input_id, output_id).is_ok()
     );
 
     // Set the master device.
-    assert!(
-        audiounit_set_master_aggregate_device(
-            aggregate_device_id
-        ).is_ok()
-    );
+    assert!(audiounit_set_master_aggregate_device(aggregate_device_id).is_ok());
 
     // Check if master is set to default output device.
     let master_device = get_master_device(aggregate_device_id);
     let default_output_device = to_device_name(output_id).unwrap();
-    assert_eq!(
-        master_device,
-        default_output_device
-    );
+    assert_eq!(master_device, default_output_device);
 
     // Check the first owning device is the default output device.
     let onwed_devices = get_onwed_devices(aggregate_device_id);
@@ -506,12 +439,7 @@ fn test_set_master_aggregate_device() {
     );
 
     // Destroy the aggregate device.
-    assert!(
-        audiounit_destroy_aggregate_device(
-            plugin_id,
-            &mut aggregate_device_id
-        ).is_ok()
-    );
+    assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
 }
 
 fn get_master_device(aggregate_device_id: AudioObjectID) -> String {
@@ -520,7 +448,7 @@ fn get_master_device(aggregate_device_id: AudioObjectID) -> String {
     let master_aggregate_sub_device = AudioObjectPropertyAddress {
         mSelector: kAudioAggregateDevicePropertyMasterSubDevice,
         mScope: kAudioObjectPropertyScopeGlobal,
-        mElement: kAudioObjectPropertyElementMaster
+        mElement: kAudioObjectPropertyElementMaster,
     };
 
     let mut master_sub_device: CFStringRef = ptr::null_mut();
@@ -556,10 +484,7 @@ fn test_activate_clock_drift_compensation_for_a_blank_aggregate_device() {
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;
     assert!(
-        audiounit_create_blank_aggregate_device(
-            &mut plugin_id,
-            &mut aggregate_device_id
-        ).is_ok()
+        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
     );
     assert_ne!(plugin_id, kAudioObjectUnknown);
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
@@ -570,19 +495,12 @@ fn test_activate_clock_drift_compensation_for_a_blank_aggregate_device() {
 
     // Get a panic since no sub devices to be set compensation.
     assert_eq!(
-        audiounit_activate_clock_drift_compensation(
-            aggregate_device_id
-        ).unwrap_err(),
+        audiounit_activate_clock_drift_compensation(aggregate_device_id).unwrap_err(),
         Error::error()
     );
 
     // Destroy the aggregate device. (The program cannot reach here.)
-    assert!(
-        audiounit_destroy_aggregate_device(
-            plugin_id,
-            &mut aggregate_device_id
-        ).is_ok()
-    );
+    assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
 }
 
 // Ignore this by default. The reason is same as test_create_blank_aggregate_device.
@@ -591,7 +509,9 @@ fn test_activate_clock_drift_compensation_for_a_blank_aggregate_device() {
 fn test_activate_clock_drift_compensation_for_an_aggregate_device_without_master_device() {
     let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
     let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-    if !valid_id(input_id) || !valid_id(output_id) /* || input_id == output_id */ {
+    if !valid_id(input_id) || !valid_id(output_id)
+    /* || input_id == output_id */
+    {
         return;
     }
 
@@ -599,21 +519,14 @@ fn test_activate_clock_drift_compensation_for_an_aggregate_device_without_master
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;
     assert!(
-        audiounit_create_blank_aggregate_device(
-            &mut plugin_id,
-            &mut aggregate_device_id
-        ).is_ok()
+        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
     );
     assert_ne!(plugin_id, kAudioObjectUnknown);
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
 
     // Set the sub devices into the created aggregate device.
     assert!(
-        audiounit_set_aggregate_sub_device_list(
-            aggregate_device_id,
-            input_id,
-            output_id
-        ).is_ok()
+        audiounit_set_aggregate_sub_device_list(aggregate_device_id, input_id, output_id).is_ok()
     );
 
     // TODO: Is the master device the first output sub device by default if we
@@ -627,40 +540,21 @@ fn test_activate_clock_drift_compensation_for_an_aggregate_device_without_master
     );
 
     // Set clock drift compensation.
-    assert!(
-        audiounit_activate_clock_drift_compensation(
-            aggregate_device_id
-        ).is_ok()
-    );
+    assert!(audiounit_activate_clock_drift_compensation(aggregate_device_id).is_ok());
 
     // Check the compensations.
     let devices = get_onwed_devices(aggregate_device_id);
     assert!(!devices.is_empty());
     let compensations = get_drift_compensations(&devices);
     assert!(!compensations.is_empty());
-    assert_eq!(
-        devices.len(),
-        compensations.len()
-    );
+    assert_eq!(devices.len(), compensations.len());
 
     for (i, compensation) in compensations.iter().enumerate() {
-        assert_eq!(
-            *compensation,
-            if i == 0 {
-                0
-            } else {
-                1
-            }
-        );
+        assert_eq!(*compensation, if i == 0 { 0 } else { 1 });
     }
 
     // Destroy the aggregate device.
-    assert!(
-        audiounit_destroy_aggregate_device(
-            plugin_id,
-            &mut aggregate_device_id
-        ).is_ok()
-    );
+    assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
 }
 
 // Ignore this by default. The reason is same as test_create_blank_aggregate_device.
@@ -669,7 +563,9 @@ fn test_activate_clock_drift_compensation_for_an_aggregate_device_without_master
 fn test_activate_clock_drift_compensation() {
     let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
     let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-    if !valid_id(input_id) || !valid_id(output_id) /* || input_id == output_id */ {
+    if !valid_id(input_id) || !valid_id(output_id)
+    /* || input_id == output_id */
+    {
         return;
     }
 
@@ -682,76 +578,44 @@ fn test_activate_clock_drift_compensation() {
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;
     assert!(
-        audiounit_create_blank_aggregate_device(
-            &mut plugin_id,
-            &mut aggregate_device_id
-        ).is_ok()
+        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
     );
     assert_ne!(plugin_id, kAudioObjectUnknown);
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
 
     // Set the sub devices into the created aggregate device.
     assert!(
-        audiounit_set_aggregate_sub_device_list(
-            aggregate_device_id,
-            input_id,
-            output_id
-        ).is_ok()
+        audiounit_set_aggregate_sub_device_list(aggregate_device_id, input_id, output_id).is_ok()
     );
 
     // Set the master device.
-    assert!(
-        audiounit_set_master_aggregate_device(
-            aggregate_device_id
-        ).is_ok()
-    );
+    assert!(audiounit_set_master_aggregate_device(aggregate_device_id).is_ok());
 
     // Set clock drift compensation.
-    assert!(
-        audiounit_activate_clock_drift_compensation(
-            aggregate_device_id
-        ).is_ok()
-    );
+    assert!(audiounit_activate_clock_drift_compensation(aggregate_device_id).is_ok());
 
     // Check the compensations.
     let devices = get_onwed_devices(aggregate_device_id);
     assert!(!devices.is_empty());
     let compensations = get_drift_compensations(&devices);
     assert!(!compensations.is_empty());
-    assert_eq!(
-        devices.len(),
-        compensations.len()
-    );
+    assert_eq!(devices.len(), compensations.len());
 
     for (i, compensation) in compensations.iter().enumerate() {
-        assert_eq!(
-            *compensation,
-            if i == 0 {
-                0
-            } else {
-                1
-            }
-        );
+        assert_eq!(*compensation, if i == 0 { 0 } else { 1 });
     }
 
     // Destroy the aggregate device.
-    assert!(
-        audiounit_destroy_aggregate_device(
-            plugin_id,
-            &mut aggregate_device_id
-        ).is_ok()
-    );
+    assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
 }
 
-fn get_onwed_devices(
-    aggregate_device_id: AudioDeviceID
-) -> Vec<AudioObjectID> {
+fn get_onwed_devices(aggregate_device_id: AudioDeviceID) -> Vec<AudioObjectID> {
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
 
     let address_owned = AudioObjectPropertyAddress {
         mSelector: kAudioObjectPropertyOwnedObjects,
         mScope: kAudioObjectPropertyScopeGlobal,
-        mElement: kAudioObjectPropertyElementMaster
+        mElement: kAudioObjectPropertyElementMaster,
     };
 
     let qualifier_data_size = mem::size_of::<AudioObjectID>();
@@ -797,15 +661,13 @@ fn get_onwed_devices(
     devices
 }
 
-fn get_drift_compensations(
-    devices: &Vec<AudioObjectID>
-) -> Vec<u32> {
+fn get_drift_compensations(devices: &Vec<AudioObjectID>) -> Vec<u32> {
     assert!(!devices.is_empty());
 
     let address_drift = AudioObjectPropertyAddress {
         mSelector: kAudioSubDevicePropertyDriftCompensation,
         mScope: kAudioObjectPropertyScopeGlobal,
-        mElement: kAudioObjectPropertyElementMaster
+        mElement: kAudioObjectPropertyElementMaster,
     };
 
     let mut compensations = Vec::new();
@@ -817,12 +679,7 @@ fn get_drift_compensations(
         let mut compensation = u32::max_value();
 
         assert_eq!(
-            audio_object_get_property_data(
-                *device,
-                &address_drift,
-                &mut size,
-                &mut compensation
-            ),
+            audio_object_get_property_data(*device, &address_drift, &mut size, &mut compensation),
             NO_ERR
         );
 
@@ -843,25 +700,14 @@ fn test_destroy_aggregate_device_for_a_unknown_plugin_device() {
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;
     assert!(
-        audiounit_create_blank_aggregate_device(
-            &mut plugin_id,
-            &mut aggregate_device_id
-        ).is_ok()
+        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
     );
-    assert_ne!(
-        plugin_id,
-        kAudioObjectUnknown
-    );
-    assert_ne!(
-        aggregate_device_id,
-        kAudioObjectUnknown
-    );
+    assert_ne!(plugin_id, kAudioObjectUnknown);
+    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
 
     assert_eq!(
-        audiounit_destroy_aggregate_device(
-            kAudioObjectUnknown,
-            &mut aggregate_device_id
-        ).unwrap_err(),
+        audiounit_destroy_aggregate_device(kAudioObjectUnknown, &mut aggregate_device_id)
+            .unwrap_err(),
         Error::error()
     );
 }
@@ -875,27 +721,15 @@ fn test_destroy_aggregate_device_for_a_unknown_aggregate_device() {
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;
     assert!(
-        audiounit_create_blank_aggregate_device(
-            &mut plugin_id,
-            &mut aggregate_device_id
-        ).is_ok()
+        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
     );
-    assert_ne!(
-        plugin_id,
-        kAudioObjectUnknown
-    );
-    assert_ne!(
-        aggregate_device_id,
-        kAudioObjectUnknown
-    );
+    assert_ne!(plugin_id, kAudioObjectUnknown);
+    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
 
     aggregate_device_id = kAudioObjectUnknown;
 
     assert_eq!(
-        audiounit_destroy_aggregate_device(
-            plugin_id,
-            &mut aggregate_device_id
-        ).unwrap_err(),
+        audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).unwrap_err(),
         Error::error()
     );
 }
@@ -965,8 +799,10 @@ fn test_create_unit() {
 
                 // For default output device, the input scope is enabled
                 // if it's also a input device. Otherwise, it's disabled.
-                if device.flags.contains(device_flags::DEV_INPUT |
-                                         device_flags::DEV_SYSTEM_DEFAULT) {
+                if device
+                    .flags
+                    .contains(device_flags::DEV_INPUT | device_flags::DEV_SYSTEM_DEFAULT)
+                {
                     if is_input(device_id) {
                         assert!(unit_scope_is_enabled(unit, true));
                     } else {
@@ -1035,13 +871,7 @@ fn test_init_input_linear_buffer_without_valid_audiodescription() {
         audiounit_increment_active_streams(&mut ctx);
     }
 
-    let mut stream = AudioUnitStream::new(
-        &mut ctx,
-        ptr::null_mut(),
-        None,
-        None,
-        0
-    );
+    let mut stream = AudioUnitStream::new(&mut ctx, ptr::null_mut(), None, None, 0);
     stream.init();
 
     assert!(stream.input_linear_buffer.is_none());
@@ -1071,13 +901,7 @@ fn test_init_input_linear_buffer_without_setting_latency() {
         audiounit_increment_active_streams(&mut ctx);
     }
 
-    let mut stream = AudioUnitStream::new(
-        &mut ctx,
-        ptr::null_mut(),
-        None,
-        None,
-        0
-    );
+    let mut stream = AudioUnitStream::new(&mut ctx, ptr::null_mut(), None, None, 0);
     stream.init();
 
     assert!(stream.input_linear_buffer.is_none());
@@ -1108,12 +932,7 @@ fn test_init_input_linear_buffer_without_setting_latency() {
     assert_eq!(stream.input_desc.mFormatFlags, 0);
     assert_eq!(stream.input_desc.mChannelsPerFrame, 0);
 
-    assert!(
-        audio_stream_desc_init(
-            &mut stream.input_desc,
-            &params
-        ).is_ok()
-    );
+    assert!(audio_stream_desc_init(&mut stream.input_desc, &params).is_ok());
 
     assert_ne!(stream.input_desc.mFormatFlags & kAudioFormatFlagIsFloat, 0);
     assert_eq!(stream.input_desc.mChannelsPerFrame, 2);
@@ -1124,10 +943,11 @@ fn test_init_input_linear_buffer_without_setting_latency() {
     assert!(stream.input_linear_buffer.is_some());
 
     let buf_f32 = [1.0_f32, 2.1, 3.2];
-    stream.input_linear_buffer.as_mut().unwrap().push(
-        buf_f32.as_ptr() as *const c_void,
-        buf_f32.len()
-    );
+    stream
+        .input_linear_buffer
+        .as_mut()
+        .unwrap()
+        .push(buf_f32.as_ptr() as *const c_void, buf_f32.len());
 }
 
 fn test_init_input_linear_buffer_impl<T: std::any::Any>(array: &[T]) {
@@ -1164,13 +984,7 @@ fn test_init_input_linear_buffer_impl<T: std::any::Any>(array: &[T]) {
         audiounit_increment_active_streams(&mut ctx);
     }
 
-    let mut stream = AudioUnitStream::new(
-        &mut ctx,
-        ptr::null_mut(),
-        None,
-        None,
-        0
-    );
+    let mut stream = AudioUnitStream::new(&mut ctx, ptr::null_mut(), None, None, 0);
     stream.init();
 
     assert!(stream.input_linear_buffer.is_none());
@@ -1201,12 +1015,7 @@ fn test_init_input_linear_buffer_impl<T: std::any::Any>(array: &[T]) {
     assert_eq!(stream.input_desc.mFormatFlags, 0);
     assert_eq!(stream.input_desc.mChannelsPerFrame, 0);
 
-    assert!(
-        audio_stream_desc_init(
-            &mut stream.input_desc,
-            &params
-        ).is_ok()
-    );
+    assert!(audio_stream_desc_init(&mut stream.input_desc, &params).is_ok());
 
     assert_ne!(stream.input_desc.mFormatFlags & format_flag, 0);
     assert_eq!(stream.input_desc.mChannelsPerFrame, CHANNEL);
@@ -1216,10 +1025,11 @@ fn test_init_input_linear_buffer_impl<T: std::any::Any>(array: &[T]) {
     assert!(audiounit_init_input_linear_buffer(&mut stream, BUF_CAPACITY).is_ok());
     assert!(stream.input_linear_buffer.is_some());
 
-    stream.input_linear_buffer.as_mut().unwrap().push(
-        array.as_ptr() as *const c_void,
-        array.len()
-    );
+    stream
+        .input_linear_buffer
+        .as_mut()
+        .unwrap()
+        .push(array.as_ptr() as *const c_void, array.len());
 }
 
 #[test]
@@ -1259,13 +1069,7 @@ fn test_clamp_latency_with_one_active_stream() {
         audiounit_increment_active_streams(&mut ctx);
     }
 
-    let mut stream = AudioUnitStream::new(
-        &mut ctx,
-        ptr::null_mut(),
-        None,
-        None,
-        0
-    );
+    let mut stream = AudioUnitStream::new(&mut ctx, ptr::null_mut(), None, None, 0);
     stream.init();
 
     // The scope of `_lock` is a critical section.
@@ -1316,13 +1120,7 @@ fn test_clamp_latency_with_more_than_one_active_streams_without_output_unit() {
         audiounit_increment_active_streams(&mut ctx);
     }
 
-    let mut stream = AudioUnitStream::new(
-        &mut ctx,
-        ptr::null_mut(),
-        None,
-        None,
-        0
-    );
+    let mut stream = AudioUnitStream::new(&mut ctx, ptr::null_mut(), None, None, 0);
     stream.init();
 
     // The scope of `_lock` is a critical section.
@@ -1357,13 +1155,7 @@ fn test_clamp_latency_with_more_than_one_active_streams() {
         audiounit_increment_active_streams(&mut ctx);
     }
 
-    let mut stream = AudioUnitStream::new(
-        &mut ctx,
-        ptr::null_mut(),
-        None,
-        None,
-        0
-    );
+    let mut stream = AudioUnitStream::new(&mut ctx, ptr::null_mut(), None, None, 0);
     stream.init();
 
     // The scope of `_lock` is a critical section.
@@ -1375,7 +1167,7 @@ fn test_clamp_latency_with_more_than_one_active_streams() {
     // Initialize the output unit to default output device.
     let device = device_info {
         id: kAudioObjectUnknown,
-        flags: device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT
+        flags: device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT,
     };
     assert!(audiounit_create_unit(&mut stream.output_unit, &device).is_ok());
     assert!(!stream.output_unit.is_null());
@@ -1387,8 +1179,9 @@ fn test_clamp_latency_with_more_than_one_active_streams() {
             kAudioUnitScope_Output,
             AU_OUT_BUS,
             &mut buffer_size,
-            &mut mem::size_of_val(&buffer_size)
-        ) == 0 {
+            &mut mem::size_of_val(&buffer_size),
+        ) == 0
+        {
             Some(buffer_size)
         } else {
             None
@@ -1405,13 +1198,11 @@ fn test_clamp_latency_with_more_than_one_active_streams() {
         assert_eq!(
             clamp,
             if valid_id(default_output_id) {
-                clamp_values(
-                    if let Some(buffer_size) = maybe_buffer_size {
-                        cmp::min(buffer_size, latency)
-                    } else {
-                        latency
-                    }
-                )
+                clamp_values(if let Some(buffer_size) = maybe_buffer_size {
+                    cmp::min(buffer_size, latency)
+                } else {
+                    latency
+                })
             } else {
                 0
             }
@@ -1419,8 +1210,10 @@ fn test_clamp_latency_with_more_than_one_active_streams() {
     }
 
     fn clamp_values(value: u32) -> u32 {
-        cmp::max(cmp::min(value, SAFE_MAX_LATENCY_FRAMES),
-                 SAFE_MIN_LATENCY_FRAMES)
+        cmp::max(
+            cmp::min(value, SAFE_MAX_LATENCY_FRAMES),
+            SAFE_MIN_LATENCY_FRAMES,
+        )
     }
 }
 
@@ -1428,8 +1221,7 @@ fn test_clamp_latency_with_more_than_one_active_streams() {
 // ------------------------------------
 #[test]
 #[should_panic]
-fn test_set_buffer_size_for_input_with_null_input_unit()
-{
+fn test_set_buffer_size_for_input_with_null_input_unit() {
     // We need to initialize the members with type OwnedCriticalSection in
     // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
     // will be used when AudioUnitStream::drop/destroy is called.
@@ -1447,30 +1239,19 @@ fn test_set_buffer_size_for_input_with_null_input_unit()
         audiounit_increment_active_streams(&mut ctx);
     }
 
-    let mut stream = AudioUnitStream::new(
-        &mut ctx,
-        ptr::null_mut(),
-        None,
-        None,
-        0
-    );
+    let mut stream = AudioUnitStream::new(&mut ctx, ptr::null_mut(), None, None, 0);
     stream.init();
 
     assert!(stream.input_unit.is_null());
 
     assert_eq!(
-        audiounit_set_buffer_size(
-            &mut stream,
-            2048,
-            io_side::INPUT
-        ).unwrap_err(),
+        audiounit_set_buffer_size(&mut stream, 2048, io_side::INPUT).unwrap_err(),
         Error::error()
     );
 }
 
 #[test]
-fn test_set_buffer_size_for_input()
-{
+fn test_set_buffer_size_for_input() {
     // We need to initialize the members with type OwnedCriticalSection in
     // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
     // will be used when AudioUnitStream::drop/destroy is called.
@@ -1488,13 +1269,7 @@ fn test_set_buffer_size_for_input()
         audiounit_increment_active_streams(&mut ctx);
     }
 
-    let mut stream = AudioUnitStream::new(
-        &mut ctx,
-        ptr::null_mut(),
-        None,
-        None,
-        0
-    );
+    let mut stream = AudioUnitStream::new(&mut ctx, ptr::null_mut(), None, None, 0);
     stream.init();
 
     let mut raw = ffi::cubeb_stream_params::default();
@@ -1514,28 +1289,17 @@ fn test_set_buffer_size_for_input()
         return;
     }
 
-    assert!(
-        audiounit_set_device_info(
-            &mut stream,
-            kAudioObjectUnknown,
-            io_side::INPUT
-        ).is_ok()
-    );
+    assert!(audiounit_set_device_info(&mut stream, kAudioObjectUnknown, io_side::INPUT).is_ok());
 
     assert_eq!(stream.input_device.id, default_input_id);
     assert_eq!(
         stream.input_device.flags,
-        device_flags::DEV_INPUT |
-        device_flags::DEV_SELECTED_DEFAULT |
-        device_flags::DEV_SYSTEM_DEFAULT
+        device_flags::DEV_INPUT
+            | device_flags::DEV_SELECTED_DEFAULT
+            | device_flags::DEV_SYSTEM_DEFAULT
     );
 
-    assert!(
-        audiounit_create_unit(
-            &mut stream.input_unit,
-            &stream.input_device
-        ).is_ok()
-    );
+    assert!(audiounit_create_unit(&mut stream.input_unit, &stream.input_device).is_ok());
 
     assert!(!stream.input_unit.is_null());
 
@@ -1555,19 +1319,12 @@ fn test_set_buffer_size_for_input()
 
     assert_ne!(buffer_frames, 0);
     buffer_frames *= 2;
-    assert!(
-        audiounit_set_buffer_size(
-            &mut stream,
-            buffer_frames,
-            io_side::INPUT
-        ).is_ok()
-    );
+    assert!(audiounit_set_buffer_size(&mut stream, buffer_frames, io_side::INPUT).is_ok());
 }
 
 #[test]
 #[should_panic]
-fn test_set_buffer_size_for_output_with_null_output_unit()
-{
+fn test_set_buffer_size_for_output_with_null_output_unit() {
     // We need to initialize the members with type OwnedCriticalSection in
     // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
     // will be used when AudioUnitStream::drop/destroy is called.
@@ -1585,30 +1342,19 @@ fn test_set_buffer_size_for_output_with_null_output_unit()
         audiounit_increment_active_streams(&mut ctx);
     }
 
-    let mut stream = AudioUnitStream::new(
-        &mut ctx,
-        ptr::null_mut(),
-        None,
-        None,
-        0
-    );
+    let mut stream = AudioUnitStream::new(&mut ctx, ptr::null_mut(), None, None, 0);
     stream.init();
 
     assert!(stream.output_unit.is_null());
 
     assert_eq!(
-        audiounit_set_buffer_size(
-            &mut stream,
-            2048,
-            io_side::OUTPUT
-        ).unwrap_err(),
+        audiounit_set_buffer_size(&mut stream, 2048, io_side::OUTPUT).unwrap_err(),
         Error::error()
     );
 }
 
 #[test]
-fn test_set_buffer_size_for_output()
-{
+fn test_set_buffer_size_for_output() {
     // We need to initialize the members with type OwnedCriticalSection in
     // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
     // will be used when AudioUnitStream::drop/destroy is called.
@@ -1626,13 +1372,7 @@ fn test_set_buffer_size_for_output()
         audiounit_increment_active_streams(&mut ctx);
     }
 
-    let mut stream = AudioUnitStream::new(
-        &mut ctx,
-        ptr::null_mut(),
-        None,
-        None,
-        0
-    );
+    let mut stream = AudioUnitStream::new(&mut ctx, ptr::null_mut(), None, None, 0);
     stream.init();
 
     let mut raw = ffi::cubeb_stream_params::default();
@@ -1652,28 +1392,17 @@ fn test_set_buffer_size_for_output()
         return;
     }
 
-    assert!(
-        audiounit_set_device_info(
-            &mut stream,
-            kAudioObjectUnknown,
-            io_side::OUTPUT
-        ).is_ok()
-    );
+    assert!(audiounit_set_device_info(&mut stream, kAudioObjectUnknown, io_side::OUTPUT).is_ok());
 
     assert_eq!(stream.output_device.id, default_output_id);
     assert_eq!(
         stream.output_device.flags,
-        device_flags::DEV_OUTPUT |
-        device_flags::DEV_SELECTED_DEFAULT |
-        device_flags::DEV_SYSTEM_DEFAULT
+        device_flags::DEV_OUTPUT
+            | device_flags::DEV_SELECTED_DEFAULT
+            | device_flags::DEV_SYSTEM_DEFAULT
     );
 
-    assert!(
-        audiounit_create_unit(
-            &mut stream.output_unit,
-            &stream.output_device
-        ).is_ok()
-    );
+    assert!(audiounit_create_unit(&mut stream.output_unit, &stream.output_device).is_ok());
 
     assert!(!stream.output_unit.is_null());
 
@@ -1693,13 +1422,7 @@ fn test_set_buffer_size_for_output()
 
     assert_ne!(buffer_frames, 0);
     buffer_frames *= 2;
-    assert!(
-        audiounit_set_buffer_size(
-            &mut stream,
-            buffer_frames,
-            io_side::OUTPUT
-        ).is_ok()
-    );
+    assert!(audiounit_set_buffer_size(&mut stream, buffer_frames, io_side::OUTPUT).is_ok());
 }
 
 // configure_input
@@ -1724,17 +1447,11 @@ fn test_configure_input_with_null_unit() {
         audiounit_increment_active_streams(&mut ctx);
     }
 
-    let mut stream = AudioUnitStream::new(
-        &mut ctx,
-        ptr::null_mut(),
-        None,
-        None,
-        0
-    );
+    let mut stream = AudioUnitStream::new(&mut ctx, ptr::null_mut(), None, None, 0);
     stream.init();
 
     assert!(stream.input_unit.is_null());
-    assert!{
+    assert! {
         audiounit_configure_input(
             &mut stream
         ).is_err()
@@ -1763,13 +1480,7 @@ fn test_configure_input_with_zero_latency_frames() {
         audiounit_increment_active_streams(&mut ctx);
     }
 
-    let mut stream = AudioUnitStream::new(
-        &mut ctx,
-        ptr::null_mut(),
-        None,
-        None,
-        0
-    );
+    let mut stream = AudioUnitStream::new(&mut ctx, ptr::null_mut(), None, None, 0);
     stream.init();
 
     let mut raw = ffi::cubeb_stream_params::default();
@@ -1789,43 +1500,25 @@ fn test_configure_input_with_zero_latency_frames() {
         return;
     }
 
-    assert!(
-        audiounit_set_device_info(
-            &mut stream,
-            kAudioObjectUnknown,
-            io_side::INPUT
-        ).is_ok()
-    );
+    assert!(audiounit_set_device_info(&mut stream, kAudioObjectUnknown, io_side::INPUT).is_ok());
 
     assert_eq!(stream.input_device.id, default_input_id);
     assert_eq!(
         stream.input_device.flags,
-        device_flags::DEV_INPUT |
-        device_flags::DEV_SELECTED_DEFAULT |
-        device_flags::DEV_SYSTEM_DEFAULT
+        device_flags::DEV_INPUT
+            | device_flags::DEV_SELECTED_DEFAULT
+            | device_flags::DEV_SYSTEM_DEFAULT
     );
 
-    assert!(
-        audiounit_create_unit(
-            &mut stream.input_unit,
-            &stream.input_device
-        ).is_ok()
-    );
+    assert!(audiounit_create_unit(&mut stream.input_unit, &stream.input_device).is_ok());
 
     assert!(!stream.input_unit.is_null());
 
     assert_eq!(stream.latency_frames, 0);
 
-    assert!(
-        audiounit_configure_input(
-            &mut stream
-        ).is_ok()
-    );
+    assert!(audiounit_configure_input(&mut stream).is_ok());
 
-    assert_ne!(
-        stream.input_hw_rate,
-        0_f64
-    );
+    assert_ne!(stream.input_hw_rate, 0_f64);
 
     let mut description = AudioStreamBasicDescription::default();
     let mut size = mem::size_of::<AudioStreamBasicDescription>();
@@ -1840,10 +1533,7 @@ fn test_configure_input_with_zero_latency_frames() {
         ),
         0
     );
-    assert_eq!(
-        description.mSampleRate,
-        stream.input_hw_rate
-    );
+    assert_eq!(description.mSampleRate, stream.input_hw_rate);
 
     let mut buffer_frames: u32 = 0;
     let mut size = mem::size_of::<u32>();
@@ -1859,10 +1549,7 @@ fn test_configure_input_with_zero_latency_frames() {
         0
     );
     // TODO: buffer frames size won't be 0 even it's ok to set that!
-    assert_ne!(
-        stream.latency_frames,
-        buffer_frames
-    );
+    assert_ne!(stream.latency_frames, buffer_frames);
 
     let mut frames_per_slice: u32 = 0;
     let mut size = mem::size_of::<u32>();
@@ -1878,10 +1565,7 @@ fn test_configure_input_with_zero_latency_frames() {
         0
     );
     // TODO: frames per slice won't be 0 even it's ok to set that!
-    assert_ne!(
-        stream.latency_frames,
-        frames_per_slice
-    );
+    assert_ne!(stream.latency_frames, frames_per_slice);
 }
 
 fn test_configure_input_impl<T: std::any::Any>(array: &[T]) {
@@ -1912,13 +1596,7 @@ fn test_configure_input_impl<T: std::any::Any>(array: &[T]) {
         audiounit_increment_active_streams(&mut ctx);
     }
 
-    let mut stream = AudioUnitStream::new(
-        &mut ctx,
-        ptr::null_mut(),
-        None,
-        None,
-        0
-    );
+    let mut stream = AudioUnitStream::new(&mut ctx, ptr::null_mut(), None, None, 0);
     stream.init();
     assert!(stream.input_linear_buffer.is_none());
 
@@ -1939,28 +1617,17 @@ fn test_configure_input_impl<T: std::any::Any>(array: &[T]) {
         return;
     }
 
-    assert!(
-        audiounit_set_device_info(
-            &mut stream,
-            kAudioObjectUnknown,
-            io_side::INPUT
-        ).is_ok()
-    );
+    assert!(audiounit_set_device_info(&mut stream, kAudioObjectUnknown, io_side::INPUT).is_ok());
 
     assert_eq!(stream.input_device.id, default_input_id);
     assert_eq!(
         stream.input_device.flags,
-        device_flags::DEV_INPUT |
-        device_flags::DEV_SELECTED_DEFAULT |
-        device_flags::DEV_SYSTEM_DEFAULT
+        device_flags::DEV_INPUT
+            | device_flags::DEV_SELECTED_DEFAULT
+            | device_flags::DEV_SYSTEM_DEFAULT
     );
 
-    assert!(
-        audiounit_create_unit(
-            &mut stream.input_unit,
-            &stream.input_device
-        ).is_ok()
-    );
+    assert!(audiounit_create_unit(&mut stream.input_unit, &stream.input_device).is_ok());
 
     assert!(!stream.input_unit.is_null());
 
@@ -1978,16 +1645,9 @@ fn test_configure_input_impl<T: std::any::Any>(array: &[T]) {
         assert_ne!(stream.latency_frames, 0);
     }
 
-    assert!(
-        audiounit_configure_input(
-            &mut stream
-        ).is_ok()
-    );
+    assert!(audiounit_configure_input(&mut stream).is_ok());
 
-    assert_ne!(
-        stream.input_hw_rate,
-        0_f64
-    );
+    assert_ne!(stream.input_hw_rate, 0_f64);
 
     let mut description = AudioStreamBasicDescription::default();
     let mut size = mem::size_of::<AudioStreamBasicDescription>();
@@ -2002,10 +1662,7 @@ fn test_configure_input_impl<T: std::any::Any>(array: &[T]) {
         ),
         0
     );
-    assert_eq!(
-        description.mSampleRate,
-        stream.input_hw_rate
-    );
+    assert_eq!(description.mSampleRate, stream.input_hw_rate);
 
     let mut buffer_frames: u32 = 0;
     let mut size = mem::size_of::<u32>();
@@ -2020,10 +1677,7 @@ fn test_configure_input_impl<T: std::any::Any>(array: &[T]) {
         ),
         0
     );
-    assert_eq!(
-        stream.latency_frames,
-        buffer_frames
-    );
+    assert_eq!(stream.latency_frames, buffer_frames);
 
     let mut frames_per_slice: u32 = 0;
     let mut size = mem::size_of::<u32>();
@@ -2038,16 +1692,14 @@ fn test_configure_input_impl<T: std::any::Any>(array: &[T]) {
         ),
         0
     );
-    assert_eq!(
-        stream.latency_frames,
-        frames_per_slice
-    );
+    assert_eq!(stream.latency_frames, frames_per_slice);
 
     assert!(stream.input_linear_buffer.is_some());
-    stream.input_linear_buffer.as_mut().unwrap().push(
-        array.as_ptr() as *const c_void,
-        array.len()
-    );
+    stream
+        .input_linear_buffer
+        .as_mut()
+        .unwrap()
+        .push(array.as_ptr() as *const c_void, array.len());
 
     // TODO: Check input callback ...
     // struct Data {
@@ -2108,17 +1760,11 @@ fn test_configure_output_with_null_unit() {
         audiounit_increment_active_streams(&mut ctx);
     }
 
-    let mut stream = AudioUnitStream::new(
-        &mut ctx,
-        ptr::null_mut(),
-        None,
-        None,
-        0
-    );
+    let mut stream = AudioUnitStream::new(&mut ctx, ptr::null_mut(), None, None, 0);
     stream.init();
 
     assert!(stream.output_unit.is_null());
-    assert!{
+    assert! {
         audiounit_configure_output(
             &mut stream
         ).is_err()
@@ -2147,13 +1793,7 @@ fn test_configure_output_with_zero_latency_frames() {
         audiounit_increment_active_streams(&mut ctx);
     }
 
-    let mut stream = AudioUnitStream::new(
-        &mut ctx,
-        ptr::null_mut(),
-        None,
-        None,
-        0
-    );
+    let mut stream = AudioUnitStream::new(&mut ctx, ptr::null_mut(), None, None, 0);
     stream.init();
 
     let mut raw = ffi::cubeb_stream_params::default();
@@ -2173,43 +1813,25 @@ fn test_configure_output_with_zero_latency_frames() {
         return;
     }
 
-    assert!(
-        audiounit_set_device_info(
-            &mut stream,
-            kAudioObjectUnknown,
-            io_side::OUTPUT
-        ).is_ok()
-    );
+    assert!(audiounit_set_device_info(&mut stream, kAudioObjectUnknown, io_side::OUTPUT).is_ok());
 
     assert_eq!(stream.output_device.id, default_output_id);
     assert_eq!(
         stream.output_device.flags,
-        device_flags::DEV_OUTPUT |
-        device_flags::DEV_SELECTED_DEFAULT |
-        device_flags::DEV_SYSTEM_DEFAULT
+        device_flags::DEV_OUTPUT
+            | device_flags::DEV_SELECTED_DEFAULT
+            | device_flags::DEV_SYSTEM_DEFAULT
     );
 
-    assert!(
-        audiounit_create_unit(
-            &mut stream.output_unit,
-            &stream.output_device
-        ).is_ok()
-    );
+    assert!(audiounit_create_unit(&mut stream.output_unit, &stream.output_device).is_ok());
 
     assert!(!stream.output_unit.is_null());
 
     assert_eq!(stream.latency_frames, 0);
 
-    assert!(
-        audiounit_configure_output(
-            &mut stream
-        ).is_ok()
-    );
+    assert!(audiounit_configure_output(&mut stream).is_ok());
 
-    assert_ne!(
-        stream.output_hw_rate,
-        0_f64
-    );
+    assert_ne!(stream.output_hw_rate, 0_f64);
 
     let mut description = AudioStreamBasicDescription::default();
     let mut size = mem::size_of::<AudioStreamBasicDescription>();
@@ -2224,10 +1846,7 @@ fn test_configure_output_with_zero_latency_frames() {
         ),
         0
     );
-    assert_eq!(
-        description.mSampleRate,
-        stream.output_hw_rate
-    );
+    assert_eq!(description.mSampleRate, stream.output_hw_rate);
 
     let mut buffer_frames: u32 = 0;
     let mut size = mem::size_of::<u32>();
@@ -2243,10 +1862,7 @@ fn test_configure_output_with_zero_latency_frames() {
         0
     );
     // TODO: buffer frames size won't be 0 even it's ok to set that!
-    assert_ne!(
-        stream.latency_frames,
-        buffer_frames
-    );
+    assert_ne!(stream.latency_frames, buffer_frames);
 
     let mut frames_per_slice: u32 = 0;
     let mut size = mem::size_of::<u32>();
@@ -2262,10 +1878,7 @@ fn test_configure_output_with_zero_latency_frames() {
         0
     );
     // TODO: frames per slice won't be 0 even it's ok to set that!
-    assert_ne!(
-        stream.latency_frames,
-        frames_per_slice
-    );
+    assert_ne!(stream.latency_frames, frames_per_slice);
 }
 
 #[test]
@@ -2287,13 +1900,7 @@ fn test_configure_output() {
         audiounit_increment_active_streams(&mut ctx);
     }
 
-    let mut stream = AudioUnitStream::new(
-        &mut ctx,
-        ptr::null_mut(),
-        None,
-        None,
-        0
-    );
+    let mut stream = AudioUnitStream::new(&mut ctx, ptr::null_mut(), None, None, 0);
     stream.init();
 
     let mut raw = ffi::cubeb_stream_params::default();
@@ -2313,28 +1920,17 @@ fn test_configure_output() {
         return;
     }
 
-    assert!(
-        audiounit_set_device_info(
-            &mut stream,
-            kAudioObjectUnknown,
-            io_side::OUTPUT
-        ).is_ok()
-    );
+    assert!(audiounit_set_device_info(&mut stream, kAudioObjectUnknown, io_side::OUTPUT).is_ok());
 
     assert_eq!(stream.output_device.id, default_output_id);
     assert_eq!(
         stream.output_device.flags,
-        device_flags::DEV_OUTPUT |
-        device_flags::DEV_SELECTED_DEFAULT |
-        device_flags::DEV_SYSTEM_DEFAULT
+        device_flags::DEV_OUTPUT
+            | device_flags::DEV_SELECTED_DEFAULT
+            | device_flags::DEV_SYSTEM_DEFAULT
     );
 
-    assert!(
-        audiounit_create_unit(
-            &mut stream.output_unit,
-            &stream.output_device
-        ).is_ok()
-    );
+    assert!(audiounit_create_unit(&mut stream.output_unit, &stream.output_device).is_ok());
 
     assert!(!stream.output_unit.is_null());
 
@@ -2352,16 +1948,9 @@ fn test_configure_output() {
         assert_ne!(stream.latency_frames, 0);
     }
 
-    assert!(
-        audiounit_configure_output(
-            &mut stream
-        ).is_ok()
-    );
+    assert!(audiounit_configure_output(&mut stream).is_ok());
 
-    assert_ne!(
-        stream.output_hw_rate,
-        0_f64
-    );
+    assert_ne!(stream.output_hw_rate, 0_f64);
 
     let mut description = AudioStreamBasicDescription::default();
     let mut size = mem::size_of::<AudioStreamBasicDescription>();
@@ -2376,10 +1965,7 @@ fn test_configure_output() {
         ),
         0
     );
-    assert_eq!(
-        description.mSampleRate,
-        stream.output_hw_rate
-    );
+    assert_eq!(description.mSampleRate, stream.output_hw_rate);
 
     let mut buffer_frames: u32 = 0;
     let mut size = mem::size_of::<u32>();
@@ -2394,10 +1980,7 @@ fn test_configure_output() {
         ),
         0
     );
-    assert_eq!(
-        stream.latency_frames,
-        buffer_frames
-    );
+    assert_eq!(stream.latency_frames, buffer_frames);
 
     let mut frames_per_slice: u32 = 0;
     let mut size = mem::size_of::<u32>();
@@ -2412,10 +1995,7 @@ fn test_configure_output() {
         ),
         0
     );
-    assert_eq!(
-        stream.latency_frames,
-        frames_per_slice
-    );
+    assert_eq!(stream.latency_frames, frames_per_slice);
 
     // TODO: check layout, output callback, ....
     // struct Data {
@@ -2494,13 +2074,7 @@ fn test_stream_get_volume() {
         audiounit_increment_active_streams(&mut ctx);
     }
 
-    let mut stream = AudioUnitStream::new(
-        &mut ctx,
-        ptr::null_mut(),
-        None,
-        None,
-        0
-    );
+    let mut stream = AudioUnitStream::new(&mut ctx, ptr::null_mut(), None, None, 0);
     stream.init();
 
     // The resampler will be initialized in `audiounit_setup_stream` (or via
@@ -2523,20 +2097,14 @@ fn test_stream_get_volume() {
         return;
     }
 
-    assert!(
-        audiounit_set_device_info(
-            &mut stream,
-            kAudioObjectUnknown,
-            io_side::OUTPUT
-        ).is_ok()
-    );
+    assert!(audiounit_set_device_info(&mut stream, kAudioObjectUnknown, io_side::OUTPUT).is_ok());
 
     assert_eq!(stream.output_device.id, default_output_id);
     assert_eq!(
         stream.output_device.flags,
-        device_flags::DEV_OUTPUT |
-        device_flags::DEV_SELECTED_DEFAULT |
-        device_flags::DEV_SYSTEM_DEFAULT
+        device_flags::DEV_OUTPUT
+            | device_flags::DEV_SELECTED_DEFAULT
+            | device_flags::DEV_SYSTEM_DEFAULT
     );
 
     {
@@ -2563,14 +2131,10 @@ fn test_convert_uint32_into_string() {
     let empty = convert_uint32_into_string(0);
     assert_eq!(empty, CString::default());
 
-    let data: u32 = ('R' as u32) << 24 |
-                    ('U' as u32) << 16 |
-                    ('S' as u32) << 8 |
-                    'T' as u32;
+    let data: u32 = ('R' as u32) << 24 | ('U' as u32) << 16 | ('S' as u32) << 8 | 'T' as u32;
     let data_string = convert_uint32_into_string(data);
     assert_eq!(data_string, CString::new("RUST").unwrap());
 }
-
 
 // audiounit_get_default_device_datasource
 // ------------------------------------
@@ -2737,7 +2301,7 @@ fn test_get_available_samplerate_unknown() {
         kAudioObjectPropertyScopeGlobal,
         &mut min,
         &mut max,
-        &mut defualt
+        &mut defualt,
     );
     assert_eq!(defualt, 0);
     assert_eq!(min, 0);
@@ -2749,7 +2313,7 @@ fn test_get_available_samplerate_unknown() {
         kAudioDevicePropertyScopeInput,
         &mut min,
         &mut max,
-        &mut defualt
+        &mut defualt,
     );
     assert_eq!(defualt, 0);
     assert_eq!(min, 0);
@@ -2761,7 +2325,7 @@ fn test_get_available_samplerate_unknown() {
         kAudioDevicePropertyScopeOutput,
         &mut min,
         &mut max,
-        &mut defualt
+        &mut defualt,
     );
     assert_eq!(defualt, 0);
     assert_eq!(min, 0);
@@ -2785,7 +2349,7 @@ fn test_get_available_samplerate_input() {
         kAudioObjectPropertyScopeGlobal,
         &mut min,
         &mut max,
-        &mut defualt
+        &mut defualt,
     );
     // println!("[samplerate_input] <global> default: {}, min: {}, max: {}", defualt, min, max);
     assert!(defualt > 0);
@@ -2804,7 +2368,7 @@ fn test_get_available_samplerate_input() {
         kAudioDevicePropertyScopeInput,
         &mut min,
         &mut max,
-        &mut defualt
+        &mut defualt,
     );
     // println!("[samplerate_input] <input> default: {}, min: {}, max: {}", defualt, min, max);
     assert!(defualt > 0);
@@ -2823,7 +2387,7 @@ fn test_get_available_samplerate_input() {
         kAudioDevicePropertyScopeOutput,
         &mut min,
         &mut max,
-        &mut defualt
+        &mut defualt,
     );
     // println!("[samplerate_input] <output> default: {}, min: {}, max: {}", defualt, min, max);
     if is_output(input_id) {
@@ -2865,7 +2429,7 @@ fn test_get_available_samplerate_output() {
         kAudioObjectPropertyScopeGlobal,
         &mut min,
         &mut max,
-        &mut defualt
+        &mut defualt,
     );
     // println!("[samplerate_output] <global> default: {}, min: {}, max: {}", defualt, min, max);
     assert!(defualt > 0);
@@ -2884,7 +2448,7 @@ fn test_get_available_samplerate_output() {
         kAudioDevicePropertyScopeInput,
         &mut min,
         &mut max,
-        &mut defualt
+        &mut defualt,
     );
     // println!("[samplerate_output] <input> default: {}, min: {}, max: {}", defualt, min, max);
     if is_input(output_id) {
@@ -2917,7 +2481,7 @@ fn test_get_available_samplerate_output() {
         kAudioDevicePropertyScopeOutput,
         &mut min,
         &mut max,
-        &mut defualt
+        &mut defualt,
     );
     // println!("[samplerate_output] <output> default: {}, min: {}, max: {}", defualt, min, max);
     assert!(defualt > 0);
@@ -2966,26 +2530,17 @@ fn test_get_device_presentation_latency_input() {
     let mut latency = 0;
 
     // global scope:
-    latency = audiounit_get_device_presentation_latency(
-        input_id,
-        kAudioObjectPropertyScopeGlobal,
-    );
+    latency = audiounit_get_device_presentation_latency(input_id, kAudioObjectPropertyScopeGlobal);
     assert_eq!(latency, 0);
 
     // TODO: latency on some devices are 0 so the test fails!
 
     // input scope:
-    latency = audiounit_get_device_presentation_latency(
-        input_id,
-        kAudioDevicePropertyScopeInput,
-    );
+    latency = audiounit_get_device_presentation_latency(input_id, kAudioDevicePropertyScopeInput);
     // assert!(latency > 0);
 
     // output scope:
-    latency = audiounit_get_device_presentation_latency(
-        input_id,
-        kAudioDevicePropertyScopeOutput,
-    );
+    latency = audiounit_get_device_presentation_latency(input_id, kAudioDevicePropertyScopeOutput);
     // if is_output(input_id) {
     //     assert!(latency > 0);
     // } else {
@@ -3003,19 +2558,13 @@ fn test_get_device_presentation_latency_output() {
     let mut latency = 0;
 
     // global scope:
-    latency = audiounit_get_device_presentation_latency(
-        output_id,
-        kAudioObjectPropertyScopeGlobal,
-    );
+    latency = audiounit_get_device_presentation_latency(output_id, kAudioObjectPropertyScopeGlobal);
     assert_eq!(latency, 0);
 
     // TODO: latency on some devices are 0 so the test fails!
 
     // input scope:
-    latency = audiounit_get_device_presentation_latency(
-        output_id,
-        kAudioDevicePropertyScopeInput,
-    );
+    latency = audiounit_get_device_presentation_latency(output_id, kAudioDevicePropertyScopeInput);
     if is_input(output_id) {
         assert!(latency > 0);
     } else {
@@ -3023,10 +2572,7 @@ fn test_get_device_presentation_latency_output() {
     }
 
     // output scope:
-    latency = audiounit_get_device_presentation_latency(
-        output_id,
-        kAudioDevicePropertyScopeOutput,
-    );
+    latency = audiounit_get_device_presentation_latency(output_id, kAudioDevicePropertyScopeOutput);
     assert!(latency > 0);
 }
 
@@ -3038,31 +2584,22 @@ fn test_create_device_from_hwdev_unknown() {
 
     // unknown
     assert_eq!(
-        audiounit_create_device_from_hwdev(
-            &mut info,
-            kAudioObjectUnknown,
-            DeviceType::UNKNOWN,
-        ).unwrap_err(),
+        audiounit_create_device_from_hwdev(&mut info, kAudioObjectUnknown, DeviceType::UNKNOWN,)
+            .unwrap_err(),
         Error::error()
     );
 
     // input
     assert_eq!(
-        audiounit_create_device_from_hwdev(
-            &mut info,
-            kAudioObjectUnknown,
-            DeviceType::INPUT,
-        ).unwrap_err(),
+        audiounit_create_device_from_hwdev(&mut info, kAudioObjectUnknown, DeviceType::INPUT,)
+            .unwrap_err(),
         Error::error()
     );
 
     // output
     assert_eq!(
-        audiounit_create_device_from_hwdev(
-            &mut info,
-            kAudioObjectUnknown,
-            DeviceType::OUTPUT,
-        ).unwrap_err(),
+        audiounit_create_device_from_hwdev(&mut info, kAudioObjectUnknown, DeviceType::OUTPUT,)
+            .unwrap_err(),
         Error::error()
     );
 
@@ -3072,7 +2609,8 @@ fn test_create_device_from_hwdev_unknown() {
             &mut info,
             kAudioObjectUnknown,
             DeviceType::INPUT | DeviceType::OUTPUT,
-        ).unwrap_err(),
+        )
+        .unwrap_err(),
         Error::error()
     );
 }
@@ -3088,23 +2626,13 @@ fn test_create_device_from_hwdev_input() {
 
     // unknown
     assert_eq!(
-        audiounit_create_device_from_hwdev(
-            &mut info,
-            input_id,
-            DeviceType::UNKNOWN,
-        ).unwrap_err(),
+        audiounit_create_device_from_hwdev(&mut info, input_id, DeviceType::UNKNOWN,).unwrap_err(),
         Error::error()
     );
 
     // input
     info = ffi::cubeb_device_info::default();
-    assert!(
-        audiounit_create_device_from_hwdev(
-            &mut info,
-            input_id,
-            DeviceType::INPUT,
-        ).is_ok()
-    );
+    assert!(audiounit_create_device_from_hwdev(&mut info, input_id, DeviceType::INPUT,).is_ok());
     assert!(!info.devid.is_null());
     assert!(!info.device_id.is_null());
     assert_eq!(info.group_id, info.device_id);
@@ -3126,11 +2654,7 @@ fn test_create_device_from_hwdev_input() {
     info = ffi::cubeb_device_info::default();
     if is_output(input_id) {
         assert!(
-            audiounit_create_device_from_hwdev(
-                &mut info,
-                input_id,
-                DeviceType::OUTPUT,
-            ).is_ok()
+            audiounit_create_device_from_hwdev(&mut info, input_id, DeviceType::OUTPUT,).is_ok()
         );
         assert!(!info.devid.is_null());
         // assert!(info.device_id.is_null());
@@ -3158,11 +2682,8 @@ fn test_create_device_from_hwdev_input() {
         assert!(info.latency_lo <= info.latency_hi);
     } else {
         assert_eq!(
-            audiounit_create_device_from_hwdev(
-                &mut info,
-                input_id,
-                DeviceType::OUTPUT,
-            ).unwrap_err(),
+            audiounit_create_device_from_hwdev(&mut info, input_id, DeviceType::OUTPUT,)
+                .unwrap_err(),
             Error::error()
         );
     }
@@ -3173,7 +2694,8 @@ fn test_create_device_from_hwdev_input() {
             &mut info,
             input_id,
             DeviceType::INPUT | DeviceType::OUTPUT,
-        ).unwrap_err(),
+        )
+        .unwrap_err(),
         Error::error()
     );
 }
@@ -3189,11 +2711,7 @@ fn test_create_device_from_hwdev_output() {
 
     // unknown
     assert_eq!(
-        audiounit_create_device_from_hwdev(
-            &mut info,
-            output_id,
-            DeviceType::UNKNOWN,
-        ).unwrap_err(),
+        audiounit_create_device_from_hwdev(&mut info, output_id, DeviceType::UNKNOWN,).unwrap_err(),
         Error::error()
     );
 
@@ -3201,11 +2719,7 @@ fn test_create_device_from_hwdev_output() {
     info = ffi::cubeb_device_info::default();
     if is_input(output_id) {
         assert!(
-            audiounit_create_device_from_hwdev(
-                &mut info,
-                output_id,
-                DeviceType::INPUT,
-            ).is_ok()
+            audiounit_create_device_from_hwdev(&mut info, output_id, DeviceType::INPUT,).is_ok()
         );
         assert!(!info.devid.is_null());
         assert!(!info.device_id.is_null());
@@ -3233,24 +2747,15 @@ fn test_create_device_from_hwdev_output() {
         assert!(info.latency_lo <= info.latency_hi);
     } else {
         assert_eq!(
-            audiounit_create_device_from_hwdev(
-                &mut info,
-                output_id,
-                DeviceType::INPUT,
-            ).unwrap_err(),
+            audiounit_create_device_from_hwdev(&mut info, output_id, DeviceType::INPUT,)
+                .unwrap_err(),
             Error::error()
         );
     }
 
     // output
     info = ffi::cubeb_device_info::default();
-    assert!(
-        audiounit_create_device_from_hwdev(
-            &mut info,
-            output_id,
-            DeviceType::OUTPUT,
-        ).is_ok()
-    );
+    assert!(audiounit_create_device_from_hwdev(&mut info, output_id, DeviceType::OUTPUT,).is_ok());
     assert!(!info.devid.is_null());
     assert!(!info.device_id.is_null());
     assert_eq!(info.group_id, info.device_id);
@@ -3274,7 +2779,8 @@ fn test_create_device_from_hwdev_output() {
             &mut info,
             output_id,
             DeviceType::INPUT | DeviceType::OUTPUT,
-        ).unwrap_err(),
+        )
+        .unwrap_err(),
         Error::error()
     );
 }
@@ -3420,25 +2926,14 @@ fn test_add_device_listener_with_none_callback() {
     // (kAudioHardwareIllegalOperationError).
     for devtype in &[DeviceType::INPUT, DeviceType::OUTPUT] {
         assert_eq!(
-            audiounit_add_device_listener(
-                ctx_ptr,
-                *devtype,
-                None,
-                ptr::null_mut()
-            ),
+            audiounit_add_device_listener(ctx_ptr, *devtype, None, ptr::null_mut()),
             0
         );
     }
 
-    assert_eq!(
-        ctx.input_collection_changed_callback,
-        None
-    );
+    assert_eq!(ctx.input_collection_changed_callback, None);
 
-    assert_eq!(
-        ctx.output_collection_changed_callback,
-        None
-    );
+    assert_eq!(ctx.output_collection_changed_callback, None);
 
     // If it's not ok to register `none` as callback, we should pass the following test.
     // for devtype in &[DeviceType::INPUT, DeviceType::OUTPUT] {
@@ -3476,7 +2971,7 @@ fn test_add_device_listener_within_unknown_scope() {
         ctx_ptr,
         DeviceType::UNKNOWN,
         Some(callback),
-        ptr::null_mut()
+        ptr::null_mut(),
     );
 }
 
@@ -3493,28 +2988,22 @@ fn test_add_device_listeners_dont_affect_other_scopes_with_same_callback() {
     for devtype in [
         DeviceType::INPUT,
         DeviceType::OUTPUT,
-        DeviceType::INPUT | DeviceType::OUTPUT
-    ].iter() {
+        DeviceType::INPUT | DeviceType::OUTPUT,
+    ]
+    .iter()
+    {
         assert!(ctx.input_collection_changed_callback.is_none());
         assert!(ctx.output_collection_changed_callback.is_none());
 
         // Register a callback within a specific scope.
         assert_eq!(
-            audiounit_add_device_listener(
-                ctx_ptr,
-                *devtype,
-                Some(callback),
-                ptr::null_mut()
-            ),
+            audiounit_add_device_listener(ctx_ptr, *devtype, Some(callback), ptr::null_mut()),
             0
         );
 
         // TODO: It doesn't work, but the return value is ok.
         assert_eq!(
-            audiounit_remove_device_listener(
-                ctx_ptr,
-                DeviceType::UNKNOWN
-            ),
+            audiounit_remove_device_listener(ctx_ptr, DeviceType::UNKNOWN),
             0
         );
 
@@ -3534,10 +3023,7 @@ fn test_add_device_listeners_dont_affect_other_scopes_with_same_callback() {
 
         // Unregister the callbacks within all scopes.
         assert_eq!(
-            audiounit_remove_device_listener(
-                ctx_ptr,
-                DeviceType::INPUT | DeviceType::OUTPUT,
-            ),
+            audiounit_remove_device_listener(ctx_ptr, DeviceType::INPUT | DeviceType::OUTPUT,),
             0
         );
     }
@@ -3553,7 +3039,7 @@ fn test_add_device_listeners_dont_affect_other_scopes_with_different_callbacks()
 
     extern "C" fn out_callback(_: *mut ffi::cubeb, _: *mut c_void) {}
 
-    let mut map: HashMap<DeviceType, extern fn(*mut ffi::cubeb, *mut c_void)> = HashMap::new();
+    let mut map: HashMap<DeviceType, extern "C" fn(*mut ffi::cubeb, *mut c_void)> = HashMap::new();
     map.insert(DeviceType::INPUT, in_callback);
     map.insert(DeviceType::OUTPUT, out_callback);
     map.insert(DeviceType::INPUT | DeviceType::OUTPUT, inout_callback);
@@ -3570,21 +3056,13 @@ fn test_add_device_listeners_dont_affect_other_scopes_with_different_callbacks()
 
         // Register a callback within a specific scope.
         assert_eq!(
-            audiounit_add_device_listener(
-                ctx_ptr,
-                *devtype,
-                Some(*callback),
-                ptr::null_mut()
-            ),
+            audiounit_add_device_listener(ctx_ptr, *devtype, Some(*callback), ptr::null_mut()),
             0
         );
 
         // TODO: It doesn't work, but the return value is ok.
         assert_eq!(
-            audiounit_remove_device_listener(
-                ctx_ptr,
-                DeviceType::UNKNOWN
-            ),
+            audiounit_remove_device_listener(ctx_ptr, DeviceType::UNKNOWN),
             0
         );
 
@@ -3604,10 +3082,7 @@ fn test_add_device_listeners_dont_affect_other_scopes_with_different_callbacks()
 
         // Unregister the callbacks within all scopes.
         assert_eq!(
-            audiounit_remove_device_listener(
-                ctx_ptr,
-                DeviceType::INPUT | DeviceType::OUTPUT
-            ),
+            audiounit_remove_device_listener(ctx_ptr, DeviceType::INPUT | DeviceType::OUTPUT),
             0
         );
 
@@ -3632,13 +3107,7 @@ fn test_remove_device_listener_without_adding_listeners() {
         DeviceType::OUTPUT,
         DeviceType::INPUT | DeviceType::OUTPUT,
     ] {
-        assert_eq!(
-            audiounit_remove_device_listener(
-                ctx_ptr,
-                *devtype
-            ),
-            0
-        );
+        assert_eq!(audiounit_remove_device_listener(ctx_ptr, *devtype), 0);
     }
 }
 
@@ -3652,7 +3121,7 @@ fn test_remove_device_listeners_within_all_scopes() {
 
     extern "C" fn out_callback(_: *mut ffi::cubeb, _: *mut c_void) {}
 
-    let mut map: HashMap<DeviceType, extern fn(*mut ffi::cubeb, *mut c_void)> = HashMap::new();
+    let mut map: HashMap<DeviceType, extern "C" fn(*mut ffi::cubeb, *mut c_void)> = HashMap::new();
     map.insert(DeviceType::INPUT, in_callback);
     map.insert(DeviceType::OUTPUT, out_callback);
     map.insert(DeviceType::INPUT | DeviceType::OUTPUT, inout_callback);
@@ -3671,29 +3140,18 @@ fn test_remove_device_listeners_within_all_scopes() {
 
     for (devtype, callback) in map.iter() {
         assert_eq!(
-            audiounit_add_device_listener(
-                ctx_ptr,
-                *devtype,
-                Some(*callback),
-                ptr::null_mut()
-            ),
+            audiounit_add_device_listener(ctx_ptr, *devtype, Some(*callback), ptr::null_mut()),
             0
         );
 
         // TODO: It doesn't work, but the return value is ok.
         assert_eq!(
-            audiounit_remove_device_listener(
-                ctx_ptr,
-                DeviceType::UNKNOWN
-            ),
+            audiounit_remove_device_listener(ctx_ptr, DeviceType::UNKNOWN),
             0
         );
 
         assert_eq!(
-            audiounit_remove_device_listener(
-                ctx_ptr,
-                DeviceType::INPUT | DeviceType::OUTPUT
-            ),
+            audiounit_remove_device_listener(ctx_ptr, DeviceType::INPUT | DeviceType::OUTPUT),
             0
         );
 
@@ -3715,8 +3173,10 @@ fn test_remove_device_listeners_dont_affect_other_scopes_with_same_callback() {
     for devtype in [
         DeviceType::INPUT,
         DeviceType::OUTPUT,
-        DeviceType::INPUT | DeviceType::OUTPUT
-    ].iter() {
+        DeviceType::INPUT | DeviceType::OUTPUT,
+    ]
+    .iter()
+    {
         assert!(ctx.input_collection_changed_callback.is_none());
         assert!(ctx.output_collection_changed_callback.is_none());
 
@@ -3737,13 +3197,7 @@ fn test_remove_device_listeners_dont_affect_other_scopes_with_same_callback() {
         assert!(ctx.output_collection_changed_callback.unwrap() == callback);
 
         // Unregister the callbacks within one specific scopes.
-        assert_eq!(
-            audiounit_remove_device_listener(
-                ctx_ptr,
-                *devtype,
-            ),
-            0
-        );
+        assert_eq!(audiounit_remove_device_listener(ctx_ptr, *devtype,), 0);
 
         if devtype.contains(DeviceType::INPUT) {
             assert!(ctx.input_collection_changed_callback.is_none());
@@ -3761,10 +3215,7 @@ fn test_remove_device_listeners_dont_affect_other_scopes_with_same_callback() {
 
         // Unregister the callbacks within all scopes.
         assert_eq!(
-            audiounit_remove_device_listener(
-                ctx_ptr,
-                DeviceType::INPUT | DeviceType::OUTPUT,
-            ),
+            audiounit_remove_device_listener(ctx_ptr, DeviceType::INPUT | DeviceType::OUTPUT,),
             0
         );
     }
@@ -3778,7 +3229,7 @@ fn test_remove_device_listeners_dont_affect_other_scopes_with_different_callback
 
     extern "C" fn out_callback(_: *mut ffi::cubeb, _: *mut c_void) {}
 
-    let mut map: HashMap<DeviceType, extern fn(*mut ffi::cubeb, *mut c_void)> = HashMap::new();
+    let mut map: HashMap<DeviceType, extern "C" fn(*mut ffi::cubeb, *mut c_void)> = HashMap::new();
     map.insert(DeviceType::INPUT, in_callback);
     map.insert(DeviceType::OUTPUT, out_callback);
 
@@ -3801,12 +3252,7 @@ fn test_remove_device_listeners_dont_affect_other_scopes_with_different_callback
         // Register callbacks within all scopes.
         for (scope, listener) in map.iter() {
             assert_eq!(
-                audiounit_add_device_listener(
-                    ctx_ptr,
-                    *scope,
-                    Some(*listener),
-                    ptr::null_mut()
-                ),
+                audiounit_add_device_listener(ctx_ptr, *scope, Some(*listener), ptr::null_mut()),
                 0
             );
         }
@@ -3823,13 +3269,7 @@ fn test_remove_device_listeners_dont_affect_other_scopes_with_different_callback
         );
 
         // Unregister the callbacks within one specific scopes.
-        assert_eq!(
-            audiounit_remove_device_listener(
-                ctx_ptr,
-                *devtype,
-            ),
-            0
-        );
+        assert_eq!(audiounit_remove_device_listener(ctx_ptr, *devtype,), 0);
 
         if devtype == &DeviceType::INPUT {
             assert!(ctx.input_collection_changed_callback.is_none());
@@ -3853,10 +3293,7 @@ fn test_remove_device_listeners_dont_affect_other_scopes_with_different_callback
 
         // Unregister the callbacks within all scopes.
         assert_eq!(
-            audiounit_remove_device_listener(
-                ctx_ptr,
-                DeviceType::INPUT | DeviceType::OUTPUT,
-            ),
+            audiounit_remove_device_listener(ctx_ptr, DeviceType::INPUT | DeviceType::OUTPUT,),
             0
         );
     }
@@ -3883,7 +3320,11 @@ fn unit_scope_is_enabled(unit: AudioUnit, is_input: bool) -> bool {
         audio_unit_get_property(
             unit,
             kAudioOutputUnitProperty_HasIO,
-            if is_input { kAudioUnitScope_Input } else { kAudioUnitScope_Output },
+            if is_input {
+                kAudioUnitScope_Input
+            } else {
+                kAudioUnitScope_Output
+            },
             if is_input { AU_IN_BUS } else { AU_OUT_BUS },
             &mut has_io,
             &mut mem::size_of::<UInt32>()
@@ -3896,9 +3337,7 @@ fn unit_scope_is_enabled(unit: AudioUnit, is_input: bool) -> bool {
 fn to_devices_names(devices: &Vec<AudioObjectID>) -> Vec<Option<String>> {
     let mut names = Vec::new();
     for device in devices {
-        names.push(
-            to_device_name(*device)
-        );
+        names.push(to_device_name(*device));
     }
     names
 }
