@@ -1,6 +1,7 @@
 use super::utils::{
-    test_get_all_devices, test_get_default_audiounit, test_get_default_device,
-    test_get_default_source_name, test_get_empty_stream, test_get_locked_context, Scope,
+    test_create_audiounit, test_get_all_devices, test_get_default_audiounit,
+    test_get_default_device, test_get_default_source_name, test_get_empty_stream,
+    test_get_locked_context, ComponentSubType, Scope,
 };
 use super::*;
 
@@ -931,6 +932,12 @@ fn test_get_preferred_channel_layout_output() {
     if let Some(layout) = devices_layouts.get(source.as_str()) {
         assert_eq!(audiounit_get_preferred_channel_layout(unit), *layout);
     }
+
+    // Destroy the AudioUnit
+    unsafe {
+        AudioUnitUninitialize(unit);
+        AudioComponentInstanceDispose(unit);
+    }
 }
 
 // TODO: Should it be banned ? It only works with output audiounit for now.
@@ -963,6 +970,12 @@ fn test_get_current_channel_layout_output() {
     let unit = unit.unwrap();
     if let Some(layout) = devices_layouts.get(source.as_str()) {
         assert_eq!(audiounit_get_current_channel_layout(unit), *layout);
+    }
+
+    // Destroy the AudioUnit
+    unsafe {
+        AudioUnitUninitialize(unit);
+        AudioComponentInstanceDispose(unit);
     }
 }
 
@@ -1064,6 +1077,12 @@ fn test_set_channel_layout_output() {
         assert!(audiounit_set_channel_layout(unit, io_side::OUTPUT, *layout).is_ok());
         assert_eq!(audiounit_get_current_channel_layout(unit), *layout);
     }
+
+    // Destroy the AudioUnit
+    unsafe {
+        AudioUnitUninitialize(unit);
+        AudioComponentInstanceDispose(unit);
+    }
 }
 
 #[test]
@@ -1079,6 +1098,12 @@ fn test_set_channel_layout_output_undefind() {
 
         // Check the layout is same as the original one.
         assert_eq!(audiounit_get_current_channel_layout(unit), original_layout);
+
+        // Destroy the AudioUnit
+        unsafe {
+            AudioUnitUninitialize(unit);
+            AudioComponentInstanceDispose(unit);
+        }
     }
 }
 
@@ -1090,6 +1115,12 @@ fn test_set_channel_layout_input() {
                 .unwrap_err(),
             Error::error()
         );
+
+        // Destroy the AudioUnit
+        unsafe {
+            AudioUnitUninitialize(unit);
+            AudioComponentInstanceDispose(unit);
+        }
     }
 }
 
@@ -1123,6 +1154,12 @@ fn test_layout_init() {
 
             assert_eq!(stream.context.layout.load(atomic::Ordering::SeqCst), layout);
         });
+
+        // Destroy the AudioUnit
+        unsafe {
+            AudioUnitUninitialize(unit);
+            AudioComponentInstanceDispose(unit);
+        }
     }
 }
 
@@ -1134,7 +1171,6 @@ fn test_layout_init() {
 fn test_get_sub_devices() {
     let devices = test_get_all_devices();
     for device in devices {
-        println!("{}", device);
         assert_ne!(device, kAudioObjectUnknown);
         // `audiounit_get_sub_devices(device)` will return a single-element vector
         //  containing `device` itself if it's not an aggregate device.
@@ -1152,4 +1188,209 @@ fn test_get_sub_devices() {
 fn test_get_sub_devices_for_a_unknown_device() {
     let devices = audiounit_get_sub_devices(kAudioObjectUnknown);
     assert!(devices.is_empty());
+}
+
+// get_device_name
+// ------------------------------------
+#[test]
+fn test_get_device_name() {
+    // Unknown device.
+    assert!(get_device_name(kAudioObjectUnknown).is_null());
+
+    // Input device.
+    if let Some(input) = test_get_default_device(Scope::Input) {
+        let name = get_device_name(input);
+        assert!(!name.is_null());
+        unsafe {
+            CFRelease(name as *const c_void);
+        }
+    }
+
+    // Output device.
+    if let Some(output) = test_get_default_device(Scope::Output) {
+        let name = get_device_name(output);
+        assert!(!name.is_null());
+        unsafe {
+            CFRelease(name as *const c_void);
+        }
+    }
+}
+
+// set_aggregate_sub_device_list
+// ------------------------------------
+#[test]
+fn test_set_aggregate_sub_device_list_for_an_unknown_aggregate_device() {
+    // If aggregate device id is kAudioObjectUnknown, we won't be able to
+    // set device list.
+    assert_eq!(
+        audiounit_set_aggregate_sub_device_list(
+            kAudioObjectUnknown,
+            kAudioObjectUnknown,
+            kAudioObjectUnknown
+        )
+        .unwrap_err(),
+        Error::error()
+    );
+
+    let default_input = test_get_default_device(Scope::Input);
+    let default_output = test_get_default_device(Scope::Output);
+    if default_input.is_none() || default_output.is_none() {
+        return;
+    }
+
+    let default_input = default_input.unwrap();
+    let default_output = default_output.unwrap();
+    assert_eq!(
+        audiounit_set_aggregate_sub_device_list(kAudioObjectUnknown, default_input, default_output)
+            .unwrap_err(),
+        Error::error()
+    );
+}
+
+// set_master_aggregate_device
+// ------------------------------------
+#[test]
+#[should_panic]
+fn test_set_master_aggregate_device_for_an_unknown_aggregate_device() {
+    assert_eq!(
+        audiounit_set_master_aggregate_device(kAudioObjectUnknown).unwrap_err(),
+        Error::error()
+    );
+}
+
+// activate_clock_drift_compensation
+// ------------------------------------
+#[test]
+#[should_panic]
+fn test_activate_clock_drift_compensation_for_an_unknown_aggregate_device() {
+    assert_eq!(
+        audiounit_activate_clock_drift_compensation(kAudioObjectUnknown).unwrap_err(),
+        Error::error()
+    );
+}
+
+// workaround_for_airpod
+// ------------------------------------
+// TODO
+
+// create_aggregate_device
+// ------------------------------------
+// TODO
+
+// destroy_aggregate_device
+// ------------------------------------
+#[test]
+#[should_panic]
+fn test_destroy_aggregate_device_for_unknown_plugin_and_aggregate_devices() {
+    let mut aggregate_device_id = kAudioObjectUnknown;
+    assert_eq!(
+        audiounit_destroy_aggregate_device(kAudioObjectUnknown, &mut aggregate_device_id)
+            .unwrap_err(),
+        Error::error()
+    )
+}
+
+// new_unit_instance
+// ------------------------------------
+#[test]
+fn test_new_unit_instance() {
+    let flags_list = [
+        device_flags::DEV_UNKNOWN,
+        device_flags::DEV_INPUT,
+        device_flags::DEV_OUTPUT,
+        device_flags::DEV_INPUT | device_flags::DEV_OUTPUT,
+        device_flags::DEV_INPUT | device_flags::DEV_SYSTEM_DEFAULT,
+        device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT,
+        device_flags::DEV_INPUT | device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT,
+    ];
+
+    for flags in flags_list.iter() {
+        let device = device_info {
+            id: kAudioObjectUnknown,
+            flags: *flags,
+        };
+        let mut unit: AudioUnit = ptr::null_mut();
+        assert!(audiounit_new_unit_instance(&mut unit, &device).is_ok());
+        assert!(!unit.is_null());
+        // Destroy the AudioUnits
+        unsafe {
+            AudioUnitUninitialize(unit);
+            AudioComponentInstanceDispose(unit);
+        }
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_new_unit_instance_twice() {
+    let device = device_info::new();
+    let mut unit: AudioUnit = ptr::null_mut();
+    assert!(audiounit_new_unit_instance(&mut unit, &device).is_ok());
+    assert!(!unit.is_null());
+
+    // audiounit_new_unit_instance will get a panic immediately
+    // when it's called, so the `assert_eq` and the code after
+    // that won't be executed.
+    assert_eq!(
+        audiounit_new_unit_instance(&mut unit, &device).unwrap_err(),
+        Error::error()
+    );
+
+    // Destroy the AudioUnits
+    unsafe {
+        AudioUnitUninitialize(unit);
+        AudioComponentInstanceDispose(unit);
+    }
+}
+
+// enable_unit_scope
+// ------------------------------------
+#[test]
+fn test_enable_unit_scope() {
+    // It's ok to enable and disable the scopes of input or output
+    // for the unit whose subtype is kAudioUnitSubType_HALOutput
+    // even when there is no available input or output devices.
+    if let Some(unit) = test_create_audiounit(ComponentSubType::HALOutput) {
+        assert!(audiounit_enable_unit_scope(&unit, io_side::OUTPUT, enable_state::ENABLE).is_ok());
+        assert!(audiounit_enable_unit_scope(&unit, io_side::OUTPUT, enable_state::DISABLE).is_ok());
+        assert!(audiounit_enable_unit_scope(&unit, io_side::INPUT, enable_state::ENABLE).is_ok());
+        assert!(audiounit_enable_unit_scope(&unit, io_side::INPUT, enable_state::DISABLE).is_ok());
+        // Destroy the AudioUnit
+        unsafe {
+            AudioUnitUninitialize(unit);
+            AudioComponentInstanceDispose(unit);
+        }
+    }
+}
+
+#[test]
+fn test_enable_unit_output_scope_for_default_output_unit() {
+    if let Some(unit) = test_create_audiounit(ComponentSubType::DefaultOutput) {
+        assert_eq!(
+            audiounit_enable_unit_scope(&unit, io_side::OUTPUT, enable_state::ENABLE).unwrap_err(),
+            Error::error()
+        );
+        assert_eq!(
+            audiounit_enable_unit_scope(&unit, io_side::OUTPUT, enable_state::DISABLE).unwrap_err(),
+            Error::error()
+        );
+        assert_eq!(
+            audiounit_enable_unit_scope(&unit, io_side::INPUT, enable_state::ENABLE).unwrap_err(),
+            Error::error()
+        );
+        assert_eq!(
+            audiounit_enable_unit_scope(&unit, io_side::INPUT, enable_state::DISABLE).unwrap_err(),
+            Error::error()
+        );
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_enable_unit_scope_with_null_unit() {
+    let unit: AudioUnit = ptr::null_mut();
+    assert_eq!(
+        audiounit_enable_unit_scope(&unit, io_side::INPUT, enable_state::DISABLE).unwrap_err(),
+        Error::error()
+    );
 }

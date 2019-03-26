@@ -414,7 +414,6 @@ where
     output_params.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
     output_params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
 
-    // TODO: test_ops_stream_operation fails and hit an assertion when there is no output device.
     test_ops_stream_operation(
         name,
         ptr::null_mut(), // Use default input device.

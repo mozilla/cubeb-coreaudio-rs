@@ -49,7 +49,7 @@ pub fn test_get_default_device(scope: Scope) -> Option<AudioObjectID> {
 //       2. Allow to create a in-out unit.
 pub fn test_get_default_audiounit(scope: Scope) -> Option<AudioUnit> {
     let device = test_get_default_device(scope.clone());
-    let unit = test_create_haloutput_audiounit();
+    let unit = test_create_audiounit(ComponentSubType::HALOutput);
     if device.is_none() || unit.is_none() {
         return None;
     }
@@ -83,17 +83,28 @@ pub fn test_get_default_audiounit(scope: Scope) -> Option<AudioUnit> {
         )
     };
     if status == NO_ERR {
+        assert!(!unit.is_null());
         Some(unit)
     } else {
         None
     }
 }
 
+pub enum ComponentSubType {
+    HALOutput,
+    DefaultOutput,
+}
+
 // TODO: Return Result with custom errors.
-fn test_create_haloutput_audiounit() -> Option<AudioUnit> {
+// Surprisingly the AudioUnit can be created even when there is no any device on the platform,
+// no matter its subtype is HALOutput or DefaultOutput.
+pub fn test_create_audiounit(unit_type: ComponentSubType) -> Option<AudioUnit> {
     let desc = AudioComponentDescription {
         componentType: kAudioUnitType_Output,
-        componentSubType: kAudioUnitSubType_HALOutput,
+        componentSubType: match unit_type {
+            ComponentSubType::HALOutput => kAudioUnitSubType_HALOutput,
+            ComponentSubType::DefaultOutput => kAudioUnitSubType_DefaultOutput,
+        },
         componentManufacturer: kAudioUnitManufacturer_Apple,
         componentFlags: 0,
         componentFlagsMask: 0,
@@ -108,6 +119,7 @@ fn test_create_haloutput_audiounit() -> Option<AudioUnit> {
     if status != NO_ERR || unit.is_null() {
         None
     } else {
+        assert!(!unit.is_null());
         Some(unit)
     }
 }

@@ -5,178 +5,6 @@
 
 use super::*;
 
-// // Note / Template
-// // ============================================================================
-// #[test]
-// fn test_stream_drop_mutex_incorrect() {
-//     // We need to initialize the members with type OwnedCriticalSection in
-//     // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
-//     // will be used when AudioUnitStream::drop/destroy is called.
-//     let mut ctx = AudioUnitContext::new();
-//     ctx.init();
-
-//     // Add a stream to the context. `AudioUnitStream::drop()` will check
-//     // the context has at least one stream.
-
-//     // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
-//     let ctx_mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-
-//     // The scope of `_lock` is a critical section.
-//     let ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
-
-//     // Add one stream to the context in advance to avoid the borrowing-twice
-//     // issue of ctx.
-//     audiounit_increment_active_streams(&mut ctx);
-
-//     let mut stream = AudioUnitStream::new(
-//         &mut ctx,
-//         ptr::null_mut(),
-//         None,
-//         None,
-//         0
-//     );
-//     stream.init();
-
-//     // The resampler will be initialized in `audiounit_setup_stream` (or via
-//     // `stream_init`), and it only accepts the formats with FLOAT32NE or S16NE.
-//     let mut raw = ffi::cubeb_stream_params::default();
-//     raw.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
-//     raw.rate = 96_000;
-//     raw.channels = 32;
-//     raw.layout = ffi::CUBEB_LAYOUT_3F1_LFE;
-//     raw.prefs = ffi::CUBEB_STREAM_PREF_NONE;
-//     stream.output_stream_params = StreamParams::from(raw);
-
-//     // It's crucial to call to audiounit_set_device_info to set
-//     // stream.output_device to output device type, or we will hit the
-//     // assertion in audiounit_create_unit.
-
-//     let default_output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-//     // Return an error if there is no available device.
-//     if !valid_id(default_output_id) {
-//         return;
-//     }
-
-//     assert!(
-//         audiounit_set_device_info(
-//             &mut stream,
-//             kAudioObjectUnknown,
-//             io_side::OUTPUT
-//         ).is_ok()
-//     );
-
-//     assert_eq!(stream.output_device.id, default_output_id);
-//     assert_eq!(
-//         stream.output_device.flags,
-//         device_flags::DEV_OUTPUT |
-//         device_flags::DEV_SELECTED_DEFAULT |
-//         device_flags::DEV_SYSTEM_DEFAULT
-//     );
-
-//     {
-//         let stm_mutex_ptr = &mut stream.mutex as *mut OwnedCriticalSection;
-//         let _stm_lock = AutoLock::new(unsafe { &mut (*stm_mutex_ptr) });
-//         assert!(audiounit_setup_stream(&mut stream).is_ok());
-//     }
-
-//     assert!(!stream.output_unit.is_null());
-
-//     // If the following `drop` is commented, the AudioUnitStream::drop()
-//     // will lock the AudioUnitStream.context.mutex without releasing the
-//     // AudioUnitStream.context.mutex in use (`ctx_lock` here) first and
-//     // cause a deadlock, when hitting the `assert!(false)` at the end of
-//     // this test.
-//     // The `ctx_lock` is created before `stream`
-//     // (whose type is AudioUnitStream), so `stream.drop()` will be called
-//     // before `ctx_lock.drop()`
-
-//     // Force to drop the context lock before stream is dropped, since
-//     // AudioUnitStream::Drop() will lock the context mutex.
-//     drop(ctx_lock);
-// }
-
-// #[test]
-// fn test_stream_drop_mutex_correct() {
-//     // We need to initialize the members with type OwnedCriticalSection in
-//     // AudioUnitContext and AudioUnitStream, since those OwnedCriticalSection
-//     // will be used when AudioUnitStream::drop/destroy is called.
-//     let mut ctx = AudioUnitContext::new();
-//     ctx.init();
-
-//     // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
-//     let ctx_mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
-
-//     // Add one stream to the context in advance to avoid the borrowing-twice
-//     // issue of ctx.
-//     // `AudioUnitStream::drop()` will check the context has at least one stream.
-//     {
-//         // The scope of `_lock` is a critical section.
-//         let _lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr ) });
-//         audiounit_increment_active_streams(&mut ctx);
-//     }
-
-//     let mut stream = AudioUnitStream::new(
-//         &mut ctx,
-//         ptr::null_mut(),
-//         None,
-//         None,
-//         0
-//     );
-//     stream.init();
-
-//     // The scope of `ctx_lock` is a critical section.
-//     // When `AudioUnitStream::drop()` is called, `AudioUnitContext.mutex`
-//     // needs to be unlocked. That's why `_lock` needs to be declared after
-//     // `stream` so it will be dropped and unlocked before dropping `stream`.
-//     let ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
-
-//     // The resampler will be initialized in `audiounit_setup_stream` (or via
-//     // `stream_init`), and it only accepts the formats with FLOAT32NE or S16NE.
-//     let mut raw = ffi::cubeb_stream_params::default();
-//     raw.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
-//     raw.rate = 96_000;
-//     raw.channels = 32;
-//     raw.layout = ffi::CUBEB_LAYOUT_3F1_LFE;
-//     raw.prefs = ffi::CUBEB_STREAM_PREF_NONE;
-//     stream.output_stream_params = StreamParams::from(raw);
-
-//     // It's crucial to call to audiounit_set_device_info to set
-//     // stream.output_device to output device type, or we will hit the
-//     // assertion in audiounit_create_unit.
-
-//     let default_output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-//     // Return an error if there is no available device.
-//     if !valid_id(default_output_id) {
-//         return;
-//     }
-
-//     assert!(
-//         audiounit_set_device_info(
-//             &mut stream,
-//             kAudioObjectUnknown,
-//             io_side::OUTPUT
-//         ).is_ok()
-//     );
-
-//     assert_eq!(stream.output_device.id, default_output_id);
-//     assert_eq!(
-//         stream.output_device.flags,
-//         device_flags::DEV_OUTPUT |
-//         device_flags::DEV_SELECTED_DEFAULT |
-//         device_flags::DEV_SYSTEM_DEFAULT
-//     );
-
-//     {
-//         let stm_mutex_ptr = &mut stream.mutex as *mut OwnedCriticalSection;
-//         let _stm_lock = AutoLock::new(unsafe { &mut (*stm_mutex_ptr) });
-//         assert!(audiounit_setup_stream(&mut stream).is_ok());
-//     }
-
-//     assert!(!stream.output_unit.is_null());
-
-//     // Do some stream operations here ...
-// }
-
 // Interface
 // ============================================================================
 // A panic in `capi_register_device_collection_changed` causes
@@ -329,6 +157,16 @@ fn test_get_sub_devices_for_blank_aggregate_devices() {
 //    two logs at the beginning and the end of the tests calling
 //    `audiounit_add_device_listener`. You will find those tests fail when the
 //    tests are ended while those asynchronous functions are still running.
+//
+// The tests that call audiounit_create_blank_aggregate_device are ignored by default:
+// - test_get_sub_devices_for_blank_aggregate_devices
+// - test_create_blank_aggregate_device
+// - test_set_aggregate_sub_device_list_for_unknown_input_output_devices
+// - test_set_aggregate_sub_device_list
+// - test_set_master_aggregate_device_for_a_blank_aggregate_device
+// - test_set_master_aggregate_device
+// - test_activate_clock_drift_compensation_for_an_aggregate_device_without_master_device
+// - test_activate_clock_drift_compensation
 #[test]
 #[ignore]
 fn test_create_blank_aggregate_device() {
@@ -400,73 +238,8 @@ fn test_create_blank_aggregate_device() {
     }
 }
 
-// get_device_name
-// ------------------------------------
-#[test]
-fn test_get_device_name() {
-    // Unknown device:
-    assert_eq!(
-        get_device_name(kAudioObjectUnknown),
-        ptr::null()
-    );
-
-    let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
-    if valid_id(input_id) {
-        let name_str = get_device_name(input_id);
-        assert_ne!(
-            name_str,
-            ptr::null()
-        );
-        unsafe {
-            CFRelease(name_str as *const c_void);
-        }
-    }
-
-    let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-    if valid_id(output_id) {
-        let name_str = get_device_name(output_id);
-        assert_ne!(
-            name_str,
-            ptr::null()
-        );
-        unsafe {
-            CFRelease(name_str as *const c_void);
-        }
-    }
-}
-
 // set_aggregate_sub_device_list
 // ------------------------------------
-#[test]
-fn test_set_aggregate_sub_device_list_for_a_unknown_aggregate_device() {
-    // If aggregate device id is kAudioObjectUnknown, we won't be able to
-    // set device list.
-    assert_eq!(
-        audiounit_set_aggregate_sub_device_list(
-            kAudioObjectUnknown,
-            kAudioObjectUnknown,
-            kAudioObjectUnknown
-        ).unwrap_err(),
-        Error::error()
-    );
-
-    let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
-    let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-
-    if !valid_id(input_id) || !valid_id(output_id) /* || input_id == output_id */ {
-        return;
-    }
-
-    assert_eq!(
-        audiounit_set_aggregate_sub_device_list(
-            kAudioObjectUnknown,
-            input_id,
-            output_id
-        ).unwrap_err(),
-        Error::error()
-    );
-}
-
 // Ignore this by default. The reason is same as test_create_blank_aggregate_device.
 #[test]
 #[ignore]
@@ -618,17 +391,6 @@ fn test_set_aggregate_sub_device_list() {
 
 // set_master_aggregate_device
 // ------------------------------------
-#[test]
-#[should_panic]
-fn test_set_master_aggregate_device_for_a_unknown_aggregate_device() {
-    assert_eq!(
-        audiounit_set_master_aggregate_device(
-            kAudioObjectUnknown
-        ).unwrap_err(),
-        Error::error()
-    );
-}
-
 // Ignore this by default. The reason is same as test_create_blank_aggregate_device.
 #[test]
 #[ignore]
@@ -785,17 +547,6 @@ fn get_master_device(aggregate_device_id: AudioObjectID) -> String {
 
 // activate_clock_drift_compensation
 // ------------------------------------
-#[test]
-#[should_panic]
-fn test_activate_clock_drift_compensation_for_a_unknown_aggregate_device() {
-    assert_eq!(
-        audiounit_activate_clock_drift_compensation(
-            kAudioObjectUnknown
-        ).unwrap_err(),
-        Error::error()
-    );
-}
-
 // Ignore this by default. The reason is same as test_create_blank_aggregate_device.
 #[test]
 #[should_panic]
@@ -1081,29 +832,8 @@ fn get_drift_compensations(
     compensations
 }
 
-// workaround_for_airpod
-// ------------------------------------
-// TODO
-
-// create_aggregate_device
-// ------------------------------------
-// TODO
-
 // destroy_aggregate_device
 // ------------------------------------
-#[test]
-#[should_panic]
-fn test_destroy_aggregate_device_for_unknown_plugin_and_aggregate_devices() {
-    let mut aggregate_device_id = kAudioObjectUnknown;
-    assert_eq!(
-        audiounit_destroy_aggregate_device(
-            kAudioObjectUnknown,
-            &mut aggregate_device_id
-        ).unwrap_err(),
-        Error::error()
-    )
-}
-
 // Ignore this by default. The reason is same as test_create_blank_aggregate_device.
 #[test]
 #[ignore]
@@ -1170,266 +900,6 @@ fn test_destroy_aggregate_device_for_a_unknown_aggregate_device() {
     );
 }
 
-// #[test]
-// fn test_destroy_aggregate_device() {
-// }
-
-// Other tests for audiounit_destroy_aggregate_devic are combined with
-// other tests that call audiounit_create_blank_aggregate_device:
-// - test_get_sub_devices_for_blank_aggregate_devices
-// - test_create_blank_aggregate_device
-// - test_set_aggregate_sub_device_list_for_unknown_input_output_devices
-// - test_set_aggregate_sub_device_list
-// - test_set_master_aggregate_device_for_a_blank_aggregate_device
-// - test_set_master_aggregate_device
-// - test_activate_clock_drift_compensation_for_an_aggregate_device_without_master_device
-// - test_activate_clock_drift_compensation
-
-// new_unit_instance
-// ------------------------------------
-#[test]
-fn test_new_unit_instance() {
-    let flags_list = [
-        device_flags::DEV_UNKNOWN,
-        device_flags::DEV_INPUT,
-        device_flags::DEV_OUTPUT,
-        device_flags::DEV_INPUT | device_flags::DEV_OUTPUT,
-        device_flags::DEV_INPUT | device_flags::DEV_SYSTEM_DEFAULT,
-        device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT,
-        device_flags::DEV_INPUT | device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT,
-    ];
-
-    for flags in flags_list.iter() {
-        let device = device_info {
-            id: kAudioObjectUnknown,
-            flags: *flags
-        };
-        let mut unit: AudioUnit = ptr::null_mut();
-        assert!(audiounit_new_unit_instance(&mut unit, &device).is_ok());
-        assert!(!unit.is_null());
-        // Destroy the AudioUnits
-        unsafe {
-            AudioUnitUninitialize(unit);
-            AudioComponentInstanceDispose(unit);
-        }
-    }
-}
-
-#[test]
-#[should_panic]
-fn test_new_unit_instance_twice() {
-    let device = device_info::new();
-    let mut unit: AudioUnit = ptr::null_mut();
-    assert!(audiounit_new_unit_instance(&mut unit, &device).is_ok());
-    assert!(!unit.is_null());
-
-    // audiounit_new_unit_instance will get a panic immediately
-    // when it's called, so the `assert_eq` and the code after
-    // that won't be executed.
-    assert_eq!(
-        audiounit_new_unit_instance(&mut unit, &device).unwrap_err(),
-        Error::error()
-    );
-
-    // Destroy the AudioUnits
-    unsafe {
-        AudioUnitUninitialize(unit);
-        AudioComponentInstanceDispose(unit);
-    }
-}
-
-// enable_unit_scope
-// ------------------------------------
-#[test]
-#[should_panic]
-fn test_enable_unit_scope_with_null_unit() {
-    let unit: AudioUnit = ptr::null_mut();
-
-    // audiounit_enable_unit_scope will get a panic immediately
-    // when it's called, so the `assert_eq` and the code after
-    // that won't be executed.
-    assert_eq!(
-        audiounit_enable_unit_scope(
-            &unit,
-            io_side::INPUT,
-            enable_state::DISABLE
-        ).unwrap_err(),
-        Error::error()
-    );
-
-    assert_eq!(
-        audiounit_enable_unit_scope(
-            &unit,
-            io_side::INPUT,
-            enable_state::ENABLE
-        ).unwrap_err(),
-        Error::error()
-    );
-
-    assert_eq!(
-        audiounit_enable_unit_scope(
-            &unit,
-            io_side::OUTPUT,
-            enable_state::DISABLE
-        ).unwrap_err(),
-        Error::error()
-    );
-
-    assert_eq!(
-        audiounit_enable_unit_scope(
-            &unit,
-            io_side::OUTPUT,
-            enable_state::ENABLE
-        ).unwrap_err(),
-        Error::error()
-    );
-}
-
-#[test]
-fn test_enable_unit_output_scope_for_default_output_unit() {
-    // For those units whose subtype is kAudioUnitSubType_DefaultOutput,
-    // their input or output scopes cannot be enabled or disabled.
-
-    let devices = [
-        device_info {
-            id: kAudioObjectUnknown,
-            flags: device_flags::DEV_OUTPUT |
-                   device_flags::DEV_SYSTEM_DEFAULT
-        },
-        device_info {
-            id: kAudioObjectUnknown,
-            flags: device_flags::DEV_INPUT |
-                   device_flags::DEV_OUTPUT |
-                   device_flags::DEV_SYSTEM_DEFAULT
-        },
-    ];
-
-    for device in devices.iter() {
-        let mut unit: AudioUnit = ptr::null_mut();
-        assert!(audiounit_new_unit_instance(&mut unit, &device).is_ok());
-        assert!(!unit.is_null());
-
-        let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-        if valid_id(output_id) {
-            // Check if the output scope is enabled.
-            assert!(unit_scope_is_enabled(unit, false));
-
-            // The input scope is enabled if it's also a input device.
-            // Otherwise, it's disabled.
-            if is_input(output_id) {
-                assert!(unit_scope_is_enabled(unit, true));
-            } else {
-                assert!(!unit_scope_is_enabled(unit, true));
-            }
-        }
-
-        assert_eq!(
-            audiounit_enable_unit_scope(
-                &unit,
-                io_side::OUTPUT,
-                enable_state::ENABLE
-            ).unwrap_err(),
-            Error::error()
-        );
-
-        assert_eq!(
-            audiounit_enable_unit_scope(
-                &unit,
-                io_side::OUTPUT,
-                enable_state::DISABLE
-            ).unwrap_err(),
-            Error::error()
-        );
-
-        assert_eq!(
-            audiounit_enable_unit_scope(
-                &unit,
-                io_side::INPUT,
-                enable_state::ENABLE
-            ).unwrap_err(),
-            Error::error()
-        );
-
-        assert_eq!(
-            audiounit_enable_unit_scope(
-                &unit,
-                io_side::INPUT,
-                enable_state::DISABLE
-            ).unwrap_err(),
-            Error::error()
-        );
-
-        // Destroy the AudioUnits
-        unsafe {
-            AudioUnitUninitialize(unit);
-            AudioComponentInstanceDispose(unit);
-        }
-    }
-}
-
-#[test]
-fn test_enable_unit_scope() {
-    // It's ok to enable and disable the scopes of input or output
-    // for those units whose subtype are kAudioUnitSubType_HALOutput
-    // even when there is no available input or output devices.
-
-    let flags_list = [
-        device_flags::DEV_UNKNOWN,
-        device_flags::DEV_INPUT,
-        device_flags::DEV_OUTPUT,
-        device_flags::DEV_INPUT | device_flags::DEV_OUTPUT,
-        device_flags::DEV_INPUT | device_flags::DEV_SYSTEM_DEFAULT,
-    ];
-
-    for flags in flags_list.iter() {
-        let device = device_info {
-            id: kAudioObjectUnknown,
-            flags: *flags
-        };
-        let mut unit: AudioUnit = ptr::null_mut();
-        assert!(audiounit_new_unit_instance(&mut unit, &device).is_ok());
-        assert!(!unit.is_null());
-
-        assert!(
-            audiounit_enable_unit_scope(
-                &unit,
-                io_side::OUTPUT,
-                enable_state::ENABLE
-            ).is_ok()
-        );
-
-        assert!(
-            audiounit_enable_unit_scope(
-                &unit,
-                io_side::OUTPUT,
-                enable_state::DISABLE
-            ).is_ok()
-        );
-
-        assert!(
-            audiounit_enable_unit_scope(
-                &unit,
-                io_side::INPUT,
-                enable_state::ENABLE
-            ).is_ok()
-        );
-
-        assert!(
-            audiounit_enable_unit_scope(
-                &unit,
-                io_side::INPUT,
-                enable_state::DISABLE
-            ).is_ok()
-        );
-
-        // Destroy the AudioUnits
-        unsafe {
-            AudioUnitUninitialize(unit);
-            AudioComponentInstanceDispose(unit);
-        }
-    }
-}
-
 // create_unit
 // ------------------------------------
 #[test]
@@ -1479,8 +949,6 @@ fn test_create_unit() {
         device_flags::DEV_INPUT | device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT,
     ];
 
-    // The first audiounit_create_unit calling will get a panic immediately
-    // so the loop is executed once.
     for flags in flags_list.iter() {
         let mut device = device_info::new();
         device.flags |= *flags;
