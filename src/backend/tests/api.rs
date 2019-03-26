@@ -617,6 +617,7 @@ fn test_get_acceptable_latency_range() {
 
     let default_output = test_get_default_device(Scope::Output);
     if default_output.is_none() {
+        println!("No output device.");
         assert_eq!(
             audiounit_get_acceptable_latency_range(&mut latency_range).unwrap_err(),
             Error::error()
@@ -927,6 +928,7 @@ fn test_get_preferred_channel_layout_output() {
     let source = test_get_default_source_name(Scope::Output);
     let unit = test_get_default_audiounit(Scope::Output);
     if source.is_none() || unit.is_none() {
+        println!("No default audiounit or device source name found.");
         return;
     }
 
@@ -937,6 +939,8 @@ fn test_get_preferred_channel_layout_output() {
             audiounit_get_preferred_channel_layout(unit.get_inner()),
             *layout
         );
+    } else {
+        println!("Device {} is not in the whitelist.", source);
     }
 }
 
@@ -963,6 +967,7 @@ fn test_get_current_channel_layout_output() {
     let source = test_get_default_source_name(Scope::Output);
     let unit = test_get_default_audiounit(Scope::Output);
     if source.is_none() || unit.is_none() {
+        println!("No default audiounit or device source name found.");
         return;
     }
 
@@ -973,6 +978,8 @@ fn test_get_current_channel_layout_output() {
             audiounit_get_current_channel_layout(unit.get_inner()),
             *layout
         );
+    } else {
+        println!("Device {} is not in the whitelist.", source);
     }
 }
 
@@ -1065,6 +1072,7 @@ fn test_set_channel_layout_output() {
     let source = test_get_default_source_name(Scope::Output);
     let unit = test_get_default_audiounit(Scope::Output);
     if source.is_none() || unit.is_none() {
+        println!("No default audiounit or device source name found.");
         return;
     }
 
@@ -1076,6 +1084,8 @@ fn test_set_channel_layout_output() {
             audiounit_get_current_channel_layout(unit.get_inner()),
             *layout
         );
+    } else {
+        println!("Device {} is not in the whitelist.", source);
     }
 }
 
@@ -1219,6 +1229,7 @@ fn test_set_aggregate_sub_device_list_for_an_unknown_aggregate_device() {
     let default_input = test_get_default_device(Scope::Input);
     let default_output = test_get_default_device(Scope::Output);
     if default_input.is_none() || default_output.is_none() {
+        println!("No input or output device.");
         return;
     }
 
@@ -1584,6 +1595,7 @@ fn test_set_buffer_size_by_scope(scope: Scope) {
     test_get_empty_stream(|stream| {
         let default_unit = test_get_default_audiounit(scope.clone());
         if default_unit.is_none() {
+            println!("No default audiounit for {:?}", scope);
             return;
         }
         let default_unit = default_unit.unwrap();

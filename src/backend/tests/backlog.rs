@@ -1517,30 +1517,6 @@ fn test_configure_output() {
     // assert!(stream.stop().is_ok());
 }
 
-// setup_stream
-// ------------------------------------
-// TODO
-
-// stream_destroy_internal
-// ------------------------------------
-// TODO
-
-// stream_destroy
-// ------------------------------------
-// TODO
-
-// stream_start_internal
-// ------------------------------------
-// TODO
-
-// stream_start
-// ------------------------------------
-// TODO
-
-// stream_stop_internal
-// ------------------------------------
-// TODO
-
 // stream_get_volume
 // ------------------------------------
 #[test]
