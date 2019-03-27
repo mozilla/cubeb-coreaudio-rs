@@ -1935,3 +1935,118 @@ fn test_get_device_presentation_latency() {
         latencies
     }
 }
+
+// is_aggregate_device
+// ------------------------------------
+#[test]
+fn test_is_aggregate_device() {
+    let mut aggregate_name = String::from(PRIVATE_AGGREGATE_DEVICE_NAME);
+    aggregate_name.push_str("_something");
+    let aggregate_name_cstring = CString::new(aggregate_name).unwrap();
+
+    let mut info = ffi::cubeb_device_info::default();
+    info.friendly_name = aggregate_name_cstring.as_ptr();
+    assert!(is_aggregate_device(&info));
+
+    let non_aggregate_name_cstring = CString::new("Hello World!").unwrap();
+    info.friendly_name = non_aggregate_name_cstring.as_ptr();
+    assert!(!is_aggregate_device(&info));
+}
+
+// device_destroy
+// ------------------------------------
+#[test]
+fn test_device_destroy() {
+    let mut device = ffi::cubeb_device_info::default();
+
+    let device_id = CString::new("test: device id").unwrap();
+    let friendly_name = CString::new("test: friendly name").unwrap();
+    let vendor_name = CString::new("test: vendor name").unwrap();
+
+    device.device_id = device_id.into_raw();
+    // The group_id is a mirror to device_id in our implementation, so we could skip it.
+    device.group_id = device.device_id;
+    device.friendly_name = friendly_name.into_raw();
+    device.vendor_name = vendor_name.into_raw();
+
+    audiounit_device_destroy(&mut device);
+
+    assert!(device.device_id.is_null());
+    assert!(device.group_id.is_null());
+    assert!(device.friendly_name.is_null());
+    assert!(device.vendor_name.is_null());
+}
+
+#[test]
+#[should_panic]
+fn test_device_destroy_with_different_device_id_and_group_id() {
+    let mut device = ffi::cubeb_device_info::default();
+
+    let device_id = CString::new("test: device id").unwrap();
+    let group_id = CString::new("test: group id").unwrap();
+    let friendly_name = CString::new("test: friendly name").unwrap();
+    let vendor_name = CString::new("test: vendor name").unwrap();
+
+    device.device_id = device_id.into_raw();
+    device.group_id = group_id.into_raw();
+    device.friendly_name = friendly_name.into_raw();
+    device.vendor_name = vendor_name.into_raw();
+
+    audiounit_device_destroy(&mut device);
+    // Hit the assertion above, so we will leak some memory allocated for the above cstring.
+
+    assert!(device.device_id.is_null());
+    assert!(device.group_id.is_null());
+    assert!(device.friendly_name.is_null());
+    assert!(device.vendor_name.is_null());
+}
+
+#[test]
+fn test_device_destroy_empty_device() {
+    let mut device = ffi::cubeb_device_info::default();
+
+    assert!(device.device_id.is_null());
+    assert!(device.group_id.is_null());
+    assert!(device.friendly_name.is_null());
+    assert!(device.vendor_name.is_null());
+
+    audiounit_device_destroy(&mut device);
+
+    assert!(device.device_id.is_null());
+    assert!(device.group_id.is_null());
+    assert!(device.friendly_name.is_null());
+    assert!(device.vendor_name.is_null());
+}
+
+// get_devices_of_type
+// ------------------------------------
+#[test]
+fn test_get_devices_of_type() {
+    use std::collections::HashSet;
+
+    // FIXIT: Open this assertion after C version is updated.
+    // let no_devs = audiounit_get_devices_of_type(DeviceType::UNKNOWN);
+    // assert!(no_devs.is_empty());
+    let all_devices = audiounit_get_devices_of_type(DeviceType::INPUT | DeviceType::OUTPUT);
+    let input_devices = audiounit_get_devices_of_type(DeviceType::INPUT);
+    let output_devices = audiounit_get_devices_of_type(DeviceType::OUTPUT);
+
+    let mut expected_all = test_get_all_devices();
+    expected_all.sort();
+    assert_eq!(all_devices, expected_all);
+    for device in all_devices.iter() {
+        if test_device_in_scope(*device, Scope::Input) {
+            assert!(input_devices.contains(device));
+        }
+        if test_device_in_scope(*device, Scope::Output) {
+            assert!(output_devices.contains(device));
+        }
+    }
+
+    let input: HashSet<AudioObjectID> = input_devices.iter().cloned().collect();
+    let output: HashSet<AudioObjectID> = output_devices.iter().cloned().collect();
+    let union: HashSet<AudioObjectID> = input.union(&output).cloned().collect();
+    let mut union_devices: Vec<AudioObjectID> = union.iter().cloned().collect();
+    union_devices.sort();
+    assert_eq!(all_devices, union_devices);
+}
