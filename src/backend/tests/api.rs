@@ -1,8 +1,8 @@
 use super::utils::{
-    test_audiounit_scope_is_enabled, test_create_audiounit, test_device_in_scope,
-    test_get_all_devices, test_get_default_audiounit, test_get_default_device,
-    test_get_default_source_name, test_get_empty_stream, test_get_locked_context, ComponentSubType,
-    Scope,
+    test_audiounit_scope_is_enabled, test_create_audiounit, test_device_channels_in_scope,
+    test_device_in_scope, test_get_all_devices, test_get_default_audiounit,
+    test_get_default_device, test_get_default_source_data, test_get_default_source_name,
+    test_get_empty_stream, test_get_locked_context, ComponentSubType, Scope,
 };
 use super::*;
 use std::any::Any;
@@ -928,7 +928,7 @@ fn test_get_preferred_channel_layout_output() {
     let source = test_get_default_source_name(Scope::Output);
     let unit = test_get_default_audiounit(Scope::Output);
     if source.is_none() || unit.is_none() {
-        println!("No default audiounit or device source name found.");
+        println!("No output audiounit or device source name found.");
         return;
     }
 
@@ -967,7 +967,7 @@ fn test_get_current_channel_layout_output() {
     let source = test_get_default_source_name(Scope::Output);
     let unit = test_get_default_audiounit(Scope::Output);
     if source.is_none() || unit.is_none() {
-        println!("No default audiounit or device source name found.");
+        println!("No output audiounit or device source name found.");
         return;
     }
 
@@ -1072,7 +1072,7 @@ fn test_set_channel_layout_output() {
     let source = test_get_default_source_name(Scope::Output);
     let unit = test_get_default_audiounit(Scope::Output);
     if source.is_none() || unit.is_none() {
-        println!("No default audiounit or device source name found.");
+        println!("No output audiounit or device source name found.");
         return;
     }
 
@@ -1525,15 +1525,48 @@ fn test_create_unit_twice() {
 // ------------------------------------
 #[test]
 fn test_init_input_linear_buffer() {
+    // Test if the stream latency frame is 4096
     test_init_input_linear_buffer_impl(&[3.1_f32, 4.1, 5.9, 2.6, 5.35], 4096);
     test_init_input_linear_buffer_impl(&[13_i16, 21, 34, 55, 89, 144], 4096);
-}
 
-// TODO: Is it ok without setting latency ?
-#[test]
-fn test_init_input_linear_buffer_without_latency() {
+    // TODO: Is it ok without setting latency ?
     test_init_input_linear_buffer_impl(&[3.1_f32, 4.1, 5.9, 2.6, 5.35], 0);
     test_init_input_linear_buffer_impl(&[13_i16, 21, 34, 55, 89, 144], 0);
+
+    fn test_init_input_linear_buffer_impl<T: Any + Debug + PartialEq>(array: &[T], latency: u32) {
+        const CHANNEL: u32 = 2;
+        const BUF_CAPACITY: u32 = 1;
+
+        let type_id = std::any::TypeId::of::<T>();
+        let format = if type_id == std::any::TypeId::of::<f32>() {
+            kAudioFormatFlagIsFloat
+        } else if type_id == std::any::TypeId::of::<i16>() {
+            kAudioFormatFlagIsSignedInteger
+        } else {
+            panic!("Unsupported type!");
+        };
+
+        test_get_empty_stream(|stream| {
+            stream.latency_frames = latency;
+            stream.input_desc.mFormatFlags |= format;
+            stream.input_desc.mChannelsPerFrame = CHANNEL;
+
+            assert!(stream.input_linear_buffer.is_none());
+            assert!(audiounit_init_input_linear_buffer(stream, BUF_CAPACITY).is_ok());
+            assert!(stream.input_linear_buffer.is_some());
+
+            let buffer_ref = stream.input_linear_buffer.as_mut().unwrap();
+            buffer_ref.push(array.as_ptr() as *const c_void, array.len());
+
+            assert_eq!(buffer_ref.elements(), array.len());
+            let data = buffer_ref.as_ptr() as *const T;
+            for (idx, item) in array.iter().enumerate() {
+                unsafe {
+                    assert_eq!(*data.add(idx), *item);
+                }
+            }
+        });
+    }
 }
 
 // FIXIT: We should get a panic! The type is unknown before the audio description is set!
@@ -1548,86 +1581,51 @@ fn test_init_input_linear_buffer_without_valid_audiodescription() {
     });
 }
 
-fn test_init_input_linear_buffer_impl<T: Any + Debug + PartialEq>(array: &[T], latency: u32) {
-    const CHANNEL: u32 = 2;
-    const BUF_CAPACITY: u32 = 1;
-
-    let type_id = std::any::TypeId::of::<T>();
-    let format = if type_id == std::any::TypeId::of::<f32>() {
-        kAudioFormatFlagIsFloat
-    } else if type_id == std::any::TypeId::of::<i16>() {
-        kAudioFormatFlagIsSignedInteger
-    } else {
-        panic!("Unsupported type!");
-    };
-
-    test_get_empty_stream(|stream| {
-        stream.latency_frames = latency;
-        stream.input_desc.mFormatFlags |= format;
-        stream.input_desc.mChannelsPerFrame = CHANNEL;
-
-        assert!(stream.input_linear_buffer.is_none());
-        assert!(audiounit_init_input_linear_buffer(stream, BUF_CAPACITY).is_ok());
-        assert!(stream.input_linear_buffer.is_some());
-
-        let buffer_ref = stream.input_linear_buffer.as_mut().unwrap();
-        buffer_ref.push(array.as_ptr() as *const c_void, array.len());
-
-        assert_eq!(buffer_ref.elements(), array.len());
-        let data = buffer_ref.as_ptr() as *const T;
-        for (idx, item) in array.iter().enumerate() {
-            unsafe {
-                assert_eq!(*data.add(idx), *item);
-            }
-        }
-    });
-}
-
 // set_buffer_size
 // ------------------------------------
 #[test]
 fn test_set_buffer_size() {
     test_set_buffer_size_by_scope(Scope::Input);
     test_set_buffer_size_by_scope(Scope::Output);
-}
 
-fn test_set_buffer_size_by_scope(scope: Scope) {
-    test_get_empty_stream(|stream| {
-        let default_unit = test_get_default_audiounit(scope.clone());
-        if default_unit.is_none() {
-            println!("No default audiounit for {:?}", scope);
-            return;
-        }
-        let default_unit = default_unit.unwrap();
-
-        let (unit, unit_scope, element) = match scope {
-            Scope::Input => {
-                stream.input_unit = default_unit.get_inner();
-                (stream.input_unit, kAudioUnitScope_Output, AU_IN_BUS)
+    fn test_set_buffer_size_by_scope(scope: Scope) {
+        test_get_empty_stream(|stream| {
+            let default_unit = test_get_default_audiounit(scope.clone());
+            if default_unit.is_none() {
+                println!("No audiounit for {:?}.", scope);
+                return;
             }
-            Scope::Output => {
-                stream.output_unit = default_unit.get_inner();
-                (stream.output_unit, kAudioUnitScope_Input, AU_OUT_BUS)
-            }
-        };
+            let default_unit = default_unit.unwrap();
 
-        let mut buffer_frames: u32 = 0;
-        let mut size = mem::size_of::<u32>();
-        assert_eq!(
-            audio_unit_get_property(
-                unit,
-                kAudioDevicePropertyBufferFrameSize,
-                unit_scope,
-                element,
-                &mut buffer_frames,
-                &mut size
-            ),
-            NO_ERR
-        );
-        assert_ne!(buffer_frames, 0);
-        buffer_frames *= 2;
-        assert!(audiounit_set_buffer_size(stream, buffer_frames, scope.into()).is_ok());
-    });
+            let (unit, unit_scope, element) = match scope {
+                Scope::Input => {
+                    stream.input_unit = default_unit.get_inner();
+                    (stream.input_unit, kAudioUnitScope_Output, AU_IN_BUS)
+                }
+                Scope::Output => {
+                    stream.output_unit = default_unit.get_inner();
+                    (stream.output_unit, kAudioUnitScope_Input, AU_OUT_BUS)
+                }
+            };
+
+            let mut buffer_frames: u32 = 0;
+            let mut size = mem::size_of::<u32>();
+            assert_eq!(
+                audio_unit_get_property(
+                    unit,
+                    kAudioDevicePropertyBufferFrameSize,
+                    unit_scope,
+                    element,
+                    &mut buffer_frames,
+                    &mut size
+                ),
+                NO_ERR
+            );
+            assert_ne!(buffer_frames, 0);
+            buffer_frames *= 2;
+            assert!(audiounit_set_buffer_size(stream, buffer_frames, scope.into()).is_ok());
+        });
+    }
 }
 
 #[test]
@@ -1654,4 +1652,286 @@ fn test_set_buffer_size_by_scope_with_null_unit(scope: Scope) {
             Error::error()
         );
     });
+}
+
+// setup_stream
+// ------------------------------------
+// TODO
+
+// stream_destroy_internal
+// ------------------------------------
+// TODO
+
+// stream_destroy
+// ------------------------------------
+// TODO
+
+// stream_start_internal
+// ------------------------------------
+// TODO
+
+// stream_start
+// ------------------------------------
+// TODO
+
+// stream_stop_internal
+// ------------------------------------
+// TODO
+
+// stream_get_volume
+// ------------------------------------
+#[test]
+fn test_stream_get_volume() {
+    if let Some(unit) = test_get_default_audiounit(Scope::Output) {
+        test_get_empty_stream(|stream| {
+            stream.output_unit = unit.get_inner();
+
+            let expected_volume: f32 = 0.5;
+            stream.set_volume(expected_volume);
+
+            let mut actual_volume: f32 = 0.0;
+            assert!(audiounit_stream_get_volume(stream, &mut actual_volume).is_ok());
+
+            assert_eq!(expected_volume, actual_volume);
+        });
+    } else {
+        println!("No output audiounit.");
+    }
+}
+
+// convert_uint32_into_string
+// ------------------------------------
+#[test]
+fn test_convert_uint32_into_string() {
+    let empty = convert_uint32_into_string(0);
+    assert_eq!(empty, CString::default());
+
+    let data: u32 = ('R' as u32) << 24 | ('U' as u32) << 16 | ('S' as u32) << 8 | 'T' as u32;
+    let data_string = convert_uint32_into_string(data);
+    assert_eq!(data_string, CString::new("RUST").unwrap());
+}
+
+// get_default_device_datasource
+// ------------------------------------
+#[test]
+fn test_get_default_device_datasource() {
+    // Input type.
+    test_get_default_datasource_in_scope(Scope::Input);
+
+    // Output type.
+    test_get_default_datasource_in_scope(Scope::Output);
+
+    // Unknown type.
+    let mut data = 0;
+    assert_eq!(
+        audiounit_get_default_device_datasource(DeviceType::UNKNOWN, &mut data).unwrap_err(),
+        Error::error()
+    );
+
+    // In-out type.
+    let mut data = 0;
+    assert_eq!(
+        audiounit_get_default_device_datasource(DeviceType::INPUT | DeviceType::OUTPUT, &mut data)
+            .unwrap_err(),
+        Error::error()
+    );
+
+    fn test_get_default_datasource_in_scope(scope: Scope) {
+        if let Some(source) = test_get_default_source_data(scope.clone()) {
+            let mut data = 0;
+            assert!(audiounit_get_default_device_datasource(scope.into(), &mut data).is_ok());
+            assert_ne!(data, 0);
+            assert_eq!(data, source);
+        } else {
+            println!("No source data for {:?}.", scope);
+        }
+    }
+}
+
+// get_default_device_name
+// ------------------------------------
+#[test]
+fn test_get_default_device_name() {
+    test_get_empty_stream(|stream| {
+        // Input type.
+        test_get_default_device_name_in_scope(stream, Scope::Input);
+
+        // Output type.
+        test_get_default_device_name_in_scope(stream, Scope::Output);
+
+        // Unknown type.
+        let mut device = ffi::cubeb_device::default();
+        assert_eq!(
+            audiounit_get_default_device_name(stream, &mut device, DeviceType::UNKNOWN)
+                .unwrap_err(),
+            Error::error()
+        );
+        // No need to release the memory since device.{input, output}_name are nulls.
+
+        // FIXIT: Shouldn't we get both input and output name ?
+        // In-out type.
+        let mut device = ffi::cubeb_device::default();
+        assert_eq!(
+            audiounit_get_default_device_name(
+                &stream,
+                &mut device,
+                DeviceType::INPUT | DeviceType::OUTPUT
+            )
+            .unwrap_err(),
+            Error::error()
+        );
+        // No need to release the memory since device.{input, output}_name are nulls.
+
+        fn test_get_default_device_name_in_scope(stream: &mut AudioUnitStream, scope: Scope) {
+            if let Some(name) = test_get_default_source_name(scope.clone()) {
+                let mut device: Box<ffi::cubeb_device> = Box::new(ffi::cubeb_device::default());
+                assert!(audiounit_get_default_device_name(
+                    stream,
+                    device.as_mut(),
+                    scope.clone().into()
+                )
+                .is_ok());
+                let (input_name_is_null, output_name_is_null) = match scope {
+                    Scope::Input => (false, true),
+                    Scope::Output => (true, false),
+                };
+                assert_eq!(device.input_name.is_null(), input_name_is_null);
+                assert_eq!(device.output_name.is_null(), output_name_is_null);
+                // Release the memory of device.output_name.
+                let device_ref = unsafe { DeviceRef::from_ptr(Box::into_raw(device)) };
+                stream.device_destroy(device_ref);
+            } else {
+                println!("No source name for {:?}", scope);
+            }
+        }
+    });
+}
+
+// strref_to_cstr_utf8
+// ------------------------------------
+// TODO
+
+// get_channel_count
+// ------------------------------------
+#[test]
+fn test_get_channel_count() {
+    test_channel_count(Scope::Input);
+    test_channel_count(Scope::Output);
+
+    fn test_channel_count(scope: Scope) {
+        let property_scope = match scope {
+            Scope::Input => kAudioDevicePropertyScopeInput,
+            Scope::Output => kAudioDevicePropertyScopeOutput,
+        };
+        if let Some(device) = test_get_default_device(scope.clone()) {
+            let channels = audiounit_get_channel_count(device, property_scope);
+            assert!(channels > 0);
+            assert_eq!(
+                channels,
+                test_device_channels_in_scope(device, scope).unwrap()
+            );
+        } else {
+            println!("No device for {:?}.", scope);
+        }
+    }
+}
+
+// get_available_samplerate
+// ------------------------------------
+#[test]
+fn test_get_available_samplerate() {
+    let samplerates = test_get_available_samplerate_of_device(kAudioObjectUnknown);
+    for rates in samplerates {
+        check_samplerates_are_zeros(rates);
+    }
+
+    test_get_available_samplerate_in_scope(Scope::Input);
+    test_get_available_samplerate_in_scope(Scope::Output);
+
+    fn test_get_available_samplerate_in_scope(scope: Scope) {
+        if let Some(device) = test_get_default_device(scope.clone()) {
+            let samplerates = test_get_available_samplerate_of_device(device);
+            for rates in samplerates {
+                // Surprisingly, we can get the input/output samplerates from a non-input/non-output device.
+                check_samplerates(rates);
+            }
+        } else {
+            println!("No device for {:?}.", scope);
+        }
+    }
+
+    fn test_get_available_samplerate_of_device(id: AudioObjectID) -> Vec<(u32, u32, u32)> {
+        let scopes = [
+            kAudioObjectPropertyScopeGlobal,
+            kAudioDevicePropertyScopeInput,
+            kAudioDevicePropertyScopeOutput,
+        ];
+        let mut samplerates = Vec::new();
+        for scope in scopes.iter() {
+            samplerates.push(test_get_available_samplerate_of_device_in_scope(id, *scope));
+        }
+        samplerates
+    }
+
+    fn test_get_available_samplerate_of_device_in_scope(
+        id: AudioObjectID,
+        scope: AudioObjectPropertyScope,
+    ) -> (u32, u32, u32) {
+        let mut default = 0;
+        let mut min = 0;
+        let mut max = 0;
+        audiounit_get_available_samplerate(id, scope, &mut min, &mut max, &mut default);
+        (min, max, default)
+    }
+
+    fn check_samplerates((min, max, default): (u32, u32, u32)) {
+        assert!(default > 0);
+        assert!(min > 0);
+        assert!(max > 0);
+        assert!(min <= max);
+        assert!(min <= default);
+        assert!(default <= max);
+    }
+
+    fn check_samplerates_are_zeros((min, max, default): (u32, u32, u32)) {
+        assert_eq!(min, 0);
+        assert_eq!(max, 0);
+        assert_eq!(default, 0);
+    }
+}
+
+// get_device_presentation_latency
+// ------------------------------------
+#[test]
+fn test_get_device_presentation_latency() {
+    let latencies = test_get_device_presentation_latencies_of_device(kAudioObjectUnknown);
+    for latency in latencies {
+        // Hit the kAudioHardwareBadObjectError actually.
+        assert_eq!(latency, 0);
+    }
+
+    test_get_device_presentation_latencies_in_scope(Scope::Input);
+    test_get_device_presentation_latencies_in_scope(Scope::Output);
+
+    fn test_get_device_presentation_latencies_in_scope(scope: Scope) {
+        if let Some(device) = test_get_default_device(scope.clone()) {
+            let latencies = test_get_device_presentation_latencies_of_device(device);
+        // TODO: The latencies very from devices to devices. Check nothing here.
+        } else {
+            println!("No device for {:?}.", scope);
+        }
+    }
+
+    fn test_get_device_presentation_latencies_of_device(id: AudioObjectID) -> Vec<u32> {
+        let scopes = [
+            kAudioObjectPropertyScopeGlobal,
+            kAudioDevicePropertyScopeInput,
+            kAudioDevicePropertyScopeOutput,
+        ];
+        let mut latencies = Vec::new();
+        for scope in scopes.iter() {
+            latencies.push(audiounit_get_device_presentation_latency(id, *scope));
+        }
+        latencies
+    }
 }

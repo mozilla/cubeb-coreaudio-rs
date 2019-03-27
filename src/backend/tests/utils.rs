@@ -17,6 +17,15 @@ impl From<Scope> for io_side {
     }
 }
 
+impl From<Scope> for DeviceType {
+    fn from(scope: Scope) -> Self {
+        match scope {
+            Scope::Input => DeviceType::INPUT,
+            Scope::Output => DeviceType::OUTPUT,
+        }
+    }
+}
+
 pub fn test_get_default_device(scope: Scope) -> Option<AudioObjectID> {
     let address = AudioObjectPropertyAddress {
         mSelector: match scope {
@@ -174,14 +183,14 @@ fn test_enable_audiounit_in_scope(
 }
 
 pub fn test_get_default_source_name(scope: Scope) -> Option<String> {
-    if let Some(source) = test_get_default_source(scope) {
+    if let Some(source) = test_get_default_source_data(scope) {
         Some(u32_to_string(source))
     } else {
         None
     }
 }
 
-fn test_get_default_source(scope: Scope) -> Option<u32> {
+pub fn test_get_default_source_data(scope: Scope) -> Option<u32> {
     let device = test_get_default_device(scope.clone());
     if device.is_none() {
         return None;
