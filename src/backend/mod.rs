@@ -4100,10 +4100,10 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     }
     #[cfg(not(target_os = "ios"))]
     fn current_device(&mut self) -> Result<&DeviceRef> {
-        let mut device: Box<ffi::cubeb_device> = Box::new(unsafe { mem::zeroed() });
+        let mut device: Box<ffi::cubeb_device> = Box::new(ffi::cubeb_device::default());
         audiounit_get_default_device_name(self, device.as_mut(), DeviceType::OUTPUT)?;
         audiounit_get_default_device_name(self, device.as_mut(), DeviceType::INPUT)?;
-        Ok(unsafe { DeviceRef::from_ptr(Box::into_raw(device) as *mut _) })
+        Ok(unsafe { DeviceRef::from_ptr(Box::into_raw(device)) })
     }
     #[cfg(target_os = "ios")]
     fn device_destroy(&mut self, device: &DeviceRef) -> Result<()> {
