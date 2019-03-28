@@ -54,6 +54,9 @@ pub fn test_get_default_device(scope: Scope) -> Option<AudioObjectID> {
     Some(devid)
 }
 
+// TODO: Create a GetProperty trait and add a default implementation for it, then implement it
+//       for TestAudioUnit so the member method like `get_buffer_frame_size` can reuse the trait
+//       method get_property_data.
 #[derive(Debug)]
 pub struct TestAudioUnit(AudioUnit);
 
@@ -64,6 +67,29 @@ impl TestAudioUnit {
     }
     pub fn get_inner(&self) -> AudioUnit {
         self.0
+    }
+    pub fn get_buffer_frame_size(&self, scope: Scope) -> std::result::Result<u32, OSStatus> {
+        let (scope, element) = match scope {
+            Scope::Input => (kAudioUnitScope_Input, AU_IN_BUS),
+            Scope::Output => (kAudioUnitScope_Output, AU_OUT_BUS),
+        };
+        let mut buffer_frames: u32 = 0;
+        let mut size = mem::size_of::<u32>();
+        let status = unsafe {
+            AudioUnitGetProperty(
+                self.0,
+                kAudioDevicePropertyBufferFrameSize,
+                scope,
+                element,
+                &mut buffer_frames as *mut u32 as *mut c_void,
+                &mut size as *mut usize as *mut u32,
+            )
+        };
+        if status == NO_ERR {
+            Ok(buffer_frames)
+        } else {
+            Err(status)
+        }
     }
 }
 
