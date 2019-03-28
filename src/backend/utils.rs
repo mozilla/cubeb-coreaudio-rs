@@ -3,7 +3,7 @@
 // This program is made available under an ISC-style license.  See the
 // accompanying file LICENSE for details.
 
-extern crate coreaudio_sys as sys;
+extern crate coreaudio_sys_utils as sys;
 
 use std::mem;
 use std::os::raw::c_void;

@@ -5,7 +5,7 @@
 #![allow(unused_assignments)]
 #![allow(unused_must_use)]
 
-extern crate coreaudio_sys;
+extern crate coreaudio_sys_utils;
 extern crate libc;
 
 mod auto_array;
@@ -39,7 +39,7 @@ use self::auto_array::*;
 use self::auto_release::*;
 use self::cubeb_utils::*;
 use self::dispatch_utils::*;
-use self::coreaudio_sys::*;
+use self::coreaudio_sys_utils::*;
 use self::utils::*;
 use self::owned_critical_section::*;
 use std::cmp;
@@ -247,7 +247,7 @@ fn has_output(stm: &AudioUnitStream) -> bool
 
 fn channel_label_to_cubeb_channel(label: AudioChannelLabel) -> ChannelLayout
 {
-    use self::coreaudio_sys as sys;
+    use self::coreaudio_sys_utils as sys;
 
     match label {
         sys::kAudioChannelLabel_Left => ChannelLayout::FRONT_LEFT,
@@ -866,14 +866,16 @@ fn audiounit_reinit_stream_async(stm: &mut AudioUnitStream, flags: device_flags)
 
 fn event_addr_to_string(selector: AudioObjectPropertySelector) -> &'static str
 {
+    use self::coreaudio_sys_utils as sys;
+
     match selector {
-        coreaudio_sys::kAudioHardwarePropertyDefaultOutputDevice =>
+        sys::kAudioHardwarePropertyDefaultOutputDevice =>
             "kAudioHardwarePropertyDefaultOutputDevice",
-        coreaudio_sys::kAudioHardwarePropertyDefaultInputDevice =>
+        sys::kAudioHardwarePropertyDefaultInputDevice =>
             "kAudioHardwarePropertyDefaultInputDevice",
-        coreaudio_sys::kAudioDevicePropertyDeviceIsAlive =>
+        sys::kAudioDevicePropertyDeviceIsAlive =>
             "kAudioDevicePropertyDeviceIsAlive",
-        coreaudio_sys::kAudioDevicePropertyDataSource =>
+        sys::kAudioDevicePropertyDataSource =>
             "kAudioDevicePropertyDataSource",
         _ => "Unknown"
     }
@@ -883,6 +885,8 @@ extern fn audiounit_property_listener_callback(id: AudioObjectID, address_count:
                                                addresses: *const AudioObjectPropertyAddress,
                                                user: *mut c_void) -> OSStatus
 {
+    use self::coreaudio_sys_utils as sys;
+
     let stm = unsafe { &mut *(user as *mut AudioUnitStream) };
     let addrs = unsafe { slice::from_raw_parts(addresses, address_count as usize) };
     if *stm.switching_device.get_mut() {
@@ -894,13 +898,13 @@ extern fn audiounit_property_listener_callback(id: AudioObjectID, address_count:
     cubeb_log!("({:p}) Audio device changed, {} events.", stm as *const AudioUnitStream, address_count);
     for (i, addr) in addrs.iter().enumerate() {
         match addr.mSelector {
-            coreaudio_sys::kAudioHardwarePropertyDefaultOutputDevice => {
+            sys::kAudioHardwarePropertyDefaultOutputDevice => {
                 cubeb_log!("Event[{}] - mSelector == kAudioHardwarePropertyDefaultOutputDevice for id={}", i, id);
             },
-            coreaudio_sys::kAudioHardwarePropertyDefaultInputDevice => {
+            sys::kAudioHardwarePropertyDefaultInputDevice => {
                 cubeb_log!("Event[{}] - mSelector == kAudioHardwarePropertyDefaultInputDevice for id={}", i, id);
             },
-            coreaudio_sys::kAudioDevicePropertyDeviceIsAlive => {
+            sys::kAudioDevicePropertyDeviceIsAlive => {
                 cubeb_log!("Event[{}] - mSelector == kAudioDevicePropertyDeviceIsAlive for id={}", i, id);
                 // If this is the default input device ignore the event,
                 // kAudioHardwarePropertyDefaultInputDevice will take care of the switch
@@ -910,7 +914,7 @@ extern fn audiounit_property_listener_callback(id: AudioObjectID, address_count:
                     return 0;
                 }
             },
-            coreaudio_sys::kAudioDevicePropertyDataSource => {
+            sys::kAudioDevicePropertyDataSource => {
                 cubeb_log!("Event[{}] - mSelector == kAudioDevicePropertyDataSource for id={}", i, id);
             },
             _ => {
@@ -2219,6 +2223,8 @@ extern fn buffer_size_changed_callback(in_client_data: *mut c_void,
                                        in_scope: AudioUnitScope,
                                        in_element: AudioUnitElement)
 {
+    use self::coreaudio_sys_utils as sys;
+
     let stm = unsafe { &mut *(in_client_data as *mut AudioUnitStream) };
 
     let au = in_unit;
@@ -2233,7 +2239,7 @@ extern fn buffer_size_changed_callback(in_client_data: *mut c_void,
     match in_property_id {
         // Using coreaudio_sys as prefix so kAudioDevicePropertyBufferFrameSize
         // won't be treated as a new variable introduced in the match arm.
-        coreaudio_sys::kAudioDevicePropertyBufferFrameSize => {
+        sys::kAudioDevicePropertyBufferFrameSize => {
             if in_scope != au_scope { // filter out the callback for global scope
                 return;
             }
