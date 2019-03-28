@@ -1639,7 +1639,6 @@ fn test_clamp_latency_with_more_than_one_active_streams() {
                     latency_frames
                 };
                 let clamp = audiounit_clamp_latency(stream, latency_frames);
-                println!("{}: clamp: {}", latency_frames, clamp);
                 assert_eq!(clamp, test_clamp_latency(min));
             }
 

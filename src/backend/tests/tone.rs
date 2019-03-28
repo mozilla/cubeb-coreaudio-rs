@@ -23,7 +23,6 @@ fn test_dial_tone() {
         assert!(!stream.is_null());
         assert!(!user_ptr.is_null());
         assert_ne!(state, ffi::CUBEB_STATE_ERROR);
-        println!("state: {}", state);
     }
 
     extern "C" fn data_callback(
