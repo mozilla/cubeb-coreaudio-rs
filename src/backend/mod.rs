@@ -3062,6 +3062,7 @@ fn audiounit_get_device_presentation_latency(devid: AudioObjectID, scope: AudioO
     dev + stream
 }
 
+// TODO: Put dev_info in Ok.
 fn audiounit_create_device_from_hwdev(dev_info: &mut ffi::cubeb_device_info, devid: AudioObjectID, devtype: DeviceType) -> Result<()>
 {
     let mut adr = AudioObjectPropertyAddress {

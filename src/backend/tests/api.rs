@@ -2015,8 +2015,8 @@ fn test_get_device_presentation_latency() {
 
     fn test_get_device_presentation_latencies_in_scope(scope: Scope) {
         if let Some(device) = test_get_default_device(scope.clone()) {
+            // TODO: The latencies very from devices to devices. Check nothing here.
             let latencies = test_get_device_presentation_latencies_of_device(device);
-        // TODO: The latencies very from devices to devices. Check nothing here.
         } else {
             println!("No device for {:?}.", scope);
         }
@@ -2033,6 +2033,120 @@ fn test_get_device_presentation_latency() {
             latencies.push(audiounit_get_device_presentation_latency(id, *scope));
         }
         latencies
+    }
+}
+
+// create_device_from_hwdev
+// ------------------------------------
+#[test]
+fn test_create_device_from_hwdev() {
+    use std::collections::VecDeque;
+
+    let results = test_create_device_from_hwdev_by_device(kAudioObjectUnknown);
+    for result in results {
+        // Hit the kAudioHardwareBadObjectError actually.
+        assert_eq!(result.unwrap_err(), Error::error());
+    }
+
+    test_create_device_from_hwdev_in_scope(Scope::Input);
+    test_create_device_from_hwdev_in_scope(Scope::Output);
+
+    fn test_create_device_from_hwdev_in_scope(scope: Scope) {
+        if let Some(device) = test_get_default_device(scope.clone()) {
+            let is_input = test_device_in_scope(device, Scope::Input);
+            let is_output = test_device_in_scope(device, Scope::Output);
+            let mut results = test_create_device_from_hwdev_by_device(device);
+            assert_eq!(results.len(), 4);
+            // Unknown device type:
+            assert_eq!(results.pop_front().unwrap().unwrap_err(), Error::error());
+            // Input device type:
+            if is_input {
+                check_device_info_by_device(
+                    results.pop_front().unwrap().unwrap(),
+                    device,
+                    Scope::Input,
+                );
+            } else {
+                assert_eq!(results.pop_front().unwrap().unwrap_err(), Error::error());
+            }
+            // Output device type:
+            if is_output {
+                check_device_info_by_device(
+                    results.pop_front().unwrap().unwrap(),
+                    device,
+                    Scope::Output,
+                );
+            } else {
+                assert_eq!(results.pop_front().unwrap().unwrap_err(), Error::error());
+            }
+            // In-out device type:
+            // FIXIT: What if the device is a in-out device ?
+            assert_eq!(results.pop_front().unwrap().unwrap_err(), Error::error());
+        } else {
+            println!("No device for {:?}.", scope);
+        }
+    }
+
+    fn test_create_device_from_hwdev_by_device(
+        id: AudioObjectID,
+    ) -> VecDeque<std::result::Result<ffi::cubeb_device_info, Error>> {
+        let dev_types = [
+            DeviceType::UNKNOWN,
+            DeviceType::INPUT,
+            DeviceType::OUTPUT,
+            DeviceType::INPUT | DeviceType::OUTPUT,
+        ];
+        let mut results = VecDeque::new();
+        for dev_type in dev_types.iter() {
+            let mut info = ffi::cubeb_device_info::default();
+            let result = audiounit_create_device_from_hwdev(&mut info, id, *dev_type);
+            results.push_back(if result.is_ok() {
+                Ok(info)
+            } else {
+                Err(result.unwrap_err())
+            });
+        }
+        results
+    }
+
+    fn check_device_info_by_device(info: ffi::cubeb_device_info, id: AudioObjectID, scope: Scope) {
+        assert!(!info.devid.is_null());
+        assert!(mem::size_of_val(&info.devid) >= mem::size_of::<AudioObjectID>());
+        assert_eq!(info.devid as AudioObjectID, id);
+        assert!(!info.device_id.is_null());
+        assert!(!info.friendly_name.is_null());
+        assert_eq!(info.group_id, info.device_id);
+        // TODO: Hit a kAudioHardwareUnknownPropertyError for AirPods
+        // assert!(!info.vendor_name.is_null());
+
+        // FIXIT: The device is defined to input-only or output-only, but some device is in-out!
+        assert_eq!(info.device_type, DeviceType::from(scope.clone()).bits());
+        assert_eq!(info.state, ffi::CUBEB_DEVICE_STATE_ENABLED);
+        // TODO: The preference is set when the device is default input/output device if the device
+        //       info is created from input/output scope. Should the preference be set if the
+        //       device is a default input/output device if the device info is created from
+        //       output/input scope ? The device may be a in-out device!
+        assert_eq!(info.preferred, get_cubeb_device_pref(id, scope));
+
+        assert_eq!(info.format, ffi::CUBEB_DEVICE_FMT_ALL);
+        assert_eq!(info.default_format, ffi::CUBEB_DEVICE_FMT_F32NE);
+        assert!(info.max_channels > 0);
+        assert!(info.min_rate <= info.max_rate);
+        assert!(info.min_rate <= info.default_rate);
+        assert!(info.default_rate <= info.max_rate);
+
+        assert!(info.latency_lo > 0);
+        assert!(info.latency_hi > 0);
+        assert!(info.latency_lo <= info.latency_hi);
+
+        fn get_cubeb_device_pref(id: AudioObjectID, scope: Scope) -> ffi::cubeb_device_pref {
+            let default_device = test_get_default_device(scope);
+            if default_device.is_some() && default_device.unwrap() == id {
+                ffi::CUBEB_DEVICE_PREF_ALL
+            } else {
+                ffi::CUBEB_DEVICE_PREF_NONE
+            }
+        }
     }
 }
 
