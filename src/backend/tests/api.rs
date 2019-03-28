@@ -2264,3 +2264,233 @@ fn test_get_devices_of_type() {
     union_devices.sort();
     assert_eq!(all_devices, union_devices);
 }
+
+// add_device_listener
+// ------------------------------------
+#[test]
+fn test_add_device_listeners() {
+    use std::collections::HashMap;
+
+    extern "C" fn inout_callback(_: *mut ffi::cubeb, _: *mut c_void) {}
+    extern "C" fn in_callback(_: *mut ffi::cubeb, _: *mut c_void) {}
+    extern "C" fn out_callback(_: *mut ffi::cubeb, _: *mut c_void) {}
+
+    let mut map: HashMap<DeviceType, extern "C" fn(*mut ffi::cubeb, *mut c_void)> = HashMap::new();
+    map.insert(DeviceType::INPUT, in_callback);
+    map.insert(DeviceType::OUTPUT, out_callback);
+    map.insert(DeviceType::INPUT | DeviceType::OUTPUT, inout_callback);
+
+    test_get_locked_context(|context| {
+        for (devtype, callback) in map.iter() {
+            assert!(context.input_collection_changed_callback.is_none());
+            assert!(context.output_collection_changed_callback.is_none());
+
+            // Register a callback within a specific scope.
+            assert_eq!(
+                audiounit_add_device_listener(context, *devtype, Some(*callback), ptr::null_mut()),
+                NO_ERR
+            );
+
+            // TODO: It doesn't work, but the return value is ok.
+            assert_eq!(
+                audiounit_remove_device_listener(context, DeviceType::UNKNOWN),
+                NO_ERR
+            );
+
+            if devtype.contains(DeviceType::INPUT) {
+                assert!(context.input_collection_changed_callback.is_some());
+                assert_eq!(
+                    context.input_collection_changed_callback.unwrap(),
+                    *callback
+                );
+            } else {
+                assert!(context.input_collection_changed_callback.is_none());
+            }
+
+            if devtype.contains(DeviceType::OUTPUT) {
+                assert!(context.output_collection_changed_callback.is_some());
+                assert_eq!(
+                    context.output_collection_changed_callback.unwrap(),
+                    *callback
+                );
+            } else {
+                assert!(context.output_collection_changed_callback.is_none());
+            }
+
+            // Unregister the callbacks within all scopes.
+            assert_eq!(
+                audiounit_remove_device_listener(context, DeviceType::INPUT | DeviceType::OUTPUT),
+                NO_ERR
+            );
+
+            assert!(context.input_collection_changed_callback.is_none());
+            assert!(context.output_collection_changed_callback.is_none());
+        }
+    });
+}
+
+#[test]
+#[should_panic]
+fn test_add_device_listener_in_unknown_scope() {
+    extern "C" fn callback(_: *mut ffi::cubeb, _: *mut c_void) {}
+
+    test_get_locked_context(|context| {
+        let _ = audiounit_add_device_listener(
+            context,
+            DeviceType::UNKNOWN,
+            Some(callback),
+            ptr::null_mut(),
+        );
+    });
+}
+
+#[test]
+#[should_panic]
+fn test_add_device_listener_with_none_callback() {
+    test_get_locked_context(|context| {
+        for devtype in &[DeviceType::INPUT, DeviceType::OUTPUT] {
+            assert_ne!(
+                audiounit_add_device_listener(context, *devtype, None, ptr::null_mut()),
+                NO_ERR
+            );
+        }
+    });
+}
+
+// remove_device_listener
+// ------------------------------------
+#[test]
+fn test_remove_device_listeners() {
+    use std::collections::HashMap;
+
+    extern "C" fn in_callback(_: *mut ffi::cubeb, _: *mut c_void) {}
+    extern "C" fn out_callback(_: *mut ffi::cubeb, _: *mut c_void) {}
+
+    let mut map: HashMap<DeviceType, extern "C" fn(*mut ffi::cubeb, *mut c_void)> = HashMap::new();
+    map.insert(DeviceType::INPUT, in_callback);
+    map.insert(DeviceType::OUTPUT, out_callback);
+
+    test_get_locked_context(|context| {
+        for (devtype, callback) in map.iter() {
+            assert!(context.input_collection_changed_callback.is_none());
+            assert!(context.output_collection_changed_callback.is_none());
+
+            // Register callbacks within all scopes.
+            for (scope, listener) in map.iter() {
+                assert_eq!(
+                    audiounit_add_device_listener(
+                        context,
+                        *scope,
+                        Some(*listener),
+                        ptr::null_mut()
+                    ),
+                    NO_ERR
+                );
+            }
+
+            assert!(context.input_collection_changed_callback.is_some());
+            assert_eq!(
+                context.input_collection_changed_callback.unwrap(),
+                *(map.get(&DeviceType::INPUT).unwrap())
+            );
+            assert!(context.output_collection_changed_callback.is_some());
+            assert_eq!(
+                context.output_collection_changed_callback.unwrap(),
+                *(map.get(&DeviceType::OUTPUT).unwrap())
+            );
+
+            // Unregister the callbacks within one specific scopes.
+            assert_eq!(audiounit_remove_device_listener(context, *devtype,), NO_ERR);
+
+            if devtype.contains(DeviceType::INPUT) {
+                assert!(context.input_collection_changed_callback.is_none());
+            } else {
+                assert!(context.input_collection_changed_callback.is_some());
+                assert_eq!(
+                    context.input_collection_changed_callback.unwrap(),
+                    *(map.get(&DeviceType::INPUT).unwrap())
+                );
+            }
+
+            if devtype.contains(DeviceType::OUTPUT) {
+                assert!(context.output_collection_changed_callback.is_none());
+            } else {
+                assert!(context.output_collection_changed_callback.is_some());
+                assert_eq!(
+                    context.output_collection_changed_callback.unwrap(),
+                    *(map.get(&DeviceType::OUTPUT).unwrap())
+                );
+            }
+
+            // Unregister the callbacks within all scopes.
+            assert_eq!(
+                audiounit_remove_device_listener(context, DeviceType::INPUT | DeviceType::OUTPUT,),
+                NO_ERR
+            );
+        }
+    });
+}
+
+#[test]
+fn test_remove_device_listener_without_adding_listeners() {
+    test_get_locked_context(|context| {
+        for devtype in &[
+            DeviceType::UNKNOWN,
+            DeviceType::INPUT,
+            DeviceType::OUTPUT,
+            DeviceType::INPUT | DeviceType::OUTPUT,
+        ] {
+            assert_eq!(audiounit_remove_device_listener(context, *devtype), NO_ERR);
+        }
+    });
+}
+
+#[test]
+fn test_remove_device_listeners_within_all_scopes() {
+    use std::collections::HashMap;
+
+    extern "C" fn inout_callback(_: *mut ffi::cubeb, _: *mut c_void) {}
+    extern "C" fn in_callback(_: *mut ffi::cubeb, _: *mut c_void) {}
+    extern "C" fn out_callback(_: *mut ffi::cubeb, _: *mut c_void) {}
+
+    let mut map: HashMap<DeviceType, extern "C" fn(*mut ffi::cubeb, *mut c_void)> = HashMap::new();
+    map.insert(DeviceType::INPUT, in_callback);
+    map.insert(DeviceType::OUTPUT, out_callback);
+    map.insert(DeviceType::INPUT | DeviceType::OUTPUT, inout_callback);
+
+    test_get_locked_context(|context| {
+        for (devtype, callback) in map.iter() {
+            assert!(context.input_collection_changed_callback.is_none());
+            assert!(context.output_collection_changed_callback.is_none());
+
+            assert_eq!(
+                audiounit_add_device_listener(context, *devtype, Some(*callback), ptr::null_mut()),
+                NO_ERR
+            );
+
+            if devtype.contains(DeviceType::INPUT) {
+                assert!(context.input_collection_changed_callback.is_some());
+                assert_eq!(
+                    context.input_collection_changed_callback.unwrap(),
+                    *callback
+                );
+            }
+
+            if devtype.contains(DeviceType::OUTPUT) {
+                assert!(context.output_collection_changed_callback.is_some());
+                assert_eq!(
+                    context.output_collection_changed_callback.unwrap(),
+                    *callback
+                );
+            }
+
+            assert_eq!(
+                audiounit_remove_device_listener(context, DeviceType::INPUT | DeviceType::OUTPUT),
+                NO_ERR
+            );
+
+            assert!(context.input_collection_changed_callback.is_none());
+            assert!(context.output_collection_changed_callback.is_none());
+        }
+    });
+}

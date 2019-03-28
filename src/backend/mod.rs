@@ -3352,7 +3352,7 @@ extern fn audiounit_collection_changed_callback(_in_object_id: AudioObjectID,
         });
     }
 
-    0 // noErr.
+    NO_ERR
 }
 
 fn audiounit_add_device_listener(context: *mut AudioUnitContext,
@@ -3400,7 +3400,7 @@ fn audiounit_add_device_listener(context: *mut AudioUnitContext,
         }
     }
 
-    0 // noErr.
+    NO_ERR
 }
 
 // TODO: Replace *mut AudioUnitContext by &mut AudioUnitContext
@@ -3426,7 +3426,7 @@ fn audiounit_remove_device_listener(context: *mut AudioUnitContext, devtype: Dev
 
         if (*context).input_collection_changed_callback.is_some() ||
            (*context).output_collection_changed_callback.is_some() {
-            return 0; // noErr.
+            return NO_ERR;
         }
     }
 
