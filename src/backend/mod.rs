@@ -39,7 +39,11 @@ use self::auto_array::*;
 use self::auto_release::*;
 use self::cubeb_utils::*;
 use self::dispatch_utils::*;
-use self::coreaudio_sys_utils::*;
+use self::coreaudio_sys_utils::aggregate_device::*;
+use self::coreaudio_sys_utils::audio_object::*;
+use self::coreaudio_sys_utils::audio_unit::*;
+use self::coreaudio_sys_utils::string::*;
+use self::coreaudio_sys_utils::sys::*;
 use self::utils::*;
 use self::owned_critical_section::*;
 use std::cmp;
@@ -229,9 +233,10 @@ fn has_output(stm: &AudioUnitStream) -> bool
     stm.output_stream_params.rate() > 0
 }
 
+// TODO: Do this by From trait
 fn channel_label_to_cubeb_channel(label: AudioChannelLabel) -> ChannelLayout
 {
-    use self::coreaudio_sys_utils as sys;
+    use self::coreaudio_sys_utils::sys as sys;
 
     match label {
         sys::kAudioChannelLabel_Left => ChannelLayout::FRONT_LEFT,
@@ -256,6 +261,7 @@ fn channel_label_to_cubeb_channel(label: AudioChannelLabel) -> ChannelLayout
     }
 }
 
+// TODO: Do this by From trait
 fn cubeb_channel_to_channel_label(channel: ChannelLayout) -> AudioChannelLabel
 {
     // Make sure the argument is a channel (only one bit set to 1)
@@ -848,9 +854,10 @@ fn audiounit_reinit_stream_async(stm: &mut AudioUnitStream, flags: device_flags)
     });
 }
 
+
 fn event_addr_to_string(selector: AudioObjectPropertySelector) -> &'static str
 {
-    use self::coreaudio_sys_utils as sys;
+    use self::coreaudio_sys_utils::sys as sys;
 
     match selector {
         sys::kAudioHardwarePropertyDefaultOutputDevice =>
@@ -869,7 +876,7 @@ extern fn audiounit_property_listener_callback(id: AudioObjectID, address_count:
                                                addresses: *const AudioObjectPropertyAddress,
                                                user: *mut c_void) -> OSStatus
 {
-    use self::coreaudio_sys_utils as sys;
+    use self::coreaudio_sys_utils::sys as sys;
 
     let stm = unsafe { &mut *(user as *mut AudioUnitStream) };
     let addrs = unsafe { slice::from_raw_parts(addresses, address_count as usize) };
@@ -2207,7 +2214,7 @@ extern fn buffer_size_changed_callback(in_client_data: *mut c_void,
                                        in_scope: AudioUnitScope,
                                        in_element: AudioUnitElement)
 {
-    use self::coreaudio_sys_utils as sys;
+    use self::coreaudio_sys_utils::sys as sys;
 
     let stm = unsafe { &mut *(in_client_data as *mut AudioUnitStream) };
 

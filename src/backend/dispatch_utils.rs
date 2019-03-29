@@ -4,7 +4,8 @@
 // http://rustaudio.github.io/coreaudio-rs/coreaudio_sys/audio_unit/fn.dispatch_async_f.html
 // https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.13.sdk/usr/include/dispatch/queue.h#L472
 
-extern crate coreaudio_sys_utils as sys;
+extern crate coreaudio_sys_utils;
+use self::coreaudio_sys_utils::sys as sys;
 
 use std::ffi::CString;
 use std::mem;
