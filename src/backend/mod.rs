@@ -851,7 +851,7 @@ fn audiounit_reinit_stream_async(stm: &mut AudioUnitStream, flags: device_flags)
     });
 }
 
-
+// TODO: Do this by From trait
 fn event_addr_to_string(selector: AudioObjectPropertySelector) -> &'static str
 {
     use self::coreaudio_sys_utils::sys as sys;
@@ -879,12 +879,13 @@ extern fn audiounit_property_listener_callback(id: AudioObjectID, address_count:
     let addrs = unsafe { slice::from_raw_parts(addresses, address_count as usize) };
     if *stm.switching_device.get_mut() {
         cubeb_log!("Switching is already taking place. Skip Event {} for id={}", event_addr_to_string(addrs[0].mSelector), id);
-        return 0;
+        return NO_ERR;
     }
     *stm.switching_device.get_mut() = true;
 
     cubeb_log!("({:p}) Audio device changed, {} events.", stm as *const AudioUnitStream, address_count);
     for (i, addr) in addrs.iter().enumerate() {
+        // TODO: Use cubeb_log!("Event[{}] - mSelector == {} for id={}", i, event_addr_to_string(addr.mSelector), id)
         match addr.mSelector {
             sys::kAudioHardwarePropertyDefaultOutputDevice => {
                 cubeb_log!("Event[{}] - mSelector == kAudioHardwarePropertyDefaultOutputDevice for id={}", i, id);
@@ -899,7 +900,7 @@ extern fn audiounit_property_listener_callback(id: AudioObjectID, address_count:
                 if stm.input_device.flags.contains(device_flags::DEV_SYSTEM_DEFAULT) {
                     cubeb_log!("It's the default input device, ignore the event");
                     *stm.switching_device.get_mut() = false;
-                    return 0;
+                    return NO_ERR;
                 }
             },
             sys::kAudioDevicePropertyDataSource => {
@@ -908,7 +909,7 @@ extern fn audiounit_property_listener_callback(id: AudioObjectID, address_count:
             _ => {
                 cubeb_log!("Event[{}] - mSelector == Unexpected Event id {}, return", i, addr.mSelector);
                 *stm.switching_device.get_mut() = false;
-                return 0;
+                return NO_ERR;
             }
         }
     }
@@ -946,7 +947,7 @@ extern fn audiounit_property_listener_callback(id: AudioObjectID, address_count:
 
     audiounit_reinit_stream_async(stm, switch_side);
 
-    0
+    NO_ERR
 }
 
 fn audiounit_add_listener(listener: &property_listener) -> OSStatus
