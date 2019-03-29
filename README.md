@@ -177,10 +177,9 @@ It can be tracked on [*bugzilla* 1530715][bugzilla-cars].
   - Try *Instrument* on OSX
 - Some of bugs are found when adding tests. Search *FIXIT* to find them.
 - Maybe it's better to move all `fn some_func(stm: &AudioUnitStream, ...)` functions into `impl AudioUnitStream`.
-- Add comments for APIs in `utils`
 - Fail to run `test_create_blank_aggregate_device` with `test_add_device_listeners_dont_affect_other_scopes_with_*` at the same time
   - I guess `audiounit_create_blank_aggregate_device` will fire the callbacks in `test_add_device_listeners_dont_affect_other_scopes_with_*`
-- Fail to run `test_ops_context_register_device_collection_changed_twice_*` on my MacBook Air.
+- Fail to run `test_ops_context_register_device_collection_changed_twice_*` on my MacBook Air and Travis CI.
   - A panic in `capi_register_device_collection_changed` causes `EXC_BAD_INSTRUCTION`.
   - Works fine if replacing `register_device_collection_changed: Option<unsafe extern "C" fn(..,) -> c_int>` to `register_device_collection_changed: unsafe extern "C" fn(..,) -> c_int`
   - Test them in `AudioUnitContext` directly instead of calling them via `OPS` for now.
@@ -189,15 +188,12 @@ It can be tracked on [*bugzilla* 1530715][bugzilla-cars].
   - We should not set `kAudioDevicePropertyBufferFrameSize` in parallel when another stream using the same device with smaller buffer size is active. See [here][chg-buf-sz] for reference.
   - *Buffer frame size* within same device may be overwritten (no matter the *AudioUnit*s are different or not) ?
 - Find a reliable way to verify `enumerate_devices`
-- Make a list pairing (device-uid/device-name, available channel layouts) so we can check the layout-related APIs properly!
-  - A prototype is in [`test_set_channel_layout_output`](src/backend/tests/test.rs).
-- Make a black/white list for those devices cannot/can get the *datasource*,
-  so the tests for `audiounit_get_default_device_datasource` and those APIs based on `audiounit_get_default_device_datasource` can work on different devices.
 - [cubeb-rs][cubeb-rs]
   - Implement `to_owned` in [`StreamParamsRef`][cubeb-rs-stmparamsref]
   - Check the passed parameters like what [cubeb.c][cubeb] does!
     - Check the input `StreamParams` parameters properly, or we will set a invalid format into `AudioUnit`.
     In fact, we should check **all** the parameters properly so we can make sure we don't mess up the streams/devices settings!
+- Run `cargo clippy` for *coreaudio-sys-utils*
 
 ## Issues
 - See discussion [here][discussion]
