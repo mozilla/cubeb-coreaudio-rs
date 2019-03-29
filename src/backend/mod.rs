@@ -10,7 +10,6 @@ extern crate libc;
 
 mod auto_array;
 mod auto_release;
-mod cubeb_utils;
 mod utils;
 mod owned_critical_section;
 
@@ -36,7 +35,6 @@ use cubeb_backend::{
 };
 use self::auto_array::*;
 use self::auto_release::*;
-use self::cubeb_utils::*;
 use self::coreaudio_sys_utils::aggregate_device::*;
 use self::coreaudio_sys_utils::audio_object::*;
 use self::coreaudio_sys_utils::audio_unit::*;
