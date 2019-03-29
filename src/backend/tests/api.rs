@@ -1890,15 +1890,14 @@ fn test_get_default_device_name() {
                     scope.clone().into()
                 )
                 .is_ok());
-                let (input_name_is_null, output_name_is_null) = match scope {
-                    Scope::Input => (false, true),
-                    Scope::Output => (true, false),
+                let (target, rest) = match scope {
+                    Scope::Input => (device.input_name, device.output_name),
+                    Scope::Output => (device.output_name, device.input_name),
                 };
-                assert_eq!(device.input_name.is_null(), input_name_is_null);
-                assert_eq!(device.output_name.is_null(), output_name_is_null);
-                // Release the memory of device.output_name.
-                let device_ref = unsafe { DeviceRef::from_ptr(Box::into_raw(device)) };
-                stream.device_destroy(device_ref);
+                assert!(!target.is_null());
+                assert!(rest.is_null());
+                let cstring = unsafe { CString::from_raw(target) };
+                assert_eq!(cstring.into_string().unwrap(), name);
             } else {
                 println!("No source name for {:?}", scope);
             }
@@ -2015,7 +2014,7 @@ fn test_get_device_presentation_latency() {
     fn test_get_device_presentation_latencies_in_scope(scope: Scope) {
         if let Some(device) = test_get_default_device(scope.clone()) {
             // TODO: The latencies very from devices to devices. Check nothing here.
-            let latencies = test_get_device_presentation_latencies_of_device(device);
+            let _latencies = test_get_device_presentation_latencies_of_device(device);
         } else {
             println!("No device for {:?}.", scope);
         }
@@ -2370,7 +2369,7 @@ fn test_remove_device_listeners() {
     map.insert(DeviceType::OUTPUT, out_callback);
 
     test_get_locked_context(|context| {
-        for (devtype, callback) in map.iter() {
+        for (devtype, _callback) in map.iter() {
             assert!(context.input_collection_changed_callback.is_none());
             assert!(context.output_collection_changed_callback.is_none());
 

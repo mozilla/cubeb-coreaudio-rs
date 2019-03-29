@@ -24,7 +24,7 @@ fn test_context_register_device_collection_changed_twice(devtype: DeviceType) {
 
     assert!(
         ctx.register_device_collection_changed(
-            DeviceType::INPUT,
+            devtype,
             Some(callback),
             ptr::null_mut()
         ).is_ok();
@@ -32,7 +32,7 @@ fn test_context_register_device_collection_changed_twice(devtype: DeviceType) {
 
     assert!(
         ctx.register_device_collection_changed(
-            DeviceType::INPUT,
+            devtype,
             Some(callback),
             ptr::null_mut()
         ).is_err();
@@ -1344,33 +1344,8 @@ fn valid_id(id: AudioObjectID) -> bool {
     id != kAudioObjectUnknown
 }
 
-fn is_input(id: AudioObjectID) -> bool {
-    audiounit_get_channel_count(id, kAudioDevicePropertyScopeInput) > 0
-}
-
 fn is_output(id: AudioObjectID) -> bool {
     audiounit_get_channel_count(id, kAudioDevicePropertyScopeOutput) > 0
-}
-
-fn unit_scope_is_enabled(unit: AudioUnit, is_input: bool) -> bool {
-    assert!(!unit.is_null());
-    let mut has_io: UInt32 = 0;
-    assert_eq!(
-        audio_unit_get_property(
-            unit,
-            kAudioOutputUnitProperty_HasIO,
-            if is_input {
-                kAudioUnitScope_Input
-            } else {
-                kAudioUnitScope_Output
-            },
-            if is_input { AU_IN_BUS } else { AU_OUT_BUS },
-            &mut has_io,
-            &mut mem::size_of::<UInt32>()
-        ),
-        0
-    );
-    has_io != 0
 }
 
 fn to_devices_names(devices: &Vec<AudioObjectID>) -> Vec<Option<String>> {

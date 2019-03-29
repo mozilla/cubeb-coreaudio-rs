@@ -1602,28 +1602,6 @@ fn get_device_name(id: AudioDeviceID) -> CFStringRef
     if err == NO_ERR { uiname } else { ptr::null() }
 }
 
-// fn get_device_name(id: AudioDeviceID) -> CString
-// {
-//     let mut size = mem::size_of::<CFStringRef>();
-//     let mut uiname: CFStringRef = ptr::null();
-//     let address_uuid = AudioObjectPropertyAddress {
-//         mSelector: kAudioDevicePropertyDeviceUID,
-//         mScope: kAudioObjectPropertyScopeGlobal,
-//         mElement: kAudioObjectPropertyElementMaster
-//     };
-//     let err = audio_object_get_property_data(id, &address_uuid, &mut size, &mut uiname);
-//     let strref = if err == NO_ERR {
-//         uiname
-//     } else {
-//         ptr::null()
-//     };
-//     let name = audiounit_strref_to_cstr_utf8(strref);
-//     if !uiname.is_null() {
-//         unsafe { CFRelease(uiname as *const c_void); }
-//     }
-//     name
-// }
-
 fn audiounit_set_aggregate_sub_device_list(aggregate_device_id: AudioDeviceID,
                                            input_device_id: AudioDeviceID,
                                            output_device_id: AudioDeviceID) -> Result<()>
