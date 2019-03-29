@@ -73,22 +73,6 @@ const AU_IN_BUS: AudioUnitElement = 1;
 const DISPATCH_QUEUE_LABEL: &str = "org.mozilla.cubeb";
 const PRIVATE_AGGREGATE_DEVICE_NAME: &str = "CubebAggregateDevice";
 
-// A compile-time static string mapped to kAudioAggregateDeviceNameKey
-// https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.12.sdk/System/Library/Frameworks/CoreAudio.framework/Versions/A/Headers/AudioHardware.h#L1513
-const AGGREGATE_DEVICE_NAME_KEY: &str = "name";
-
-// A compile-time static string mapped to kAudioAggregateDeviceUIDKey
-// https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.12.sdk/System/Library/Frameworks/CoreAudio.framework/Versions/A/Headers/AudioHardware.h#L1505
-const AGGREGATE_DEVICE_UID: &str = "uid";
-
-// A compile-time static string mapped to kAudioAggregateDeviceIsPrivateKey
-// https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.12.sdk/System/Library/Frameworks/CoreAudio.framework/Versions/A/Headers/AudioHardware.h#L1553
-const AGGREGATE_DEVICE_PRIVATE_KEY: &str = "private";
-
-// A compile-time static string mapped to kAudioAggregateDeviceIsStackedKey
-// https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.12.sdk/System/Library/Frameworks/CoreAudio.framework/Versions/A/Headers/AudioHardware.h#L1562
-const AGGREGATE_DEVICE_STACKED_KEY: &str = "stacked";
-
 /* Testing empirically, some headsets report a minimal latency that is very
  * low, but this does not work in practice. Lie and say the minimum is 256
  * frames. */
