@@ -1,69 +1,59 @@
-// Reference:
-// https://gist.github.com/ChunMinChang/8d13946ebc6c95b2622466c89a0c9bcc
-// http://rustaudio.github.io/coreaudio-rs/coreaudio_sys/audio_unit/fn.dispatch_queue_create.html
-// http://rustaudio.github.io/coreaudio-rs/coreaudio_sys/audio_unit/fn.dispatch_async_f.html
-// https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.13.sdk/usr/include/dispatch/queue.h#L472
-
-extern crate coreaudio_sys_utils;
-use self::coreaudio_sys_utils::sys as sys;
+use coreaudio_sys::*;
 
 use std::ffi::CString;
 use std::mem;
 use std::os::raw::c_void;
 use std::ptr;
 
-pub const DISPATCH_QUEUE_SERIAL: sys::dispatch_queue_attr_t = 0 as sys::dispatch_queue_attr_t;
+pub const DISPATCH_QUEUE_SERIAL: dispatch_queue_attr_t = 0 as dispatch_queue_attr_t;
 
 pub fn create_dispatch_queue(
     label: &'static str,
-    queue_attr: sys::dispatch_queue_attr_t,
-) -> sys::dispatch_queue_t {
+    queue_attr: dispatch_queue_attr_t,
+) -> dispatch_queue_t {
     let label = CString::new(label);
     let c_string = if label.is_ok() {
         label.unwrap().as_ptr()
     } else {
         ptr::null()
     };
-    unsafe { sys::dispatch_queue_create(c_string, queue_attr) }
+    unsafe { dispatch_queue_create(c_string, queue_attr) }
 }
 
-pub fn release_dispatch_queue(queue: sys::dispatch_queue_t) {
+pub fn release_dispatch_queue(queue: dispatch_queue_t) {
     // TODO: This is incredibly unsafe. Find another way to release the queue.
     unsafe {
-        sys::dispatch_release(mem::transmute::<
-            sys::dispatch_queue_t,
-            sys::dispatch_object_t,
-        >(queue));
+        dispatch_release(mem::transmute::<dispatch_queue_t, dispatch_object_t>(queue));
     }
 }
 
 // Send: Types that can be transferred across thread boundaries.
 // FnOnce: One-time function.
-pub fn async_dispatch<F>(queue: sys::dispatch_queue_t, work: F)
+pub fn async_dispatch<F>(queue: dispatch_queue_t, work: F)
 where
     F: 'static + Send + FnOnce(),
 {
     let (closure, executor) = create_closure_and_executor(work);
     unsafe {
-        sys::dispatch_async_f(queue, closure, executor);
+        dispatch_async_f(queue, closure, executor);
     }
 }
 
 // Send: Types that can be transferred across thread boundaries.
 // FnOnce: One-time function.
-pub fn sync_dispatch<F>(queue: sys::dispatch_queue_t, work: F)
+pub fn sync_dispatch<F>(queue: dispatch_queue_t, work: F)
 where
     F: 'static + Send + FnOnce(),
 {
     let (closure, executor) = create_closure_and_executor(work);
     unsafe {
-        sys::dispatch_sync_f(queue, closure, executor);
+        dispatch_sync_f(queue, closure, executor);
     }
 }
 
 // Return an raw pointer to a (unboxed) closure and an executor that
 // will run the closure (after re-boxing the closure) when it's called.
-fn create_closure_and_executor<F>(closure: F) -> (*mut c_void, sys::dispatch_function_t)
+fn create_closure_and_executor<F>(closure: F) -> (*mut c_void, dispatch_function_t)
 where
     F: FnOnce(),
 {
@@ -79,7 +69,7 @@ where
     }
 
     let closure: Box<F> = Box::new(closure); // Allocate closure on heap.
-    let executor: sys::dispatch_function_t = Some(closure_executer::<F>);
+    let executor: dispatch_function_t = Some(closure_executer::<F>);
 
     (
         Box::into_raw(closure) as *mut c_void, // Leak the closure.
