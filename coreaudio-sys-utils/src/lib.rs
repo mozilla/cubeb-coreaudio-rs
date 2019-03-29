@@ -1,3 +1,4 @@
+extern crate core_foundation_sys;
 extern crate coreaudio_sys;
 
 pub mod aggregate_device;

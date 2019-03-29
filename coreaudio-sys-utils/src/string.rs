@@ -1,6 +1,9 @@
-use coreaudio_sys::*;
+use core_foundation_sys::base::{kCFAllocatorDefault, kCFAllocatorNull, Boolean, CFIndex};
+use core_foundation_sys::string::{
+    kCFStringEncodingUTF8, CFStringCreateWithBytes, CFStringCreateWithBytesNoCopy,
+};
 
-pub fn cfstringref_from_static_string(string: &'static str) -> CFStringRef {
+pub fn cfstringref_from_static_string(string: &'static str) -> coreaudio_sys::CFStringRef {
     // References:
     // https://developer.apple.com/documentation/corefoundation/1543597-cfstringcreatewithbytesnocopy?language=objc
     // https://github.com/opensource-apple/CF/blob/3cc41a76b1491f50813e28a4ec09954ffa359e6f/CFString.c#L1605
@@ -9,7 +12,7 @@ pub fn cfstringref_from_static_string(string: &'static str) -> CFStringRef {
     // Set deallocator to kCFAllocatorNull to prevent the the memory of the
     // parameter `string` from being released by CFRelease.
     // We manage the string memory by ourselves.
-    unsafe {
+    let cfstringref = unsafe {
         CFStringCreateWithBytesNoCopy(
             kCFAllocatorDefault,
             string.as_ptr(),
@@ -18,16 +21,17 @@ pub fn cfstringref_from_static_string(string: &'static str) -> CFStringRef {
             false as Boolean,
             kCFAllocatorNull,
         )
-    }
+    };
+    cfstringref as coreaudio_sys::CFStringRef
 }
 
-pub fn cfstringref_from_string(string: &str) -> CFStringRef {
+pub fn cfstringref_from_string(string: &str) -> coreaudio_sys::CFStringRef {
     // References:
     // https://developer.apple.com/documentation/corefoundation/1543419-cfstringcreatewithbytes?language=objc
     // https://github.com/opensource-apple/CF/blob/3cc41a76b1491f50813e28a4ec09954ffa359e6f/CFString.c#L1597
     // https://github.com/servo/core-foundation-rs/blob/2aac8fb85b5b114673280e273c04219c0c360e54/core-foundation/src/string.rs#L111
     // https://github.com/servo/core-foundation-rs/blob/2aac8fb85b5b114673280e273c04219c0c360e54/io-surface/src/lib.rs#L48
-    unsafe {
+    let cfstringref = unsafe {
         CFStringCreateWithBytes(
             kCFAllocatorDefault,
             string.as_ptr(),
@@ -35,39 +39,100 @@ pub fn cfstringref_from_string(string: &str) -> CFStringRef {
             kCFStringEncodingUTF8,
             false as Boolean,
         )
-    }
+    };
+    cfstringref as coreaudio_sys::CFStringRef
 }
 
-#[test]
-fn test_create_static_cfstring_ref() {
+#[cfg(test)]
+mod test {
     use super::*;
+    use core_foundation_sys::base::{CFRange, CFRelease};
+    use core_foundation_sys::string::{CFStringGetBytes, CFStringGetLength, CFStringRef};
 
-    let cfstrref = cfstringref_from_static_string(PRIVATE_AGGREGATE_DEVICE_NAME);
-    let cstring = audiounit_strref_to_cstr_utf8(cfstrref);
-    unsafe {
-        CFRelease(cfstrref as *const c_void);
+    const STATIC_STRING: &str = "static string for testing";
+
+    #[test]
+    fn test_create_static_cfstring_ref() {
+        let stringref =
+            StringRef::new(cfstringref_from_static_string(STATIC_STRING) as CFStringRef);
+        assert_eq!(STATIC_STRING, stringref.into_string());
+        // TODO: Find a way to check the string's inner pointer is same.
     }
 
-    assert_eq!(
-        PRIVATE_AGGREGATE_DEVICE_NAME,
-        cstring.into_string().unwrap()
-    );
-
-    // TODO: Find a way to check the string's inner pointer is same.
-}
-
-#[test]
-fn test_create_cfstring_ref() {
-    use super::*;
-
-    let test_string = "Rustaceans 🦀";
-    let cfstrref = cfstringref_from_string(test_string);
-    let cstring = audiounit_strref_to_cstr_utf8(cfstrref);
-    unsafe {
-        CFRelease(cfstrref as *const c_void);
+    #[test]
+    fn test_create_cfstring_ref() {
+        let expected = "Rustaceans 🦀";
+        let stringref = StringRef::new(cfstringref_from_string(expected) as CFStringRef);
+        assert_eq!(expected, stringref.into_string());
+        // TODO: Find a way to check the string's inner pointer is different.
     }
 
-    assert_eq!(test_string, cstring.to_string_lossy());
+    struct StringRef(CFStringRef);
+    impl StringRef {
+        fn new(string_ref: CFStringRef) -> Self {
+            assert!(!string_ref.is_null());
+            Self(string_ref)
+        }
 
-    // TODO: Find a way to check the string's inner pointer is different.
+        fn to_string(&self) -> String {
+            String::from_utf8(utf8_from_cfstringref(self.0)).unwrap()
+        }
+
+        fn into_string(self) -> String {
+            self.to_string()
+        }
+    }
+
+    impl Drop for StringRef {
+        fn drop(&mut self) {
+            use std::os::raw::c_void;
+            unsafe { CFRelease(self.0 as *mut c_void) };
+        }
+    }
+
+    fn utf8_from_cfstringref(string_ref: CFStringRef) -> Vec<u8> {
+        use std::ptr;
+
+        assert!(!string_ref.is_null());
+
+        let length: CFIndex = unsafe { CFStringGetLength(string_ref) };
+        assert!(length > 0);
+
+        let range: CFRange = CFRange {
+            location: 0,
+            length,
+        };
+        let mut size: CFIndex = 0;
+        let mut converted_chars: CFIndex = unsafe {
+            CFStringGetBytes(
+                string_ref,
+                range,
+                kCFStringEncodingUTF8,
+                0,
+                false as Boolean,
+                ptr::null_mut() as *mut u8,
+                0,
+                &mut size,
+            )
+        };
+        assert!(converted_chars > 0 && size > 0);
+
+        // Then, allocate the buffer with the required size and actually copy data into it.
+        let mut buffer = vec![b'\x00'; size as usize];
+        converted_chars = unsafe {
+            CFStringGetBytes(
+                string_ref,
+                range,
+                kCFStringEncodingUTF8,
+                0,
+                false as Boolean,
+                buffer.as_mut_ptr(),
+                size,
+                ptr::null_mut() as *mut CFIndex,
+            )
+        };
+        assert!(converted_chars > 0);
+
+        buffer
+    }
 }

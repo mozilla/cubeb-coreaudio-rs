@@ -5,6 +5,7 @@ authors = ["Chun-Min Chang <chun.m.chang@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+core-foundation-sys = { version = "0.6" }
 
 [dependencies.coreaudio-sys]
 default-features = false

@@ -77,11 +77,54 @@ where
     )
 }
 
-#[test]
-fn test_async_dispatch() {
-    let label = "Run with async dispatch api wrappers";
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::sync::{Arc, Mutex};
+    const COUNT: u32 = 10;
 
-    let queue = create_dispatch_queue(label, DISPATCH_QUEUE_SERIAL);
+    #[test]
+    fn test_async_dispatch() {
+        use std::sync::mpsc::channel;
+
+        get_queue_and_resource("Run with async dispatch api wrappers", |queue, resource| {
+            let (tx, rx) = channel();
+            for i in 0..COUNT {
+                let (res, tx) = (Arc::clone(&resource), tx.clone());
+                async_dispatch(queue, move || {
+                    let mut res = res.lock().unwrap();
+                    assert_eq!(res.last_touched, if i == 0 { None } else { Some(i - 1) });
+                    assert_eq!(res.touched_count, i);
+                    res.touch(i);
+                    if i == COUNT - 1 {
+                        tx.send(()).unwrap();
+                    }
+                });
+            }
+            rx.recv().unwrap(); // Wait until it's touched COUNT times.
+            let resource = resource.lock().unwrap();
+            assert_eq!(resource.touched_count, COUNT);
+            assert_eq!(resource.last_touched.unwrap(), COUNT - 1);
+        });
+    }
+
+    #[test]
+    fn test_sync_dispatch() {
+        get_queue_and_resource("Run with sync dispatch api wrappers", |queue, resource| {
+            for i in 0..COUNT {
+                let res = Arc::clone(&resource);
+                sync_dispatch(queue, move || {
+                    let mut res = res.lock().unwrap();
+                    assert_eq!(res.last_touched, if i == 0 { None } else { Some(i - 1) });
+                    assert_eq!(res.touched_count, i);
+                    res.touch(i);
+                });
+            }
+            let resource = resource.lock().unwrap();
+            assert_eq!(resource.touched_count, COUNT);
+            assert_eq!(resource.last_touched.unwrap(), COUNT - 1);
+        });
+    }
 
     struct Resource {
         last_touched: Option<u32>,
@@ -95,121 +138,22 @@ fn test_async_dispatch() {
                 touched_count: 0,
             }
         }
-    }
-
-    let mut resource = Resource::new();
-
-    // Rust compilter doesn't allow a pointer to be passed across threads.
-    // A hacky way to do that is to cast the pointer into a value, then
-    // the value, which is actually an address, can be copied into threads.
-    let resource_ptr = &mut resource as *mut Resource as usize;
-
-    // The following two closures should be executed sequentially.
-    async_dispatch(queue, move || {
-        let res: &mut Resource = unsafe {
-            let ptr = resource_ptr as *mut Resource;
-            &mut (*ptr)
-        };
-        assert_eq!(res as *mut Resource as usize, resource_ptr);
-        assert_eq!(res.last_touched, None);
-        assert_eq!(res.touched_count, 0);
-
-        res.last_touched = Some(1);
-        res.touched_count += 1;
-    });
-
-    async_dispatch(queue, move || {
-        let res: &mut Resource = unsafe {
-            let ptr = resource_ptr as *mut Resource;
-            &mut (*ptr)
-        };
-        assert_eq!(res as *mut Resource as usize, resource_ptr);
-        assert!(res.last_touched.is_some());
-        assert_eq!(res.last_touched.unwrap(), 1);
-        assert_eq!(res.touched_count, 1);
-
-        res.last_touched = Some(2);
-
-        // Make sure the `res.touched_count += 1` is the last instruction of
-        // the task since we use `res.touched_count` to check if whether
-        // we should release the `resource` and should finish the
-        // `test_async_dispatch`(see below). Any instructions after
-        // `res.touched_count += 1` may be executed after `test_async_dispatch`.
-        res.touched_count += 1;
-        // e.g., the following code may cause crash since this instruction may be
-        // executed after `resource` is freed.
-        // println!("crash > {:?} @ {:p}", res, res);
-    });
-
-    // Make sure the resource won't be freed before the tasks are finished.
-    while resource.touched_count < 2 {}
-
-    assert!(resource.last_touched.is_some());
-    assert_eq!(resource.last_touched.unwrap(), 2);
-
-    // Release the queue.
-    release_dispatch_queue(queue);
-}
-
-#[test]
-fn test_sync_dispatch() {
-    let label = "Run with sync dispatch api wrappers";
-
-    let queue = create_dispatch_queue(label, DISPATCH_QUEUE_SERIAL);
-
-    struct Resource {
-        last_touched: Option<u32>,
-        touched_count: u32,
-    }
-
-    impl Resource {
-        fn new() -> Self {
-            Resource {
-                last_touched: None,
-                touched_count: 0,
-            }
+        fn touch(&mut self, who: u32) {
+            self.last_touched = Some(who);
+            self.touched_count += 1;
         }
     }
 
-    let mut resource = Resource::new();
+    fn get_queue_and_resource<F>(label: &'static str, callback: F)
+    where
+        F: FnOnce(dispatch_queue_t, Arc<Mutex<Resource>>),
+    {
+        let queue = create_dispatch_queue(label, DISPATCH_QUEUE_SERIAL);
+        let resource = Arc::new(Mutex::new(Resource::new()));
 
-    // Rust compilter doesn't allow a pointer to be passed across threads.
-    // A hacky way to do that is to cast the pointer into a value, then
-    // the value, which is actually an address, can be copied into threads.
-    let resource_ptr = &mut resource as *mut Resource as usize;
+        callback(queue, resource);
 
-    // The program will wait here until finishing the closure below.
-    sync_dispatch(queue, move || {
-        let res: &mut Resource = unsafe {
-            let ptr = resource_ptr as *mut Resource;
-            &mut (*ptr)
-        };
-        assert_eq!(res as *mut Resource as usize, resource_ptr);
-        assert_eq!(res.last_touched, None);
-        assert_eq!(res.touched_count, 0);
-
-        res.last_touched = Some(1);
-        res.touched_count += 1;
-    });
-
-    // The program will wait here until finishing the closure below.
-    sync_dispatch(queue, move || {
-        let res: &mut Resource = unsafe {
-            let ptr = resource_ptr as *mut Resource;
-            &mut (*ptr)
-        };
-        assert_eq!(res as *mut Resource as usize, resource_ptr);
-        assert!(res.last_touched.is_some());
-        assert_eq!(res.last_touched.unwrap(), 1);
-        assert_eq!(res.touched_count, 1);
-
-        res.last_touched = Some(2);
-        res.touched_count += 1;
-    });
-
-    assert!(resource.last_touched.is_some());
-    assert_eq!(resource.last_touched.unwrap(), 2);
-
-    // Release the queue.
-    release_dispatch_queue(queue);
+        // Release the queue.
+        release_dispatch_queue(queue);
+    }
 }
