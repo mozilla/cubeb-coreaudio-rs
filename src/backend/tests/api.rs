@@ -1773,8 +1773,8 @@ fn test_configure_input() {
     let buffer_f32 = [1.1_f32, 2.2, 3.3, 4.4];
     let buffer_i16 = [1_i16, 2, 3, 4, 5, 6, 7];
 
-    test_configure_input_impl(&[1.1_f32, 2.2, 3.3, 4.4]);
-    test_configure_input_impl(&[1_i16, 2, 3, 4, 5, 6, 7]);
+    test_configure_input_impl(&buffer_f32);
+    test_configure_input_impl(&buffer_i16);
 
     fn test_configure_input_impl<T: Any + Debug + PartialEq>(buffer: &[T]) {
         // Get format parameters for the type.
@@ -1946,8 +1946,8 @@ fn test_configure_scope<F>(scope: Scope, params: StreamParams, callback: F) wher
             {
                 // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
                 let ctx_mutex_ptr = &mut stream.context.mutex as *mut OwnedCriticalSection;
-                // The scope of `ctx_lock` is a critical section.
-                let ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
+                // The scope of `_ctx_lock` is a critical section.
+                let _ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
                 assert_eq!(stream.latency_frames, 0);
                 stream.latency_frames = audiounit_clamp_latency(stream, 0);
                 assert_ne!(stream.latency_frames, 0);
