@@ -1106,6 +1106,8 @@ fn test_set_channel_layout_output_undefind() {
             audiounit_get_current_channel_layout(unit.get_inner()),
             original_layout
         );
+    } else {
+        println!("No output audiounit.");
     }
 }
 
@@ -1121,6 +1123,8 @@ fn test_set_channel_layout_input() {
             .unwrap_err(),
             Error::error()
         );
+    } else {
+        println!("No input audiounit.");
     }
 }
 
@@ -1154,6 +1158,8 @@ fn test_layout_init() {
 
             assert_eq!(stream.context.layout.load(atomic::Ordering::SeqCst), layout);
         });
+    } else {
+        println!("No output audiounit.");
     }
 }
 
@@ -1525,13 +1531,16 @@ fn test_create_unit_twice() {
 // ------------------------------------
 #[test]
 fn test_init_input_linear_buffer() {
+    let buffer_f32 = [3.1_f32, 4.1, 5.9, 2.6, 5.35];
+    let buffer_i16 = [13_i16, 21, 34, 55, 89, 144];
+
     // Test if the stream latency frame is 4096
-    test_init_input_linear_buffer_impl(&[3.1_f32, 4.1, 5.9, 2.6, 5.35], 4096);
-    test_init_input_linear_buffer_impl(&[13_i16, 21, 34, 55, 89, 144], 4096);
+    test_init_input_linear_buffer_impl(&buffer_f32, 4096);
+    test_init_input_linear_buffer_impl(&buffer_i16, 4096);
 
     // TODO: Is it ok without setting latency ?
-    test_init_input_linear_buffer_impl(&[3.1_f32, 4.1, 5.9, 2.6, 5.35], 0);
-    test_init_input_linear_buffer_impl(&[13_i16, 21, 34, 55, 89, 144], 0);
+    test_init_input_linear_buffer_impl(&buffer_f32, 0);
+    test_init_input_linear_buffer_impl(&buffer_i16, 0);
 
     fn test_init_input_linear_buffer_impl<T: Any + Debug + PartialEq>(array: &[T], latency: u32) {
         const CHANNEL: u32 = 2;
@@ -1751,6 +1760,272 @@ fn test_set_buffer_size_by_scope_with_null_unit(scope: Scope) {
             Error::error()
         );
     });
+}
+
+// configure_input
+// ------------------------------------
+// Ignore the test by default to avoid overwritting the buffer frame size for the output device
+// that is using in test_clamp_latency_with_more_than_one_active_streams. The device may serve as
+// both default input and default output device.
+#[ignore]
+#[test]
+fn test_configure_input() {
+    let buffer_f32 = [1.1_f32, 2.2, 3.3, 4.4];
+    let buffer_i16 = [1_i16, 2, 3, 4, 5, 6, 7];
+
+    test_configure_input_impl(&[1.1_f32, 2.2, 3.3, 4.4]);
+    test_configure_input_impl(&[1_i16, 2, 3, 4, 5, 6, 7]);
+
+    fn test_configure_input_impl<T: Any + Debug + PartialEq>(buffer: &[T]) {
+        // Get format parameters for the type.
+        let type_id = std::any::TypeId::of::<T>();
+        let cubeb_format = if type_id == std::any::TypeId::of::<f32>() {
+            ffi::CUBEB_SAMPLE_FLOAT32NE
+        } else if type_id == std::any::TypeId::of::<i16>() {
+            ffi::CUBEB_SAMPLE_S16NE
+        } else {
+            panic!("Unsupported type!");
+        };
+
+        let mut params = ffi::cubeb_stream_params::default();
+        params.format = cubeb_format;
+        params.rate = 48_000;
+        params.channels = 1;
+        params.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
+        params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+
+        test_configure_scope(Scope::Input, StreamParams::from(params), |stream| {
+            check_hw_rate(stream);
+            check_buffer_frame_size(stream, Scope::Input);
+            check_frames_per_slice(stream, Scope::Input);
+            check_linear_buffer(stream, buffer);
+        });
+
+        fn check_hw_rate(stream: &mut AudioUnitStream) {
+            assert_ne!(stream.input_hw_rate, 0_f64);
+            let mut description = AudioStreamBasicDescription::default();
+            let mut size = mem::size_of::<AudioStreamBasicDescription>();
+            assert_eq!(
+                audio_unit_get_property(
+                    stream.input_unit,
+                    kAudioUnitProperty_StreamFormat,
+                    kAudioUnitScope_Output,
+                    AU_IN_BUS,
+                    &mut description,
+                    &mut size
+                ),
+                0
+            );
+            assert_eq!(description.mSampleRate, stream.input_hw_rate);
+        }
+
+        fn check_linear_buffer<T: Any + Debug + PartialEq>(stream: &mut AudioUnitStream, array: &[T]) {
+            assert!(stream.input_linear_buffer.is_some());
+            let buffer_ref = stream.input_linear_buffer.as_mut().unwrap();
+            buffer_ref.push(array.as_ptr() as *const c_void, array.len());
+            assert_eq!(buffer_ref.elements(), array.len());
+            let data = buffer_ref.as_ptr() as *const T;
+            for (idx, item) in array.iter().enumerate() {
+                unsafe {
+                    assert_eq!(*data.add(idx), *item);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_configure_input_with_null_unit() {
+    test_get_empty_stream(|stream| {
+        assert!(stream.input_unit.is_null());
+        assert!(audiounit_configure_input(stream).is_err());
+    });
+}
+
+// Ignore the test by default to avoid overwritting the buffer frame size for the input or output
+// device that is using in test_configure_input or test_configure_output.
+#[ignore]
+#[test]
+fn test_configure_input_with_zero_latency_frames() {
+    let mut params = ffi::cubeb_stream_params::default();
+    params.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
+    params.rate = 48_000;
+    params.channels = 1;
+    params.layout = ffi::CUBEB_LAYOUT_MONO;
+    params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+    test_configure_scope_with_zero_latency_frames(Scope::Input, StreamParams::from(params), |stream| {
+        // TODO: The buffer frames size won't be 0 even it's ok to set that!
+        check_buffer_frame_size(stream, Scope::Input);
+        // TODO: The frames per slice won't be 0 even it's ok to set that!
+        check_frames_per_slice(stream, Scope::Input);
+    });
+}
+
+// configure_output
+// ------------------------------------
+// Ignore the test by default to avoid overwritting the buffer frame size for the output device
+// that is using in test_clamp_latency_with_more_than_one_active_streams.
+#[ignore]
+#[test]
+fn test_configure_output() {
+    const SAMPLE_RATE: u32 = 48_000;
+    let mut params = ffi::cubeb_stream_params::default();
+    params.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
+    params.rate = SAMPLE_RATE;
+    params.channels = 2;
+    params.layout = ffi::CUBEB_LAYOUT_STEREO;
+    params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+
+    test_configure_scope(Scope::Output, StreamParams::from(params), |stream| {
+        check_hw_rate(stream);
+        check_buffer_frame_size(stream, Scope::Output);
+        check_frames_per_slice(stream, Scope::Output);
+    });
+
+    fn check_hw_rate(stream: &mut AudioUnitStream) {
+        let rate = f64::from(SAMPLE_RATE);
+        assert_eq!(stream.output_desc.mSampleRate, rate);
+        assert_ne!(stream.output_hw_rate, 0_f64);
+        let mut description = AudioStreamBasicDescription::default();
+        let mut size = mem::size_of::<AudioStreamBasicDescription>();
+        assert_eq!(
+            audio_unit_get_property(
+                stream.output_unit,
+                kAudioUnitProperty_StreamFormat,
+                kAudioUnitScope_Input,
+                AU_OUT_BUS,
+                &mut description,
+                &mut size
+            ),
+            0
+        );
+        assert_eq!(description.mSampleRate, rate);
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_configure_output_with_null_unit() {
+    test_get_empty_stream(|stream| {
+        assert!(stream.output_unit.is_null());
+        assert!(audiounit_configure_output(stream).is_err());
+    });
+}
+
+// Ignore the test by default to avoid overwritting the buffer frame size for the input or output
+// device that is using in test_configure_input or test_configure_output.
+#[ignore]
+#[test]
+fn test_configure_output_with_zero_latency_frames() {
+    let mut params = ffi::cubeb_stream_params::default();
+    params.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
+    params.rate = 48_000;
+    params.channels = 2;
+    params.layout = ffi::CUBEB_LAYOUT_STEREO;
+    params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+    test_configure_scope_with_zero_latency_frames(Scope::Output, StreamParams::from(params), |stream| {
+        // TODO: The buffer frames size won't be 0 even it's ok to set that!
+        check_buffer_frame_size(stream, Scope::Output);
+        // TODO: The frames per slice won't be 0 even it's ok to set that!
+        check_frames_per_slice(stream, Scope::Output);
+    });
+}
+
+// Utils for configure_{input, output}
+// ------------------------------------
+fn test_configure_scope<F>(scope: Scope, params: StreamParams, callback: F) where F: FnOnce(&mut AudioUnitStream) {
+    if let Some(unit) = test_get_default_audiounit(scope.clone()) {
+        test_get_empty_stream(|stream| {
+            match scope {
+                Scope::Input => { stream.input_unit = unit.get_inner(); stream.input_stream_params = params; }
+                Scope::Output => { stream.output_unit = unit.get_inner(); stream.output_stream_params = params; }
+            }
+            // Set the latency_frames to a valid value so `buffer frames size` and
+            // `frames per slice` can be set correctly!
+            {
+                // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
+                let ctx_mutex_ptr = &mut stream.context.mutex as *mut OwnedCriticalSection;
+                // The scope of `ctx_lock` is a critical section.
+                let ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
+                assert_eq!(stream.latency_frames, 0);
+                stream.latency_frames = audiounit_clamp_latency(stream, 0);
+                assert_ne!(stream.latency_frames, 0);
+            }
+            let res = match scope {
+                Scope::Input => audiounit_configure_input(stream),
+                Scope::Output => audiounit_configure_output(stream),
+            };
+            assert!(res.is_ok());
+            callback(stream);
+        });
+    } else {
+        println!("No audiounit for {:?}.", scope);
+    }
+}
+
+fn test_configure_scope_with_zero_latency_frames<F>(scope: Scope, params: StreamParams, callback: F) where F: FnOnce(&mut AudioUnitStream) {
+    if let Some(unit) = test_get_default_audiounit(scope.clone()) {
+        test_get_empty_stream(|stream| {
+            match scope {
+                Scope::Input => { stream.input_unit = unit.get_inner(); stream.input_stream_params = params; }
+                Scope::Output => { stream.output_unit = unit.get_inner(); stream.output_stream_params = params; }
+            }
+            assert_eq!(stream.latency_frames, 0);
+            let res = match scope {
+                Scope::Input => audiounit_configure_input(stream),
+                Scope::Output => audiounit_configure_output(stream),
+            };
+            assert!(res.is_ok());
+            callback(stream);
+        });
+    } else {
+        println!("No audiounit for {:?}.", scope);
+    }
+}
+
+fn check_buffer_frame_size(stream: &mut AudioUnitStream, scope: Scope) {
+    let (unit, unit_scope, bus) = match scope {
+        Scope::Input => (stream.input_unit, kAudioUnitScope_Output, AU_IN_BUS),
+        Scope::Output => (stream.output_unit, kAudioUnitScope_Input, AU_OUT_BUS),
+    };
+    let mut buffer_frames: u32 = 0;
+    let mut size = mem::size_of::<u32>();
+    assert_eq!(
+        audio_unit_get_property(
+            unit,
+            kAudioDevicePropertyBufferFrameSize,
+            unit_scope,
+            bus,
+            &mut buffer_frames,
+            &mut size
+        ),
+        NO_ERR
+    );
+    // The buffer frames will be set to the same value of latency_frames.
+    assert_eq!(buffer_frames, stream.latency_frames);
+}
+
+fn check_frames_per_slice(stream: &mut AudioUnitStream, scope: Scope) {
+    let unit = match scope {
+        Scope::Input => stream.input_unit,
+        Scope::Output => stream.output_unit,
+    };
+    let mut frames_per_slice: u32 = 0;
+    let mut size = mem::size_of::<u32>();
+    assert_eq!(
+        audio_unit_get_property(
+            unit,
+            kAudioUnitProperty_MaximumFramesPerSlice,
+            kAudioUnitScope_Global,
+            0, // Global Bus
+            &mut frames_per_slice,
+            &mut size
+        ),
+        NO_ERR
+    );
+    // The frames per slice will be set to the same value of latency_frames.
+    assert_eq!(frames_per_slice, stream.latency_frames);
 }
 
 // setup_stream

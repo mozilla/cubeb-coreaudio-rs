@@ -175,7 +175,6 @@ pub fn test_create_audiounit(unit_type: ComponentSubType) -> Option<TestAudioUni
     if status != NO_ERR || unit.is_null() {
         None
     } else {
-        assert!(!unit.is_null());
         Some(TestAudioUnit::new(unit))
     }
 }
