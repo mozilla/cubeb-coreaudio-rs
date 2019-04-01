@@ -3412,6 +3412,7 @@ fn audiounit_remove_device_listener(context: *mut AudioUnitContext, devtype: Dev
 
 pub const OPS: Ops = capi_new!(AudioUnitContext, AudioUnitStream);
 
+#[repr(C)] // Prevent any padding from being added in the beginning of the AudioUnitContext
 #[derive(Debug)]
 pub struct AudioUnitContext {
     _ops: *const Ops,
@@ -3435,7 +3436,7 @@ pub struct AudioUnitContext {
 
 impl AudioUnitContext {
     fn new() -> Self {
-        AudioUnitContext {
+        Self {
             _ops: &OPS as *const _,
             mutex: OwnedCriticalSection::new(),
             active_streams: 0,
