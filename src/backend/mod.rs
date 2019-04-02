@@ -1487,8 +1487,7 @@ fn audiounit_create_blank_aggregate_device(plugin_id: &mut AudioObjectID, aggreg
         cubeb_log!("AudioObjectGetPropertyDataSize/kAudioHardwarePropertyPlugInForBundleID, rv={}", r);
         return Err(Error::error());
     }
-    // TODO: Check if size is larger than 0 ?
-    // assert_ne!(size, 0);
+    assert_ne!(size, 0);
 
     // `rust-bindgen` doesn't support `macro`
     // so we replace `CFSTR` by `cfstringref_from_static_string`.
@@ -1499,8 +1498,6 @@ fn audiounit_create_blank_aggregate_device(plugin_id: &mut AudioObjectID, aggreg
         mOutputData: plugin_id as *mut AudioObjectID as *mut c_void,
         mOutputDataSize: mem::size_of_val(plugin_id) as u32,
     };
-    // assert_eq!(translation_value.mInputDataSize as usize, mem::size_of::<CFStringRef>());
-    // assert_eq!(translation_value.mOutputDataSize as usize, mem::size_of::<AudioObjectID>());
 
     r = audio_object_get_property_data(kAudioObjectSystemObject,
                                        &address_plugin_bundle_id,
@@ -1510,8 +1507,7 @@ fn audiounit_create_blank_aggregate_device(plugin_id: &mut AudioObjectID, aggreg
         cubeb_log!("AudioObjectGetPropertyData/kAudioHardwarePropertyPlugInForBundleID, rv={}", r);
         return Err(Error::error());
     }
-    // TODO: Check if plugin_id is different from the initial value (kAudioObjectUnknown) ?
-    // assert_ne!(*plugin_id, 0 /* kAudioObjectUnknown */);
+    assert_ne!(*plugin_id, kAudioObjectUnknown);
 
     let create_aggregate_device_address = AudioObjectPropertyAddress {
         mSelector: kAudioPlugInCreateAggregateDevice,
@@ -1526,8 +1522,7 @@ fn audiounit_create_blank_aggregate_device(plugin_id: &mut AudioObjectID, aggreg
         cubeb_log!("AudioObjectGetPropertyDataSize/kAudioPlugInCreateAggregateDevice, rv={}", r);
         return Err(Error::error());
     }
-    // TODO: Check if size is larger than 0 ?
-    // assert_ne!(size, 0);
+    assert_ne!(size, 0);
 
     unsafe {
         let aggregate_device_dict = CFDictionaryCreateMutable(kCFAllocatorDefault, 0,
@@ -1539,20 +1534,15 @@ fn audiounit_create_blank_aggregate_device(plugin_id: &mut AudioObjectID, aggreg
         };
         libc::gettimeofday(&mut timestamp, ptr::null_mut());
         let time_id = timestamp.tv_sec as i64 * 1_000_000 + i64::from(timestamp.tv_usec);
-        // TODO: Check if time_id is larger than 0 ?
-        // assert!(time_id > 0);
 
-        // let prefix = CString::new(PRIVATE_AGGREGATE_DEVICE_NAME).expect("Fail to create a cstring as a prefix for an aggregate device");
-
-        // Rust issue 58881: Avoid passing parameters into a C variadic function (CFStringCreateWithFormat is a variadic function).
-        // let aggregate_device_name = CFStringCreateWithFormat(ptr::null(), ptr::null(), cfstringref_from_static_string("%s_%llx"), prefix.as_ptr(), time_id);
+        // In C version, we use CFStringCreateWithFormat to format a CFStringRef. It's a variadic
+        // function. However, the C variadic function is not compatible in Rust for now.
+        // (Rust RFC 2137).
         let device_name_string = format!("{}_{}", PRIVATE_AGGREGATE_DEVICE_NAME, time_id);
         let aggregate_device_name = cfstringref_from_string(&device_name_string);
         CFDictionaryAddValue(aggregate_device_dict, cfstringref_from_static_string(AGGREGATE_DEVICE_NAME_KEY) as *const c_void, aggregate_device_name as *const c_void);
         CFRelease(aggregate_device_name as *const c_void);
 
-        // Rust issue 58881: Avoid passing parameters into a C variadic function (CFStringCreateWithFormat is a variadic function).
-        // let aggregate_device_uid = CFStringCreateWithFormat(ptr::null(), ptr::null(), cfstringref_from_static_string("org.mozilla.%s_%llx"), prefix.as_ptr(), time_id);
         let device_uid_string = format!("org.mozilla.{}_{}", PRIVATE_AGGREGATE_DEVICE_NAME, time_id);
         let aggregate_device_uid = cfstringref_from_string(&device_uid_string);
         CFDictionaryAddValue(aggregate_device_dict, cfstringref_from_static_string(AGGREGATE_DEVICE_UID) as *const c_void, aggregate_device_uid as *const c_void);
@@ -1568,7 +1558,6 @@ fn audiounit_create_blank_aggregate_device(plugin_id: &mut AudioObjectID, aggreg
         CFDictionaryAddValue(aggregate_device_dict, cfstringref_from_static_string(AGGREGATE_DEVICE_STACKED_KEY) as *const c_void, aggregate_device_stacked_key as *const c_void);
         CFRelease(aggregate_device_stacked_key as *const c_void);
 
-        // assert_eq!(mem::size_of_val(&aggregate_device_dict), mem::size_of::<CFMutableDictionaryRef>());
         // NOTE: This call will fire `audiounit_collection_changed_callback`!
         r = AudioObjectGetPropertyData(*plugin_id,
                                        &create_aggregate_device_address,
@@ -1581,8 +1570,7 @@ fn audiounit_create_blank_aggregate_device(plugin_id: &mut AudioObjectID, aggreg
             cubeb_log!("AudioObjectGetPropertyData/kAudioPlugInCreateAggregateDevice, rv={}", r);
             return Err(Error::error());
         }
-        // TODO: Check if aggregate_device_id is different from the initial value (kAudioObjectUnknown) ?
-        // assert_ne!(*aggregate_device_id, 0 /* kAudioObjectUnknown */);
+        assert_ne!(*aggregate_device_id, kAudioObjectUnknown);
         cubeb_log!("New aggregate device {}", *aggregate_device_id);
     }
 
