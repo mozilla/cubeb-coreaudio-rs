@@ -516,14 +516,13 @@ fn test_add_listener_unknown_device() {
     }
 
     test_get_empty_stream(|stream| {
-        let mut listener = property_listener::new(
+        let listener = device_property_listener::new(
             kAudioObjectUnknown,
             &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
             callback,
-            stream,
         );
         assert_eq!(
-            audiounit_add_listener(&mut listener),
+            stream.add_device_listener(&listener),
             kAudioHardwareBadObjectError as OSStatus
         );
     });
@@ -544,14 +543,13 @@ fn test_add_listener_then_remove_system_device() {
     }
 
     test_get_empty_stream(|stream| {
-        let mut listener = property_listener::new(
+        let listener = device_property_listener::new(
             kAudioObjectSystemObject,
             &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
             callback,
-            stream,
         );
-        assert_eq!(audiounit_add_listener(&mut listener), NO_ERR);
-        assert_eq!(audiounit_remove_listener(&mut listener), NO_ERR);
+        assert_eq!(stream.add_device_listener(&listener), NO_ERR);
+        assert_eq!(stream.remove_device_listener(&listener), NO_ERR);
     });
 }
 
@@ -568,13 +566,12 @@ fn test_remove_listener_without_adding_any_listener_before_system_device() {
     }
 
     test_get_empty_stream(|stream| {
-        let mut listener = property_listener::new(
+        let listener = device_property_listener::new(
             kAudioObjectSystemObject,
             &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
             callback,
-            stream,
         );
-        assert_eq!(audiounit_remove_listener(&mut listener), NO_ERR);
+        assert_eq!(stream.remove_device_listener(&listener), NO_ERR);
     });
 }
 
@@ -591,14 +588,13 @@ fn test_remove_listener_unknown_device() {
     }
 
     test_get_empty_stream(|stream| {
-        let mut listener = property_listener::new(
+        let listener = device_property_listener::new(
             kAudioObjectUnknown,
             &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
             callback,
-            stream,
         );
         assert_eq!(
-            audiounit_remove_listener(&mut listener),
+            stream.remove_device_listener(&listener),
             kAudioHardwareBadObjectError as OSStatus
         );
     });

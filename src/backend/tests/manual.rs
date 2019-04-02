@@ -140,43 +140,39 @@ fn test_add_then_remove_listeners() {
     test_get_empty_stream(|stream| {
         let mut listeners = Vec::new();
 
-        let default_output_listener = property_listener::new(
+        let default_output_listener = device_property_listener::new(
             kAudioObjectSystemObject,
             &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
             callback,
-            stream,
         );
         listeners.push(default_output_listener);
 
-        let default_input_listener = property_listener::new(
+        let default_input_listener = device_property_listener::new(
             kAudioObjectSystemObject,
             &DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS,
             callback,
-            stream,
         );
         listeners.push(default_input_listener);
 
         if let Some(device) = test_get_default_device(Scope::Output) {
-            let output_source_listener = property_listener::new(
+            let output_source_listener = device_property_listener::new(
                 device,
                 &OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS,
                 callback,
-                stream,
             );
             listeners.push(output_source_listener);
         }
 
         if let Some(device) = test_get_default_device(Scope::Input) {
-            let input_source_listener = property_listener::new(
+            let input_source_listener = device_property_listener::new(
                 device,
                 &INPUT_DATA_SOURCE_PROPERTY_ADDRESS,
                 callback,
-                stream,
             );
             listeners.push(input_source_listener);
 
             let input_alive_listener =
-                property_listener::new(device, &DEVICE_IS_ALIVE_PROPERTY_ADDRESS, callback, stream);
+                device_property_listener::new(device, &DEVICE_IS_ALIVE_PROPERTY_ADDRESS, callback);
             listeners.push(input_alive_listener);
         }
 
@@ -185,24 +181,24 @@ fn test_add_then_remove_listeners() {
             return;
         }
 
-        add_listeners(&listeners);
+        add_listeners(stream, &listeners);
 
         println!("Unplug/Plug device or switch input/output device to see the event log.\nEnter anything to finish.");
         let mut input = String::new();
         let _ = std::io::stdin().read_line(&mut input);
 
-        remove_listeners(&listeners);
+        remove_listeners(stream, &listeners);
     });
 
-    fn add_listeners(listeners: &Vec<property_listener>) {
+    fn add_listeners(stream: &AudioUnitStream, listeners: &Vec<device_property_listener>) {
         for listener in listeners {
-            assert_eq!(audiounit_add_listener(listener), NO_ERR);
+            assert_eq!(stream.add_device_listener(listener), NO_ERR);
         }
     }
 
-    fn remove_listeners(listeners: &Vec<property_listener>) {
+    fn remove_listeners(stream: &AudioUnitStream, listeners: &Vec<device_property_listener>) {
         for listener in listeners {
-            assert_eq!(audiounit_remove_listener(listener), NO_ERR);
+            assert_eq!(stream.remove_device_listener(listener), NO_ERR);
         }
     }
 }

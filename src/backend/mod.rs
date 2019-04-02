@@ -192,34 +192,23 @@ impl Default for device_info {
     }
 }
 
-// Since we need to add `property_listener` as one of the members of
-// `AudioUnitStream`, so we store `stream` as a raw pointer to avoid
-// the `lifetime` check issues for structs that mutual references rather
-// than store it as reference with lifetime.
-// TODO: A safer way to do is
-// 1. either we use Rc<RefCell<AudioUnitStream<'ctx>>> for `stream`
-//    to get run-time check for this nullable pointer
-// 2. or refactor the code to avoid the mutual references and guarantee
-//    the `stream` is alive when `property_listener` is called.
 #[allow(non_camel_case_types)]
 #[derive(Debug)]
-struct property_listener<'ctx> {
-    device_id: AudioDeviceID,
-    property_address: &'static AudioObjectPropertyAddress,
-    callback: audio_object_property_listener_proc,
-    stream: *mut AudioUnitStream<'ctx>,
+struct device_property_listener {
+    device: AudioDeviceID,
+    property: &'static AudioObjectPropertyAddress,
+    listener: audio_object_property_listener_proc,
 }
 
-impl<'ctx> property_listener<'ctx> {
-    fn new(id: AudioDeviceID,
-           address: &'static AudioObjectPropertyAddress,
-           listener: audio_object_property_listener_proc,
-           stm: *mut AudioUnitStream<'ctx>) -> Self {
-        property_listener {
-            device_id: id,
-            property_address: address,
-            callback: listener,
-            stream: stm
+impl device_property_listener {
+    fn new(device: AudioDeviceID,
+           property: &'static AudioObjectPropertyAddress,
+           listener: audio_object_property_listener_proc
+    ) -> Self {
+        Self {
+            device,
+            property,
+            listener,
         }
     }
 }
@@ -954,22 +943,6 @@ extern fn audiounit_property_listener_callback(id: AudioObjectID, address_count:
     NO_ERR
 }
 
-fn audiounit_add_listener(listener: &property_listener) -> OSStatus
-{
-    audio_object_add_property_listener(listener.device_id,
-                                       listener.property_address,
-                                       listener.callback,
-                                       listener.stream as *mut c_void)
-}
-
-fn audiounit_remove_listener(listener: &property_listener) -> OSStatus
-{
-    audio_object_remove_property_listener(listener.device_id,
-                                          listener.property_address,
-                                          listener.callback,
-                                          listener.stream as *mut c_void)
-}
-
 fn audiounit_install_device_changed_callback(stm: &mut AudioUnitStream) -> Result<()>
 {
     let mut rv = NO_ERR;
@@ -984,10 +957,10 @@ fn audiounit_install_device_changed_callback(stm: &mut AudioUnitStream) -> Resul
         assert_ne!(stm.output_device.id, kAudioObjectUnknown);
         assert_ne!(stm.output_device.id, kAudioObjectSystemObject);
 
-        stm.output_source_listener = Some(property_listener::new(
+        stm.output_source_listener = Some(device_property_listener::new(
             stm.output_device.id, &OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS,
-            audiounit_property_listener_callback, stm));
-        rv = audiounit_add_listener(stm.output_source_listener.as_ref().unwrap());
+            audiounit_property_listener_callback));
+        rv = stm.add_device_listener(stm.output_source_listener.as_ref().unwrap());
         if rv != NO_ERR {
             stm.output_source_listener = None;
             cubeb_log!("AudioObjectAddPropertyListener/output/kAudioDevicePropertyDataSource rv={}, device id={}", rv, stm.output_device.id);
@@ -1002,10 +975,10 @@ fn audiounit_install_device_changed_callback(stm: &mut AudioUnitStream) -> Resul
         assert_ne!(stm.input_device.id, kAudioObjectUnknown);
         assert_ne!(stm.input_device.id, kAudioObjectSystemObject);
 
-        stm.input_source_listener = Some(property_listener::new(
+        stm.input_source_listener = Some(device_property_listener::new(
             stm.input_device.id, &INPUT_DATA_SOURCE_PROPERTY_ADDRESS,
-            audiounit_property_listener_callback, stm));
-        rv = audiounit_add_listener(stm.input_source_listener.as_ref().unwrap());
+            audiounit_property_listener_callback));
+        rv = stm.add_device_listener(stm.input_source_listener.as_ref().unwrap());
         if rv != NO_ERR {
             stm.input_source_listener = None;
             cubeb_log!("AudioObjectAddPropertyListener/input/kAudioDevicePropertyDataSource rv={}, device id={}", rv, stm.input_device.id);
@@ -1013,10 +986,10 @@ fn audiounit_install_device_changed_callback(stm: &mut AudioUnitStream) -> Resul
         }
 
         /* Event to notify when the input is going away. */
-        stm.input_alive_listener = Some(property_listener::new(
+        stm.input_alive_listener = Some(device_property_listener::new(
             stm.input_device.id, &DEVICE_IS_ALIVE_PROPERTY_ADDRESS,
-            audiounit_property_listener_callback, stm));
-        rv = audiounit_add_listener(stm.input_alive_listener.as_ref().unwrap());
+            audiounit_property_listener_callback));
+        rv = stm.add_device_listener(stm.input_alive_listener.as_ref().unwrap());
         if rv != NO_ERR {
             stm.input_alive_listener = None;
             cubeb_log!("AudioObjectAddPropertyListener/input/kAudioDevicePropertyDeviceIsAlive rv={}, device id ={}", rv, stm.input_device.id);
@@ -1036,10 +1009,10 @@ fn audiounit_install_system_changed_callback(stm: &mut AudioUnitStream) -> Resul
          * for example when the user plugs in a USB headset and the system chooses it
          * automatically as the default, or when another device is chosen in the
          * dropdown list. */
-        stm.default_output_listener = Some(property_listener::new(
+        stm.default_output_listener = Some(device_property_listener::new(
             kAudioObjectSystemObject, &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
-            audiounit_property_listener_callback, stm));
-        r = audiounit_add_listener(stm.default_output_listener.as_ref().unwrap());
+            audiounit_property_listener_callback));
+        r = stm.add_device_listener(stm.default_output_listener.as_ref().unwrap());
         if r != NO_ERR {
             stm.default_output_listener = None;
             cubeb_log!("AudioObjectAddPropertyListener/output/kAudioHardwarePropertyDefaultOutputDevice rv={}", r);
@@ -1049,10 +1022,10 @@ fn audiounit_install_system_changed_callback(stm: &mut AudioUnitStream) -> Resul
 
     if !stm.input_unit.is_null() {
         /* This event will notify us when the default input device changes. */
-        stm.default_input_listener = Some(property_listener::new(
+        stm.default_input_listener = Some(device_property_listener::new(
             kAudioObjectSystemObject, &DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS,
-            audiounit_property_listener_callback, stm));
-        r = audiounit_add_listener(stm.default_input_listener.as_ref().unwrap());
+            audiounit_property_listener_callback));
+        r = stm.add_device_listener(stm.default_input_listener.as_ref().unwrap());
         if r != NO_ERR {
             stm.default_input_listener = None;
             cubeb_log!("AudioObjectAddPropertyListener/input/kAudioHardwarePropertyDefaultInputDevice rv={}", r);
@@ -1070,7 +1043,7 @@ fn audiounit_uninstall_device_changed_callback(stm: &mut AudioUnitStream) -> Res
     let mut r = Ok(());
 
     if stm.output_source_listener.is_some() {
-        rv = audiounit_remove_listener(stm.output_source_listener.as_ref().unwrap());
+        rv = stm.remove_device_listener(stm.output_source_listener.as_ref().unwrap());
         if rv != NO_ERR {
             cubeb_log!("AudioObjectRemovePropertyListener/output/kAudioDevicePropertyDataSource rv={}, device id={}", rv, stm.output_device.id);
             r = Err(Error::error());
@@ -1079,7 +1052,7 @@ fn audiounit_uninstall_device_changed_callback(stm: &mut AudioUnitStream) -> Res
     }
 
     if stm.input_source_listener.is_some() {
-        rv = audiounit_remove_listener(stm.input_source_listener.as_ref().unwrap());
+        rv = stm.remove_device_listener(stm.input_source_listener.as_ref().unwrap());
         if rv != NO_ERR {
             cubeb_log!("AudioObjectRemovePropertyListener/input/kAudioDevicePropertyDataSource rv={}, device id={}", rv, stm.input_device.id);
             r = Err(Error::error());
@@ -1088,7 +1061,7 @@ fn audiounit_uninstall_device_changed_callback(stm: &mut AudioUnitStream) -> Res
     }
 
     if stm.input_alive_listener.is_some() {
-        rv = audiounit_remove_listener(stm.input_alive_listener.as_ref().unwrap());
+        rv = stm.remove_device_listener(stm.input_alive_listener.as_ref().unwrap());
         if rv != NO_ERR {
             cubeb_log!("AudioObjectRemovePropertyListener/input/kAudioDevicePropertyDeviceIsAlive rv={}, device id={}", rv, stm.input_device.id);
             r = Err(Error::error());
@@ -1104,7 +1077,7 @@ fn audiounit_uninstall_system_changed_callback(stm: &mut AudioUnitStream) -> Res
     let mut r = NO_ERR;
 
     if stm.default_output_listener.is_some() {
-        r = audiounit_remove_listener(stm.default_output_listener.as_ref().unwrap());
+        r = stm.remove_device_listener(stm.default_output_listener.as_ref().unwrap());
         if r != NO_ERR {
             return Err(Error::error());
         }
@@ -1112,7 +1085,7 @@ fn audiounit_uninstall_system_changed_callback(stm: &mut AudioUnitStream) -> Res
     }
 
     if stm.default_input_listener.is_some() {
-        r = audiounit_remove_listener(stm.default_input_listener.as_ref().unwrap());
+        r = stm.remove_device_listener(stm.default_input_listener.as_ref().unwrap());
         if r != NO_ERR {
             return Err(Error::error());
         }
@@ -3817,11 +3790,11 @@ struct AudioUnitStream<'ctx> {
     temp_buffer: Vec<u8>,
     temp_buffer_size: usize,
     /* Listeners indicating what system events are monitored. */
-    default_input_listener: Option<property_listener<'ctx>>,
-    default_output_listener: Option<property_listener<'ctx>>,
-    input_alive_listener: Option<property_listener<'ctx>>,
-    input_source_listener: Option<property_listener<'ctx>>,
-    output_source_listener: Option<property_listener<'ctx>>,
+    default_input_listener: Option<device_property_listener>,
+    default_output_listener: Option<device_property_listener>,
+    input_alive_listener: Option<device_property_listener>,
+    input_source_listener: Option<device_property_listener>,
+    output_source_listener: Option<device_property_listener>,
 }
 
 impl<'ctx> AudioUnitStream<'ctx> {
@@ -3898,6 +3871,24 @@ impl<'ctx> AudioUnitStream<'ctx> {
     fn init(&mut self) {
         self.device_changed_callback_lock.init();
         self.mutex.init();
+    }
+
+    fn add_device_listener(&self, listener: &device_property_listener) -> OSStatus {
+        audio_object_add_property_listener(
+            listener.device,
+            listener.property,
+            listener.listener,
+            self as *const Self as *mut c_void
+        )
+    }
+
+    fn remove_device_listener(&self, listener: &device_property_listener) -> OSStatus {
+        audio_object_remove_property_listener(
+            listener.device,
+            listener.property,
+            listener.listener,
+            self as *const Self as *mut c_void
+        )
     }
 
     fn destroy(&mut self) {
