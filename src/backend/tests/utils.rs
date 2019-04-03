@@ -306,6 +306,12 @@ pub fn test_get_all_devices() -> Vec<AudioObjectID> {
     devices
 }
 
+pub fn test_get_devices_in_scope(scope: Scope) -> Vec<AudioObjectID> {
+    let mut devices = test_get_all_devices();
+    devices.retain(|device| test_device_in_scope(*device, scope.clone()));
+    devices
+}
+
 pub fn test_device_channels_in_scope(
     id: AudioObjectID,
     scope: Scope,
@@ -387,6 +393,46 @@ pub fn test_audiounit_scope_is_enabled(unit: AudioUnit, scope: Scope) -> bool {
         NO_ERR
     );
     has_io != 0
+}
+
+// Surprisingly it's ok to set
+//   1. a unknown device
+//   2. a non-input/non-output device
+//   3. the current default input/output device
+// as the new default input/output device by apple's API. We need to check the above things by ourselves.
+pub fn test_set_default_device(device: AudioObjectID, scope: Scope) -> std::result::Result<bool, OSStatus> {
+    let default = test_get_default_device(scope.clone());
+    if default.is_none() {
+        return Ok(false);
+    }
+    let default = default.unwrap();
+    if default == device || !test_device_in_scope(device, scope.clone()){
+        return Ok(false);
+    }
+    let address = AudioObjectPropertyAddress {
+        mSelector: match scope {
+            Scope::Input => kAudioHardwarePropertyDefaultInputDevice,
+            Scope::Output => kAudioHardwarePropertyDefaultOutputDevice,
+        },
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMaster,
+    };
+    let size = mem::size_of::<AudioObjectID>();
+    let status = unsafe {
+        AudioObjectSetPropertyData(
+            kAudioObjectSystemObject,
+            &address,
+            0,
+            ptr::null(),
+            size as u32,
+            &device as *const AudioObjectID as *const c_void,
+        )
+    };
+    if status == NO_ERR {
+        Ok(true)
+    } else {
+        Err(status)
+    }
 }
 
 // Test Templates
