@@ -1845,6 +1845,7 @@ fn test_configure_input_with_null_unit() {
 
 // Ignore the test by default to avoid overwritting the buffer frame size for the input or output
 // device that is using in test_configure_input or test_configure_output.
+// TODO: Should we get a panic if the buffer frames size cannot be set to 0 actually ?
 #[ignore]
 #[test]
 fn test_configure_input_with_zero_latency_frames() {
@@ -1915,6 +1916,7 @@ fn test_configure_output_with_null_unit() {
 
 // Ignore the test by default to avoid overwritting the buffer frame size for the input or output
 // device that is using in test_configure_input or test_configure_output.
+// TODO: Should we get a panic if the buffer frames size cannot be set to 0 actually ?
 #[ignore]
 #[test]
 fn test_configure_output_with_zero_latency_frames() {

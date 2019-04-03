@@ -2,7 +2,6 @@
 //
 // This program is made available under an ISC-style license.  See the
 // accompanying file LICENSE for details.
-
 use super::*;
 
 // Interface
@@ -64,7 +63,7 @@ fn test_context_register_device_collection_changed_twice_inout() {
 // Ignore this by default. The reason is same as below.
 #[test]
 #[ignore]
-fn test_get_sub_devices_for_blank_aggregate_devices() {
+fn test_aggregate_get_sub_devices_for_blank_aggregate_devices() {
     // TODO: Test this when there is no available devices.
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;
@@ -145,14 +144,19 @@ fn test_get_sub_devices_for_blank_aggregate_devices() {
 //    tests are ended while those asynchronous functions are still running.
 //
 // The tests that call audiounit_create_blank_aggregate_device are ignored by default:
-// - test_get_sub_devices_for_blank_aggregate_devices
+// - test_aggregate_get_sub_devices_for_blank_aggregate_devices
 // - test_create_blank_aggregate_device
-// - test_set_aggregate_sub_device_list_for_unknown_input_output_devices
-// - test_set_aggregate_sub_device_list
-// - test_set_master_aggregate_device_for_a_blank_aggregate_device
-// - test_set_master_aggregate_device
-// - test_activate_clock_drift_compensation_for_an_aggregate_device_without_master_device
-// - test_activate_clock_drift_compensation
+// - test_aggregate_set_aggregate_sub_device_list_for_unknown_input_output_devices
+// - test_aggregate_set_aggregate_sub_device_list
+// - test_aggregate_set_master_aggregate_device_for_a_blank_aggregate_device
+// - test_aggregate_set_master_aggregate_device
+// - test_aggregate_activate_clock_drift_compensation_for_an_aggregate_device_without_master_device
+// - test_aggregate_activate_clock_drift_compensation
+//
+// The above tests are added a prefix `test_aggregate` so we can run these ignored tests easily on
+// an indivisual test command, rather than run these tests with others together.
+//
+// TODO: Find out why `test_create_blank_aggregate_device` cannot be run with others.
 #[test]
 #[ignore]
 fn test_create_blank_aggregate_device() {
@@ -215,7 +219,7 @@ fn test_create_blank_aggregate_device() {
 // Ignore this by default. The reason is same as test_create_blank_aggregate_device.
 #[test]
 #[ignore]
-fn test_set_aggregate_sub_device_list_for_unknown_input_output_devices() {
+fn test_aggregate_set_aggregate_sub_device_list_for_unknown_input_output_devices() {
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;
     assert!(
@@ -275,7 +279,7 @@ fn test_set_aggregate_sub_device_list_for_unknown_input_output_devices() {
 // Ignore this by default. The reason is same as test_create_blank_aggregate_device.
 #[test]
 #[ignore]
-fn test_set_aggregate_sub_device_list() {
+fn test_aggregate_set_aggregate_sub_device_list() {
     let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
     let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
     if !valid_id(input_id) || !valid_id(output_id)
@@ -351,7 +355,7 @@ fn test_set_aggregate_sub_device_list() {
 // Ignore this by default. The reason is same as test_create_blank_aggregate_device.
 #[test]
 #[ignore]
-fn test_set_master_aggregate_device_for_a_blank_aggregate_device() {
+fn test_aggregate_set_master_aggregate_device_for_a_blank_aggregate_device() {
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;
     assert!(
@@ -386,7 +390,7 @@ fn test_set_master_aggregate_device_for_a_blank_aggregate_device() {
 // Ignore this by default. The reason is same as test_create_blank_aggregate_device.
 #[test]
 #[ignore]
-fn test_set_master_aggregate_device() {
+fn test_aggregate_set_master_aggregate_device() {
     let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
     let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
     if !valid_id(input_id) || !valid_id(output_id)
@@ -479,7 +483,7 @@ fn get_master_device(aggregate_device_id: AudioObjectID) -> String {
 #[test]
 #[should_panic]
 #[ignore]
-fn test_activate_clock_drift_compensation_for_a_blank_aggregate_device() {
+fn test_aggregate_activate_clock_drift_compensation_for_a_blank_aggregate_device() {
     // Create a blank aggregate device.
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;
@@ -506,7 +510,7 @@ fn test_activate_clock_drift_compensation_for_a_blank_aggregate_device() {
 // Ignore this by default. The reason is same as test_create_blank_aggregate_device.
 #[test]
 #[ignore]
-fn test_activate_clock_drift_compensation_for_an_aggregate_device_without_master_device() {
+fn test_aggregate_activate_clock_drift_compensation_for_an_aggregate_device_without_master_device() {
     let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
     let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
     if !valid_id(input_id) || !valid_id(output_id)
@@ -560,7 +564,7 @@ fn test_activate_clock_drift_compensation_for_an_aggregate_device_without_master
 // Ignore this by default. The reason is same as test_create_blank_aggregate_device.
 #[test]
 #[ignore]
-fn test_activate_clock_drift_compensation() {
+fn test_aggregate_activate_clock_drift_compensation() {
     let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
     let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
     if !valid_id(input_id) || !valid_id(output_id)
@@ -695,7 +699,7 @@ fn get_drift_compensations(devices: &Vec<AudioObjectID>) -> Vec<u32> {
 #[test]
 #[ignore]
 #[should_panic]
-fn test_destroy_aggregate_device_for_a_unknown_plugin_device() {
+fn test_aggregate_destroy_aggregate_device_for_a_unknown_plugin_device() {
     // TODO: Test this when there is no available devices.
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;
@@ -716,7 +720,7 @@ fn test_destroy_aggregate_device_for_a_unknown_plugin_device() {
 #[test]
 #[ignore]
 #[should_panic]
-fn test_destroy_aggregate_device_for_a_unknown_aggregate_device() {
+fn test_aggregate_destroy_aggregate_device_for_a_unknown_aggregate_device() {
     // TODO: Test this when there is no available devices.
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;

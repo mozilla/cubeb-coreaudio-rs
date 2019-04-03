@@ -2220,7 +2220,7 @@ extern fn buffer_size_changed_callback(in_client_data: *mut c_void,
 
 fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, side: io_side) -> Result<()>
 {
-    assert_ne!(new_size_frames, 0);
+    // assert_ne!(new_size_frames, 0);
     // Surprisingly, it's ok to set `new_size_frames` to zero without getting
     // any error. However, the `buffer frames size` won't become 0 even it's
     // ok to set it to 0. Maybe we should fix it!
