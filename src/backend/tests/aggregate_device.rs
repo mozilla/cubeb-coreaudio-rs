@@ -435,7 +435,8 @@ fn test_aggregate_activate_clock_drift_compensation_for_a_blank_aggregate_device
 
 #[test]
 #[ignore]
-fn test_aggregate_activate_clock_drift_compensation_for_an_aggregate_device_without_master_device() {
+fn test_aggregate_activate_clock_drift_compensation_for_an_aggregate_device_without_master_device()
+{
     let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
     let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
     if !valid_id(input_id) || !valid_id(output_id)

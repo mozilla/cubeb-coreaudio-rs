@@ -1819,7 +1819,10 @@ fn test_configure_input() {
             assert_eq!(description.mSampleRate, stream.input_hw_rate);
         }
 
-        fn check_linear_buffer<T: Any + Debug + PartialEq>(stream: &mut AudioUnitStream, array: &[T]) {
+        fn check_linear_buffer<T: Any + Debug + PartialEq>(
+            stream: &mut AudioUnitStream,
+            array: &[T],
+        ) {
             assert!(stream.input_linear_buffer.is_some());
             let buffer_ref = stream.input_linear_buffer.as_mut().unwrap();
             buffer_ref.push(array.as_ptr() as *const c_void, array.len());
@@ -1855,12 +1858,16 @@ fn test_configure_input_with_zero_latency_frames() {
     params.channels = 1;
     params.layout = ffi::CUBEB_LAYOUT_MONO;
     params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
-    test_configure_scope_with_zero_latency_frames(Scope::Input, StreamParams::from(params), |stream| {
-        // TODO: The buffer frames size won't be 0 even it's ok to set that!
-        check_buffer_frame_size(stream, Scope::Input);
-        // TODO: The frames per slice won't be 0 even it's ok to set that!
-        check_frames_per_slice(stream, Scope::Input);
-    });
+    test_configure_scope_with_zero_latency_frames(
+        Scope::Input,
+        StreamParams::from(params),
+        |stream| {
+            // TODO: The buffer frames size won't be 0 even it's ok to set that!
+            check_buffer_frame_size(stream, Scope::Input);
+            // TODO: The frames per slice won't be 0 even it's ok to set that!
+            check_frames_per_slice(stream, Scope::Input);
+        },
+    );
 }
 
 // configure_output
@@ -1926,22 +1933,35 @@ fn test_configure_output_with_zero_latency_frames() {
     params.channels = 2;
     params.layout = ffi::CUBEB_LAYOUT_STEREO;
     params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
-    test_configure_scope_with_zero_latency_frames(Scope::Output, StreamParams::from(params), |stream| {
-        // TODO: The buffer frames size won't be 0 even it's ok to set that!
-        check_buffer_frame_size(stream, Scope::Output);
-        // TODO: The frames per slice won't be 0 even it's ok to set that!
-        check_frames_per_slice(stream, Scope::Output);
-    });
+    test_configure_scope_with_zero_latency_frames(
+        Scope::Output,
+        StreamParams::from(params),
+        |stream| {
+            // TODO: The buffer frames size won't be 0 even it's ok to set that!
+            check_buffer_frame_size(stream, Scope::Output);
+            // TODO: The frames per slice won't be 0 even it's ok to set that!
+            check_frames_per_slice(stream, Scope::Output);
+        },
+    );
 }
 
 // Utils for configure_{input, output}
 // ------------------------------------
-fn test_configure_scope<F>(scope: Scope, params: StreamParams, callback: F) where F: FnOnce(&mut AudioUnitStream) {
+fn test_configure_scope<F>(scope: Scope, params: StreamParams, callback: F)
+where
+    F: FnOnce(&mut AudioUnitStream),
+{
     if let Some(unit) = test_get_default_audiounit(scope.clone()) {
         test_get_empty_stream(|stream| {
             match scope {
-                Scope::Input => { stream.input_unit = unit.get_inner(); stream.input_stream_params = params; }
-                Scope::Output => { stream.output_unit = unit.get_inner(); stream.output_stream_params = params; }
+                Scope::Input => {
+                    stream.input_unit = unit.get_inner();
+                    stream.input_stream_params = params;
+                }
+                Scope::Output => {
+                    stream.output_unit = unit.get_inner();
+                    stream.output_stream_params = params;
+                }
             }
             // Set the latency_frames to a valid value so `buffer frames size` and
             // `frames per slice` can be set correctly!
@@ -1966,12 +1986,21 @@ fn test_configure_scope<F>(scope: Scope, params: StreamParams, callback: F) wher
     }
 }
 
-fn test_configure_scope_with_zero_latency_frames<F>(scope: Scope, params: StreamParams, callback: F) where F: FnOnce(&mut AudioUnitStream) {
+fn test_configure_scope_with_zero_latency_frames<F>(scope: Scope, params: StreamParams, callback: F)
+where
+    F: FnOnce(&mut AudioUnitStream),
+{
     if let Some(unit) = test_get_default_audiounit(scope.clone()) {
         test_get_empty_stream(|stream| {
             match scope {
-                Scope::Input => { stream.input_unit = unit.get_inner(); stream.input_stream_params = params; }
-                Scope::Output => { stream.output_unit = unit.get_inner(); stream.output_stream_params = params; }
+                Scope::Input => {
+                    stream.input_unit = unit.get_inner();
+                    stream.input_stream_params = params;
+                }
+                Scope::Output => {
+                    stream.output_unit = unit.get_inner();
+                    stream.output_stream_params = params;
+                }
             }
             assert_eq!(stream.latency_frames, 0);
             let res = match scope {

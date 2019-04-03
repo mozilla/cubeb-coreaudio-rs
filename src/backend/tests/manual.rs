@@ -1,4 +1,7 @@
-use super::utils::{test_get_default_device, test_ops_stream_operation, Scope, test_get_devices_in_scope, test_set_default_device};
+use super::utils::{
+    test_get_default_device, test_get_devices_in_scope, test_ops_stream_operation,
+    test_set_default_device, Scope,
+};
 use super::*;
 
 #[ignore]
@@ -62,7 +65,10 @@ fn test_switch_output_device() {
         return;
     }
     let current = test_get_default_device(Scope::Output).unwrap();
-    let mut index = devices.iter().position(|device| *device == current).unwrap();
+    let mut index = devices
+        .iter()
+        .position(|device| *device == current)
+        .unwrap();
     println!("{:?}, {}, {}", devices, current, index);
 
     // Make sure the parameters meet the requirements of AudioUnitContext::stream_init
@@ -107,4 +113,3 @@ fn test_switch_output_device() {
         },
     );
 }
-

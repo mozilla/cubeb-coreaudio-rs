@@ -400,13 +400,16 @@ pub fn test_audiounit_scope_is_enabled(unit: AudioUnit, scope: Scope) -> bool {
 //   2. a non-input/non-output device
 //   3. the current default input/output device
 // as the new default input/output device by apple's API. We need to check the above things by ourselves.
-pub fn test_set_default_device(device: AudioObjectID, scope: Scope) -> std::result::Result<bool, OSStatus> {
+pub fn test_set_default_device(
+    device: AudioObjectID,
+    scope: Scope,
+) -> std::result::Result<bool, OSStatus> {
     let default = test_get_default_device(scope.clone());
     if default.is_none() {
         return Ok(false);
     }
     let default = default.unwrap();
-    if default == device || !test_device_in_scope(device, scope.clone()){
+    if default == device || !test_device_in_scope(device, scope.clone()) {
         return Ok(false);
     }
     let address = AudioObjectPropertyAddress {
