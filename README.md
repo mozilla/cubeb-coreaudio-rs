@@ -10,36 +10,31 @@
     (and it's easy to re-format the style later by running `rustfmt`)
 - Create some tests for later refactoring
 
-## Branches
-- *trailblazer*: Draft *Rust* code without being reviewed. Commits are scribbled.
-- *release*: The offical version. All the commits are reviewed.
-- *dev*: All the commits are cherry-picked from *trailblazer* branch.
-         This branch is used to create pull-requests to *release* branch.
-
-## Development Pipeline / Timeline
-
-| phase   | 1         | 2         | 3                       | 4               | 5             |
-| ------- | --------- | --------- | ----------------------- | --------------- | ------------- |
-| draft   | translate | translate | test in gecko, fix bugs |                 | x             |
-| review  |           | review    | review and land         | refactor        | refactor loop |
-| release |           |           |                         | ride the trains | release loop  |
-
-The draft code is in *trailblazer* branch, the reviewing code are in the pull requests,
-which comes from *dev* branch, and the reviewed code is in *release* branch.
 
 ## Status
 
-Thew project is in phase 2. All the lines in [*cubeb_audiounit.cpp*][cubeb-au] are translated.
+All the lines in [*cubeb_audiounit.cpp*][cubeb-au] are translated.
 
 By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb],
 it can pass all the tests under *cubeb/test*
 and it's able to switch devices when the stream is working
 (we are unable to test this automatically yet).
 
-Now the draft version is tested within *gecko*.
-It can be tracked on [*bugzilla* 1530715][bugzilla-cars].
+Now the draft version can pass all the tests within *gecko*.
+The project can be tracked on [*bugzilla* 1530715][bugzilla-cars].
 (Commits to import and build this within *gecko* can be found [here][build-within-gecko])
 
+## Test
+Please run `sh run_tests.sh`.
+
+Some tests cannot be run in parallel.
+They may operate the same device at the same time,
+or indirectly fire some system events that are listened by some tests.
+Part of the tests are marked `#[ignore]` due to this problem.
+Therefore, the tests should be run part by part.
+
+Most of the tests are executed by running `sh run_tests.sh`.
+Only those tests commented with *FIXIT* are left.
 
 <!--
 - 🥚 : Not implemented.
@@ -161,39 +156,21 @@ It can be tracked on [*bugzilla* 1530715][bugzilla-cars].
 -->
 
 ## TODO
+- Maybe it's better to move all `fn some_func(stm: &AudioUnitStream, ...)` functions into `impl AudioUnitStream` to avoid useless references to `AudioUnitStream`. Perhaps it will help avoiding some borrowing issues.
 - Remove `#[allow(non_camel_case_types)]`, `#![allow(unused_assignments)]`, `#![allow(unused_must_use)]` and apply *rust* coding styles
 - Use `Atomic{I64, U32, U64}` instead of `Atomic<{i64, u32, u64}>`, once they are stable.
-- Integration Tests
-  - Add a test-only API to change the default audio devices
-  - Use above API to test the device-changed callback
+- Tests
   - Rewrite some tests under _cubeb/test/*_ in _Rust_ as part of the integration tests
-  - Add tests for capturing/recording, output, duplex streams
-- Move issues below to github issues.
-- Test aggregate devices
-  - Test with AirPods, bluethooth devices, or other devices that with special workarounds.
-- Unit tests for stream operations
-- Clean up the tests. Merge the duplicated pieces in to a function.
-- Find a way to catch memory leaks
-  - Try *Instrument* on OSX
+    - Add tests for capturing/recording, output, duplex streams
+  - Tests cleaned up: Only tests under *aggregate_device.rs* left now.
 - Some of bugs are found when adding tests. Search *FIXIT* to find them.
-- Maybe it's better to move all `fn some_func(stm: &AudioUnitStream, ...)` functions into `impl AudioUnitStream`.
-- Fail to run `test_create_blank_aggregate_device` with `test_add_device_listeners_dont_affect_other_scopes_with_*` at the same time
-  - I guess `audiounit_create_blank_aggregate_device` will fire the callbacks in `test_add_device_listeners_dont_affect_other_scopes_with_*`
-- Fail to run `test_ops_context_register_device_collection_changed_twice_*` on my MacBook Air and Travis CI.
-  - A panic in `capi_register_device_collection_changed` causes `EXC_BAD_INSTRUCTION`.
-  - Works fine if replacing `register_device_collection_changed: Option<unsafe extern "C" fn(..,) -> c_int>` to `register_device_collection_changed: unsafe extern "C" fn(..,) -> c_int`
-  - Test them in `AudioUnitContext` directly instead of calling them via `OPS` for now.
-- Fail to run `test_configure_input_with_zero_latency_frames` and `test_configure_input` at the same time.
-  - `audiounit_set_buffer_size` cannot be called in parallel
-  - We should not set `kAudioDevicePropertyBufferFrameSize` in parallel when another stream using the same device with smaller buffer size is active. See [here][chg-buf-sz] for reference.
-  - *Buffer frame size* within same device may be overwritten (no matter the *AudioUnit*s are different or not) ?
-- Find a reliable way to verify `enumerate_devices`
 - [cubeb-rs][cubeb-rs]
   - Implement `to_owned` in [`StreamParamsRef`][cubeb-rs-stmparamsref]
   - Check the passed parameters like what [cubeb.c][cubeb] does!
     - Check the input `StreamParams` parameters properly, or we will set a invalid format into `AudioUnit`.
     In fact, we should check **all** the parameters properly so we can make sure we don't mess up the streams/devices settings!
-- Run `cargo clippy` for *coreaudio-sys-utils*
+- Find a efficient way to catch memory leaks
+  - *Instrument* on OSX
 
 ## Issues
 - See discussion [here][discussion]
@@ -217,21 +194,28 @@ It can be tracked on [*bugzilla* 1530715][bugzilla-cars].
     - The [_Rust closure_][rs-closure] (it's actually a struct) will be `box`ed, which means the _closure_ will be moved into heap, so the _closure_ cannot be optimized as _inline_ code. (Need to find a way to optimize it?)
     - Since the _closure_ will be run on an asynchronous thread, we need to move the _closure_ to heap to make sure it's alive and then it will be destroyed after the task of the _closure_ is done.
 - Borrowing Issues
-  1. Pass `AudioUnitContext` across threads. In _C_ version, we [pass the pointer to `cubeb` context across threads][cubeb-au-ptr-across-threads], but it's forbidden in _Rust_. A workaround here is to
-      1. Cast the pointer to a `cubeb` context into a `usize` value
-      2. Pass that value to threads. The value is actually be **copied** into the code-block that will be run on another thread
-      3. When the task on another thread is run, the value is casted to a pointer to a `cubeb` context
+  1. Pass `AudioUnitContext` across threads. In _C_ version, we [pass the pointer to `cubeb` context across threads][cubeb-au-ptr-across-threads], but it's forbidden in _Rust_. A workarounds are
+      1. Cast the pointer to a `usize` value so the value can be copied to another thread.
+      2. Or Unsafely implements `Send` and `Sync` traits so the compiler ignores the checks.
   2. We have a [`mutex`][ocs-rust] in `AudioUnitContext`, and we have a _reference_ to `AudioUnitContext` in `AudioUnitStream`. To sync what we do in [_C version_][cubeb-au-init-stream], we need to _lock_ the `mutex` in `AudioUnitContext` then pass a _reference_ to `AudioUnitContext` to `AudioUnitStream::new(...)`. To _lock_ the `mutex` in `AudioUnitContext`, we call `AutoLock::new(&mut AudioUnitContext.mutex)`. That is, we will borrow a reference to `AudioUnitContext` as a mutable first then borrow it again. It's forbidden in _Rust_. Some workarounds are
       1. Replace `AutoLock` by calling `mutex.lock()` and `mutex.unlock()` explicitly.
       2. Save the pointer to `mutex` first, then call `AutoLock::new(unsafe { &mut (*mutex_ptr) })`.
       3. Cast immutable reference to a `*const` then to a `*mut`: `pthread_mutex_lock(&self.mutex as *const pthread_mutex_t as *mut pthread_mutex_t)`
+
+### Test issues
 - Complexity of creating unit tests
     - We have lots of dependent APIs, so it's hard to test one API only, specially for those APIs using mutex(`OwnedCriticalSection` actually)
     - It's better to split them into several APIs so it's easier to test them
-- APIs that cannot be called in parallel
-    - The APIs depending on `audiounit_set_buffer_size` cannot be called in parallel
-        - `kAudioDevicePropertyBufferFrameSize` cannot be set when another stream using the same device with smaller buffer size is active. See [here][chg-buf-sz] for reference.
-        - The *buffer frame size* within same device may be overwritten (no matter the *AudioUnit*s are different or not) ?
+- Fail to run `test_create_blank_aggregate_device` with `test_add_device_listeners_dont_affect_other_scopes_with_*` at the same time
+  - I guess `audiounit_create_blank_aggregate_device` will fire the callbacks in `test_add_device_listeners_dont_affect_other_scopes_with_*`
+- Fail to run `test_configure_{input, output}_with_zero_latency_frames` and `test_configure_{input, output}` at the same time.
+  - The APIs depending on `audiounit_set_buffer_size` cannot be called in parallel
+    - `kAudioDevicePropertyBufferFrameSize` cannot be set when another stream using the same device with smaller buffer size is active. See [here][chg-buf-sz] for reference.
+    - The *buffer frame size* within same device may be overwritten (For those *AudioUnit*s using same device ?)
+- Fail to run `test_ops_context_register_device_collection_changed_twice_*` on my MacBook Air and Travis CI.
+  - A panic in `capi_register_device_collection_changed` causes `EXC_BAD_INSTRUCTION`.
+  - Works fine if replacing `register_device_collection_changed: Option<unsafe extern "C" fn(..,) -> c_int>` to `register_device_collection_changed: unsafe extern "C" fn(..,) -> c_int`
+  - Test them in `AudioUnitContext` directly instead of calling them via `OPS` for now.
 
 [cubeb]: https://github.com/kinetiknz/cubeb "Cross platform audio library"
 [cubeb]: https://github.com/kinetiknz/cubeb/blob/master/src/cubeb.c "cubeb.c"
