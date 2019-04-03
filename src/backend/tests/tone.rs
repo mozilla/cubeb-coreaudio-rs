@@ -57,6 +57,7 @@ fn test_dial_tone() {
 
     // Do nothing if there is no available output device.
     if test_get_default_device(Scope::Output).is_none() {
+        println!("No output device.");
         return;
     }
 
@@ -69,7 +70,6 @@ fn test_dial_tone() {
     output_params.layout = ffi::CUBEB_LAYOUT_MONO;
     output_params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
 
-    // TODO: test_ops_stream_operation fails and hit an assertion when there is no output device.
     test_ops_stream_operation(
         "stream: North American dial tone",
         ptr::null_mut(), // Use default input device.
