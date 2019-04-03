@@ -11,3 +11,4 @@ before_script:
 script:
   - cargo build --verbose
   - cargo test --verbose
+  - sh run_tests.sh
