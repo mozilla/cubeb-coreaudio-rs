@@ -20,9 +20,8 @@ it can pass all the tests under *cubeb/test*
 and it's able to switch devices when the stream is working
 (we are unable to test this automatically yet).
 
-Now the draft version can pass all the tests within *gecko*.
+Now the draft version can pass all the tests within *gecko* on mozilla try-server.
 The project can be tracked on [*bugzilla* 1530715][bugzilla-cars].
-(Commits to import and build this within *gecko* can be found [here][build-within-gecko])
 
 ## Test
 Please run `sh run_tests.sh`.
@@ -30,11 +29,18 @@ Please run `sh run_tests.sh`.
 Some tests cannot be run in parallel.
 They may operate the same device at the same time,
 or indirectly fire some system events that are listened by some tests.
-Part of the tests are marked `#[ignore]` due to this problem.
-Therefore, the tests should be run part by part.
 
-Most of the tests are executed by running `sh run_tests.sh`.
+The tests that may affect others are marked `#[ignore]`.
+They will be run by `cargo test ... -- --ignored ...`
+after finishing normal tests.
+Most of the tests are executed in `run_tests.sh`.
 Only those tests commented with *FIXIT* are left.
+
+### Manual Test
+- Output devices switching
+  - `$ cargo test test_switch_output_device -- --ignored -- nocapture`
+- Device change events listener
+  - `$ cargo test test_add_then_remove_listeners -- --ignored -- nocapture`
 
 <!--
 - 🥚 : Not implemented.
