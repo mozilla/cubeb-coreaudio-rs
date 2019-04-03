@@ -1,6 +1,6 @@
 use super::utils::{
-    test_get_default_device, test_get_devices_in_scope, test_ops_stream_operation,
-    test_set_default_device, Scope,
+    test_get_default_device, test_get_devices_in_scope, test_get_empty_stream,
+    test_ops_stream_operation, test_set_default_device, Scope,
 };
 use super::*;
 
@@ -112,4 +112,99 @@ fn test_switch_output_device() {
             assert_eq!(unsafe { OPS.stream_stop.unwrap()(stream) }, ffi::CUBEB_OK);
         },
     );
+}
+
+#[ignore]
+#[test]
+fn test_add_then_remove_listeners() {
+    extern "C" fn callback(
+        id: AudioObjectID,
+        number_of_addresses: u32,
+        addresses: *const AudioObjectPropertyAddress,
+        data: *mut c_void,
+    ) -> OSStatus {
+        println!("device: {}, data @ {:p}", id, data);
+        let addrs = unsafe { std::slice::from_raw_parts(addresses, number_of_addresses as usize) };
+        for (i, addr) in addrs.iter().enumerate() {
+            println!(
+                "address {}\n\tselector {}({})\n\tscope {}\n\telement {}",
+                i,
+                addr.mSelector,
+                event_addr_to_string(addr.mSelector),
+                addr.mScope,
+                addr.mElement
+            );
+        }
+
+        NO_ERR
+    }
+
+    test_get_empty_stream(|stream| {
+        let mut listeners = Vec::new();
+
+        let default_output_listener = property_listener::new(
+            kAudioObjectSystemObject,
+            &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+            callback,
+            stream,
+        );
+        listeners.push(default_output_listener);
+
+        let default_input_listener = property_listener::new(
+            kAudioObjectSystemObject,
+            &DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS,
+            callback,
+            stream,
+        );
+        listeners.push(default_input_listener);
+
+        if let Some(device) = test_get_default_device(Scope::Output) {
+            let output_source_listener = property_listener::new(
+                device,
+                &OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS,
+                callback,
+                stream,
+            );
+            listeners.push(output_source_listener);
+        }
+
+        if let Some(device) = test_get_default_device(Scope::Input) {
+            let input_source_listener = property_listener::new(
+                device,
+                &INPUT_DATA_SOURCE_PROPERTY_ADDRESS,
+                callback,
+                stream,
+            );
+            listeners.push(input_source_listener);
+
+            let input_alive_listener =
+                property_listener::new(device, &DEVICE_IS_ALIVE_PROPERTY_ADDRESS, callback, stream);
+            listeners.push(input_alive_listener);
+        }
+
+        if listeners.is_empty() {
+            println!("No listeners to test.");
+            return;
+        }
+
+        add_listeners(&listeners);
+
+        // Enter anything to finish.
+        let mut input = String::new();
+        let _ = std::io::stdin().read_line(&mut input);
+
+        remove_listeners(&listeners);
+    });
+
+    fn add_listeners(listeners: &Vec<property_listener>) {
+        for listener in listeners {
+            assert_eq!(audiounit_add_listener(listener), NO_ERR);
+        }
+    }
+
+    fn remove_listeners(listeners: &Vec<property_listener>) {
+        for listener in listeners {
+            assert_eq!(audiounit_remove_listener(listener), NO_ERR);
+        }
+    }
 }
