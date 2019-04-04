@@ -38,9 +38,12 @@ Only those tests commented with *FIXIT* are left.
 
 ### Manual Test
 - Output devices switching
-  - `$ cargo test test_switch_output_device -- --ignored -- nocapture`
+  - `$ cargo test test_switch_output_device -- --ignored --nocapture`
+  - Enter `s` to switch output devices
+  - Enter `q` to finish test
 - Device change events listener
-  - `$ cargo test test_add_then_remove_listeners -- --ignored -- nocapture`
+  - `$ cargo test test_add_then_remove_listeners -- --ignored --nocapture`
+  - Plug/Unplug devices to see events log.
 
 <!--
 - 🥚 : Not implemented.
@@ -162,7 +165,7 @@ Only those tests commented with *FIXIT* are left.
 -->
 
 ## TODO
-- Maybe it's better to move all `fn some_func(stm: &AudioUnitStream, ...)` functions into `impl AudioUnitStream` to avoid useless references to `AudioUnitStream`. Perhaps it will help avoiding some borrowing issues.
+- Maybe it's better to move all `fn some_func(stm: &AudioUnitStream, ...)` functions into `impl AudioUnitStream` to avoid useless references to `AudioUnitStream`.
 - Remove `#[allow(non_camel_case_types)]`, `#![allow(unused_assignments)]`, `#![allow(unused_must_use)]` and apply *rust* coding styles
 - Use `Atomic{I64, U32, U64}` instead of `Atomic<{i64, u32, u64}>`, once they are stable.
 - Tests

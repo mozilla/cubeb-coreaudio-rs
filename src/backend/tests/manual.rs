@@ -69,7 +69,6 @@ fn test_switch_output_device() {
         .iter()
         .position(|device| *device == current)
         .unwrap();
-    println!("{:?}, {}, {}", devices, current, index);
 
     // Make sure the parameters meet the requirements of AudioUnitContext::stream_init
     // (in the comments).
