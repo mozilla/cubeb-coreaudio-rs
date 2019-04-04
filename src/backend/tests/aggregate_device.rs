@@ -669,9 +669,9 @@ fn valid_id(id: AudioObjectID) -> bool {
     id != kAudioObjectUnknown
 }
 
-fn is_output(id: AudioObjectID) -> bool {
-    audiounit_get_channel_count(id, kAudioDevicePropertyScopeOutput) > 0
-}
+// fn is_output(id: AudioObjectID) -> bool {
+//     audiounit_get_channel_count(id, kAudioDevicePropertyScopeOutput) > 0
+// }
 
 fn to_devices_names(devices: &Vec<AudioObjectID>) -> Vec<Option<String>> {
     let mut names = Vec::new();
