@@ -2600,7 +2600,7 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
         // TODO: Change `audiounit_clamp_latency` to audiounit_clamp_latency(stm) to avoid
         //       the borrowing issue.
         stm.latency_frames = audiounit_clamp_latency(stm, latency_frames);
-        assert!(stm.latency_frames > 0); // Ungly error check
+        assert!(stm.latency_frames > 0); // Ugly error check
         audiounit_set_global_latency(stm.context, stm.latency_frames);
     }
 
