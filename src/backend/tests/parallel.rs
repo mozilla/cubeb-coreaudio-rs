@@ -1,4 +1,7 @@
-use super::utils::{test_get_default_device, test_ops_context_operation, Scope};
+use super::utils::{
+    test_audiounit_get_buffer_frame_size, test_get_default_device, test_ops_context_operation,
+    PropertyScope, Scope,
+};
 use super::*;
 use std::sync::mpsc::channel;
 use std::thread;
@@ -84,7 +87,6 @@ fn test_parallel_ops_init_streams_in_parallel() {
             );
         }
 
-
         // All the latency frames should be the same value as the first stream's one, since the
         // latency frames cannot be changed if another stream is operating in parallel.
         let latency_frames_of_first_initial_stream = receiver.recv().unwrap();
@@ -166,17 +168,19 @@ fn test_parallel_init_streams_in_parallel() {
                     let context = unsafe { &mut *(context_ptr_value as *mut AudioUnitContext) };
                     let input_params = unsafe { StreamParamsRef::from_ptr(&mut input_params) };
                     let output_params = unsafe { StreamParamsRef::from_ptr(&mut output_params) };
-                    let stream = context.stream_init(
-                        None,
-                        ptr::null_mut(), // Use default input device.
-                        Some(input_params),
-                        ptr::null_mut(), // Use default output device.
-                        Some(output_params),
-                        latency_frames,
-                        None,            // No data callback.
-                        None,            // No state callback.
-                        ptr::null_mut(), // No user data pointer.
-                    ).unwrap();
+                    let stream = context
+                        .stream_init(
+                            None,
+                            ptr::null_mut(), // Use default input device.
+                            Some(input_params),
+                            ptr::null_mut(), // Use default output device.
+                            Some(output_params),
+                            latency_frames,
+                            None,            // No data callback.
+                            None,            // No state callback.
+                            ptr::null_mut(), // No user data pointer.
+                        )
+                        .unwrap();
                     tx.send(latency_frames).unwrap();
                     assert!(!stream.as_ptr().is_null());
                     let stream_ptr_value = stream.as_ptr() as usize;
@@ -192,6 +196,8 @@ fn test_parallel_init_streams_in_parallel() {
     // latency frames cannot be changed if another stream is operating in parallel.
     let latency_frames_of_first_initial_stream = receiver.recv().unwrap();
     let mut latency_frames = vec![];
+    let mut in_buffer_frame_sizes = vec![];
+    let mut out_buffer_frame_sizes = vec![];
 
     // Wait for finishing the tasks on the different threads.
     for handle in join_handles {
@@ -199,11 +205,48 @@ fn test_parallel_init_streams_in_parallel() {
         // Retake the leaked stream.
         let stream = unsafe { Box::from_raw(stream_ptr_value as *mut AudioUnitStream) };
         latency_frames.push(stream.latency_frames);
+        assert!(!stream.input_unit.is_null());
+        let in_buffer_frame_size = test_audiounit_get_buffer_frame_size(
+            stream.input_unit,
+            Scope::Input,
+            PropertyScope::Output,
+        )
+        .unwrap();
+        in_buffer_frame_sizes.push(in_buffer_frame_size);
+
+        assert!(!stream.output_unit.is_null());
+        let out_buffer_frame_size = test_audiounit_get_buffer_frame_size(
+            stream.output_unit,
+            Scope::Output,
+            PropertyScope::Input,
+        )
+        .unwrap();
+        out_buffer_frame_sizes.push(out_buffer_frame_size);
     }
 
     // Make sure all the latency frames are same as the first stream's one.
     assert_eq!(latency_frames[0], latency_frames_of_first_initial_stream);
     for i in 0..latency_frames.len() - 1 {
         assert_eq!(latency_frames[i], latency_frames[i + 1]);
+    }
+
+    // Make sure all the buffer frame sizes on output scope of the input audiounit are same
+    // as the defined latency of the first initial stream.
+    assert_eq!(
+        in_buffer_frame_sizes[0],
+        latency_frames_of_first_initial_stream
+    );
+    for i in 0..in_buffer_frame_sizes.len() - 1 {
+        assert_eq!(in_buffer_frame_sizes[i], in_buffer_frame_sizes[i + 1]);
+    }
+
+    // Make sure all the buffer frame sizes on input scope of the output audiounit are same
+    // as the defined latency of the first initial stream.
+    assert_eq!(
+        out_buffer_frame_sizes[0],
+        latency_frames_of_first_initial_stream
+    );
+    for i in 0..out_buffer_frame_sizes.len() - 1 {
+        assert_eq!(out_buffer_frame_sizes[i], out_buffer_frame_sizes[i + 1]);
     }
 }
