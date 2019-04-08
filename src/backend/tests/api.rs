@@ -1,8 +1,9 @@
 use super::utils::{
-    test_audiounit_scope_is_enabled, test_create_audiounit, test_device_channels_in_scope,
-    test_device_in_scope, test_get_all_devices, test_get_default_audiounit,
-    test_get_default_device, test_get_default_source_data, test_get_default_source_name,
-    test_get_empty_stream, test_get_locked_context, ComponentSubType, Scope,
+    test_audiounit_get_buffer_frame_size, test_audiounit_scope_is_enabled, test_create_audiounit,
+    test_device_channels_in_scope, test_device_in_scope, test_get_all_devices,
+    test_get_default_audiounit, test_get_default_device, test_get_default_source_data,
+    test_get_default_source_name, test_get_empty_stream, test_get_locked_context, ComponentSubType,
+    PropertyScope, Scope,
 };
 use super::*;
 use std::any::Any;
@@ -1628,7 +1629,8 @@ fn test_clamp_latency_with_more_than_one_active_streams() {
     if let Some(unit) = test_get_default_audiounit(Scope::Output) {
         test_get_empty_stream(|stream| {
             stream.output_unit = unit.get_inner();
-            let buffer_frame_size = unit.get_buffer_frame_size(Scope::Output);
+            let buffer_frame_size =
+                unit.get_buffer_frame_size(Scope::Output, PropertyScope::Output);
 
             // audiounit_clamp_latency and audiounit_active_streams require a lock for context.
             // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
@@ -1705,30 +1707,18 @@ fn test_set_buffer_size() {
             }
             let default_unit = default_unit.unwrap();
 
-            let (unit, unit_scope, element) = match scope {
+            let (unit, prop_scope) = match scope {
                 Scope::Input => {
                     stream.input_unit = default_unit.get_inner();
-                    (stream.input_unit, kAudioUnitScope_Output, AU_IN_BUS)
+                    (stream.input_unit, PropertyScope::Output)
                 }
                 Scope::Output => {
                     stream.output_unit = default_unit.get_inner();
-                    (stream.output_unit, kAudioUnitScope_Input, AU_OUT_BUS)
+                    (stream.output_unit, PropertyScope::Input)
                 }
             };
-
-            let mut buffer_frames: u32 = 0;
-            let mut size = mem::size_of::<u32>();
-            assert_eq!(
-                audio_unit_get_property(
-                    unit,
-                    kAudioDevicePropertyBufferFrameSize,
-                    unit_scope,
-                    element,
-                    &mut buffer_frames,
-                    &mut size
-                ),
-                NO_ERR
-            );
+            let mut buffer_frames =
+                test_audiounit_get_buffer_frame_size(unit, scope.clone(), prop_scope).unwrap();
             assert_ne!(buffer_frames, 0);
             buffer_frames *= 2;
             assert!(audiounit_set_buffer_size(stream, buffer_frames, scope.into()).is_ok());
@@ -2016,23 +2006,11 @@ where
 }
 
 fn check_buffer_frame_size(stream: &mut AudioUnitStream, scope: Scope) {
-    let (unit, unit_scope, bus) = match scope {
-        Scope::Input => (stream.input_unit, kAudioUnitScope_Output, AU_IN_BUS),
-        Scope::Output => (stream.output_unit, kAudioUnitScope_Input, AU_OUT_BUS),
+    let (unit, prop_scope) = match scope {
+        Scope::Input => (stream.input_unit, PropertyScope::Output),
+        Scope::Output => (stream.output_unit, PropertyScope::Input),
     };
-    let mut buffer_frames: u32 = 0;
-    let mut size = mem::size_of::<u32>();
-    assert_eq!(
-        audio_unit_get_property(
-            unit,
-            kAudioDevicePropertyBufferFrameSize,
-            unit_scope,
-            bus,
-            &mut buffer_frames,
-            &mut size
-        ),
-        NO_ERR
-    );
+    let buffer_frames = test_audiounit_get_buffer_frame_size(unit, scope, prop_scope).unwrap();
     // The buffer frames will be set to the same value of latency_frames.
     assert_eq!(buffer_frames, stream.latency_frames);
 }

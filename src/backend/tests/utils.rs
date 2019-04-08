@@ -26,6 +26,11 @@ impl From<Scope> for DeviceType {
     }
 }
 
+pub enum PropertyScope {
+    Input,
+    Output,
+}
+
 pub fn test_get_default_device(scope: Scope) -> Option<AudioObjectID> {
     let address = AudioObjectPropertyAddress {
         mSelector: match scope {
@@ -68,28 +73,12 @@ impl TestAudioUnit {
     pub fn get_inner(&self) -> AudioUnit {
         self.0
     }
-    pub fn get_buffer_frame_size(&self, scope: Scope) -> std::result::Result<u32, OSStatus> {
-        let (scope, element) = match scope {
-            Scope::Input => (kAudioUnitScope_Input, AU_IN_BUS),
-            Scope::Output => (kAudioUnitScope_Output, AU_OUT_BUS),
-        };
-        let mut buffer_frames: u32 = 0;
-        let mut size = mem::size_of::<u32>();
-        let status = unsafe {
-            AudioUnitGetProperty(
-                self.0,
-                kAudioDevicePropertyBufferFrameSize,
-                scope,
-                element,
-                &mut buffer_frames as *mut u32 as *mut c_void,
-                &mut size as *mut usize as *mut u32,
-            )
-        };
-        if status == NO_ERR {
-            Ok(buffer_frames)
-        } else {
-            Err(status)
-        }
+    pub fn get_buffer_frame_size(
+        &self,
+        scope: Scope,
+        prop_scope: PropertyScope,
+    ) -> std::result::Result<u32, OSStatus> {
+        test_audiounit_get_buffer_frame_size(self.0, scope, prop_scope)
     }
 }
 
@@ -393,6 +382,38 @@ pub fn test_audiounit_scope_is_enabled(unit: AudioUnit, scope: Scope) -> bool {
         NO_ERR
     );
     has_io != 0
+}
+
+pub fn test_audiounit_get_buffer_frame_size(
+    unit: AudioUnit,
+    scope: Scope,
+    prop_scope: PropertyScope,
+) -> std::result::Result<u32, OSStatus> {
+    let element = match scope {
+        Scope::Input => AU_IN_BUS,
+        Scope::Output => AU_OUT_BUS,
+    };
+    let prop_scope = match prop_scope {
+        PropertyScope::Input => kAudioUnitScope_Input,
+        PropertyScope::Output => kAudioUnitScope_Output,
+    };
+    let mut buffer_frames: u32 = 0;
+    let mut size = mem::size_of::<u32>();
+    let status = unsafe {
+        AudioUnitGetProperty(
+            unit,
+            kAudioDevicePropertyBufferFrameSize,
+            prop_scope,
+            element,
+            &mut buffer_frames as *mut u32 as *mut c_void,
+            &mut size as *mut usize as *mut u32,
+        )
+    };
+    if status == NO_ERR {
+        Ok(buffer_frames)
+    } else {
+        Err(status)
+    }
 }
 
 // Surprisingly it's ok to set
