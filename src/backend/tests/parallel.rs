@@ -51,7 +51,7 @@ fn test_parallel_ops_init_streams_in_parallel() {
             // Create many streams within the same context. The order of the stream creation
             // is random (The order of execution of the spawned threads is random.).assert!
             // It's super dangerous to pass `context_ptr_value` across threads and convert it back
-            // to a pointer. However, it's a direct way to make sure the inside mutex works.
+            // to a pointer. However, it's the cheapest way to make sure the inside mutex works.
             let thread_name = format!("stream {} @ context {:?}", i, context_ptr);
             let tx = sender.clone();
             join_handles.push(
@@ -158,7 +158,7 @@ fn test_parallel_init_streams_in_parallel() {
         // Create many streams within the same context. The order of the stream creation
         // is random. (The order of execution of the spawned threads is random.)
         // It's super dangerous to pass `context_ptr_value` across threads and convert it back
-        // to a reference. However, it's a direct way to make sure the inside mutex works.
+        // to a reference. However, it's the cheapest way to make sure the inside mutex works.
         let thread_name = format!("stream {} @ context {:?}", i, context_ptr_value);
         let tx = sender.clone();
         join_handles.push(
