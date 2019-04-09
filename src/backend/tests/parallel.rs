@@ -3,7 +3,6 @@ use super::utils::{
     PropertyScope, Scope,
 };
 use super::*;
-use std::sync::mpsc::channel;
 use std::thread;
 
 // Ignore the test by default to avoid overwritting the buffer frame size of the device that is
@@ -23,7 +22,6 @@ fn test_parallel_ops_init_streams_in_parallel() {
     test_ops_context_operation("context: init and destroy", |context_ptr| {
         let context_ptr_value = context_ptr as usize;
 
-        let (sender, receiver) = channel();
         let mut join_handles = vec![];
         for i in 0..THREADS {
             // Latency cannot be changed if another stream is operating in parallel. All the latecy
@@ -53,7 +51,6 @@ fn test_parallel_ops_init_streams_in_parallel() {
             // It's super dangerous to pass `context_ptr_value` across threads and convert it back
             // to a pointer. However, it's the cheapest way to make sure the inside mutex works.
             let thread_name = format!("stream {} @ context {:?}", i, context_ptr);
-            let tx = sender.clone();
             join_handles.push(
                 thread::Builder::new()
                     .name(thread_name)
@@ -79,7 +76,6 @@ fn test_parallel_ops_init_streams_in_parallel() {
                             },
                             ffi::CUBEB_OK
                         );
-                        tx.send(latency_frames).unwrap();
                         assert!(!stream.is_null());
                         stream as usize
                     })
@@ -89,7 +85,6 @@ fn test_parallel_ops_init_streams_in_parallel() {
 
         // All the latency frames should be the same value as the first stream's one, since the
         // latency frames cannot be changed if another stream is operating in parallel.
-        let latency_frames_of_first_initial_stream = receiver.recv().unwrap();
         let mut latency_frames = vec![];
 
         for handle in join_handles {
@@ -102,7 +97,6 @@ fn test_parallel_ops_init_streams_in_parallel() {
         }
 
         // Make sure all the latency frames are same as the first stream's one.
-        assert_eq!(latency_frames[0], latency_frames_of_first_initial_stream);
         for i in 0..latency_frames.len() - 1 {
             assert_eq!(latency_frames[i], latency_frames[i + 1]);
         }
@@ -130,7 +124,6 @@ fn test_parallel_init_streams_in_parallel() {
 
     let context_ptr_value = &context as *const AudioUnitContext as usize;
 
-    let (sender, receiver) = channel();
     let mut join_handles = vec![];
     for i in 0..THREADS {
         // Latency cannot be changed if another stream is operating in parallel. All the latecy
@@ -160,7 +153,6 @@ fn test_parallel_init_streams_in_parallel() {
         // It's super dangerous to pass `context_ptr_value` across threads and convert it back
         // to a reference. However, it's the cheapest way to make sure the inside mutex works.
         let thread_name = format!("stream {} @ context {:?}", i, context_ptr_value);
-        let tx = sender.clone();
         join_handles.push(
             thread::Builder::new()
                 .name(thread_name)
@@ -181,7 +173,6 @@ fn test_parallel_init_streams_in_parallel() {
                             ptr::null_mut(), // No user data pointer.
                         )
                         .unwrap();
-                    tx.send(latency_frames).unwrap();
                     assert!(!stream.as_ptr().is_null());
                     let stream_ptr_value = stream.as_ptr() as usize;
                     // Prevent the stream from being destroyed by leaking this stream.
@@ -194,7 +185,6 @@ fn test_parallel_init_streams_in_parallel() {
 
     // All the latency frames should be the same value as the first stream's one, since the
     // latency frames cannot be changed if another stream is operating in parallel.
-    let latency_frames_of_first_initial_stream = receiver.recv().unwrap();
     let mut latency_frames = vec![];
     let mut in_buffer_frame_sizes = vec![];
     let mut out_buffer_frame_sizes = vec![];
@@ -225,27 +215,18 @@ fn test_parallel_init_streams_in_parallel() {
     }
 
     // Make sure all the latency frames are same as the first stream's one.
-    assert_eq!(latency_frames[0], latency_frames_of_first_initial_stream);
     for i in 0..latency_frames.len() - 1 {
         assert_eq!(latency_frames[i], latency_frames[i + 1]);
     }
 
     // Make sure all the buffer frame sizes on output scope of the input audiounit are same
     // as the defined latency of the first initial stream.
-    assert_eq!(
-        in_buffer_frame_sizes[0],
-        latency_frames_of_first_initial_stream
-    );
     for i in 0..in_buffer_frame_sizes.len() - 1 {
         assert_eq!(in_buffer_frame_sizes[i], in_buffer_frame_sizes[i + 1]);
     }
 
     // Make sure all the buffer frame sizes on input scope of the output audiounit are same
     // as the defined latency of the first initial stream.
-    assert_eq!(
-        out_buffer_frame_sizes[0],
-        latency_frames_of_first_initial_stream
-    );
     for i in 0..out_buffer_frame_sizes.len() - 1 {
         assert_eq!(out_buffer_frame_sizes[i], out_buffer_frame_sizes[i + 1]);
     }
