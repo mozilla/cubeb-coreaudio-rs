@@ -30,7 +30,9 @@ Specifically, the *ocs* is used to avoid the following potential race operations
 ##### Note
 The *buffer-frame-size* of the device might still be changed
 while the other stream is actively using it
-if the streams are in different *cubeb context*.
+if the streams are in **different** *cubeb context*.
+That's why `test_configure_input` and `test_configure_input_with_zero_latency_frames`
+cannot run together.
 
 However, once [*audioipc*][audioipc] works are done properly,
 we should have only one *cubeb context* in the parent process.
