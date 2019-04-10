@@ -26,6 +26,7 @@ impl From<Scope> for DeviceType {
     }
 }
 
+#[derive(Clone)]
 pub enum PropertyScope {
     Input,
     Output,

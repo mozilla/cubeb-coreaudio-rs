@@ -1,6 +1,6 @@
 use super::utils::{
-    test_audiounit_get_buffer_frame_size, test_get_default_device, test_ops_context_operation,
-    PropertyScope, Scope,
+    test_audiounit_get_buffer_frame_size, test_get_default_audiounit, test_get_default_device,
+    test_ops_context_operation, PropertyScope, Scope,
 };
 use super::*;
 use std::thread;
@@ -229,5 +229,73 @@ fn test_parallel_init_streams_in_parallel() {
     // as the defined latency of the first initial stream.
     for i in 0..out_buffer_frame_sizes.len() - 1 {
         assert_eq!(out_buffer_frame_sizes[i], out_buffer_frame_sizes[i + 1]);
+    }
+}
+
+// This is used to interfere other active streams.
+// From this testing, it's ok to set the buffer frame size of a device that is currently used by
+// other tests. It works on OSX 10.13, not sure if it works on other versions.
+// However, other tests may check the buffer frame size they set at the same time,
+// so we ignore this by default incase those checks fail.
+#[ignore]
+#[test]
+fn test_set_buffer_frame_size_in_parallel() {
+    test_set_buffer_frame_size_in_parallel_in_scope(Scope::Input);
+    test_set_buffer_frame_size_in_parallel_in_scope(Scope::Output);
+}
+
+fn test_set_buffer_frame_size_in_parallel_in_scope(scope: Scope) {
+    const THREADS: u32 = 100;
+
+    let unit = test_get_default_audiounit(scope.clone());
+    if unit.is_none() {
+        println!("No unit for {:?}", scope);
+        return;
+    }
+
+    let (unit_scope, unit_element, prop_scope) = match scope {
+        Scope::Input => (kAudioUnitScope_Output, AU_IN_BUS, PropertyScope::Output),
+        Scope::Output => (kAudioUnitScope_Input, AU_OUT_BUS, PropertyScope::Input),
+    };
+
+    let mut units = vec![];
+    let mut join_handles = vec![];
+    for i in 0..THREADS {
+        let latency_frames = SAFE_MIN_LATENCY_FRAMES + i;
+        assert!(latency_frames < SAFE_MAX_LATENCY_FRAMES);
+        units.push(test_get_default_audiounit(scope.clone()).unwrap());
+        let unit_value = units.last().unwrap().get_inner() as usize;
+        join_handles.push(thread::spawn(move || {
+            let status = audio_unit_set_property(
+                unit_value as AudioUnit,
+                kAudioDevicePropertyBufferFrameSize,
+                unit_scope,
+                unit_element,
+                &latency_frames,
+                mem::size_of::<u32>(),
+            );
+            (latency_frames, status)
+        }));
+    }
+
+    let mut latencies = vec![];
+    let mut statuses = vec![];
+    for handle in join_handles {
+        let (latency, status) = handle.join().unwrap();
+        latencies.push(latency);
+        statuses.push(status);
+    }
+
+    let mut buffer_frames_list = vec![];
+    for unit in units.iter() {
+        buffer_frames_list.push(unit.get_buffer_frame_size(scope.clone(), prop_scope.clone()));
+    }
+
+    for status in statuses {
+        assert_eq!(status, NO_ERR);
+    }
+
+    for i in 0..buffer_frames_list.len() - 1 {
+        assert_eq!(buffer_frames_list[i], buffer_frames_list[i + 1]);
     }
 }
