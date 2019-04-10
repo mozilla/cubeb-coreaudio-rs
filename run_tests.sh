@@ -12,3 +12,4 @@ cargo test test_parallel_init_streams_in_parallel -- --ignored
 # Manual Tests
 # cargo test test_switch_output_device -- --ignored --nocapture
 # cargo test test_add_then_remove_listeners -- --ignored --nocapture
+# cargo test test_device_collection_change -- --ignored --nocapture

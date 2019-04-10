@@ -43,6 +43,9 @@ Only those tests commented with *FIXIT* are left.
   - Enter `q` to finish test
 - Device change events listener
   - `$ cargo test test_add_then_remove_listeners -- --ignored --nocapture`
+  - Plug/Unplug devices or switch input/output devices to see events log.
+- Device collection change
+  - `cargo test test_device_collection_change -- --ignored --nocapture`
   - Plug/Unplug devices to see events log.
 
 <!--

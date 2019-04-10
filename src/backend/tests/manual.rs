@@ -188,7 +188,7 @@ fn test_add_then_remove_listeners() {
 
         add_listeners(&listeners);
 
-        // Enter anything to finish.
+        println!("Enter anything to finish.");
         let mut input = String::new();
         let _ = std::io::stdin().read_line(&mut input);
 
@@ -206,4 +206,46 @@ fn test_add_then_remove_listeners() {
             assert_eq!(audiounit_remove_listener(listener), NO_ERR);
         }
     }
+}
+
+#[ignore]
+#[test]
+fn test_device_collection_change() {
+    const DUMMY_PTR: *mut c_void = 0xDEAD_BEEF as *mut c_void;
+    // Initialize the the mutex (whose type is OwnedCriticalSection) within AudioUnitContext,
+    // by AudioUnitContext::Init, to make the mutex work.
+    let mut context = AudioUnitContext::new();
+    context.init();
+
+    extern "C" fn input_changed_callback(context: *mut ffi::cubeb, data: *mut c_void) {
+        println!(
+            "Input device collection @ {:p} is changed. Data @ {:p}",
+            context, data
+        );
+        assert_eq!(data, DUMMY_PTR);
+    }
+
+    extern "C" fn output_changed_callback(context: *mut ffi::cubeb, data: *mut c_void) {
+        println!(
+            "output device collection @ {:p} is changed. Data @ {:p}",
+            context, data
+        );
+        assert_eq!(data, DUMMY_PTR);
+    }
+
+    context.register_device_collection_changed(
+        DeviceType::INPUT,
+        Some(input_changed_callback),
+        DUMMY_PTR,
+    );
+
+    context.register_device_collection_changed(
+        DeviceType::OUTPUT,
+        Some(output_changed_callback),
+        DUMMY_PTR,
+    );
+
+    println!("Enter anything to finish.");
+    let mut input = String::new();
+    let _ = std::io::stdin().read_line(&mut input);
 }
