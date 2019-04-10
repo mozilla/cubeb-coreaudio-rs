@@ -11,8 +11,8 @@ Replace *OwnedCriticalSection* by standard *Rust mutex*
 
 #### The buffer-frames issue
 
-Changing the *buffer-frame-size* on a device may cause troubles
-while another stream is actively using the same device in parallel.
+Changing the *buffer-frame-size* of a device may cause troubles
+while another stream is actively using the same device at the same time.
 See [here][chg-buf-sz] for more detail.
 
 The current solution is to keep tracking how many streams within a context,
@@ -30,9 +30,7 @@ Specifically, the *ocs* is used to avoid the following potential race operations
 ##### Note
 The *buffer-frame-size* of the device might still be changed
 while the other stream is actively using it
-if the streams are in **different** *cubeb context*.
-That's why `test_configure_input` and `test_configure_input_with_zero_latency_frames`
-cannot run together.
+if the streams are in different *cubeb context*.
 
 However, once [*audioipc*][audioipc] works are done properly,
 we should have only one *cubeb context* in the parent process.
@@ -56,6 +54,14 @@ The later calls of `audiounit_set_buffer_size` will hit the *early-return* condi
 `new_buffer_frame_size == current_buffer_frame_size`
 since all the latencies of the later streams are same as the latency of the first stream.
 
+#### Device collection change
+The following global variables for tracking device-collection may be operated in different threads
+
+- {input, output}_device_array
+- {input, output}_collection_changed_callback
+- {input, output}_collection_changed_user_ptr
+
+so they should be protected by a mutex.
 
 ### *Cubeb* Stream
 All members in the *stream* should be protected by a mutex
