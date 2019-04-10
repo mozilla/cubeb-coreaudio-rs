@@ -27,13 +27,20 @@ Specifically, the *ocs* is used to avoid the following potential race operations
 - avoid counting streams in parallel
 - avoid setting *global* latency/buffer-frames in parallel
 
-##### Note
+##### Defects
 The *buffer-frame-size* of the device might still be changed
 while the other stream is actively using it
 if the streams are in different *cubeb context*.
 
 However, once [*audioipc*][audioipc] works are done properly,
 we should have only one *cubeb context* in the parent process.
+
+The solution we have now is not ideal.
+The reason is that we overwrite the latency/buffer-frames of a stream
+if it's not the first stream in the cubeb context.
+However, the first stream and the later streams may use different devices,
+so the the latency/buffer-frames of a stream that operates on
+different device than the first stream's one should not be overwritten.
 
 ##### Current Code Flow
 The whole stream *initialization*(`AudioUnitContext::stream_init` called by `cubeb_stream_init`)
