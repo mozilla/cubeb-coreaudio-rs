@@ -3276,42 +3276,52 @@ extern fn audiounit_collection_changed_callback(_in_object_id: AudioObjectID,
                                                 _in_addresses: *const AudioObjectPropertyAddress,
                                                 in_client_data: *mut c_void) -> OSStatus
 {
-    let context = in_client_data as *mut AudioUnitContext;
+    let context = unsafe { &mut *(in_client_data as *mut AudioUnitContext) };
 
-    // Rust compilter doesn't allow a pointer to be passed across threads.
-    // A hacky way to do that is to cast the pointer into a value, then
-    // the value, which is actually an address, can be copied into threads.
-    let ctx_ptr = context as usize;
+    let queue = context.serial_queue;
+    let mutexed_context = Arc::new(Mutex::new(context));
+    let also_mutexed_context = Arc::clone(&mutexed_context);
 
-    unsafe {
-        // This can be called from inside an AudioUnit function, dispatch to another queue.
-        async_dispatch((*context).serial_queue, move || {
-            // The scope of `lock` is a critical section.
-            let ctx = ctx_ptr as *mut AudioUnitContext;
-            let _lock = AutoLock::new(&mut (*ctx).mutex);
+    // This can be called from inside an AudioUnit function, dispatch to another queue.
+    async_dispatch(queue, move || {
+        let mut ctx_guard = also_mutexed_context.lock().unwrap();
+        let ctx = &mut *(*ctx_guard);
 
-            if (*ctx).input_collection_changed_callback.is_none() &&
-               (*ctx).output_collection_changed_callback.is_none() {
-                return;
-            }
-            if (*ctx).input_collection_changed_callback.is_some() {
-                let devices = audiounit_get_devices_of_type(DeviceType::INPUT);
-                /* Elements in the vector expected sorted. */
-                if (*ctx).input_device_array != devices {
-                    (*ctx).input_device_array = devices;
-                    (*ctx).input_collection_changed_callback.unwrap()(ctx as *mut _, (*ctx).input_collection_changed_user_ptr);
+        let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        // The scope of `_context_lock` is a critical section.
+        let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+
+        if ctx.input_collection_changed_callback.is_none() &&
+            ctx.output_collection_changed_callback.is_none() {
+            return;
+        }
+        if ctx.input_collection_changed_callback.is_some() {
+            let devices = audiounit_get_devices_of_type(DeviceType::INPUT);
+            /* Elements in the vector expected sorted. */
+            if ctx.input_device_array != devices {
+                ctx.input_device_array = devices;
+                unsafe {
+                    ctx.input_collection_changed_callback.unwrap()(
+                        ctx as *mut AudioUnitContext as *mut ffi::cubeb,
+                        ctx.input_collection_changed_user_ptr
+                    );
                 }
             }
-            if (*ctx).output_collection_changed_callback.is_some() {
-                let devices = audiounit_get_devices_of_type(DeviceType::OUTPUT);
-                /* Elements in the vector expected sorted. */
-                if (*ctx).output_device_array != devices {
-                    (*ctx).output_device_array = devices;
-                    (*ctx).output_collection_changed_callback.unwrap()(ctx as *mut _, (*ctx).output_collection_changed_user_ptr);
+        }
+        if ctx.output_collection_changed_callback.is_some() {
+            let devices = audiounit_get_devices_of_type(DeviceType::OUTPUT);
+            /* Elements in the vector expected sorted. */
+            if ctx.output_device_array != devices {
+                ctx.output_device_array = devices;
+                unsafe {
+                    ctx.output_collection_changed_callback.unwrap()(
+                        ctx as *mut AudioUnitContext as *mut ffi::cubeb,
+                        ctx.output_collection_changed_user_ptr
+                    );
                 }
             }
-        });
-    }
+        }
+    });
 
     NO_ERR
 }
@@ -3775,6 +3785,10 @@ impl Drop for AudioUnitContext {
         release_dispatch_queue(self.serial_queue);
     }
 }
+
+// An unsafe workaround to pass AudioUnitContext across threads.
+unsafe impl Send for AudioUnitContext {}
+unsafe impl Sync for AudioUnitContext {}
 
 #[derive(Debug)]
 struct AudioUnitStream<'ctx> {
