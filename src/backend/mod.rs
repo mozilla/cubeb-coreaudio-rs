@@ -818,10 +818,11 @@ fn audiounit_reinit_stream_async(stm: &mut AudioUnitStream, flags: device_flags)
 
     let queue = stm.context.serial_queue;
     let mutexed_ref = Arc::new(Mutex::new(stm));
+    let also_mutexed_ref = Arc::clone(&mutexed_ref);
     // Use a new thread, through the queue, to avoid deadlock when calling
     // Get/SetProperties method from inside notify callback
     async_dispatch(queue, move || {
-        let mut ref_guard = mutexed_ref.lock().unwrap();
+        let mut ref_guard = also_mutexed_ref.lock().unwrap();
         let stm = &mut *(*ref_guard);
         if *stm.destroy_pending.get_mut() {
             cubeb_log!("({:p}) stream pending destroy, cancelling reinit task", stm as *const AudioUnitStream);
