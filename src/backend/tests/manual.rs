@@ -96,16 +96,21 @@ fn test_switch_output_device() {
                 let mut input = String::new();
                 let _ = io::stdin().read_line(&mut input);
                 assert_eq!(input.pop().unwrap(), '\n');
-                if input == "s" {
-                    let original = devices[index];
-                    index = (index + 1) % devices.len();
-                    let new = devices[index];
-                    assert!(test_set_default_device(new, Scope::Output).unwrap());
-                    println!("Switch from {} to {}", original, new);
-                }
-                if input == "q" {
-                    println!("Quit.");
-                    break;
+                match input.as_str() {
+                    "s" => {
+                        let original = devices[index];
+                        index = (index + 1) % devices.len();
+                        let new = devices[index];
+                        assert!(test_set_default_device(new, Scope::Output).unwrap());
+                        println!("Switch from {} to {}", original, new);
+                    }
+                    "q" => {
+                        println!("Quit.");
+                        break;
+                    }
+                    x => {
+                        println!("Unknown command: {}", x);
+                    }
                 }
             }
             assert_eq!(unsafe { OPS.stream_stop.unwrap()(stream) }, ffi::CUBEB_OK);
