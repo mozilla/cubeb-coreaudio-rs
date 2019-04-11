@@ -193,7 +193,7 @@ fn test_add_then_remove_listeners() {
 
         add_listeners(&listeners);
 
-        println!("Enter anything to finish.");
+        println!("Unplug/Plug device or switch input/output device to see the event log.\nEnter anything to finish.");
         let mut input = String::new();
         let _ = std::io::stdin().read_line(&mut input);
 
@@ -250,7 +250,7 @@ fn test_device_collection_change() {
         DUMMY_PTR,
     );
 
-    println!("Enter anything to finish.");
+    println!("Unplug/Plug device to see the event log.\nEnter anything to finish.");
     let mut input = String::new();
     let _ = std::io::stdin().read_line(&mut input);
 }
