@@ -817,13 +817,13 @@ fn audiounit_reinit_stream_async(stm: &mut AudioUnitStream, flags: device_flags)
     }
 
     let queue = stm.context.serial_queue;
-    let mutexed_ref = Arc::new(Mutex::new(stm));
-    let also_mutexed_ref = Arc::clone(&mutexed_ref);
+    let mutexed_stm = Arc::new(Mutex::new(stm));
+    let also_mutexed_stm = Arc::clone(&mutexed_stm);
     // Use a new thread, through the queue, to avoid deadlock when calling
     // Get/SetProperties method from inside notify callback
     async_dispatch(queue, move || {
-        let mut ref_guard = also_mutexed_ref.lock().unwrap();
-        let stm = &mut *(*ref_guard);
+        let mut stm_guard = also_mutexed_stm.lock().unwrap();
+        let stm = &mut *(*stm_guard);
         if *stm.destroy_pending.get_mut() {
             cubeb_log!("({:p}) stream pending destroy, cancelling reinit task", stm as *const AudioUnitStream);
             return;
@@ -3933,14 +3933,15 @@ impl<'ctx> AudioUnitStream<'ctx> {
         }
 
         *self.destroy_pending.get_mut() = true;
-        // Rust compilter doesn't allow a pointer to be passed across threads.
-        // A hacky way to do that is to cast the pointer into a value, then
-        // the value, which is actually an address, can be copied into threads.
-        let stm_ptr = self as *mut AudioUnitStream as usize;
+
+        let queue = self.context.serial_queue;
+        let mutexed_stm = Arc::new(Mutex::new(self));
+        let also_mutexed_stm = Arc::clone(&mutexed_stm);
         // Execute close in serial queue to avoid collision
         // with reinit when un/plug devices
-        sync_dispatch(self.context.serial_queue, move || {
-            let stm = unsafe { &mut (*(stm_ptr as *mut AudioUnitStream)) };
+        sync_dispatch(queue, move || {
+            let mut stm_guard = also_mutexed_stm.lock().unwrap();
+            let stm = &mut *(*stm_guard);
             // Use `mutex_ptr` to avoid the same borrowing issue as above.
             let mutex_ptr = &mut stm.context.mutex as *mut OwnedCriticalSection;
             // The scope of `_context_lock` is a critical section.
@@ -3948,7 +3949,9 @@ impl<'ctx> AudioUnitStream<'ctx> {
             audiounit_stream_destroy_internal(stm);
         });
 
-        cubeb_log!("Cubeb stream ({:p}) destroyed successful.", self as *const AudioUnitStream);
+        let stm_guard = mutexed_stm.lock().unwrap();
+        let stm = &*(*stm_guard);
+        cubeb_log!("Cubeb stream ({:p}) destroyed successful.", stm as *const AudioUnitStream);
     }
 }
 
