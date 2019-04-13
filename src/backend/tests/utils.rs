@@ -473,6 +473,34 @@ pub fn test_change_default_device(scope: Scope) -> std::result::Result<bool, OSS
     test_set_default_device(next, scope)
 }
 
+pub fn test_listen_device_change(
+    scope: Scope,
+    listener: extern "C" fn(
+        AudioObjectID,
+        u32,
+        *const AudioObjectPropertyAddress,
+        *mut c_void,
+    ) -> OSStatus,
+    data: *mut c_void,
+) -> std::result::Result<(), OSStatus> {
+    let address = AudioObjectPropertyAddress {
+        mSelector: match scope {
+            Scope::Input => kAudioHardwarePropertyDefaultInputDevice,
+            Scope::Output => kAudioHardwarePropertyDefaultOutputDevice,
+        },
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMaster,
+    };
+    let status = unsafe {
+        AudioObjectAddPropertyListener(kAudioObjectSystemObject, &address, Some(listener), data)
+    };
+    if status == NO_ERR {
+        Ok(())
+    } else {
+        Err(status)
+    }
+}
+
 // Test Templates
 // ------------------------------------------------------------------------------------------------
 pub fn test_ops_context_operation<F>(name: &'static str, operation: F)
