@@ -460,6 +460,19 @@ pub fn test_set_default_device(
     }
 }
 
+pub fn test_change_default_device(scope: Scope) -> std::result::Result<bool, OSStatus> {
+    let current = test_get_default_device(scope.clone()).unwrap();
+    let devices = test_get_devices_in_scope(scope.clone());
+    let mut index = devices
+        .iter()
+        .position(|device| *device == current)
+        .unwrap();
+    index = (index + 1) % devices.len();
+    let next = devices[index];
+    println!("Switch device for {:?}: {} -> {}", scope, current, next);
+    test_set_default_device(next, scope)
+}
+
 // Test Templates
 // ------------------------------------------------------------------------------------------------
 pub fn test_ops_context_operation<F>(name: &'static str, operation: F)

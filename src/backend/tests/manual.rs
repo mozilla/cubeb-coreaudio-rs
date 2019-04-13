@@ -1,6 +1,6 @@
 use super::utils::{
-    test_get_default_device, test_get_devices_in_scope, test_get_empty_stream,
-    test_ops_stream_operation, test_set_default_device, Scope,
+    test_change_default_device, test_get_default_device, test_get_devices_in_scope,
+    test_get_empty_stream, test_ops_stream_operation, Scope,
 };
 use super::*;
 
@@ -64,11 +64,6 @@ fn test_switch_output_device() {
         println!("Need 2 output devices at least.");
         return;
     }
-    let current = test_get_default_device(Scope::Output).unwrap();
-    let mut index = devices
-        .iter()
-        .position(|device| *device == current)
-        .unwrap();
 
     // Make sure the parameters meet the requirements of AudioUnitContext::stream_init
     // (in the comments).
@@ -98,11 +93,7 @@ fn test_switch_output_device() {
                 assert_eq!(input.pop().unwrap(), '\n');
                 match input.as_str() {
                     "s" => {
-                        let original = devices[index];
-                        index = (index + 1) % devices.len();
-                        let new = devices[index];
-                        assert!(test_set_default_device(new, Scope::Output).unwrap());
-                        println!("Switch from {} to {}", original, new);
+                        assert!(test_change_default_device(Scope::Output).unwrap());
                     }
                     "q" => {
                         println!("Quit.");
