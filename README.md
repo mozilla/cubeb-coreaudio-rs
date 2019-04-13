@@ -10,6 +10,10 @@
     (and it's easy to re-format the style later by running `rustfmt`)
 - Create some tests for later refactoring
 
+### Working Improvement
+- Move all `fn some_func(stm: &AudioUnitStream, ...)` functions into `impl AudioUnitStream`
+- Move all `fn some_func(stm: &AudioUnitContext, ...)` functions into `impl AudioUnitContext`
+- Defusing the `OwnedCriticalSection`. See [proposal][mutex-disposal] here.
 
 ## Status
 
@@ -270,3 +274,5 @@ Only those tests commented with *FIXIT* are left.
 [discussion]: https://docs.google.com/document/d/1ZP6R7d5S9I_8bXOXhplnO6qFM1X4VokWtE7w8ExgJEQ/edit?ts=5c6d5f09
 
 [rust-58881]: https://github.com/rust-lang/rust/issues/58881
+
+[mutex-disposal]: mutex-disposal.md
