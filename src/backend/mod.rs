@@ -1546,7 +1546,7 @@ fn audiounit_create_blank_aggregate_device(plugin_id: &mut AudioObjectID, aggreg
 
         let device_uid_string = format!("org.mozilla.{}_{}", PRIVATE_AGGREGATE_DEVICE_NAME, time_id);
         let aggregate_device_uid = cfstringref_from_string(&device_uid_string);
-        CFDictionaryAddValue(aggregate_device_dict, cfstringref_from_static_string(AGGREGATE_DEVICE_UID) as *const c_void, aggregate_device_uid as *const c_void);
+        CFDictionaryAddValue(aggregate_device_dict, cfstringref_from_static_string(AGGREGATE_DEVICE_UID_KEY) as *const c_void, aggregate_device_uid as *const c_void);
         CFRelease(aggregate_device_uid as *const c_void);
 
         let private_value: i32 = 1;

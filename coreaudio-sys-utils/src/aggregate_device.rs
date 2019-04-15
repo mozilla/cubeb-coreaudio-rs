@@ -4,7 +4,7 @@ pub const AGGREGATE_DEVICE_NAME_KEY: &str = "name";
 
 // A compile-time static string mapped to kAudioAggregateDeviceUIDKey
 // https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.12.sdk/System/Library/Frameworks/CoreAudio.framework/Versions/A/Headers/AudioHardware.h#L1505
-pub const AGGREGATE_DEVICE_UID: &str = "uid";
+pub const AGGREGATE_DEVICE_UID_KEY: &str = "uid";
 
 // A compile-time static string mapped to kAudioAggregateDeviceIsPrivateKey
 // https://github.com/phracker/MacOSX-SDKs/blob/9fc3ed0ad0345950ac25c28695b0427846eea966/MacOSX10.12.sdk/System/Library/Frameworks/CoreAudio.framework/Versions/A/Headers/AudioHardware.h#L1553
