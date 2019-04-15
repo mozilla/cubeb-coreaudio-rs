@@ -563,6 +563,282 @@ where
     }
 }
 
+// TODO: It doesn't work if default input or output is an aggregate device! Probably we need to do
+//       the same thing as what audiounit_set_aggregate_sub_device_list does.
+#[derive(Debug)]
+pub struct TestDevicePlugger {
+    scope: Scope,
+    plugin_id: AudioObjectID,
+    device_id: AudioObjectID,
+}
+
+impl TestDevicePlugger {
+    pub fn new(scope: Scope) -> std::result::Result<Self, OSStatus> {
+        let plugin_id = Self::get_system_plugin_id()?;
+        Ok(Self {
+            scope,
+            plugin_id,
+            device_id: kAudioObjectUnknown,
+        })
+    }
+
+    pub fn plug(&mut self) -> std::result::Result<(), OSStatus> {
+        self.device_id = self.create_aggregate_device()?;
+        Ok(())
+    }
+
+    pub fn unplug(&mut self) -> std::result::Result<(), OSStatus> {
+        self.destroy_aggregate_device()
+    }
+
+    fn destroy_aggregate_device(&mut self) -> std::result::Result<(), OSStatus> {
+        assert_ne!(self.plugin_id, kAudioObjectUnknown);
+        assert_ne!(self.device_id, kAudioObjectUnknown);
+
+        let address = AudioObjectPropertyAddress {
+            mSelector: kAudioPlugInDestroyAggregateDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMaster,
+        };
+
+        let mut size: usize = 0;
+        let status = unsafe {
+            AudioObjectGetPropertyDataSize(
+                self.plugin_id,
+                &address,
+                0,
+                ptr::null(),
+                &mut size as *mut usize as *mut u32,
+            )
+        };
+        if status != NO_ERR {
+            return Err(status);
+        }
+        assert_ne!(size, 0);
+
+        let status = unsafe {
+            AudioObjectGetPropertyData(
+                self.plugin_id,
+                &address,
+                0,
+                ptr::null(),
+                &mut size as *mut usize as *mut u32,
+                &mut self.device_id as *mut AudioDeviceID as *mut c_void,
+            )
+        };
+        if status == NO_ERR {
+            self.device_id = kAudioObjectUnknown;
+            Ok(())
+        } else {
+            Err(status)
+        }
+    }
+
+    fn create_aggregate_device(&self) -> std::result::Result<AudioObjectID, OSStatus> {
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        const TEST_AGGREGATE_DEVICE_NAME: &str = "TestAggregateDevice";
+
+        assert_ne!(self.plugin_id, kAudioObjectUnknown);
+
+        let sub_devices = Self::get_sub_devices(self.scope.clone());
+        if sub_devices.is_none() {
+            return Err(kAudioCodecUnspecifiedError as OSStatus);
+        }
+        let sub_devices = sub_devices.unwrap();
+
+        let address = AudioObjectPropertyAddress {
+            mSelector: kAudioPlugInCreateAggregateDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMaster,
+        };
+
+        let mut size: usize = 0;
+        let status = unsafe {
+            AudioObjectGetPropertyDataSize(
+                self.plugin_id,
+                &address,
+                0,
+                ptr::null(),
+                &mut size as *mut usize as *mut u32,
+            )
+        };
+        if status != NO_ERR {
+            return Err(status);
+        }
+        assert_ne!(size, 0);
+
+        let sys_time = SystemTime::now();
+        let time_id = sys_time.duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let device_name = format!("{}_{}", TEST_AGGREGATE_DEVICE_NAME, time_id);
+        let device_uid = format!("org.mozilla.{}", device_name);
+
+        let mut device_id = kAudioObjectUnknown;
+        let status = unsafe {
+            let device_dict = CFDictionaryCreateMutable(
+                kCFAllocatorDefault,
+                0,
+                &kCFTypeDictionaryKeyCallBacks,
+                &kCFTypeDictionaryValueCallBacks,
+            );
+
+            let device_name = cfstringref_from_string(&device_name);
+            CFDictionaryAddValue(
+                device_dict,
+                cfstringref_from_static_string(AGGREGATE_DEVICE_NAME_KEY) as *const c_void,
+                device_name as *const c_void,
+            );
+            CFRelease(device_name as *const c_void);
+
+            let device_uid = cfstringref_from_string(&device_uid);
+            CFDictionaryAddValue(
+                device_dict,
+                cfstringref_from_static_string(AGGREGATE_DEVICE_UID_KEY) as *const c_void,
+                device_uid as *const c_void,
+            );
+            CFRelease(device_uid as *const c_void);
+
+            let private_value: i32 = 1;
+            let device_private_key = CFNumberCreate(
+                kCFAllocatorDefault,
+                i64::from(kCFNumberIntType),
+                &private_value as *const i32 as *const c_void,
+            );
+            CFDictionaryAddValue(
+                device_dict,
+                cfstringref_from_static_string(AGGREGATE_DEVICE_PRIVATE_KEY) as *const c_void,
+                device_private_key as *const c_void,
+            );
+            CFRelease(device_private_key as *const c_void);
+
+            let stacked_value: i32 = 0;
+            let device_stacked_key = CFNumberCreate(
+                kCFAllocatorDefault,
+                i64::from(kCFNumberIntType),
+                &stacked_value as *const i32 as *const c_void,
+            );
+            CFDictionaryAddValue(
+                device_dict,
+                cfstringref_from_static_string(AGGREGATE_DEVICE_STACKED_KEY) as *const c_void,
+                device_stacked_key as *const c_void,
+            );
+            CFRelease(device_stacked_key as *const c_void);
+
+            CFDictionaryAddValue(
+                device_dict,
+                cfstringref_from_static_string(AGGREGATE_DEVICE_SUB_DEVICE_LIST_KEY)
+                    as *const c_void,
+                sub_devices as *const c_void,
+            );
+            CFRelease(sub_devices as *const c_void);
+
+            // This call can simulate adding a device.
+            let status = AudioObjectGetPropertyData(
+                self.plugin_id,
+                &address,
+                mem::size_of_val(&device_dict) as u32,
+                &device_dict as *const CFMutableDictionaryRef as *const c_void,
+                &mut size as *mut usize as *mut u32,
+                &mut device_id as *mut AudioDeviceID as *mut c_void,
+            );
+            CFRelease(device_dict as *const c_void);
+            status
+        };
+        if status == NO_ERR {
+            assert_ne!(device_id, kAudioObjectUnknown);
+            Ok(device_id)
+        } else {
+            Err(status)
+        }
+    }
+
+    fn get_system_plugin_id() -> std::result::Result<AudioObjectID, OSStatus> {
+        let address = AudioObjectPropertyAddress {
+            mSelector: kAudioHardwarePropertyPlugInForBundleID,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMaster,
+        };
+
+        let mut size: usize = 0;
+        let status = unsafe {
+            AudioObjectGetPropertyDataSize(
+                kAudioObjectSystemObject,
+                &address,
+                0,
+                ptr::null(),
+                &mut size as *mut usize as *mut u32,
+            )
+        };
+        if status != NO_ERR {
+            return Err(status);
+        }
+        assert_ne!(size, 0);
+
+        let mut plugin_id = kAudioObjectUnknown;
+        let mut in_bundle_ref = cfstringref_from_static_string("com.apple.audio.CoreAudio");
+        let mut translation_value = AudioValueTranslation {
+            mInputData: &mut in_bundle_ref as *mut CFStringRef as *mut c_void,
+            mInputDataSize: mem::size_of::<CFStringRef>() as u32,
+            mOutputData: &mut plugin_id as *mut AudioObjectID as *mut c_void,
+            mOutputDataSize: mem::size_of::<AudioObjectID>() as u32,
+        };
+        assert_eq!(size, mem::size_of_val(&translation_value));
+
+        let status = unsafe {
+            let status = AudioObjectGetPropertyData(
+                kAudioObjectSystemObject,
+                &address,
+                0,
+                ptr::null(),
+                &mut size as *mut usize as *mut u32,
+                &mut translation_value as *mut AudioValueTranslation as *mut c_void,
+            );
+            CFRelease(in_bundle_ref as *const c_void);
+            status
+        };
+        if status == NO_ERR {
+            assert_ne!(plugin_id, kAudioObjectUnknown);
+            Ok(plugin_id)
+        } else {
+            Err(status)
+        }
+    }
+
+    // TODO: This doesn't work as what we expect when the default deivce in the scope is an
+    //       aggregate device. We should get the list of all the active sub devices and put
+    //       them into the array, if the device is an aggregate device. See the code in
+    //       audiounit_get_sub_devices and audiounit_set_aggregate_sub_device_list.
+    fn get_sub_devices(scope: Scope) -> Option<CFArrayRef> {
+        let device = test_get_default_device(scope);
+        if device.is_none() {
+            return None;
+        }
+        let device = device.unwrap();
+        let uid = get_device_name(device);
+        if uid.is_null() {
+            return None;
+        }
+        unsafe {
+            let list = CFArrayCreateMutable(ptr::null(), 0, &kCFTypeArrayCallBacks);
+            let sub_device_dict = CFDictionaryCreateMutable(
+                ptr::null(),
+                0,
+                &kCFTypeDictionaryKeyCallBacks,
+                &kCFTypeDictionaryValueCallBacks,
+            );
+            CFDictionaryAddValue(
+                sub_device_dict,
+                cfstringref_from_static_string(SUB_DEVICE_UID_KEY) as *const c_void,
+                uid as *const c_void,
+            );
+            CFArrayAppendValue(list, sub_device_dict as *const c_void);
+            CFRelease(sub_device_dict as *const c_void);
+            CFRelease(uid as *const c_void);
+            Some(list)
+        }
+    }
+}
+
 // Test Templates
 // ------------------------------------------------------------------------------------------------
 pub fn test_ops_context_operation<F>(name: &'static str, operation: F)

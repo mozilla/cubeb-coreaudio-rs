@@ -1,6 +1,6 @@
 use super::utils::{
     test_change_default_device, test_create_device_change_listener, test_get_devices_in_scope,
-    test_ops_stream_operation, Scope,
+    test_ops_stream_operation, Scope, TestDevicePlugger,
 };
 use super::*;
 
@@ -157,4 +157,55 @@ where
             assert_eq!(unsafe { OPS.stream_stop.unwrap()(stream) }, ffi::CUBEB_OK);
         },
     );
+}
+
+#[ignore]
+#[test]
+fn test_plug_and_unplug_device() {
+    const DUMMY_PTR: *mut c_void = 0xDEAD_BEEF as *mut c_void;
+    // Initialize the the mutex (whose type is OwnedCriticalSection) within AudioUnitContext,
+    // by AudioUnitContext::Init, to make the mutex work.
+    let mut context = AudioUnitContext::new();
+    context.init();
+
+    extern "C" fn input_changed_callback(context: *mut ffi::cubeb, data: *mut c_void) {
+        println!(
+            "Input device collection @ {:p} is changed. Data @ {:p}",
+            context, data
+        );
+        assert_eq!(data, DUMMY_PTR);
+    }
+
+    extern "C" fn output_changed_callback(context: *mut ffi::cubeb, data: *mut c_void) {
+        println!(
+            "output device collection @ {:p} is changed. Data @ {:p}",
+            context, data
+        );
+        assert_eq!(data, DUMMY_PTR);
+    }
+
+    context.register_device_collection_changed(
+        DeviceType::INPUT,
+        Some(input_changed_callback),
+        DUMMY_PTR,
+    );
+
+    context.register_device_collection_changed(
+        DeviceType::OUTPUT,
+        Some(output_changed_callback),
+        DUMMY_PTR,
+    );
+
+    println!("Enter anything to finish.");
+
+    let mut input_plugger = TestDevicePlugger::new(Scope::Input).unwrap();
+    input_plugger.plug();
+    input_plugger.unplug();
+
+    let mut output_plugger = TestDevicePlugger::new(Scope::Output).unwrap();
+    output_plugger.plug();
+    output_plugger.unplug();
+
+    let mut input = String::new();
+    let _ = std::io::stdin().read_line(&mut input);
 }
