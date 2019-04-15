@@ -1,5 +1,5 @@
 use super::utils::{
-    test_change_default_device, test_get_devices_in_scope, test_listen_device_change,
+    test_change_default_device, test_create_device_change_listener, test_get_devices_in_scope,
     test_ops_stream_operation, Scope,
 };
 use super::*;
@@ -27,46 +27,27 @@ fn test_switch_device_in_scope(scope: Scope) {
         scope
     );
 
-    // This is ugly and not thread-safe.
-    // Use a better mechanism by revising test_listen_device_change.
-    extern "C" fn callback(
-        id: AudioObjectID,
-        number_of_addresses: u32,
-        addresses: *const AudioObjectPropertyAddress,
-        data: *mut c_void,
-    ) -> OSStatus {
-        println!("device: {}, data @ {:p}", id, data);
-        let addrs = unsafe { std::slice::from_raw_parts(addresses, number_of_addresses as usize) };
-        for (i, addr) in addrs.iter().enumerate() {
-            println!(
-                "address {}\n\tselector {}({})\n\tscope {}\n\telement {}",
-                i,
-                addr.mSelector,
-                event_addr_to_string(addr.mSelector),
-                addr.mScope,
-                addr.mElement
-            );
-        }
-        assert_eq!(id, kAudioObjectSystemObject);
-        let touched = unsafe { &mut *(data as *mut u32) };
-        *touched += 1;
+    let count = Arc::new(Mutex::new(0));
+    let also_count = Arc::clone(&count);
+    let listener = test_create_device_change_listener(scope.clone(), move |_addresses| {
+        let mut cnt = also_count.lock().unwrap();
+        *cnt += 1;
         NO_ERR
-    }
-
-    test_get_started_stream_in_scope(scope.clone(), move |_stream| {
-        let mut touched: u32 = 0;
-        assert!(test_listen_device_change(
-            scope.clone(),
-            callback,
-            &mut touched as *mut u32 as *mut c_void,
-        )
-        .is_ok());
-
-        while touched < devices.len() as u32 {
-            thread::sleep(Duration::from_millis(500));
-            test_change_default_device(scope.clone());
-        }
     });
+    listener.start();
+
+    test_get_started_stream_in_scope(scope.clone(), move |_stream| loop {
+        thread::sleep(Duration::from_millis(500));
+        if !less_than(&count, devices.len()) {
+            break;
+        }
+        test_change_default_device(scope.clone());
+    });
+
+    fn less_than(count: &Arc<Mutex<usize>>, limit: usize) -> bool {
+        let cnt = count.lock().unwrap();
+        *cnt < limit
+    }
 }
 
 fn test_get_started_stream_in_scope<F>(scope: Scope, operation: F)
@@ -116,6 +97,7 @@ where
         assert!(!stream.is_null());
         assert!(!user_ptr.is_null());
         assert!(!input_buffer.is_null());
+        assert!(output_buffer.is_null());
         nframes
     }
 
@@ -128,12 +110,13 @@ where
     extern "C" fn output_data_callback(
         stream: *mut ffi::cubeb_stream,
         user_ptr: *mut c_void,
-        _input_buffer: *const c_void,
+        input_buffer: *const c_void,
         output_buffer: *mut c_void,
         nframes: i64,
     ) -> i64 {
         assert!(!stream.is_null());
         assert!(!user_ptr.is_null());
+        assert!(input_buffer.is_null());
         assert!(!output_buffer.is_null());
 
         let buffer = unsafe {

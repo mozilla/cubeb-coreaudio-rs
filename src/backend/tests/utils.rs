@@ -473,16 +473,10 @@ pub fn test_change_default_device(scope: Scope) -> std::result::Result<bool, OSS
     test_set_default_device(next, scope)
 }
 
-pub fn test_listen_device_change(
-    scope: Scope,
-    listener: extern "C" fn(
-        AudioObjectID,
-        u32,
-        *const AudioObjectPropertyAddress,
-        *mut c_void,
-    ) -> OSStatus,
-    data: *mut c_void,
-) -> std::result::Result<(), OSStatus> {
+pub fn test_create_device_change_listener<F>(scope: Scope, listener: F) -> TestPropertyListener<F>
+where
+    F: Fn(&[AudioObjectPropertyAddress]) -> OSStatus,
+{
     let address = AudioObjectPropertyAddress {
         mSelector: match scope {
             Scope::Input => kAudioHardwarePropertyDefaultInputDevice,
@@ -491,13 +485,81 @@ pub fn test_listen_device_change(
         mScope: kAudioObjectPropertyScopeGlobal,
         mElement: kAudioObjectPropertyElementMaster,
     };
-    let status = unsafe {
-        AudioObjectAddPropertyListener(kAudioObjectSystemObject, &address, Some(listener), data)
-    };
-    if status == NO_ERR {
-        Ok(())
-    } else {
-        Err(status)
+    TestPropertyListener::new(kAudioObjectSystemObject, address, listener)
+}
+
+pub struct TestPropertyListener<F>
+where
+    F: Fn(&[AudioObjectPropertyAddress]) -> OSStatus,
+{
+    device: AudioObjectID,
+    property: AudioObjectPropertyAddress,
+    callback: F,
+}
+
+impl<F> TestPropertyListener<F>
+where
+    F: Fn(&[AudioObjectPropertyAddress]) -> OSStatus,
+{
+    pub fn new(device: AudioObjectID, property: AudioObjectPropertyAddress, callback: F) -> Self {
+        Self {
+            device,
+            property,
+            callback,
+        }
+    }
+
+    pub fn start(&self) -> std::result::Result<(), OSStatus> {
+        let status = unsafe {
+            AudioObjectAddPropertyListener(
+                self.device,
+                &self.property,
+                Some(Self::render),
+                self as *const Self as *mut c_void,
+            )
+        };
+        if status == NO_ERR {
+            Ok(())
+        } else {
+            Err(status)
+        }
+    }
+
+    pub fn stop(&self) -> std::result::Result<(), OSStatus> {
+        let status = unsafe {
+            AudioObjectRemovePropertyListener(
+                self.device,
+                &self.property,
+                Some(Self::render),
+                self as *const Self as *mut c_void,
+            )
+        };
+        if status == NO_ERR {
+            Ok(())
+        } else {
+            Err(status)
+        }
+    }
+
+    extern "C" fn render(
+        id: AudioObjectID,
+        number_of_addresses: u32,
+        addresses: *const AudioObjectPropertyAddress,
+        data: *mut c_void,
+    ) -> OSStatus {
+        let listener = unsafe { &*(data as *mut Self) };
+        assert_eq!(id, listener.device);
+        let addrs = unsafe { slice::from_raw_parts(addresses, number_of_addresses as usize) };
+        (listener.callback)(addrs)
+    }
+}
+
+impl<F> Drop for TestPropertyListener<F>
+where
+    F: Fn(&[AudioObjectPropertyAddress]) -> OSStatus,
+{
+    fn drop(&mut self) {
+        self.stop();
     }
 }
 
