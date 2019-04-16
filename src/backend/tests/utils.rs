@@ -591,6 +591,10 @@ impl TestDevicePlugger {
         self.destroy_aggregate_device()
     }
 
+    fn is_plugging(&self) -> bool {
+        self.device_id != kAudioObjectUnknown
+    }
+
     fn destroy_aggregate_device(&mut self) -> std::result::Result<(), OSStatus> {
         assert_ne!(self.plugin_id, kAudioObjectUnknown);
         assert_ne!(self.device_id, kAudioObjectUnknown);
@@ -617,6 +621,7 @@ impl TestDevicePlugger {
         assert_ne!(size, 0);
 
         let status = unsafe {
+            // This call can simulate removing a device.
             AudioObjectGetPropertyData(
                 self.plugin_id,
                 &address,
@@ -682,6 +687,7 @@ impl TestDevicePlugger {
                 &kCFTypeDictionaryValueCallBacks,
             );
 
+            // Set the name of this device.
             let device_name = cfstringref_from_string(&device_name);
             CFDictionaryAddValue(
                 device_dict,
@@ -690,6 +696,7 @@ impl TestDevicePlugger {
             );
             CFRelease(device_name as *const c_void);
 
+            // Set the uid of this device.
             let device_uid = cfstringref_from_string(&device_uid);
             CFDictionaryAddValue(
                 device_dict,
@@ -698,6 +705,7 @@ impl TestDevicePlugger {
             );
             CFRelease(device_uid as *const c_void);
 
+            // This device is private to the process creating it.
             let private_value: i32 = 1;
             let device_private_key = CFNumberCreate(
                 kCFAllocatorDefault,
@@ -711,7 +719,8 @@ impl TestDevicePlugger {
             );
             CFRelease(device_private_key as *const c_void);
 
-            let stacked_value: i32 = 0;
+            // Set this device to be a stacked aggregate (i.e. multi-output device).
+            let stacked_value: i32 = 0; // 1 for normal aggregate device.
             let device_stacked_key = CFNumberCreate(
                 kCFAllocatorDefault,
                 i64::from(kCFNumberIntType),
@@ -724,6 +733,7 @@ impl TestDevicePlugger {
             );
             CFRelease(device_stacked_key as *const c_void);
 
+            // Set sub devices for this device.
             CFDictionaryAddValue(
                 device_dict,
                 cfstringref_from_static_string(AGGREGATE_DEVICE_SUB_DEVICE_LIST_KEY)
@@ -835,6 +845,14 @@ impl TestDevicePlugger {
             CFRelease(sub_device_dict as *const c_void);
             CFRelease(uid as *const c_void);
             Some(list)
+        }
+    }
+}
+
+impl Drop for TestDevicePlugger {
+    fn drop(&mut self) {
+        if self.is_plugging() {
+            self.unplug();
         }
     }
 }
