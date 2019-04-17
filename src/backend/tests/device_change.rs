@@ -1,8 +1,9 @@
 use super::utils::{
-    test_change_default_device, test_create_device_change_listener, test_get_devices_in_scope,
-    test_ops_stream_operation, Scope, TestDevicePlugger,
+    test_change_default_device, test_create_device_change_listener, test_get_default_device,
+    test_get_devices_in_scope, test_ops_stream_operation, Scope, TestDevicePlugger,
 };
 use super::*;
+use std::fmt::Debug;
 
 #[ignore]
 #[test]
@@ -162,18 +163,131 @@ where
 #[ignore]
 #[test]
 fn test_plug_and_unplug_device() {
-    const DUMMY_PTR: *mut c_void = 0xDEAD_BEEF as *mut c_void;
+    println!("NOTICE: The test will hang if the default input or output is an aggregate device.\nWe will fix this later.");
+    let has_input = test_get_default_device(Scope::Input).is_some();
+    let has_output = test_get_default_device(Scope::Output).is_some();
+
     // Initialize the the mutex (whose type is OwnedCriticalSection) within AudioUnitContext,
     // by AudioUnitContext::Init, to make the mutex work.
     let mut context = AudioUnitContext::new();
     context.init();
+
+    // Register the devices-changed callbacks.
+    let input_count = Arc::new(Mutex::new(0u32));
+    let also_input_count = Arc::clone(&input_count);
+    let input_mtx_ptr = also_input_count.as_ref() as *const Mutex<u32>;
+
+    assert!(context
+        .register_device_collection_changed(
+            DeviceType::INPUT,
+            Some(input_changed_callback),
+            input_mtx_ptr as *mut c_void,
+        )
+        .is_ok());
+
+    let output_count = Arc::new(Mutex::new(0u32));
+    let also_output_count = Arc::clone(&output_count);
+    let output_mtx_ptr = also_output_count.as_ref() as *const Mutex<u32>;
+
+    assert!(context
+        .register_device_collection_changed(
+            DeviceType::OUTPUT,
+            Some(output_changed_callback),
+            output_mtx_ptr as *mut c_void,
+        )
+        .is_ok());
+
+    let mut input_plugger = TestDevicePlugger::new(Scope::Input).unwrap();
+    let mut output_plugger = TestDevicePlugger::new(Scope::Output).unwrap();
+
+    let mut input_watcher = Watcher::new(&input_count);
+    let mut output_watcher = Watcher::new(&output_count);
+
+    // Simulate adding devices and monitor the devices-changed callbacks.
+    input_watcher.prepare();
+    output_watcher.prepare();
+    assert_eq!(has_input, input_plugger.plug().is_ok());
+    assert_eq!(has_output, output_plugger.plug().is_ok());
+
+    if has_input {
+        input_watcher.wait_for_change();
+    }
+    if has_output {
+        output_watcher.wait_for_change();
+    }
+
+    check_result(has_input, (1, 0), &input_watcher);
+    check_result(has_output, (1, 0), &output_watcher);
+
+    // Simulate removing devices and monitor the devices-changed callbacks.
+    input_watcher.prepare();
+    output_watcher.prepare();
+    assert!(!has_input || input_plugger.unplug().is_ok());
+    assert!(!has_output || output_plugger.unplug().is_ok());
+
+    if has_input {
+        input_watcher.wait_for_change();
+    }
+    if has_output {
+        output_watcher.wait_for_change();
+    }
+
+    check_result(has_input, (2, 0), &input_watcher);
+    check_result(has_output, (2, 0), &output_watcher);
+
+    // The devices-changed callbacks will be unregistered when AudioUnitContext is dropped.
+
+    // Helpers for this test.
+    struct Watcher<T: Clone + PartialEq> {
+        watching: Arc<Mutex<T>>,
+        current: Option<T>,
+    }
+
+    impl<T: Clone + PartialEq> Watcher<T> {
+        fn new(value: &Arc<Mutex<T>>) -> Self {
+            Self {
+                watching: Arc::clone(value),
+                current: None,
+            }
+        }
+
+        fn prepare(&mut self) {
+            self.current = Some(self.current_result());
+        }
+
+        fn wait_for_change(&self) {
+            loop {
+                if self.current_result() != self.current.clone().unwrap() {
+                    break;
+                }
+            }
+        }
+
+        fn current_result(&self) -> T {
+            let guard = self.watching.lock().unwrap();
+            guard.clone()
+        }
+    }
+
+    fn check_result<T: Clone + PartialEq + Debug>(
+        has_device: bool,
+        expected: (T, T),
+        watcher: &Watcher<T>,
+    ) {
+        let expected_result = if has_device { expected.0 } else { expected.1 };
+        assert_eq!(watcher.current_result(), expected_result);
+    }
 
     extern "C" fn input_changed_callback(context: *mut ffi::cubeb, data: *mut c_void) {
         println!(
             "Input device collection @ {:p} is changed. Data @ {:p}",
             context, data
         );
-        assert_eq!(data, DUMMY_PTR);
+        let count = unsafe { &*(data as *const Mutex<i32>) };
+        {
+            let mut guard = count.lock().unwrap();
+            *guard += 1;
+        }
     }
 
     extern "C" fn output_changed_callback(context: *mut ffi::cubeb, data: *mut c_void) {
@@ -181,31 +295,10 @@ fn test_plug_and_unplug_device() {
             "output device collection @ {:p} is changed. Data @ {:p}",
             context, data
         );
-        assert_eq!(data, DUMMY_PTR);
+        let count = unsafe { &*(data as *const Mutex<i32>) };
+        {
+            let mut guard = count.lock().unwrap();
+            *guard += 1;
+        }
     }
-
-    context.register_device_collection_changed(
-        DeviceType::INPUT,
-        Some(input_changed_callback),
-        DUMMY_PTR,
-    );
-
-    context.register_device_collection_changed(
-        DeviceType::OUTPUT,
-        Some(output_changed_callback),
-        DUMMY_PTR,
-    );
-
-    println!("Enter anything to finish.");
-
-    let mut input_plugger = TestDevicePlugger::new(Scope::Input).unwrap();
-    input_plugger.plug();
-    input_plugger.unplug();
-
-    let mut output_plugger = TestDevicePlugger::new(Scope::Output).unwrap();
-    output_plugger.plug();
-    output_plugger.unplug();
-
-    let mut input = String::new();
-    let _ = std::io::stdin().read_line(&mut input);
 }

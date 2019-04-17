@@ -11,6 +11,7 @@ cargo test test_parallel_init_streams_in_parallel -- --ignored
 
 # Device-switch Tests
 cargo test test_switch_device -- --ignored --nocapture
+cargo test test_plug_and_unplug_device -- --ignored --nocapture
 
 # Manual Tests
 # cargo test test_switch_output_device -- --ignored --nocapture
