@@ -231,7 +231,7 @@ fn test_set_global_latency() {
         assert_eq!(context.active_streams, 1);
 
         for i in 0..10 {
-            audiounit_set_global_latency(context, i);
+            context.set_global_latency(i);
             assert_eq!(context.global_latency_frames, i);
         }
     });

@@ -282,13 +282,6 @@ fn cubeb_channel_to_channel_label(channel: ChannelLayout) -> AudioChannelLabel
     }
 }
 
-fn audiounit_set_global_latency(ctx: &mut AudioUnitContext, latency_frames: u32)
-{
-    ctx.mutex.assert_current_thread_owns();
-    assert_eq!(ctx.active_streams(), 1);
-    ctx.global_latency_frames = latency_frames;
-}
-
 fn audiounit_make_silent(io_data: &mut AudioBuffer) {
     assert!(!io_data.mData.is_null());
     // Get a byte slice from io_data.
@@ -2559,7 +2552,7 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
         //       the borrowing issue.
         stm.latency_frames = audiounit_clamp_latency(stm, latency_frames);
         assert!(stm.latency_frames > 0); // Ugly error check
-        audiounit_set_global_latency(stm.context, stm.latency_frames);
+        stm.context.set_global_latency(stm.latency_frames);
     }
 
     /* Configure I/O stream */
@@ -3385,6 +3378,12 @@ impl AudioUnitContext {
     fn active_streams(&mut self) -> i32 {
         self.mutex.assert_current_thread_owns();
         self.active_streams
+    }
+
+    fn set_global_latency(&mut self, latency_frames: u32) {
+        self.mutex.assert_current_thread_owns();
+        assert_eq!(self.active_streams(), 1);
+        self.global_latency_frames = latency_frames;
     }
 }
 
