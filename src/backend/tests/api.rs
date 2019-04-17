@@ -198,8 +198,8 @@ fn test_cubeb_channel_to_channel_label_with_unknown_channel() {
     );
 }
 
-// increment_active_streams
-// decrement_active_streams
+// increase_active_streams
+// decrease_active_streams
 // active_streams
 // ------------------------------------
 #[test]
@@ -208,15 +208,15 @@ fn test_increase_and_decrease_active_streams() {
         assert_eq!(context.active_streams, 0);
 
         for i in 1..10 {
-            audiounit_increment_active_streams(context);
+            context.increase_active_streams();
             assert_eq!(context.active_streams, i);
-            assert_eq!(audiounit_active_streams(context), i);
+            assert_eq!(context.active_streams(), i);
         }
 
         for i in (0..9).rev() {
-            audiounit_decrement_active_streams(context);
+            context.decrease_active_streams();
             assert_eq!(context.active_streams, i);
-            assert_eq!(audiounit_active_streams(context), i);
+            assert_eq!(context.active_streams(), i);
         }
     });
 }
@@ -227,7 +227,7 @@ fn test_increase_and_decrease_active_streams() {
 fn test_set_global_latency() {
     test_get_locked_context(|context| {
         assert_eq!(context.active_streams, 0);
-        audiounit_increment_active_streams(context);
+        context.increase_active_streams();
         assert_eq!(context.active_streams, 1);
 
         for i in 0..10 {
@@ -1632,7 +1632,7 @@ fn test_clamp_latency_with_more_than_one_active_streams() {
             let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
 
             // Lie about having another stream.
-            audiounit_increment_active_streams(&mut stream.context);
+            stream.context.increase_active_streams();
 
             let range = 0..2 * SAFE_MAX_LATENCY_FRAMES;
             assert!(range.start < SAFE_MIN_LATENCY_FRAMES);
@@ -1647,8 +1647,8 @@ fn test_clamp_latency_with_more_than_one_active_streams() {
                 assert_eq!(clamp, test_clamp_latency(min));
             }
 
-            // Cancel the lie about having another stream.
-            audiounit_decrement_active_streams(&mut stream.context);
+            // Recant the lie about having another stream.
+            stream.context.decrease_active_streams();
         });
     } else {
         println!("No output audiounit.");
@@ -1665,7 +1665,7 @@ fn test_clamp_latency_with_more_than_one_active_streams_without_output_unit() {
         let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
 
         // Lie about having another stream.
-        audiounit_increment_active_streams(&mut stream.context);
+        stream.context.increase_active_streams();
 
         // TODO: We only check this when we have more than one streams.
         //       Should we also check this when we have only one stream ?
@@ -1673,8 +1673,8 @@ fn test_clamp_latency_with_more_than_one_active_streams_without_output_unit() {
         let _ = audiounit_clamp_latency(stream, 0);
         // The following code won't be executed since we get a panic above.
 
-        // Cancel the lie about having another stream.
-        audiounit_decrement_active_streams(&mut stream.context);
+        // Recant the lie about having another stream.
+        stream.context.decrease_active_streams();
     });
 }
 

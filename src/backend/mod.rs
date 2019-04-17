@@ -282,28 +282,10 @@ fn cubeb_channel_to_channel_label(channel: ChannelLayout) -> AudioChannelLabel
     }
 }
 
-fn audiounit_increment_active_streams(ctx: &mut AudioUnitContext)
-{
-    ctx.mutex.assert_current_thread_owns();
-    ctx.active_streams += 1;
-}
-
-fn audiounit_decrement_active_streams(ctx: &mut AudioUnitContext)
-{
-    ctx.mutex.assert_current_thread_owns();
-    ctx.active_streams -= 1;
-}
-
-fn audiounit_active_streams(ctx: &mut AudioUnitContext) -> i32
-{
-    ctx.mutex.assert_current_thread_owns();
-    ctx.active_streams
-}
-
 fn audiounit_set_global_latency(ctx: &mut AudioUnitContext, latency_frames: u32)
 {
     ctx.mutex.assert_current_thread_owns();
-    assert_eq!(audiounit_active_streams(ctx), 1);
+    assert_eq!(ctx.active_streams(), 1);
     ctx.global_latency_frames = latency_frames;
 }
 
@@ -2072,8 +2054,8 @@ fn audiounit_init_input_linear_buffer(stream: &mut AudioUnitStream, capacity: u3
 fn audiounit_clamp_latency(stm: &mut AudioUnitStream, latency_frames: u32) -> u32
 {
     // For the 1st stream set anything within safe min-max
-    assert!(audiounit_active_streams(stm.context) > 0);
-    if audiounit_active_streams(stm.context) == 1 {
+    assert!(stm.context.active_streams() > 0);
+    if stm.context.active_streams() == 1 {
         return cmp::max(cmp::min(latency_frames, SAFE_MAX_LATENCY_FRAMES),
                         SAFE_MIN_LATENCY_FRAMES);
     }
@@ -2564,7 +2546,7 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
 
     /* Latency cannot change if another stream is operating in parallel. In this case
      * latecy is set to the other stream value. */
-    if audiounit_active_streams(stm.context) > 1 {
+    if stm.context.active_streams() > 1 {
         cubeb_log!("({:p}) More than one active stream, use global latency.", stm as *const AudioUnitStream);
         stm.latency_frames = stm.context.global_latency_frames;
     } else {
@@ -2719,8 +2701,8 @@ fn audiounit_stream_destroy_internal(stm: &mut AudioUnitStream)
     let mutex_ptr = &mut stm.mutex as *mut OwnedCriticalSection;
     let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
     audiounit_close_stream(stm);
-    assert!(audiounit_active_streams(&mut stm.context) >= 1);
-    audiounit_decrement_active_streams(&mut stm.context);
+    assert!(stm.context.active_streams() >= 1);
+    stm.context.decrease_active_streams();
 }
 
 fn audiounit_stream_start_internal(stm: &AudioUnitStream)
@@ -3389,6 +3371,21 @@ impl AudioUnitContext {
     fn init(&mut self) {
         self.mutex.init();
     }
+
+    fn increase_active_streams(&mut self) {
+        self.mutex.assert_current_thread_owns();
+        self.active_streams += 1;
+    }
+
+    fn decrease_active_streams(&mut self) {
+        self.mutex.assert_current_thread_owns();
+        self.active_streams -= 1;
+    }
+
+    fn active_streams(&mut self) -> i32 {
+        self.mutex.assert_current_thread_owns();
+        self.active_streams
+    }
 }
 
 impl ContextOps for AudioUnitContext {
@@ -3606,7 +3603,7 @@ impl ContextOps for AudioUnitContext {
         let mutex_ptr = &mut self.mutex as *mut OwnedCriticalSection;
         // The scope of `_context_lock` is a critical section.
         let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-        audiounit_increment_active_streams(self);
+        self.increase_active_streams();
         let mut boxed_stream = Box::new(
             AudioUnitStream::new(
                 self,
@@ -3709,7 +3706,7 @@ impl Drop for AudioUnitContext {
 
         // Disabling this assert for bug 1083664 -- we seem to leak a stream
         // assert(ctx->active_streams == 0);
-        let streams = audiounit_active_streams(self);
+        let streams = self.active_streams();
         if streams > 0 {
             cubeb_log!("({:p}) API misuse, {} streams active when context destroyed!", self as *const AudioUnitContext, streams);
         }

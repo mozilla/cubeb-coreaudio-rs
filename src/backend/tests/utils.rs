@@ -999,7 +999,7 @@ fn test_get_stream<F>(
         let mutex_ptr = &mut context.mutex as *mut OwnedCriticalSection;
         // The scope of `_lock` is a critical section.
         let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-        audiounit_increment_active_streams(&mut context);
+        context.increase_active_streams();
     }
 
     let mut stream = AudioUnitStream::new(
