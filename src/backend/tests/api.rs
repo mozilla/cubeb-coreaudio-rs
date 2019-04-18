@@ -1043,7 +1043,7 @@ fn test_audio_stream_desc_init() {
 #[test]
 fn test_init_mixer() {
     test_get_empty_stream(|stream| {
-        audiounit_init_mixer(stream);
+        stream.init_mixer();
         assert!(!stream.mixer.as_mut_ptr().is_null());
         // stream.mixer will be deallocated when stream is destroyed.
     });

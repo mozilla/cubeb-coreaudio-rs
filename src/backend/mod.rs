@@ -1249,21 +1249,6 @@ fn audio_stream_desc_init(ss: &mut AudioStreamBasicDescription,
     Ok(())
 }
 
-fn audiounit_init_mixer(stm: &mut AudioUnitStream) {
-    stm.mixer.reset(
-        unsafe {
-            ffi::cubeb_mixer_create(
-                stm.output_stream_params.format().into(),
-                stm.output_stream_params.channels(),
-                stm.output_stream_params.layout().into(),
-                stm.context.channels,
-                stm.context.layout.load(atomic::Ordering::SeqCst).into()
-            )
-        }
-    );
-    assert!(!stm.mixer.as_mut_ptr().is_null());
-}
-
 fn audiounit_set_channel_layout(unit: AudioUnit,
                                 side: io_side,
                                 layout: ChannelLayout) -> Result<()>
@@ -2399,7 +2384,7 @@ fn audiounit_configure_output(stm: &mut AudioUnitStream) -> Result<()>
     if stm.context.channels != stm.output_stream_params.channels() ||
        stm.context.layout.load(atomic::Ordering::SeqCst) != stm.output_stream_params.layout() {
         cubeb_log!("Incompatible channel layouts detected, setting up remixer");
-        audiounit_init_mixer(stm);
+        stm.init_mixer();
         // We will be remixing the data before it reaches the output device.
         // We need to adjust the number of channels and other
         // AudioStreamDescription details.
@@ -3845,6 +3830,21 @@ impl<'ctx> AudioUnitStream<'ctx> {
             return output_frames;
         }
         (self.input_hw_rate * output_frames as f64 / f64::from(self.output_stream_params.rate())).ceil() as i64
+    }
+
+    fn init_mixer(&mut self) {
+        self.mixer.reset(
+            unsafe {
+                ffi::cubeb_mixer_create(
+                    self.output_stream_params.format().into(),
+                    self.output_stream_params.channels(),
+                    self.output_stream_params.layout().into(),
+                    self.context.channels,
+                    self.context.layout.load(atomic::Ordering::SeqCst).into()
+                )
+            }
+        );
+        assert!(!self.mixer.as_mut_ptr().is_null());
     }
 
     fn start_internal(&self) {
