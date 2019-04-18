@@ -774,7 +774,7 @@ fn audiounit_reinit_stream_async(stm: &mut AudioUnitStream, flags: device_flags)
         }
 
         if audiounit_reinit_stream(stm, flags).is_err() {
-            if audiounit_uninstall_system_changed_callback(stm).is_err() {
+            if stm.uninstall_system_changed_callback().is_err() {
                 cubeb_log!("({:p}) Could not uninstall system changed callback", stm as *const AudioUnitStream);
             }
             // TODO: C version doesn't check if state_callback is a null pointer.
@@ -952,42 +952,6 @@ fn audiounit_install_device_changed_callback(stm: &mut AudioUnitStream) -> Resul
     r
 }
 
-fn audiounit_install_system_changed_callback(stm: &mut AudioUnitStream) -> Result<()>
-{
-    let mut r = NO_ERR;
-
-    if !stm.output_unit.is_null() {
-        /* This event will notify us when the default audio device changes,
-         * for example when the user plugs in a USB headset and the system chooses it
-         * automatically as the default, or when another device is chosen in the
-         * dropdown list. */
-        stm.default_output_listener = Some(device_property_listener::new(
-            kAudioObjectSystemObject, &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
-            audiounit_property_listener_callback));
-        r = stm.add_device_listener(stm.default_output_listener.as_ref().unwrap());
-        if r != NO_ERR {
-            stm.default_output_listener = None;
-            cubeb_log!("AudioObjectAddPropertyListener/output/kAudioHardwarePropertyDefaultOutputDevice rv={}", r);
-            return Err(Error::error());
-        }
-    }
-
-    if !stm.input_unit.is_null() {
-        /* This event will notify us when the default input device changes. */
-        stm.default_input_listener = Some(device_property_listener::new(
-            kAudioObjectSystemObject, &DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS,
-            audiounit_property_listener_callback));
-        r = stm.add_device_listener(stm.default_input_listener.as_ref().unwrap());
-        if r != NO_ERR {
-            stm.default_input_listener = None;
-            cubeb_log!("AudioObjectAddPropertyListener/input/kAudioHardwarePropertyDefaultInputDevice rv={}", r);
-            return Err(Error::error());
-        }
-    }
-
-    Ok(())
-}
-
 fn audiounit_uninstall_device_changed_callback(stm: &mut AudioUnitStream) -> Result<()>
 {
     let mut rv = NO_ERR;
@@ -1022,29 +986,6 @@ fn audiounit_uninstall_device_changed_callback(stm: &mut AudioUnitStream) -> Res
     }
 
     r
-}
-
-fn audiounit_uninstall_system_changed_callback(stm: &mut AudioUnitStream) -> Result<()>
-{
-    let mut r = NO_ERR;
-
-    if stm.default_output_listener.is_some() {
-        r = stm.remove_device_listener(stm.default_output_listener.as_ref().unwrap());
-        if r != NO_ERR {
-            return Err(Error::error());
-        }
-        stm.default_output_listener = None;
-    }
-
-    if stm.default_input_listener.is_some() {
-        r = stm.remove_device_listener(stm.default_input_listener.as_ref().unwrap());
-        if r != NO_ERR {
-            return Err(Error::error());
-        }
-        stm.default_input_listener = None;
-    }
-
-    Ok(())
 }
 
 fn audiounit_get_acceptable_latency_range() -> Result<(AudioValueRange)>
@@ -2618,7 +2559,7 @@ fn audiounit_stream_destroy_internal(stm: &mut AudioUnitStream)
 {
     stm.context.mutex.assert_current_thread_owns();
 
-    if audiounit_uninstall_system_changed_callback(stm).is_err() {
+    if stm.uninstall_system_changed_callback().is_err() {
         cubeb_log!("({:p}) Could not uninstall the device changed callback", stm as *const AudioUnitStream);
     }
 
@@ -3564,7 +3505,7 @@ impl ContextOps for AudioUnitContext {
             return Err(r);
         }
 
-        if let Err(r) = audiounit_install_system_changed_callback(boxed_stream.as_mut()) {
+        if let Err(r) = boxed_stream.install_system_changed_callback() {
             cubeb_log!("({:p}) Could not install the device change callback.", boxed_stream.as_ref());
             return Err(r);
         }
@@ -3804,6 +3745,63 @@ impl<'ctx> AudioUnitStream<'ctx> {
             return output_frames;
         }
         (self.input_hw_rate * output_frames as f64 / f64::from(self.output_stream_params.rate())).ceil() as i64
+    }
+
+    fn install_system_changed_callback(&mut self) -> Result<()> {
+        let mut r = NO_ERR;
+
+        if !self.output_unit.is_null() {
+            /* This event will notify us when the default audio device changes,
+             * for example when the user plugs in a USB headset and the system chooses it
+             * automatically as the default, or when another device is chosen in the
+             * dropdown list. */
+            self.default_output_listener = Some(device_property_listener::new(
+                kAudioObjectSystemObject, &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+                audiounit_property_listener_callback));
+            r = self.add_device_listener(self.default_output_listener.as_ref().unwrap());
+            if r != NO_ERR {
+                self.default_output_listener = None;
+                cubeb_log!("AudioObjectAddPropertyListener/output/kAudioHardwarePropertyDefaultOutputDevice rv={}", r);
+                return Err(Error::error());
+            }
+        }
+
+        if !self.input_unit.is_null() {
+            /* This event will notify us when the default input device changes. */
+            self.default_input_listener = Some(device_property_listener::new(
+                kAudioObjectSystemObject, &DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS,
+                audiounit_property_listener_callback));
+            r = self.add_device_listener(self.default_input_listener.as_ref().unwrap());
+            if r != NO_ERR {
+                self.default_input_listener = None;
+                cubeb_log!("AudioObjectAddPropertyListener/input/kAudioHardwarePropertyDefaultInputDevice rv={}", r);
+                return Err(Error::error());
+            }
+        }
+
+        Ok(())
+    }
+
+    fn uninstall_system_changed_callback(&mut self) -> Result<()> {
+        let mut r = NO_ERR;
+
+        if self.default_output_listener.is_some() {
+            r = self.remove_device_listener(self.default_output_listener.as_ref().unwrap());
+            if r != NO_ERR {
+                return Err(Error::error());
+            }
+            self.default_output_listener = None;
+        }
+
+        if self.default_input_listener.is_some() {
+            r = self.remove_device_listener(self.default_input_listener.as_ref().unwrap());
+            if r != NO_ERR {
+                return Err(Error::error());
+            }
+            self.default_input_listener = None;
+        }
+
+        Ok(())
     }
 
     fn init_mixer(&mut self) {
