@@ -2809,64 +2809,33 @@ fn convert_uint32_into_string(data: u32) -> CString
     CString::new(buffer).unwrap_or(empty)
 }
 
-fn audiounit_get_default_device_datasource(devtype: DeviceType,
-                                           data: &mut u32) -> Result<()>
+fn audiounit_get_default_datasource(side: io_side) -> Result<(u32)>
 {
+    let (devtype, address) = match side {
+        io_side::INPUT => (DeviceType::INPUT, INPUT_DATA_SOURCE_PROPERTY_ADDRESS),
+        io_side::OUTPUT => (DeviceType::OUTPUT, OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS),
+    };
     let id = audiounit_get_default_device_id(devtype);
     if id == kAudioObjectUnknown {
         return Err(Error::error());
     }
 
-    let mut size = mem::size_of_val(data);
-    assert_eq!(size, mem::size_of::<u32>());
-    // TODO: devtype includes input, output, in-out, and unknown. This is a
-    //       bad style to check type, although this function will early return
-    //       for in-out and unknown type since audiounit_get_default_device_id
-    //       will gives a kAudioObjectUnknown for unknown type.
-    /* This fails with some USB headsets (e.g., Plantronic .Audio 628). */
-    let r = audio_object_get_property_data(id, if devtype == DeviceType::INPUT {
-                                                   &INPUT_DATA_SOURCE_PROPERTY_ADDRESS
-                                               } else {
-                                                   &OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS
-                                               }, &mut size, data);
-    if r != NO_ERR {
-        *data = 0;
-    }
-
-    Ok(())
-}
-
-// TODO: This actually is the name converted from the bytes of the data source
-//       (kAudioDevicePropertyDataSource), rather than the name of the audio
-//       device(kAudioObjectPropertyName). The naming here is vague.
-fn audiounit_get_default_device_name(stm: &AudioUnitStream,
-                                     device: &mut ffi::cubeb_device,
-                                     devtype: DeviceType) -> Result<()>
-{
     let mut data: u32 = 0;
-    audiounit_get_default_device_datasource(devtype, &mut data)?;
-
-    // TODO: devtype includes input, output, in-out, and unknown. This is a
-    //       bad style to check type, although this function will early return
-    //       for in-out and unknown type since
-    //       audiounit_get_default_device_datasource will throw an error for
-    //       in-out and unknown type.
-    let name = if devtype == DeviceType::INPUT {
-        &mut device.input_name
-    } else {
-        &mut device.output_name
-    };
-    // Leak the memory to the external code. Retrieve them in device_destroy.
-    *name = convert_uint32_into_string(data).into_raw();
-    if name.is_null() {
-        // TODO: Bad style to use scope as the above.
-        cubeb_log!("({:p}) name of {} device is empty!", stm as *const AudioUnitStream,
-                   if devtype == DeviceType::INPUT { "input" } else { "output" } );
+    let mut size = mem::size_of::<u32>();
+    /* This fails with some USB headsets (e.g., Plantronic .Audio 628). */
+    let r = audio_object_get_property_data(id, &address, &mut size, &mut data);
+    if r != NO_ERR {
+        data = 0;
     }
-    Ok(())
+
+    Ok(data)
 }
 
-
+fn audiounit_get_default_datasource_string(side: io_side) -> Result<CString>
+{
+    let data = audiounit_get_default_datasource(side)?;
+    Ok(convert_uint32_into_string(data))
+}
 
 fn audiounit_strref_to_cstr_utf8(strref: CFStringRef) -> CString
 {
@@ -4070,9 +4039,12 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     }
     #[cfg(not(target_os = "ios"))]
     fn current_device(&mut self) -> Result<&DeviceRef> {
+        // Leak the memory to the external code. Retrieve them in device_destroy.
         let mut device: Box<ffi::cubeb_device> = Box::new(ffi::cubeb_device::default());
-        audiounit_get_default_device_name(self, device.as_mut(), DeviceType::OUTPUT)?;
-        audiounit_get_default_device_name(self, device.as_mut(), DeviceType::INPUT)?;
+        let input_source = audiounit_get_default_datasource_string(io_side::INPUT)?;
+        device.input_name = input_source.into_raw();
+        let output_source = audiounit_get_default_datasource_string(io_side::OUTPUT)?;
+        device.output_name = output_source.into_raw();
         Ok(unsafe { DeviceRef::from_ptr(Box::into_raw(device)) })
     }
     #[cfg(target_os = "ios")]

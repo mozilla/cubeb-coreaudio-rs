@@ -525,8 +525,14 @@ fn test_ops_stream_current_device() {
         assert!(!device.is_null());
         // Uncomment the below to print out the results.
         // let deviceref = unsafe { DeviceRef::from_ptr(device) };
-        // println!("output: {}", deviceref.output_name().unwrap_or("(no device name)"));
-        // println!("input: {}", deviceref.input_name().unwrap_or("(no device name)"));
+        // println!(
+        //     "output: {}",
+        //     deviceref.output_name().unwrap_or("(no device name)")
+        // );
+        // println!(
+        //     "input: {}",
+        //     deviceref.input_name().unwrap_or("(no device name)")
+        // );
         assert_eq!(
             unsafe { OPS.stream_device_destroy.unwrap()(stream, device) },
             ffi::CUBEB_OK

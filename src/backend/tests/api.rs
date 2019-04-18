@@ -2096,99 +2096,43 @@ fn test_convert_uint32_into_string() {
     assert_eq!(data_string, CString::new("RUST").unwrap());
 }
 
-// get_default_device_datasource
+// get_default_datasource
 // ------------------------------------
 #[test]
 fn test_get_default_device_datasource() {
-    // Input type.
     test_get_default_datasource_in_scope(Scope::Input);
-
-    // Output type.
     test_get_default_datasource_in_scope(Scope::Output);
-
-    // Unknown type.
-    let mut data = 0;
-    assert_eq!(
-        audiounit_get_default_device_datasource(DeviceType::UNKNOWN, &mut data).unwrap_err(),
-        Error::error()
-    );
-
-    // In-out type.
-    let mut data = 0;
-    assert_eq!(
-        audiounit_get_default_device_datasource(DeviceType::INPUT | DeviceType::OUTPUT, &mut data)
-            .unwrap_err(),
-        Error::error()
-    );
 
     fn test_get_default_datasource_in_scope(scope: Scope) {
         if let Some(source) = test_get_default_source_data(scope.clone()) {
-            let mut data = 0;
-            assert!(audiounit_get_default_device_datasource(scope.into(), &mut data).is_ok());
-            assert_ne!(data, 0);
-            assert_eq!(data, source);
+            assert_eq!(
+                audiounit_get_default_datasource(scope.into()).unwrap(),
+                source
+            );
         } else {
             println!("No source data for {:?}.", scope);
         }
     }
 }
 
-// get_default_device_name
+// get_default_datasource_string
 // ------------------------------------
 #[test]
 fn test_get_default_device_name() {
-    test_get_empty_stream(|stream| {
-        // Input type.
-        test_get_default_device_name_in_scope(stream, Scope::Input);
+    test_get_default_device_name_in_scope(Scope::Input);
+    test_get_default_device_name_in_scope(Scope::Output);
 
-        // Output type.
-        test_get_default_device_name_in_scope(stream, Scope::Output);
-
-        // Unknown type.
-        let mut device = ffi::cubeb_device::default();
-        assert_eq!(
-            audiounit_get_default_device_name(stream, &mut device, DeviceType::UNKNOWN)
-                .unwrap_err(),
-            Error::error()
-        );
-        // No need to release the memory since device.{input, output}_name are nulls.
-
-        // FIXIT: Shouldn't we get both input and output name ?
-        // In-out type.
-        let mut device = ffi::cubeb_device::default();
-        assert_eq!(
-            audiounit_get_default_device_name(
-                &stream,
-                &mut device,
-                DeviceType::INPUT | DeviceType::OUTPUT
-            )
-            .unwrap_err(),
-            Error::error()
-        );
-        // No need to release the memory since device.{input, output}_name are nulls.
-
-        fn test_get_default_device_name_in_scope(stream: &mut AudioUnitStream, scope: Scope) {
-            if let Some(name) = test_get_default_source_name(scope.clone()) {
-                let mut device: Box<ffi::cubeb_device> = Box::new(ffi::cubeb_device::default());
-                assert!(audiounit_get_default_device_name(
-                    stream,
-                    device.as_mut(),
-                    scope.clone().into()
-                )
-                .is_ok());
-                let (target, rest) = match scope {
-                    Scope::Input => (device.input_name, device.output_name),
-                    Scope::Output => (device.output_name, device.input_name),
-                };
-                assert!(!target.is_null());
-                assert!(rest.is_null());
-                let cstring = unsafe { CString::from_raw(target) };
-                assert_eq!(cstring.into_string().unwrap(), name);
-            } else {
-                println!("No source name for {:?}", scope);
-            }
+    fn test_get_default_device_name_in_scope(scope: Scope) {
+        if let Some(name) = test_get_default_source_name(scope.clone()) {
+            let source = audiounit_get_default_datasource_string(scope.into())
+                .unwrap()
+                .into_string()
+                .unwrap();
+            assert_eq!(name, source);
+        } else {
+            println!("No source name for {:?}", scope);
         }
-    });
+    }
 }
 
 // strref_to_cstr_utf8
