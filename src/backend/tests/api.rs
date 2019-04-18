@@ -616,22 +616,18 @@ fn test_remove_listener_unknown_device() {
 // ------------------------------------
 #[test]
 fn test_get_acceptable_latency_range() {
-    let mut latency_range = AudioValueRange::default();
-
     let default_output = test_get_default_device(Scope::Output);
+    let range = audiounit_get_acceptable_latency_range();
     if default_output.is_none() {
         println!("No output device.");
-        assert_eq!(
-            audiounit_get_acceptable_latency_range(&mut latency_range).unwrap_err(),
-            Error::error()
-        );
+        assert_eq!(range.unwrap_err(), Error::error());
         return;
     }
 
-    assert!(audiounit_get_acceptable_latency_range(&mut latency_range).is_ok());
-    assert!(latency_range.mMinimum > 0.0);
-    assert!(latency_range.mMaximum > 0.0);
-    assert!(latency_range.mMaximum > latency_range.mMinimum);
+    let range = range.unwrap();
+    assert!(range.mMinimum > 0.0);
+    assert!(range.mMaximum > 0.0);
+    assert!(range.mMaximum > range.mMinimum);
 }
 
 // get_default_device_id
