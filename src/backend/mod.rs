@@ -3241,80 +3241,6 @@ extern fn audiounit_collection_changed_callback(_in_object_id: AudioObjectID,
     NO_ERR
 }
 
-fn audiounit_add_device_listener(context: &mut AudioUnitContext,
-                                 devtype: DeviceType,
-                                 collection_changed_callback: ffi::cubeb_device_collection_changed_callback,
-                                 user_ptr: *mut c_void) -> OSStatus
-{
-    context.mutex.assert_current_thread_owns();
-    assert!(devtype.intersects(DeviceType::INPUT | DeviceType::OUTPUT));
-    // TODO: We should add an assertion here! (Sync with C verstion.)
-    // assert!(collection_changed_callback.is_some());
-
-    /* Note: second register without unregister first causes 'nope' error.
-     * Current implementation requires unregister before register a new cb. */
-    assert!(devtype.contains(DeviceType::INPUT) && context.input_collection_changed_callback.is_none() ||
-            devtype.contains(DeviceType::OUTPUT) && context.output_collection_changed_callback.is_none());
-
-    if context.input_collection_changed_callback.is_none() &&
-        context.output_collection_changed_callback.is_none() {
-        let ret = audio_object_add_property_listener(kAudioObjectSystemObject,
-                                                     &DEVICES_PROPERTY_ADDRESS,
-                                                     audiounit_collection_changed_callback,
-                                                     context as *mut AudioUnitContext as *mut c_void);
-        if ret != NO_ERR {
-            return ret;
-        }
-    }
-
-    if devtype.contains(DeviceType::INPUT) {
-        /* Expected empty after unregister. */
-        assert!(context.input_device_array.is_empty());
-        context.input_device_array = audiounit_get_devices_of_type(DeviceType::INPUT);
-        context.input_collection_changed_callback = collection_changed_callback;
-        context.input_collection_changed_user_ptr = user_ptr;
-    }
-
-    if devtype.contains(DeviceType::OUTPUT) {
-        /* Expected empty after unregister. */
-        assert!(context.output_device_array.is_empty());
-        context.output_device_array = audiounit_get_devices_of_type(DeviceType::OUTPUT);
-        context.output_collection_changed_callback = collection_changed_callback;
-        context.output_collection_changed_user_ptr = user_ptr;
-    }
-
-    NO_ERR
-}
-
-fn audiounit_remove_device_listener(context: &mut AudioUnitContext, devtype: DeviceType) -> OSStatus
-{
-    context.mutex.assert_current_thread_owns();
-    // TODO: We should add an assertion here! (Sync with C verstion.)
-    // assert!(devtype.intersects(DeviceType::INPUT | DeviceType::OUTPUT));
-    if devtype.contains(DeviceType::INPUT) {
-        context.input_collection_changed_callback = None;
-        context.input_collection_changed_user_ptr = ptr::null_mut();
-        context.input_device_array.clear();
-    }
-
-    if devtype.contains(DeviceType::OUTPUT) {
-        context.output_collection_changed_callback = None;
-        context.output_collection_changed_user_ptr = ptr::null_mut();
-        context.output_device_array.clear();
-    }
-
-    if context.input_collection_changed_callback.is_some() ||
-        context.output_collection_changed_callback.is_some() {
-        return NO_ERR;
-    }
-
-    /* Note: unregister a non registered cb is not a problem, not checking. */
-    audio_object_remove_property_listener(kAudioObjectSystemObject,
-                                          &DEVICES_PROPERTY_ADDRESS,
-                                          audiounit_collection_changed_callback,
-                                          context as *mut AudioUnitContext as *mut c_void)
-}
-
 pub const OPS: Ops = capi_new!(AudioUnitContext, AudioUnitStream);
 
 #[repr(C)] // Prevent any padding from being added in the beginning of the AudioUnitContext
@@ -3384,6 +3310,84 @@ impl AudioUnitContext {
         self.mutex.assert_current_thread_owns();
         assert_eq!(self.active_streams(), 1);
         self.global_latency_frames = latency_frames;
+    }
+
+    fn add_devices_changed_listener(
+        &mut self,
+        devtype: DeviceType,
+        collection_changed_callback: ffi::cubeb_device_collection_changed_callback,
+        user_ptr: *mut c_void
+    ) -> OSStatus {
+        self.mutex.assert_current_thread_owns();
+        assert!(devtype.intersects(DeviceType::INPUT | DeviceType::OUTPUT));
+        // TODO: We should add an assertion here! (Sync with C verstion.)
+        // assert!(collection_changed_callback.is_some());
+
+        /* Note: second register without unregister first causes 'nope' error.
+        * Current implementation requires unregister before register a new cb. */
+        assert!(devtype.contains(DeviceType::INPUT) && self.input_collection_changed_callback.is_none() ||
+                devtype.contains(DeviceType::OUTPUT) && self.output_collection_changed_callback.is_none());
+
+        if self.input_collection_changed_callback.is_none() &&
+            self.output_collection_changed_callback.is_none() {
+            let ret = audio_object_add_property_listener(
+                kAudioObjectSystemObject,
+                &DEVICES_PROPERTY_ADDRESS,
+                audiounit_collection_changed_callback,
+                self as *mut AudioUnitContext as *mut c_void
+            );
+            if ret != NO_ERR {
+                return ret;
+            }
+        }
+
+        if devtype.contains(DeviceType::INPUT) {
+            /* Expected empty after unregister. */
+            assert!(self.input_device_array.is_empty());
+            self.input_device_array = audiounit_get_devices_of_type(DeviceType::INPUT);
+            self.input_collection_changed_callback = collection_changed_callback;
+            self.input_collection_changed_user_ptr = user_ptr;
+        }
+
+        if devtype.contains(DeviceType::OUTPUT) {
+            /* Expected empty after unregister. */
+            assert!(self.output_device_array.is_empty());
+            self.output_device_array = audiounit_get_devices_of_type(DeviceType::OUTPUT);
+            self.output_collection_changed_callback = collection_changed_callback;
+            self.output_collection_changed_user_ptr = user_ptr;
+        }
+
+        NO_ERR
+    }
+
+    fn remove_devices_changed_listener(&mut self, devtype: DeviceType) -> OSStatus {
+        self.mutex.assert_current_thread_owns();
+        // TODO: We should add an assertion here! (Sync with C verstion.)
+        // assert!(devtype.intersects(DeviceType::INPUT | DeviceType::OUTPUT));
+        if devtype.contains(DeviceType::INPUT) {
+            self.input_collection_changed_callback = None;
+            self.input_collection_changed_user_ptr = ptr::null_mut();
+            self.input_device_array.clear();
+        }
+
+        if devtype.contains(DeviceType::OUTPUT) {
+            self.output_collection_changed_callback = None;
+            self.output_collection_changed_user_ptr = ptr::null_mut();
+            self.output_device_array.clear();
+        }
+
+        if self.input_collection_changed_callback.is_some() ||
+            self.output_collection_changed_callback.is_some() {
+            return NO_ERR;
+        }
+
+        /* Note: unregister a non registered cb is not a problem, not checking. */
+        audio_object_remove_property_listener(
+            kAudioObjectSystemObject,
+            &DEVICES_PROPERTY_ADDRESS,
+            audiounit_collection_changed_callback,
+            self as *mut AudioUnitContext as *mut c_void
+        )
     }
 }
 
@@ -3679,17 +3683,13 @@ impl ContextOps for AudioUnitContext {
         if devtype == DeviceType::UNKNOWN {
             return Err(Error::invalid_parameter());
         }
-        let mut ret = NO_ERR;
         let mutex_ptr = &mut self.mutex as *mut OwnedCriticalSection;
         let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-        if collection_changed_callback.is_some() {
-            ret = audiounit_add_device_listener(self,
-                                                devtype,
-                                                collection_changed_callback,
-                                                user_ptr);
+        let ret = if collection_changed_callback.is_some() {
+            self.add_devices_changed_listener(devtype, collection_changed_callback, user_ptr)
         } else {
-            ret = audiounit_remove_device_listener(self, devtype);
-        }
+            self.remove_devices_changed_listener(devtype)
+        };
         if ret == NO_ERR {
             Ok(())
         } else {
@@ -3712,10 +3712,10 @@ impl Drop for AudioUnitContext {
 
         /* Unregister the callback if necessary. */
         if self.input_collection_changed_callback.is_some() {
-            audiounit_remove_device_listener(self, DeviceType::INPUT);
+            self.remove_devices_changed_listener(DeviceType::INPUT);
         }
         if self.output_collection_changed_callback.is_some() {
-            audiounit_remove_device_listener(self, DeviceType::OUTPUT);
+            self.remove_devices_changed_listener(DeviceType::OUTPUT);
         }
 
         release_dispatch_queue(self.serial_queue);
