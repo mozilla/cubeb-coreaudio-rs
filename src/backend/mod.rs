@@ -213,16 +213,6 @@ impl device_property_listener {
     }
 }
 
-fn has_input(stm: &AudioUnitStream) -> bool
-{
-    stm.input_stream_params.rate() > 0
-}
-
-fn has_output(stm: &AudioUnitStream) -> bool
-{
-    stm.output_stream_params.rate() > 0
-}
-
 // TODO: Do this by From trait
 fn channel_label_to_cubeb_channel(label: AudioChannelLabel) -> ChannelLayout
 {
@@ -482,7 +472,7 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
                 buffers[0].mDataByteSize,
                 buffers[0].mNumberChannels,
                 output_frames,
-                if has_input(stm) { stm.input_linear_buffer.as_ref().unwrap().elements() / stm.input_desc.mChannelsPerFrame as usize } else { 0 });
+                if stm.has_input() { stm.input_linear_buffer.as_ref().unwrap().elements() / stm.input_desc.mChannelsPerFrame as usize } else { 0 });
 
     let mut input_frames: i64 = 0;
     let mut output_buffer = ptr::null_mut::<c_void>();
@@ -884,10 +874,10 @@ extern fn audiounit_property_listener_callback(id: AudioObjectID, address_count:
 
     // Allow restart to choose the new default
     let mut switch_side = device_flags::DEV_UNKNOWN;
-    if has_input(stm) {
+    if stm.has_input() {
         switch_side |= device_flags::DEV_INPUT;
     }
-    if has_output(stm) {
+    if stm.has_output() {
         switch_side |= device_flags::DEV_OUTPUT;
     }
     // TODO: Assert it's either input or output here ?
@@ -2349,7 +2339,7 @@ fn audiounit_configure_input(stm: &mut AudioUnitStream) -> Result<()>
         return Err(Error::error());
     }
 
-    let array_capacity = if has_output(stm) {
+    let array_capacity = if stm.has_output() {
         8 // Full-duplex increase capacity
     } else {
         1 // Input only capacity
@@ -2506,7 +2496,7 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
     let mut in_dev_info = stm.input_device.clone();
     let mut out_dev_info = stm.output_device.clone();
 
-    if has_input(stm) && has_output(stm) &&
+    if stm.has_input() && stm.has_output() &&
        stm.input_device.id != stm.output_device.id {
         if audiounit_create_aggregate_device(stm).is_err() {
             stm.aggregate_device_id = kAudioObjectUnknown;
@@ -2523,14 +2513,14 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
         }
     }
 
-    if has_input(stm) {
+    if stm.has_input() {
         if let Err(r) = audiounit_create_unit(&mut stm.input_unit, &in_dev_info) {
             cubeb_log!("({:p}) AudioUnit creation for input failed.", stm as *const AudioUnitStream);
             return Err(r);
         }
     }
 
-    if has_output(stm) {
+    if stm.has_output() {
         if let Err(r) = audiounit_create_unit(&mut stm.output_unit, &out_dev_info) {
             cubeb_log!("({:p}) AudioUnit creation for output failed.", stm as *const AudioUnitStream);
             return Err(r);
@@ -2556,14 +2546,14 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
     }
 
     /* Configure I/O stream */
-    if has_input(stm) {
+    if stm.has_input() {
         if let Err(r) = audiounit_configure_input(stm) {
             cubeb_log!("({:p}) Configure audiounit input failed.", stm as *const AudioUnitStream);
             return Err(r);
         }
     }
 
-    if has_output(stm) {
+    if stm.has_output() {
         if let Err(r) = audiounit_configure_output(stm) {
             cubeb_log!("({:p}) Configure audiounit output failed.", stm as *const AudioUnitStream);
             return Err(r);
@@ -2574,22 +2564,22 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
      * reliable only in the capture device sample rate.
      * Resampler will convert it to the user sample rate
      * and deliver it to the callback. */
-    let target_sample_rate = if has_input(stm) {
+    let target_sample_rate = if stm.has_input() {
         stm.input_stream_params.rate()
     } else {
-        assert!(has_output(stm));
+        assert!(stm.has_output());
         stm.output_stream_params.rate()
     };
 
     let mut input_unconverted_params: ffi::cubeb_stream_params = unsafe { ::std::mem::zeroed() };
-    if has_input(stm) {
+    if stm.has_input() {
         input_unconverted_params = unsafe { (*(stm.input_stream_params.as_ptr())) }; // Perform copy.
         input_unconverted_params.rate = stm.input_hw_rate as u32;
     }
 
     let stm_ptr = stm as *mut AudioUnitStream as *mut ffi::cubeb_stream;
-    let stm_has_input = has_input(stm);
-    let stm_has_output = has_output(stm);
+    let stm_has_input = stm.has_input();
+    let stm_has_output = stm.has_output();
     stm.resampler.reset(unsafe {
         ffi::cubeb_resampler_create(
             stm_ptr,
@@ -3885,6 +3875,14 @@ impl<'ctx> AudioUnitStream<'ctx> {
             listener.listener,
             self as *const Self as *mut c_void
         )
+    }
+
+    fn has_input(&self) -> bool {
+        self.input_stream_params.rate() > 0
+    }
+
+    fn has_output(&self) -> bool {
+        self.output_stream_params.rate() > 0
     }
 
     fn destroy(&mut self) {
