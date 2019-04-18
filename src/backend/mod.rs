@@ -702,7 +702,7 @@ fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Re
             stm.get_volume()
         };
 
-        audiounit_close_stream(stm);
+        stm.close();
 
         /* Reinit occurs in one of the following case:
          * - When the device is not alive any more
@@ -730,7 +730,7 @@ fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Re
             if flags.contains(device_flags::DEV_INPUT) && input_device != kAudioObjectUnknown {
                 // Attempt to re-use the same device-id failed, so attempt again with
                 // default input device.
-                audiounit_close_stream(stm);
+                stm.close();
                 if audiounit_set_device_info(stm, kAudioObjectUnknown, io_side::INPUT).is_err() ||
                    audiounit_setup_stream(stm).is_err() {
                     cubeb_log!("({:p}) Second stream reinit failed.", stm as *const AudioUnitStream);
@@ -2614,32 +2614,6 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
     Ok(())
 }
 
-fn audiounit_close_stream(stm: &mut AudioUnitStream)
-{
-    stm.mutex.assert_current_thread_owns();
-
-    if !stm.input_unit.is_null() {
-        audio_unit_uninitialize(stm.input_unit);
-        dispose_audio_unit(stm.input_unit);
-        stm.input_unit = ptr::null_mut();
-    }
-
-    if !stm.output_unit.is_null() {
-        audio_unit_uninitialize(stm.output_unit);
-        dispose_audio_unit(stm.output_unit);
-        stm.output_unit = ptr::null_mut();
-    }
-
-    stm.resampler.reset(ptr::null_mut());
-    stm.mixer.reset(ptr::null_mut());
-
-    if stm.aggregate_device_id != kAudioObjectUnknown {
-        // TODO: Check if aggregate device is destroyed or not ?
-        audiounit_destroy_aggregate_device(stm.plugin_id, &mut stm.aggregate_device_id);
-        stm.aggregate_device_id = kAudioObjectUnknown;
-    }
-}
-
 fn audiounit_stream_destroy_internal(stm: &mut AudioUnitStream)
 {
     stm.context.mutex.assert_current_thread_owns();
@@ -2655,7 +2629,7 @@ fn audiounit_stream_destroy_internal(stm: &mut AudioUnitStream)
     // The scope of `_lock` is a critical section.
     let mutex_ptr = &mut stm.mutex as *mut OwnedCriticalSection;
     let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-    audiounit_close_stream(stm);
+    stm.close();
     assert!(stm.context.active_streams() >= 1);
     stm.context.decrease_active_streams();
 }
@@ -3846,6 +3820,31 @@ impl<'ctx> AudioUnitStream<'ctx> {
         );
         assert!(!self.mixer.as_mut_ptr().is_null());
     }
+
+    fn close(&mut self) {
+        self.mutex.assert_current_thread_owns();
+
+        if !self.input_unit.is_null() {
+            audio_unit_uninitialize(self.input_unit);
+            dispose_audio_unit(self.input_unit);
+            self.input_unit = ptr::null_mut();
+        }
+
+        if !self.output_unit.is_null() {
+            audio_unit_uninitialize(self.output_unit);
+            dispose_audio_unit(self.output_unit);
+            self.output_unit = ptr::null_mut();
+        }
+
+        self.resampler.reset(ptr::null_mut());
+        self.mixer.reset(ptr::null_mut());
+
+        if self.aggregate_device_id != kAudioObjectUnknown {
+            audiounit_destroy_aggregate_device(self.plugin_id, &mut self.aggregate_device_id);
+            self.aggregate_device_id = kAudioObjectUnknown;
+        }
+    }
+
 
     fn start_internal(&self) {
         if !self.input_unit.is_null() {
