@@ -3247,12 +3247,6 @@ fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID>
         }
     });
 
-    // devices.retain(|&device| {
-    //     let name = get_device_name(device);
-    //     let private_name = CString::new(PRIVATE_AGGREGATE_DEVICE_NAME).unwrap();
-    //     name != private_name
-    // });
-
     /* Expected sorted but did not find anything in the docs. */
     devices.sort();
     if devtype.contains(DeviceType::INPUT | DeviceType::OUTPUT) {
