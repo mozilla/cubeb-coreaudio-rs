@@ -433,18 +433,6 @@ fn audiounit_mix_output_buffer(stm: &mut AudioUnitStream,
     }
 }
 
-fn minimum_resampling_input_frames(stm: &AudioUnitStream, output_frames: i64) -> i64
-{
-    // TODO: Check the arguments ?
-    assert_ne!(stm.input_hw_rate, 0_f64);
-    assert_ne!(stm.output_stream_params.rate(), 0);
-    if stm.input_hw_rate == f64::from(stm.output_stream_params.rate()) {
-        // Fast path.
-        return output_frames;
-    }
-    (stm.input_hw_rate * output_frames as f64 / f64::from(stm.output_stream_params.rate())).ceil() as i64
-}
-
 extern fn audiounit_output_callback(user_ptr: *mut c_void,
                                     _: *mut AudioUnitRenderActionFlags,
                                     _tstamp: *const AudioTimeStamp,
@@ -532,7 +520,7 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
          * currently switching, we add some silence as well to compensate for the
          * fact that we're lacking some input data. */
         let frames_written = stm.frames_written.load(atomic::Ordering::SeqCst);
-        let input_frames_needed = minimum_resampling_input_frames(stm, frames_written);
+        let input_frames_needed = stm.minimum_resampling_input_frames(frames_written);
         let missing_frames = input_frames_needed - stm.frames_read.load(atomic::Ordering::SeqCst);
         if missing_frames > 0 {
             stm.input_linear_buffer.as_mut().unwrap().push_zeros((missing_frames * i64::from(stm.input_desc.mChannelsPerFrame)) as usize);
@@ -3867,6 +3855,16 @@ impl<'ctx> AudioUnitStream<'ctx> {
 
     fn has_output(&self) -> bool {
         self.output_stream_params.rate() > 0
+    }
+
+    fn minimum_resampling_input_frames(&self, output_frames: i64) -> i64 {
+        assert_ne!(self.input_hw_rate, 0_f64);
+        assert_ne!(self.output_stream_params.rate(), 0);
+        if self.input_hw_rate == f64::from(self.output_stream_params.rate()) {
+            // Fast path.
+            return output_frames;
+        }
+        (self.input_hw_rate * output_frames as f64 / f64::from(self.output_stream_params.rate())).ceil() as i64
     }
 
     fn get_volume(&self) -> Result<f32> {

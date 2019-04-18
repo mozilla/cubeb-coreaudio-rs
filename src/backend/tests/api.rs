@@ -279,7 +279,7 @@ fn test_minimum_resampling_input_frames() {
         let frames: i64 = 100;
         let times = stream.input_hw_rate / f64::from(stream.output_stream_params.rate());
         let expected = (frames as f64 * times).ceil() as i64;
-        assert_eq!(minimum_resampling_input_frames(&stream, frames), expected);
+        assert_eq!(stream.minimum_resampling_input_frames(frames), expected);
     });
 }
 
@@ -290,7 +290,7 @@ fn test_minimum_resampling_input_frames_zero_input_rate() {
         // Set input and output rates to 0 and 44100 respectively.
         test_minimum_resampling_input_frames_set_stream_rates(stream, (0_f64, 44100_f64));
         let frames: i64 = 100;
-        assert_eq!(minimum_resampling_input_frames(&stream, frames), 0);
+        assert_eq!(stream.minimum_resampling_input_frames(frames), 0);
     });
 }
 
@@ -301,7 +301,7 @@ fn test_minimum_resampling_input_frames_zero_output_rate() {
         // Set input and output rates to 48000 and 0 respectively.
         test_minimum_resampling_input_frames_set_stream_rates(stream, (48000_f64, 0_f64));
         let frames: i64 = 100;
-        assert_eq!(minimum_resampling_input_frames(&stream, frames), 0);
+        assert_eq!(stream.minimum_resampling_input_frames(frames), 0);
     });
 }
 
@@ -311,7 +311,7 @@ fn test_minimum_resampling_input_frames_equal_input_output_rate() {
         // Set both input and output rates to 44100.
         test_minimum_resampling_input_frames_set_stream_rates(stream, (44100_f64, 44100_f64));
         let frames: i64 = 100;
-        assert_eq!(minimum_resampling_input_frames(&stream, frames), frames);
+        assert_eq!(stream.minimum_resampling_input_frames(frames), frames);
     });
 }
 
