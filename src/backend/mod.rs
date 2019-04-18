@@ -708,11 +708,10 @@ fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Re
     {
         let mutex_ptr = &mut stm.mutex as *mut OwnedCriticalSection;
         let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-        let mut volume: f32 = 0.0;
         let vol_rv = if stm.output_unit.is_null() {
-            false
+            Err(Error::error())
         } else {
-            audiounit_stream_get_volume(stm, &mut volume).is_ok()
+            stm.get_volume()
         };
 
         audiounit_close_stream(stm);
@@ -752,8 +751,8 @@ fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Re
             }
         }
 
-        if vol_rv {
-            stm.set_volume(volume);
+        if vol_rv.is_ok() {
+            stm.set_volume(vol_rv.unwrap());
         }
 
         // If the stream was running, start it again.
@@ -2708,21 +2707,6 @@ fn audiounit_stream_stop_internal(stm: &AudioUnitStream)
     }
 }
 
-// TODO: Return the volume within Ok.
-fn audiounit_stream_get_volume(stm: &AudioUnitStream, volume: &mut f32) -> Result<()>
-{
-    assert!(!stm.output_unit.is_null());
-    let r = audio_unit_get_parameter(stm.output_unit,
-                                     kHALOutputParam_Volume,
-                                     kAudioUnitScope_Global,
-                                     0, volume);
-    if r != NO_ERR {
-        cubeb_log!("AudioUnitGetParameter/kHALOutputParam_Volume rv={}", r);
-        return Err(Error::error());
-    }
-    Ok(())
-}
-
 fn convert_uint32_into_string(data: u32) -> CString
 {
     // Simply create an empty string if no data.
@@ -3883,6 +3867,23 @@ impl<'ctx> AudioUnitStream<'ctx> {
 
     fn has_output(&self) -> bool {
         self.output_stream_params.rate() > 0
+    }
+
+    fn get_volume(&self) -> Result<f32> {
+        assert!(!self.output_unit.is_null());
+        let mut volume: f32 = 0.0;
+        let r = audio_unit_get_parameter(
+            self.output_unit,
+            kHALOutputParam_Volume,
+            kAudioUnitScope_Global,
+            0,
+            &mut volume
+        );
+        if r != NO_ERR {
+            cubeb_log!("AudioUnitGetParameter/kHALOutputParam_Volume rv={}", r);
+            return Err(Error::error());
+        }
+        Ok(volume)
     }
 
     fn destroy(&mut self) {
