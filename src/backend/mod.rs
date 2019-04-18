@@ -45,6 +45,7 @@ use self::utils::*;
 use self::owned_critical_section::*;
 use std::cmp;
 use std::ffi::{CStr, CString};
+use std::fmt;
 use std::mem;
 use std::os::raw::{c_void, c_char};
 use std::ptr;
@@ -144,6 +145,16 @@ enum io_side {
   OUTPUT,
 }
 
+impl fmt::Display for io_side {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let side = match self {
+            io_side::INPUT => "input",
+            io_side::OUTPUT => "output",
+        };
+        write!(f, "{}", side)
+    }
+}
+
 fn make_sized_audio_channel_layout(sz: usize) -> AutoRelease<AudioChannelLayout> {
     assert!(sz >= mem::size_of::<AudioChannelLayout>());
     assert_eq!(
@@ -157,14 +168,6 @@ fn make_sized_audio_channel_layout(sz: usize) -> AutoRelease<AudioChannelLayout>
     }
 
     AutoRelease::new(acl, free_acl)
-}
-
-fn to_string(side: &io_side) -> &'static str
-{
-    match side {
-        io_side::INPUT => "input",
-        io_side::OUTPUT => "output"
-    }
 }
 
 #[allow(non_camel_case_types)]
@@ -1401,7 +1404,7 @@ fn audiounit_set_channel_layout(unit: AudioUnit,
                                 au_layout.as_ref(),
                                 size);
     if r != NO_ERR {
-        cubeb_log!("AudioUnitSetProperty/{}/kAudioUnitProperty_AudioChannelLayout rv={}", to_string(&side), r);
+        cubeb_log!("AudioUnitSetProperty/{}/kAudioUnitProperty_AudioChannelLayout rv={}", side.to_string(), r);
         return Err(Error::error());
     }
 
@@ -2242,14 +2245,14 @@ fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, si
                                         &mut buffer_frames,
                                         &mut size);
     if r != NO_ERR {
-        cubeb_log!("AudioUnitGetProperty/{}/kAudioDevicePropertyBufferFrameSize rv={}", to_string(&side), r);
+        cubeb_log!("AudioUnitGetProperty/{}/kAudioDevicePropertyBufferFrameSize rv={}", side.to_string(), r);
         return Err(Error::error());
     }
 
     assert_ne!(buffer_frames, 0);
 
     if new_size_frames == buffer_frames {
-        cubeb_log!("({:p}) No need to update {} buffer size already {} frames", stm as *const AudioUnitStream, to_string(&side), buffer_frames);
+        cubeb_log!("({:p}) No need to update {} buffer size already {} frames", stm as *const AudioUnitStream, side.to_string(), buffer_frames);
         return Ok(());
     }
 
@@ -2258,7 +2261,7 @@ fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, si
                                          buffer_size_changed_callback,
                                          stm as *mut AudioUnitStream as *mut c_void);
     if r != NO_ERR {
-        cubeb_log!("AudioUnitAddPropertyListener/{}/kAudioDevicePropertyBufferFrameSize rv={}", to_string(&side), r);
+        cubeb_log!("AudioUnitAddPropertyListener/{}/kAudioDevicePropertyBufferFrameSize rv={}", side.to_string(), r);
         return Err(Error::error());
     }
 
@@ -2271,14 +2274,14 @@ fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, si
                                 &new_size_frames,
                                 mem::size_of_val(&new_size_frames));
     if r != NO_ERR {
-        cubeb_log!("AudioUnitSetProperty/{}/kAudioDevicePropertyBufferFrameSize rv={}", to_string(&side), r);
+        cubeb_log!("AudioUnitSetProperty/{}/kAudioDevicePropertyBufferFrameSize rv={}", side.to_string(), r);
 
         r = audio_unit_remove_property_listener_with_user_data(au,
                                                                kAudioDevicePropertyBufferFrameSize,
                                                                buffer_size_changed_callback,
                                                                stm as *mut AudioUnitStream as *mut c_void);
         if r != NO_ERR {
-            cubeb_log!("AudioUnitAddPropertyListener/{}/kAudioDevicePropertyBufferFrameSize rv={}", to_string(&side), r);
+            cubeb_log!("AudioUnitAddPropertyListener/{}/kAudioDevicePropertyBufferFrameSize rv={}", side.to_string(), r);
         }
 
         return Err(Error::error());
@@ -2308,7 +2311,7 @@ fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, si
                                                            buffer_size_changed_callback,
                                                            stm as *mut AudioUnitStream as *mut c_void);
     if r != NO_ERR {
-        cubeb_log!("AudioUnitAddPropertyListener/{}/kAudioDevicePropertyBufferFrameSize rv={}", to_string(&side), r);
+        cubeb_log!("AudioUnitAddPropertyListener/{}/kAudioDevicePropertyBufferFrameSize rv={}", side.to_string(), r);
         return Err(Error::error());
     }
 
@@ -2317,7 +2320,7 @@ fn audiounit_set_buffer_size(stm: &mut AudioUnitStream, new_size_frames: u32, si
         return Err(Error::error());
     }
 
-    cubeb_log!("({:p}) {} buffer size changed to {} frames.", stm as *const AudioUnitStream, to_string(&side), new_size_frames);
+    cubeb_log!("({:p}) {} buffer size changed to {} frames.", stm as *const AudioUnitStream, side.to_string(), new_size_frames);
     Ok(())
 }
 
@@ -2862,6 +2865,8 @@ fn audiounit_get_default_device_name(stm: &AudioUnitStream,
     }
     Ok(())
 }
+
+
 
 fn audiounit_strref_to_cstr_utf8(strref: CFStringRef) -> CString
 {

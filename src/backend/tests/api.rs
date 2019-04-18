@@ -35,8 +35,10 @@ fn test_make_sized_audio_channel_layout_with_wrong_size() {
 // ------------------------------------
 #[test]
 fn test_to_string() {
-    assert_eq!(to_string(&io_side::INPUT), "input");
-    assert_eq!(to_string(&io_side::OUTPUT), "output");
+    let input = io_side::INPUT;
+    assert_eq!(input.to_string(), "input");
+    let output = io_side::OUTPUT;
+    assert_eq!(output.to_string(), "output");
 }
 
 // has_input
