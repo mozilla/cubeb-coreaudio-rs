@@ -686,7 +686,7 @@ fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Re
     assert!((stm.input_unit.is_null() || flags.contains(device_flags::DEV_INPUT)) &&
             (stm.output_unit.is_null() || flags.contains(device_flags::DEV_OUTPUT)));
     if !*stm.shutdown.get_mut() {
-        audiounit_stream_stop_internal(stm);
+        stm.stop_internal();
     }
 
     if audiounit_uninstall_device_changed_callback(stm).is_err() {
@@ -745,7 +745,7 @@ fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Re
 
         // If the stream was running, start it again.
         if !*stm.shutdown.get_mut() {
-            audiounit_stream_start_internal(stm);
+            stm.start_internal();
         }
     }
 
@@ -2675,26 +2675,6 @@ fn audiounit_stream_destroy_internal(stm: &mut AudioUnitStream)
     stm.context.decrease_active_streams();
 }
 
-fn audiounit_stream_start_internal(stm: &AudioUnitStream)
-{
-    if !stm.input_unit.is_null() {
-        assert_eq!(audio_output_unit_start(stm.input_unit), NO_ERR);
-    }
-    if !stm.output_unit.is_null() {
-        assert_eq!(audio_output_unit_start(stm.output_unit), NO_ERR);
-    }
-}
-
-fn audiounit_stream_stop_internal(stm: &AudioUnitStream)
-{
-    if !stm.input_unit.is_null() {
-        assert_eq!(audio_output_unit_stop(stm.input_unit), NO_ERR);
-    }
-    if !stm.output_unit.is_null() {
-        assert_eq!(audio_output_unit_stop(stm.output_unit), NO_ERR);
-    }
-}
-
 fn convert_uint32_into_string(data: u32) -> CString
 {
     // Simply create an empty string if no data.
@@ -3867,6 +3847,24 @@ impl<'ctx> AudioUnitStream<'ctx> {
         (self.input_hw_rate * output_frames as f64 / f64::from(self.output_stream_params.rate())).ceil() as i64
     }
 
+    fn start_internal(&self) {
+        if !self.input_unit.is_null() {
+            assert_eq!(audio_output_unit_start(self.input_unit), NO_ERR);
+        }
+        if !self.output_unit.is_null() {
+            assert_eq!(audio_output_unit_start(self.output_unit), NO_ERR);
+        }
+    }
+
+    fn stop_internal(&self) {
+        if !self.input_unit.is_null() {
+            assert_eq!(audio_output_unit_stop(self.input_unit), NO_ERR);
+        }
+        if !self.output_unit.is_null() {
+            assert_eq!(audio_output_unit_stop(self.output_unit), NO_ERR);
+        }
+    }
+
     fn get_volume(&self) -> Result<f32> {
         assert!(!self.output_unit.is_null());
         let mut volume: f32 = 0.0;
@@ -3893,7 +3891,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             let mutex_ptr = &mut self.context.mutex as *mut OwnedCriticalSection;
             // The scope of `_context_lock` is a critical section.
             let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-            audiounit_stream_stop_internal(self);
+            self.stop_internal();
             *self.shutdown.get_mut() = true;
         }
 
@@ -3936,7 +3934,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         *self.shutdown.get_mut() = false;
         *self.draining.get_mut() = false;
 
-        audiounit_stream_start_internal(self);
+        self.start_internal();
 
         // TODO: C version doesn't check if state_callback is a null pointer.
         if self.state_callback.is_some() {
@@ -3959,7 +3957,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
 
         *self.shutdown.get_mut() = true;
 
-        audiounit_stream_stop_internal(self);
+        self.stop_internal();
 
         // TODO: C version doesn't check if state_callback is a null pointer.
         if self.state_callback.is_some() {
