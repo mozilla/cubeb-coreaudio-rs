@@ -4077,12 +4077,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         let _dev_cb_lock = AutoLock::new(&mut self.device_changed_callback_lock);
         /* Note: second register without unregister first causes 'nope' error.
          * Current implementation requires unregister before register a new cb. */
-        // TODO: The above comment is wrong. We cannot unregister the original
-        //       callback since we will hit the following assertion!
-        //       A less strict assertion works as what the comment want is
-        //       something like:
-        // assert!(device_changed_callback.is_none() || self.device_changed_callback.is_none());
-        // assert_eq!(self.device_changed_callback, None);
+        assert!(device_changed_callback.is_none() || self.device_changed_callback.is_none());
         self.device_changed_callback = device_changed_callback;
         Ok(())
     }
