@@ -16,7 +16,7 @@ fn test_switch_device_in_scope(scope: Scope) {
     use std::thread;
     use std::time::Duration;
 
-    // Do nothing if there is no 2 available output devices at least.
+    // Do nothing if there is no 2 available devices at least.
     let devices = test_get_devices_in_scope(scope.clone());
     if devices.len() < 2 {
         println!("Need 2 devices for {:?} at least.", scope);
@@ -24,7 +24,7 @@ fn test_switch_device_in_scope(scope: Scope) {
     }
 
     println!(
-        "Switch default device for {:?} while a stream is working.",
+        "Switch default device for {:?} while the stream is working.",
         scope
     );
 
@@ -42,7 +42,7 @@ fn test_switch_device_in_scope(scope: Scope) {
         if !less_than(&count, devices.len()) {
             break;
         }
-        test_change_default_device(scope.clone());
+        assert!(test_change_default_device(scope.clone()).unwrap());
     });
 
     fn less_than(count: &Arc<Mutex<usize>>, limit: usize) -> bool {
