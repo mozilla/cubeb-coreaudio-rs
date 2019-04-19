@@ -568,5 +568,3 @@ fn test_ops_stream_device_destroy() {
 //         );
 //     });
 // }
-
-// TODO: Add a manual test for stream_register_device_changed_callback operation.

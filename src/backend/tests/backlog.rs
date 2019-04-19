@@ -2,6 +2,7 @@
 //
 // This program is made available under an ISC-style license.  See the
 // accompanying file LICENSE for details.
+use super::utils::test_get_empty_stream;
 use super::*;
 
 // Interface
@@ -54,4 +55,32 @@ fn test_context_register_device_collection_changed_twice_output() {
 #[should_panic]
 fn test_context_register_device_collection_changed_twice_inout() {
     test_context_register_device_collection_changed_twice(DeviceType::INPUT | DeviceType::OUTPUT);
+}
+
+#[test]
+fn test_stream_register_device_changed_callback() {
+    extern "C" fn callback(_: *mut c_void) {}
+
+    test_get_empty_stream(|stream| {
+        assert!(stream
+            .register_device_changed_callback(Some(callback))
+            .is_ok());
+        assert!(stream.register_device_changed_callback(None).is_ok());
+    });
+}
+
+#[test]
+#[should_panic]
+fn test_stream_register_device_changed_callback_twice() {
+    extern "C" fn callback1(_: *mut c_void) {}
+    extern "C" fn callback2(_: *mut c_void) {}
+
+    test_get_empty_stream(|stream| {
+        assert!(stream
+            .register_device_changed_callback(Some(callback1))
+            .is_ok());
+        assert!(stream
+            .register_device_changed_callback(Some(callback2))
+            .is_err());
+    });
 }
