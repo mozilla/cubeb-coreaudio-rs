@@ -270,6 +270,160 @@ fn test_plug_and_unplug_device() {
     }
 }
 
+#[ignore]
+#[test]
+fn test_register_device_changed_callback_to_check_default_device_changed() {
+    let input_devices = test_get_devices_in_scope(Scope::Input).len();
+    let output_devices = test_get_devices_in_scope(Scope::Output).len();
+    if input_devices < 2 && output_devices < 2 {
+        println!("Need 2 devices for input or output at least.");
+        return;
+    }
+
+    println!("NOTICE: The test will hang if the default input or output is an aggregate device.\nWe will fix this later.");
+
+    let changed_count = Arc::new(Mutex::new(0u32));
+    let also_changed_count = Arc::clone(&changed_count);
+    let mtx_ptr = also_changed_count.as_ref() as *const Mutex<u32>;
+
+    let input_count = high_pass_filter(input_devices as u32, 2);
+    let output_count = high_pass_filter(output_devices as u32, 2);
+    test_ops_duplex_stream_operation(
+        "stream: test callback for default device changed",
+        ptr::null_mut(), // Use default input device.
+        ptr::null_mut(), // Use default output device.
+        mtx_ptr as *mut c_void,
+        |stream| {
+            let mut changed_watcher = Watcher::new(&changed_count);
+
+            let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+            assert!(stm.register_device_changed_callback(Some(callback)).is_ok());
+
+            for _ in 0..input_count {
+                // While the stream is re-initializing for the default device switch,
+                // switching for the default device again will be ignored.
+                while stm.switching_device.load(atomic::Ordering::SeqCst) {}
+                changed_watcher.prepare();
+                assert!(test_change_default_device(Scope::Input).unwrap());
+                changed_watcher.wait_for_change();
+            }
+
+            for _ in 0..output_count {
+                // While the stream is re-initializing for the default device switch,
+                // switching for the default device again will be ignored.
+                while stm.switching_device.load(atomic::Ordering::SeqCst) {}
+                changed_watcher.prepare();
+                assert!(test_change_default_device(Scope::Output).unwrap());
+                changed_watcher.wait_for_change();
+            }
+
+            assert!(stm.register_device_changed_callback(None).is_ok());
+        },
+    );
+
+    extern "C" fn callback(data: *mut c_void) {
+        println!("Device change callback. data @ {:p}", data);
+        let count = unsafe { &*(data as *const Mutex<i32>) };
+        {
+            let mut guard = count.lock().unwrap();
+            *guard += 1;
+        }
+    }
+
+    fn high_pass_filter(value: u32, limit: u32) -> u32 {
+        if value < limit {
+            0
+        } else {
+            value
+        }
+    }
+}
+
+#[ignore]
+#[test]
+fn test_register_device_changed_callback_to_check_input_alive_changed() {
+    let has_input = test_get_default_device(Scope::Input).is_some();
+    if !has_input {
+        println!("Need one input device at least.");
+        return;
+    }
+
+    let changed_count = Arc::new(Mutex::new(0u32));
+    let also_changed_count = Arc::clone(&changed_count);
+    let mtx_ptr = also_changed_count.as_ref() as *const Mutex<u32>;
+
+    let mut input_plugger = TestDevicePlugger::new(Scope::Input).unwrap();
+
+    assert_eq!(has_input, input_plugger.plug().is_ok());
+
+    test_ops_duplex_stream_operation(
+        "stream: test callback for input alive changed",
+        input_plugger.get_device_id() as ffi::cubeb_devid,
+        ptr::null_mut(), // Use default output device.
+        mtx_ptr as *mut c_void,
+        |stream| {
+            let mut changed_watcher = Watcher::new(&changed_count);
+
+            let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+            assert!(stm.register_device_changed_callback(Some(callback)).is_ok());
+
+            changed_watcher.prepare();
+            assert!(input_plugger.unplug().is_ok());
+            changed_watcher.wait_for_change();
+
+            assert!(stm.register_device_changed_callback(None).is_ok());
+        },
+    );
+
+    extern "C" fn callback(data: *mut c_void) {
+        println!("Device change callback. data @ {:p}", data);
+        let count = unsafe { &*(data as *const Mutex<i32>) };
+        {
+            let mut guard = count.lock().unwrap();
+            *guard += 1;
+        }
+    }
+}
+
+fn test_ops_duplex_stream_operation<F>(
+    name: &'static str,
+    input_device: ffi::cubeb_devid,
+    output_device: ffi::cubeb_devid,
+    data: *mut c_void,
+    operation: F,
+) where
+    F: FnOnce(*mut ffi::cubeb_stream),
+{
+    // Make sure the parameters meet the requirements of AudioUnitContext::stream_init
+    // (in the comments).
+    let mut output_params = ffi::cubeb_stream_params::default();
+    output_params.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
+    output_params.rate = 44100;
+    output_params.channels = 2;
+    output_params.layout = ffi::CUBEB_LAYOUT_STEREO;
+    output_params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+
+    let mut input_params = ffi::cubeb_stream_params::default();
+    input_params.format = ffi::CUBEB_SAMPLE_S16NE;
+    input_params.rate = 48000;
+    input_params.channels = 1;
+    input_params.layout = ffi::CUBEB_LAYOUT_MONO;
+    input_params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+
+    test_ops_stream_operation(
+        name,
+        input_device,
+        &mut input_params,
+        output_device,
+        &mut output_params,
+        4096, // TODO: Get latency by get_min_latency instead ?
+        None, // No data callback.
+        None, // No state callback.
+        data,
+        operation,
+    );
+}
+
 struct Watcher<T: Clone + PartialEq> {
     watching: Arc<Mutex<T>>,
     current: Option<T>,

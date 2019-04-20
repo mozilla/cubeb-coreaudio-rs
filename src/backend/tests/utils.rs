@@ -582,6 +582,10 @@ impl TestDevicePlugger {
         })
     }
 
+    pub fn get_device_id(&self) -> AudioObjectID {
+        self.device_id
+    }
+
     pub fn plug(&mut self) -> std::result::Result<(), OSStatus> {
         self.device_id = self.create_aggregate_device()?;
         Ok(())
