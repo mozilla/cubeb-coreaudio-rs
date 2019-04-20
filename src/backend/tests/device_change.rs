@@ -276,7 +276,7 @@ fn test_register_device_changed_callback_to_check_default_device_changed() {
     let input_devices = test_get_devices_in_scope(Scope::Input).len();
     let output_devices = test_get_devices_in_scope(Scope::Output).len();
     if input_devices < 2 && output_devices < 2 {
-        println!("Need 2 devices for input or output at least.");
+        println!("Need 2 input or 2 output devices at least.");
         return;
     }
 
@@ -288,21 +288,20 @@ fn test_register_device_changed_callback_to_check_default_device_changed() {
 
     let input_count = high_pass_filter(input_devices as u32, 2);
     let output_count = high_pass_filter(output_devices as u32, 2);
-    test_ops_duplex_stream_operation(
+
+    test_get_duplex_stream_with_device_changed_callback(
         "stream: test callback for default device changed",
         ptr::null_mut(), // Use default input device.
         ptr::null_mut(), // Use default output device.
         mtx_ptr as *mut c_void,
+        callback,
         |stream| {
             let mut changed_watcher = Watcher::new(&changed_count);
-
-            let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
-            assert!(stm.register_device_changed_callback(Some(callback)).is_ok());
 
             for _ in 0..input_count {
                 // While the stream is re-initializing for the default device switch,
                 // switching for the default device again will be ignored.
-                while stm.switching_device.load(atomic::Ordering::SeqCst) {}
+                while stream.switching_device.load(atomic::Ordering::SeqCst) {}
                 changed_watcher.prepare();
                 assert!(test_change_default_device(Scope::Input).unwrap());
                 changed_watcher.wait_for_change();
@@ -311,13 +310,11 @@ fn test_register_device_changed_callback_to_check_default_device_changed() {
             for _ in 0..output_count {
                 // While the stream is re-initializing for the default device switch,
                 // switching for the default device again will be ignored.
-                while stm.switching_device.load(atomic::Ordering::SeqCst) {}
+                while stream.switching_device.load(atomic::Ordering::SeqCst) {}
                 changed_watcher.prepare();
                 assert!(test_change_default_device(Scope::Output).unwrap());
                 changed_watcher.wait_for_change();
             }
-
-            assert!(stm.register_device_changed_callback(None).is_ok());
         },
     );
 
@@ -356,22 +353,17 @@ fn test_register_device_changed_callback_to_check_input_alive_changed() {
 
     assert_eq!(has_input, input_plugger.plug().is_ok());
 
-    test_ops_duplex_stream_operation(
+    test_get_duplex_stream_with_device_changed_callback(
         "stream: test callback for input alive changed",
         input_plugger.get_device_id() as ffi::cubeb_devid,
         ptr::null_mut(), // Use default output device.
         mtx_ptr as *mut c_void,
-        |stream| {
+        callback,
+        |_stream| {
             let mut changed_watcher = Watcher::new(&changed_count);
-
-            let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
-            assert!(stm.register_device_changed_callback(Some(callback)).is_ok());
-
             changed_watcher.prepare();
             assert!(input_plugger.unplug().is_ok());
             changed_watcher.wait_for_change();
-
-            assert!(stm.register_device_changed_callback(None).is_ok());
         },
     );
 
@@ -383,6 +375,24 @@ fn test_register_device_changed_callback_to_check_input_alive_changed() {
             *guard += 1;
         }
     }
+}
+
+fn test_get_duplex_stream_with_device_changed_callback<F>(
+    name: &'static str,
+    input_device: ffi::cubeb_devid,
+    output_device: ffi::cubeb_devid,
+    data: *mut c_void,
+    callback: extern "C" fn(*mut c_void),
+    operation: F,
+) where
+    F: FnOnce(&mut AudioUnitStream),
+{
+    test_ops_duplex_stream_operation(name, input_device, output_device, data, |stream| {
+        let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+        assert!(stm.register_device_changed_callback(Some(callback)).is_ok());
+        operation(stm);
+        assert!(stm.register_device_changed_callback(None).is_ok());
+    });
 }
 
 fn test_ops_duplex_stream_operation<F>(
