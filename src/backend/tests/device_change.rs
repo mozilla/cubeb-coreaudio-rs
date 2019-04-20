@@ -37,18 +37,16 @@ fn test_switch_device_in_scope(scope: Scope) {
     });
     listener.start();
 
+    let mut changed_watcher = Watcher::new(&count);
     test_get_started_stream_in_scope(scope.clone(), move |_stream| loop {
         thread::sleep(Duration::from_millis(500));
-        if !less_than(&count, devices.len()) {
+        changed_watcher.prepare();
+        assert!(test_change_default_device(scope.clone()).unwrap());
+        changed_watcher.wait_for_change();
+        if changed_watcher.current_result() >= devices.len() {
             break;
         }
-        assert!(test_change_default_device(scope.clone()).unwrap());
     });
-
-    fn less_than(count: &Arc<Mutex<usize>>, limit: usize) -> bool {
-        let cnt = count.lock().unwrap();
-        *cnt < limit
-    }
 }
 
 fn test_get_started_stream_in_scope<F>(scope: Scope, operation: F)
@@ -238,37 +236,6 @@ fn test_plug_and_unplug_device() {
     // The devices-changed callbacks will be unregistered when AudioUnitContext is dropped.
 
     // Helpers for this test.
-    struct Watcher<T: Clone + PartialEq> {
-        watching: Arc<Mutex<T>>,
-        current: Option<T>,
-    }
-
-    impl<T: Clone + PartialEq> Watcher<T> {
-        fn new(value: &Arc<Mutex<T>>) -> Self {
-            Self {
-                watching: Arc::clone(value),
-                current: None,
-            }
-        }
-
-        fn prepare(&mut self) {
-            self.current = Some(self.current_result());
-        }
-
-        fn wait_for_change(&self) {
-            loop {
-                if self.current_result() != self.current.clone().unwrap() {
-                    break;
-                }
-            }
-        }
-
-        fn current_result(&self) -> T {
-            let guard = self.watching.lock().unwrap();
-            guard.clone()
-        }
-    }
-
     fn check_result<T: Clone + PartialEq + Debug>(
         has_device: bool,
         expected: (T, T),
@@ -300,5 +267,36 @@ fn test_plug_and_unplug_device() {
             let mut guard = count.lock().unwrap();
             *guard += 1;
         }
+    }
+}
+
+struct Watcher<T: Clone + PartialEq> {
+    watching: Arc<Mutex<T>>,
+    current: Option<T>,
+}
+
+impl<T: Clone + PartialEq> Watcher<T> {
+    fn new(value: &Arc<Mutex<T>>) -> Self {
+        Self {
+            watching: Arc::clone(value),
+            current: None,
+        }
+    }
+
+    fn prepare(&mut self) {
+        self.current = Some(self.current_result());
+    }
+
+    fn wait_for_change(&self) {
+        loop {
+            if self.current_result() != self.current.clone().unwrap() {
+                break;
+            }
+        }
+    }
+
+    fn current_result(&self) -> T {
+        let guard = self.watching.lock().unwrap();
+        guard.clone()
     }
 }
