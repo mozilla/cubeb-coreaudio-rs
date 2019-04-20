@@ -87,10 +87,9 @@ fn test_aggregate_get_sub_devices_for_blank_aggregate_devices() {
 
 // create_blank_aggregate_device
 // ------------------------------------
-// TODO: Find out why `test_create_blank_aggregate_device` cannot be run with others.
 #[test]
 #[ignore]
-fn test_create_blank_aggregate_device() {
+fn test_aggregate_create_blank_aggregate_device() {
     // TODO: Test this when there is no available devices.
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;
