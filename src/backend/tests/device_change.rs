@@ -274,30 +274,68 @@ fn test_plug_and_unplug_device() {
 
 #[ignore]
 #[test]
-fn test_register_device_changed_callback_to_check_default_device_changed() {
+fn test_register_device_changed_callback_to_check_default_device_changed_input() {
+    test_register_device_changed_callback_to_check_default_device_changed(StreamType::INPUT);
+}
+
+#[ignore]
+#[test]
+fn test_register_device_changed_callback_to_check_default_device_changed_output() {
+    test_register_device_changed_callback_to_check_default_device_changed(StreamType::OUTPUT);
+}
+
+#[ignore]
+#[test]
+fn test_register_device_changed_callback_to_check_default_device_changed_duplex() {
+    test_register_device_changed_callback_to_check_default_device_changed(StreamType::DUPLEX);
+}
+
+fn test_register_device_changed_callback_to_check_default_device_changed(stm_type: StreamType) {
+    println!("NOTICE: The test will hang if the default input or output is an aggregate device.\nWe will fix this later.");
+
     let input_devices = test_get_devices_in_scope(Scope::Input).len();
     let output_devices = test_get_devices_in_scope(Scope::Output).len();
-    if input_devices < 2 && output_devices < 2 {
-        println!("Need 2 input or 2 output devices at least.");
-        return;
-    }
 
-    println!("NOTICE: The test will hang if the default input or output is an aggregate device.\nWe will fix this later.");
+    let input_available = input_devices >= 2;
+    let output_available = output_devices >= 2;
+
+    let run_available = match stm_type {
+        StreamType::INPUT => input_available,
+        StreamType::OUTPUT => output_available,
+        StreamType::DUPLEX => input_available | output_available,
+        _ => {
+            println!("Only test input, output, or duplex stream!");
+            return;
+        }
+    };
+
+    if !run_available {
+        println!("No enough devices to run the test!");
+    }
 
     let changed_count = Arc::new(Mutex::new(0u32));
     let also_changed_count = Arc::clone(&changed_count);
     let mtx_ptr = also_changed_count.as_ref() as *const Mutex<u32>;
 
-    let input_count = high_pass_filter(input_devices as u32, 2);
-    let output_count = high_pass_filter(output_devices as u32, 2);
+    let input_count = if stm_type.contains(StreamType::INPUT) {
+        input_devices
+    } else {
+        0
+    };
+    let output_count = if stm_type.contains(StreamType::OUTPUT) {
+        output_devices
+    } else {
+        0
+    };
 
     let input_device_switcher = TestDeviceSwitcher::new(Scope::Input);
     let output_device_switcher = TestDeviceSwitcher::new(Scope::Output);
 
-    test_get_duplex_stream_with_device_changed_callback(
+    test_get_stream_with_device_changed_callback(
         "stream: test callback for default device changed",
-        ptr::null_mut(), // Use default input device.
-        ptr::null_mut(), // Use default output device.
+        stm_type,
+        None, // Use default input device.
+        None, // Use default output device.
         mtx_ptr as *mut c_void,
         callback,
         |stream| {
@@ -337,19 +375,21 @@ fn test_register_device_changed_callback_to_check_default_device_changed() {
             *guard += 1;
         }
     }
-
-    fn high_pass_filter(value: u32, limit: u32) -> u32 {
-        if value < limit {
-            0
-        } else {
-            value
-        }
-    }
 }
 
 #[ignore]
 #[test]
-fn test_register_device_changed_callback_to_check_input_alive_changed() {
+fn test_register_device_changed_callback_to_check_input_alive_changed_input() {
+    test_register_device_changed_callback_to_check_input_alive_changed(StreamType::INPUT);
+}
+
+#[ignore]
+#[test]
+fn test_register_device_changed_callback_to_check_input_alive_changed_duplex() {
+    test_register_device_changed_callback_to_check_input_alive_changed(StreamType::DUPLEX);
+}
+
+fn test_register_device_changed_callback_to_check_input_alive_changed(stm_type: StreamType) {
     let has_input = test_get_default_device(Scope::Input).is_some();
     if !has_input {
         println!("Need one input device at least.");
@@ -362,12 +402,14 @@ fn test_register_device_changed_callback_to_check_input_alive_changed() {
 
     let mut input_plugger = TestDevicePlugger::new(Scope::Input).unwrap();
 
-    assert_eq!(has_input, input_plugger.plug().is_ok());
+    assert!(input_plugger.plug().is_ok());
+    assert_ne!(input_plugger.get_device_id(), kAudioObjectUnknown);
 
-    test_get_duplex_stream_with_device_changed_callback(
+    test_get_stream_with_device_changed_callback(
         "stream: test callback for input alive changed",
-        input_plugger.get_device_id() as ffi::cubeb_devid,
-        ptr::null_mut(), // Use default output device.
+        stm_type,
+        Some(input_plugger.get_device_id()),
+        None, // Use default output device.
         mtx_ptr as *mut c_void,
         callback,
         |_stream| {
@@ -386,63 +428,6 @@ fn test_register_device_changed_callback_to_check_input_alive_changed() {
             *guard += 1;
         }
     }
-}
-
-fn test_get_duplex_stream_with_device_changed_callback<F>(
-    name: &'static str,
-    input_device: ffi::cubeb_devid,
-    output_device: ffi::cubeb_devid,
-    data: *mut c_void,
-    callback: extern "C" fn(*mut c_void),
-    operation: F,
-) where
-    F: FnOnce(&mut AudioUnitStream),
-{
-    test_ops_duplex_stream_operation(name, input_device, output_device, data, |stream| {
-        let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
-        assert!(stm.register_device_changed_callback(Some(callback)).is_ok());
-        operation(stm);
-        assert!(stm.register_device_changed_callback(None).is_ok());
-    });
-}
-
-fn test_ops_duplex_stream_operation<F>(
-    name: &'static str,
-    input_device: ffi::cubeb_devid,
-    output_device: ffi::cubeb_devid,
-    data: *mut c_void,
-    operation: F,
-) where
-    F: FnOnce(*mut ffi::cubeb_stream),
-{
-    // Make sure the parameters meet the requirements of AudioUnitContext::stream_init
-    // (in the comments).
-    let mut output_params = ffi::cubeb_stream_params::default();
-    output_params.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
-    output_params.rate = 44100;
-    output_params.channels = 2;
-    output_params.layout = ffi::CUBEB_LAYOUT_STEREO;
-    output_params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
-
-    let mut input_params = ffi::cubeb_stream_params::default();
-    input_params.format = ffi::CUBEB_SAMPLE_S16NE;
-    input_params.rate = 48000;
-    input_params.channels = 1;
-    input_params.layout = ffi::CUBEB_LAYOUT_MONO;
-    input_params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
-
-    test_ops_stream_operation(
-        name,
-        input_device,
-        &mut input_params,
-        output_device,
-        &mut output_params,
-        4096, // TODO: Get latency by get_min_latency instead ?
-        None, // No data callback.
-        None, // No state callback.
-        data,
-        operation,
-    );
 }
 
 struct Watcher<T: Clone + PartialEq> {
@@ -474,4 +459,109 @@ impl<T: Clone + PartialEq> Watcher<T> {
         let guard = self.watching.lock().unwrap();
         guard.clone()
     }
+}
+
+bitflags! {
+    struct StreamType: u8 {
+        const INPUT = 0b01;
+        const OUTPUT = 0b10;
+        const DUPLEX = Self::INPUT.bits | Self::OUTPUT.bits;
+    }
+}
+
+fn test_get_stream_with_device_changed_callback<F>(
+    name: &'static str,
+    stm_type: StreamType,
+    input_device: Option<AudioObjectID>,
+    output_device: Option<AudioObjectID>,
+    data: *mut c_void,
+    callback: extern "C" fn(*mut c_void),
+    operation: F,
+) where
+    F: FnOnce(&mut AudioUnitStream),
+{
+    let mut input_params = get_dummy_stream_params(Scope::Input);
+    let mut output_params = get_dummy_stream_params(Scope::Output);
+
+    let in_params = if stm_type.contains(StreamType::INPUT) {
+        &mut input_params as *mut ffi::cubeb_stream_params
+    } else {
+        ptr::null_mut()
+    };
+    let out_params = if stm_type.contains(StreamType::OUTPUT) {
+        &mut output_params as *mut ffi::cubeb_stream_params
+    } else {
+        ptr::null_mut()
+    };
+    let in_device = if let Some(id) = input_device {
+        id as ffi::cubeb_devid
+    } else {
+        ptr::null_mut()
+    };
+    let out_device = if let Some(id) = output_device {
+        id as ffi::cubeb_devid
+    } else {
+        ptr::null_mut()
+    };
+
+    test_ops_empty_callback_stream_operation(
+        name,
+        in_device,
+        in_params,
+        out_device,
+        out_params,
+        data,
+        |stream| {
+            let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+            assert!(stm.register_device_changed_callback(Some(callback)).is_ok());
+            operation(stm);
+            assert!(stm.register_device_changed_callback(None).is_ok());
+        },
+    );
+}
+
+fn test_ops_empty_callback_stream_operation<F>(
+    name: &'static str,
+    input_device: ffi::cubeb_devid,
+    input_stream_params: *mut ffi::cubeb_stream_params,
+    output_device: ffi::cubeb_devid,
+    output_stream_params: *mut ffi::cubeb_stream_params,
+    data: *mut c_void,
+    operation: F,
+) where
+    F: FnOnce(*mut ffi::cubeb_stream),
+{
+    test_ops_stream_operation(
+        name,
+        input_device,
+        input_stream_params,
+        output_device,
+        output_stream_params,
+        4096, // TODO: Get latency by get_min_latency instead ?
+        None, // No data callback.
+        None, // No state callback.
+        data,
+        operation,
+    );
+}
+
+fn get_dummy_stream_params(scope: Scope) -> ffi::cubeb_stream_params {
+    // Make sure the parameters meet the requirements of AudioUnitContext::stream_init
+    // (in the comments).
+    let mut stream_params = ffi::cubeb_stream_params::default();
+    stream_params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+    let (format, rate, channels, layout) = match scope {
+        Scope::Input => (ffi::CUBEB_SAMPLE_S16NE, 48000, 1, ffi::CUBEB_LAYOUT_MONO),
+        Scope::Output => (
+            ffi::CUBEB_SAMPLE_FLOAT32NE,
+            44100,
+            2,
+            ffi::CUBEB_LAYOUT_STEREO,
+        ),
+    };
+    stream_params.format = format;
+    stream_params.rate = rate;
+    stream_params.channels = channels;
+    stream_params.layout = layout;
+    stream_params
 }
