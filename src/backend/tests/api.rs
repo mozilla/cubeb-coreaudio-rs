@@ -1556,7 +1556,7 @@ fn test_init_input_linear_buffer() {
             stream.input_desc.mChannelsPerFrame = CHANNEL;
 
             assert!(stream.input_linear_buffer.is_none());
-            assert!(audiounit_init_input_linear_buffer(stream, BUF_CAPACITY).is_ok());
+            assert!(stream.init_input_linear_buffer(BUF_CAPACITY).is_ok());
             assert!(stream.input_linear_buffer.is_some());
 
             let buffer_ref = stream.input_linear_buffer.as_mut().unwrap();
@@ -1581,7 +1581,7 @@ fn test_init_input_linear_buffer_without_valid_audiodescription() {
     test_get_empty_stream(|stream| {
         stream.latency_frames = 4096;
         assert!(stream.input_linear_buffer.is_none());
-        assert!(audiounit_init_input_linear_buffer(stream, 1).is_err());
+        assert!(stream.init_input_linear_buffer(1).is_err());
     });
 }
 

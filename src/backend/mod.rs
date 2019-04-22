@@ -1816,30 +1816,6 @@ fn audiounit_create_unit(unit: &mut AudioUnit, device: &device_info) -> Result<(
     Ok(())
 }
 
-fn audiounit_init_input_linear_buffer(stream: &mut AudioUnitStream, capacity: u32) -> Result<()>
-{
-    // FIXIT: Make sure `input_desc` is initialized, or the type of the buffer is set to float!
-    // assert_ne!(stream.input_desc.mFormatFlags, 0);
-    // assert_ne!(stream.input_desc.mChannelsPerFrame, 0);
-    // TODO: Make sure latency_frames is larger than zero ?
-    // assert_ne!(stream.latency_frames, 0);
-    let size = (capacity * stream.latency_frames * stream.input_desc.mChannelsPerFrame) as usize;
-    if stream.input_desc.mFormatFlags & kAudioFormatFlagIsSignedInteger != 0 {
-        // TODO: Assert input_desc.mFormatFlags doesn't contain kAudioFormatFlagIsFloat ?
-        // assert_eq!(stream.input_desc.mFormatFlags & kAudioFormatFlagIsFloat, 0);
-        stream.input_linear_buffer = Some(Box::new(AutoArrayImpl::<i16>::new(size)));
-    } else {
-        // TODO: Assert input_desc.mFormatFlags contains kAudioFormatFlagIsFloat ?
-        // assert_ne!(stream.input_desc.mFormatFlags & kAudioFormatFlagIsFloat, 0);
-        // TODO: Assert input_desc.mFormatFlags doesn't contain kAudioFormatFlagIsSignedInteger ?
-        // assert_eq!(stream.input_desc.mFormatFlags & kAudioFormatFlagIsSignedInteger, 0);
-        stream.input_linear_buffer = Some(Box::new(AutoArrayImpl::<f32>::new(size)));
-    }
-    assert_eq!(stream.input_linear_buffer.as_ref().unwrap().elements(), 0);
-
-    Ok(())
-}
-
 // TODO: 1. Change to audiounit_clamp_latency(stm: &mut AudioUnitStream)
 //          latency_frames is actually equal to stm.latency_frames.
 //       2. Merge the value clamp for boundary.
@@ -2154,7 +2130,7 @@ fn audiounit_configure_input(stm: &mut AudioUnitStream) -> Result<()>
         1 // Input only capacity
     };
 
-    if audiounit_init_input_linear_buffer(stm, array_capacity).is_err() {
+    if stm.init_input_linear_buffer(array_capacity).is_err() {
         return Err(Error::error());
     }
 
@@ -3815,6 +3791,29 @@ impl<'ctx> AudioUnitStream<'ctx> {
 
         self.context.layout.store(audiounit_get_current_channel_layout(self.output_unit), atomic::Ordering::SeqCst);
         audiounit_set_channel_layout(self.output_unit, io_side::OUTPUT, self.context.layout.load(atomic::Ordering::SeqCst));
+    }
+
+    fn init_input_linear_buffer(&mut self, capacity: u32) -> Result<()> {
+        // FIXIT: Make sure `input_desc` is initialized, or the type of the buffer is set to float!
+        // assert_ne!(self.input_desc.mFormatFlags, 0);
+        // assert_ne!(self.input_desc.mChannelsPerFrame, 0);
+        // TODO: Make sure latency_frames is larger than zero ?
+        // assert_ne!(self.latency_frames, 0);
+        let size = (capacity * self.latency_frames * self.input_desc.mChannelsPerFrame) as usize;
+        if self.input_desc.mFormatFlags & kAudioFormatFlagIsSignedInteger != 0 {
+            // TODO: Assert input_desc.mFormatFlags doesn't contain kAudioFormatFlagIsFloat ?
+            // assert_eq!(self.input_desc.mFormatFlags & kAudioFormatFlagIsFloat, 0);
+            self.input_linear_buffer = Some(Box::new(AutoArrayImpl::<i16>::new(size)));
+        } else {
+            // TODO: Assert input_desc.mFormatFlags contains kAudioFormatFlagIsFloat ?
+            // assert_ne!(self.input_desc.mFormatFlags & kAudioFormatFlagIsFloat, 0);
+            // TODO: Assert input_desc.mFormatFlags doesn't contain kAudioFormatFlagIsSignedInteger ?
+            // assert_eq!(self.input_desc.mFormatFlags & kAudioFormatFlagIsSignedInteger, 0);
+            self.input_linear_buffer = Some(Box::new(AutoArrayImpl::<f32>::new(size)));
+        }
+        assert_eq!(self.input_linear_buffer.as_ref().unwrap().elements(), 0);
+
+        Ok(())
     }
 
     fn close(&mut self) {
