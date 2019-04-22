@@ -1715,7 +1715,7 @@ fn test_set_buffer_size() {
                 test_audiounit_get_buffer_frame_size(unit, scope.clone(), prop_scope).unwrap();
             assert_ne!(buffer_frames, 0);
             buffer_frames *= 2;
-            assert!(audiounit_set_buffer_size(stream, buffer_frames, scope.into()).is_ok());
+            assert!(stream.set_buffer_size(buffer_frames, scope.into()).is_ok());
         });
     }
 }
@@ -1740,7 +1740,7 @@ fn test_set_buffer_size_by_scope_with_null_unit(scope: Scope) {
         };
         assert!(unit.is_null());
         assert_eq!(
-            audiounit_set_buffer_size(stream, 2048, scope.into()).unwrap_err(),
+            stream.set_buffer_size(2048, scope.into()).unwrap_err(),
             Error::error()
         );
     });
