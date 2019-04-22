@@ -1590,7 +1590,7 @@ fn test_init_input_linear_buffer_without_valid_audiodescription() {
 // TODO: Add a test to test the behavior of clamp_latency without any
 //       active stream.
 //       We are unable to test it right now. If we add a test that should get
-//       a panic when hitting the assertion in audiounit_clamp_latency since
+//       a panic when hitting the assertion in clamp_latency since
 //       there is no active stream, then we will get another panic when
 //       AudioUnitStream::drop/destroy is called. AudioUnitStream::drop/destroy
 //       will check we have at least one active stream when destroying
@@ -1602,7 +1602,7 @@ fn test_clamp_latency_with_one_active_stream() {
     // TODO: It works even when there is no output unit(AudioUnit).
     //       Should we throw an error or panic in this case ?
     test_get_empty_stream(|stream| {
-        // audiounit_clamp_latency will call audiounit_active_streams that requires a lock for
+        // clamp_latency will call active_streams that requires a lock for
         // context.
         // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
         let mutex_ptr = &mut stream.context.mutex as *mut OwnedCriticalSection;
@@ -1612,7 +1612,7 @@ fn test_clamp_latency_with_one_active_stream() {
         assert!(range.start < SAFE_MIN_LATENCY_FRAMES);
         // assert!(range.end < SAFE_MAX_LATENCY_FRAMES);
         for latency_frames in range {
-            let clamp = audiounit_clamp_latency(stream, latency_frames);
+            let clamp = stream.clamp_latency(latency_frames);
             assert_eq!(clamp, test_clamp_latency(latency_frames));
         }
     });
@@ -1626,7 +1626,7 @@ fn test_clamp_latency_with_more_than_one_active_streams() {
             let buffer_frame_size =
                 unit.get_buffer_frame_size(Scope::Output, PropertyScope::Output);
 
-            // audiounit_clamp_latency and audiounit_active_streams require a lock for context.
+            // clamp_latency and active_streams require a lock for context.
             // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
             let mutex_ptr = &mut stream.context.mutex as *mut OwnedCriticalSection;
             let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
@@ -1643,7 +1643,7 @@ fn test_clamp_latency_with_more_than_one_active_streams() {
                 } else {
                     latency_frames
                 };
-                let clamp = audiounit_clamp_latency(stream, latency_frames);
+                let clamp = stream.clamp_latency(latency_frames);
                 assert_eq!(clamp, test_clamp_latency(min));
             }
 
@@ -1659,7 +1659,7 @@ fn test_clamp_latency_with_more_than_one_active_streams() {
 #[should_panic]
 fn test_clamp_latency_with_more_than_one_active_streams_without_output_unit() {
     test_get_empty_stream(|stream| {
-        // audiounit_clamp_latency and audiounit_active_streams require a lock for context.
+        // clamp_latency and active_streams require a lock for context.
         // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
         let mutex_ptr = &mut stream.context.mutex as *mut OwnedCriticalSection;
         let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
@@ -1670,7 +1670,7 @@ fn test_clamp_latency_with_more_than_one_active_streams_without_output_unit() {
         // TODO: We only check this when we have more than one streams.
         //       Should we also check this when we have only one stream ?
         // Get a panic since we don't have valid output AudioUnit.
-        let _ = audiounit_clamp_latency(stream, 0);
+        let _ = stream.clamp_latency(0);
         // The following code won't be executed since we get a panic above.
 
         // Recant the lie about having another stream.
@@ -1955,7 +1955,7 @@ where
                 // The scope of `_ctx_lock` is a critical section.
                 let _ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
                 assert_eq!(stream.latency_frames, 0);
-                stream.latency_frames = audiounit_clamp_latency(stream, 0);
+                stream.latency_frames = stream.clamp_latency(0);
                 assert_ne!(stream.latency_frames, 0);
             }
             let res = match scope {

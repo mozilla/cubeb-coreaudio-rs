@@ -1816,80 +1816,6 @@ fn audiounit_create_unit(unit: &mut AudioUnit, device: &device_info) -> Result<(
     Ok(())
 }
 
-// TODO: 1. Change to audiounit_clamp_latency(stm: &mut AudioUnitStream)
-//          latency_frames is actually equal to stm.latency_frames.
-//       2. Merge the value clamp for boundary.
-fn audiounit_clamp_latency(stm: &mut AudioUnitStream, latency_frames: u32) -> u32
-{
-    // For the 1st stream set anything within safe min-max
-    assert!(stm.context.active_streams() > 0);
-    if stm.context.active_streams() == 1 {
-        return cmp::max(cmp::min(latency_frames, SAFE_MAX_LATENCY_FRAMES),
-                        SAFE_MIN_LATENCY_FRAMES);
-    }
-    // TODO: Should we check this even for 1 stream case ?
-    //       Do we need to set latency if there is no output unit ?
-    assert!(!stm.output_unit.is_null());
-
-    // If more than one stream operates in parallel
-    // allow only lower values of latency
-    let mut r = NO_ERR;
-    let mut output_buffer_size: UInt32 = 0;
-    let mut size = mem::size_of_val(&output_buffer_size);
-    assert_eq!(size, mem::size_of::<UInt32>());
-    // TODO: Why we check `output_unit` here? We already have an assertions above!
-    if !stm.output_unit.is_null() {
-        r = audio_unit_get_property(stm.output_unit,
-                                    kAudioDevicePropertyBufferFrameSize,
-                                    kAudioUnitScope_Output,
-                                    AU_OUT_BUS,
-                                    &mut output_buffer_size,
-                                    &mut size);
-        if r != NO_ERR { // Hit this when there is no output device.
-            cubeb_log!("AudioUnitGetProperty/output/kAudioDevicePropertyBufferFrameSize rv={}", r);
-            // TODO: Shouldn't it return something in range between
-            //       SAFE_MIN_LATENCY_FRAMES and SAFE_MAX_LATENCY_FRAMES ?
-            return 0;
-        }
-
-        output_buffer_size = cmp::max(cmp::min(output_buffer_size, SAFE_MAX_LATENCY_FRAMES),
-                                      SAFE_MIN_LATENCY_FRAMES);
-    }
-
-    let mut input_buffer_size: UInt32 = 0;
-    if !stm.input_unit.is_null() {
-        r = audio_unit_get_property(stm.input_unit,
-                                    kAudioDevicePropertyBufferFrameSize,
-                                    kAudioUnitScope_Input,
-                                    AU_IN_BUS,
-                                    &mut input_buffer_size,
-                                    &mut size);
-        if r != NO_ERR {
-            cubeb_log!("AudioUnitGetProperty/input/kAudioDevicePropertyBufferFrameSize rv={}", r);
-            // TODO: Shouldn't it return something in range between
-            //       SAFE_MIN_LATENCY_FRAMES and SAFE_MAX_LATENCY_FRAMES ?
-            return 0;
-        }
-
-        input_buffer_size = cmp::max(cmp::min(input_buffer_size, SAFE_MAX_LATENCY_FRAMES),
-                                     SAFE_MIN_LATENCY_FRAMES);
-    }
-
-    // Every following active streams can only set smaller latency
-    let upper_latency_limit = if input_buffer_size != 0 && output_buffer_size != 0 {
-        cmp::min(input_buffer_size, output_buffer_size)
-    } else if input_buffer_size != 0 {
-        input_buffer_size
-    } else if output_buffer_size != 0 {
-        output_buffer_size
-    } else {
-        SAFE_MAX_LATENCY_FRAMES
-    };
-
-    cmp::max(cmp::min(latency_frames, upper_latency_limit),
-             SAFE_MIN_LATENCY_FRAMES)
-}
-
 /*
  * Change buffer size is prone to deadlock thus we change it
  * following the steps:
@@ -2323,9 +2249,7 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
          * often. */
         // Create a `latency_frames` here to avoid the borrowing issue.
         let latency_frames = stm.latency_frames;
-        // TODO: Change `audiounit_clamp_latency` to audiounit_clamp_latency(stm) to avoid
-        //       the borrowing issue.
-        stm.latency_frames = audiounit_clamp_latency(stm, latency_frames);
+        stm.latency_frames = stm.clamp_latency(latency_frames);
         assert!(stm.latency_frames > 0); // Ugly error check
         stm.context.set_global_latency(stm.latency_frames);
     }
@@ -3815,6 +3739,77 @@ impl<'ctx> AudioUnitStream<'ctx> {
 
         Ok(())
     }
+
+    fn clamp_latency(&mut self, latency_frames: u32) -> u32 {
+        // For the 1st stream set anything within safe min-max
+        assert!(self.context.active_streams() > 0);
+        if self.context.active_streams() == 1 {
+            return cmp::max(cmp::min(latency_frames, SAFE_MAX_LATENCY_FRAMES),
+                            SAFE_MIN_LATENCY_FRAMES);
+        }
+        // TODO: Should we check this even for 1 stream case ?
+        //       Do we need to set latency if there is no output unit ?
+        assert!(!self.output_unit.is_null());
+
+        // If more than one stream operates in parallel
+        // allow only lower values of latency
+        let mut r = NO_ERR;
+        let mut output_buffer_size: UInt32 = 0;
+        let mut size = mem::size_of_val(&output_buffer_size);
+        assert_eq!(size, mem::size_of::<UInt32>());
+        // TODO: Why we check `output_unit` here? We already have an assertions above!
+        if !self.output_unit.is_null() {
+            r = audio_unit_get_property(self.output_unit,
+                                        kAudioDevicePropertyBufferFrameSize,
+                                        kAudioUnitScope_Output,
+                                        AU_OUT_BUS,
+                                        &mut output_buffer_size,
+                                        &mut size);
+            if r != NO_ERR { // Hit this when there is no output device.
+                cubeb_log!("AudioUnitGetProperty/output/kAudioDevicePropertyBufferFrameSize rv={}", r);
+                // TODO: Shouldn't it return something in range between
+                //       SAFE_MIN_LATENCY_FRAMES and SAFE_MAX_LATENCY_FRAMES ?
+                return 0;
+            }
+
+            output_buffer_size = cmp::max(cmp::min(output_buffer_size, SAFE_MAX_LATENCY_FRAMES),
+                                        SAFE_MIN_LATENCY_FRAMES);
+        }
+
+        let mut input_buffer_size: UInt32 = 0;
+        if !self.input_unit.is_null() {
+            r = audio_unit_get_property(self.input_unit,
+                                        kAudioDevicePropertyBufferFrameSize,
+                                        kAudioUnitScope_Input,
+                                        AU_IN_BUS,
+                                        &mut input_buffer_size,
+                                        &mut size);
+            if r != NO_ERR {
+                cubeb_log!("AudioUnitGetProperty/input/kAudioDevicePropertyBufferFrameSize rv={}", r);
+                // TODO: Shouldn't it return something in range between
+                //       SAFE_MIN_LATENCY_FRAMES and SAFE_MAX_LATENCY_FRAMES ?
+                return 0;
+            }
+
+            input_buffer_size = cmp::max(cmp::min(input_buffer_size, SAFE_MAX_LATENCY_FRAMES),
+                                        SAFE_MIN_LATENCY_FRAMES);
+        }
+
+        // Every following active streams can only set smaller latency
+        let upper_latency_limit = if input_buffer_size != 0 && output_buffer_size != 0 {
+            cmp::min(input_buffer_size, output_buffer_size)
+        } else if input_buffer_size != 0 {
+            input_buffer_size
+        } else if output_buffer_size != 0 {
+            output_buffer_size
+        } else {
+            SAFE_MAX_LATENCY_FRAMES
+        };
+
+        cmp::max(cmp::min(latency_frames, upper_latency_limit),
+                SAFE_MIN_LATENCY_FRAMES)
+    }
+
 
     fn close(&mut self) {
         self.mutex.assert_current_thread_owns();
