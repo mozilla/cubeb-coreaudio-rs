@@ -1149,7 +1149,7 @@ fn test_layout_init() {
 
             let layout = audiounit_get_current_channel_layout(stream.output_unit);
 
-            audiounit_layout_init(stream, io_side::OUTPUT);
+            stream.layout_init(io_side::OUTPUT);
 
             assert_eq!(stream.context.layout.load(atomic::Ordering::SeqCst), layout);
         });

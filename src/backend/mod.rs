@@ -1167,17 +1167,6 @@ fn audiounit_set_channel_layout(unit: AudioUnit,
     Ok(())
 }
 
-fn audiounit_layout_init(stm: &mut AudioUnitStream, side: io_side)
-{
-    // We currently don't support the input layout setting.
-    if side == io_side::INPUT {
-        return;
-    }
-
-    stm.context.layout.store(audiounit_get_current_channel_layout(stm.output_unit), atomic::Ordering::SeqCst);
-    let _ = audiounit_set_channel_layout(stm.output_unit, io_side::OUTPUT, stm.context.layout.load(atomic::Ordering::SeqCst));
-}
-
 fn audiounit_get_sub_devices(device_id: AudioDeviceID) -> Vec<AudioObjectID>
 {
     // FIXIT: Add a check ? We will fail to get data size if `device_id`
@@ -2228,7 +2217,7 @@ fn audiounit_configure_output(stm: &mut AudioUnitStream) -> Result<()>
     stm.context.channels = output_hw_desc.mChannelsPerFrame;
 
     // Set the input layout to match the output device layout.
-    audiounit_layout_init(stm, io_side::OUTPUT);
+    stm.layout_init(io_side::OUTPUT);
     if stm.context.channels != stm.output_stream_params.channels() ||
        stm.context.layout.load(atomic::Ordering::SeqCst) != stm.output_stream_params.layout() {
         cubeb_log!("Incompatible channel layouts detected, setting up remixer");
@@ -3815,6 +3804,17 @@ impl<'ctx> AudioUnitStream<'ctx> {
             }
         );
         assert!(!self.mixer.as_mut_ptr().is_null());
+    }
+
+    // TODO: Rename to init_layout ?
+    fn layout_init(&mut self, side: io_side) {
+        // We currently don't support the input layout setting.
+        if side == io_side::INPUT {
+            return;
+        }
+
+        self.context.layout.store(audiounit_get_current_channel_layout(self.output_unit), atomic::Ordering::SeqCst);
+        audiounit_set_channel_layout(self.output_unit, io_side::OUTPUT, self.context.layout.load(atomic::Ordering::SeqCst));
     }
 
     fn close(&mut self) {
