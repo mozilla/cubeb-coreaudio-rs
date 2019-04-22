@@ -12,7 +12,12 @@ cargo test test_parallel_init_streams_in_parallel -- --ignored
 # Device-changed Tests
 cargo test test_switch_device -- --ignored --nocapture
 cargo test test_plug_and_unplug_device -- --ignored --nocapture
-cargo test test_register_device_changed_callback -- --ignored --nocapture --test-threads=1
+# cargo test test_register_device_changed_callback -- --ignored --nocapture --test-threads=1
+cargo test test_register_device_changed_callback_to_check_default_device_changed_input -- --ignored --nocapture
+cargo test test_register_device_changed_callback_to_check_default_device_changed_output -- --ignored --nocapture
+cargo test test_register_device_changed_callback_to_check_default_device_changed_duplex -- --ignored --nocapture
+cargo test test_register_device_changed_callback_to_check_input_alive_changed_input -- --ignored --nocapture
+cargo test test_register_device_changed_callback_to_check_input_alive_changed_duplex -- --ignored --nocapture
 
 # Manual Tests
 # cargo test test_switch_output_device -- --ignored --nocapture

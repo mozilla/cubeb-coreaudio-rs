@@ -284,6 +284,32 @@ fn test_register_device_changed_callback_to_check_default_device_changed_output(
     test_register_device_changed_callback_to_check_default_device_changed(StreamType::OUTPUT);
 }
 
+// NOTICE:
+// Avoid run this test with other tests that needs to set default device, in case other
+// tests count the aggregate device that is created by this duplex but will be destroyed
+// into its candidates to set default device.
+//
+// The TestDeviceSwitcher cannot work when there is an alive full-duplex stream.
+// An aggregate device will be created for a duplex stream when its input and output devices
+// are different. The TestDeviceSwitcher will cached the available devices, upon it's created,
+// as the candidates for the default device. Therefore, the created aggregate device by the
+// duplex stream may be cached in TestDeviceSwitcher. If the aggregate device is destroyed
+// (when the destroying the duplex stream created it) but the TestDeviceSwitcher is still
+// working, it will set a destroyed device as the default device.
+// Calling audiounit_destroy_aggregate_device is not really helpful since the created
+// aggregate device won't be remove from the system immediately.
+//
+// For example, if test_register_device_changed_callback_to_check_default_device_changed_duplex
+// run before test_register_device_changed_callback_to_check_default_device_changed_{input, output},
+// the aggrgate device created for the duplex stream may not be removed from the system yet
+// when test_register_device_changed_callback_to_check_default_device_changed_duplex is finished,
+// even audiounit_destroy_aggregate_device is called. Therefore, this aggrgate device may be
+// added to the candidate list to set default device
+// test_register_device_changed_callback_to_check_default_device_changed_{input, output}.
+// However, when {input, output}_device_switcher.next() is called, that aggrgate device
+// is already removed so {input, output}_device_switcher.next() fails. That's why we cannot run
+// `cargo test test_register_device_changed_callback -- --ignored --nocapture --test-threads=1`.
+
 #[ignore]
 #[test]
 fn test_register_device_changed_callback_to_check_default_device_changed_duplex() {
@@ -383,6 +409,20 @@ fn test_register_device_changed_callback_to_check_input_alive_changed_input() {
     test_register_device_changed_callback_to_check_input_alive_changed(StreamType::INPUT);
 }
 
+// NOTICE:
+// Avoid run this test with other tests that needs to set default device, in case other
+// tests count the aggregate device that is created by this duplex but will be destroyed
+// into its candidates to set default device.
+//
+// The TestDeviceSwitcher cannot work when there is an alive full-duplex stream.
+// An aggregate device will be created for a duplex stream when its input and output devices
+// are different. The TestDeviceSwitcher will cached the available devices, upon it's created,
+// as the candidates for the default device. Therefore, the created aggregate device by the
+// duplex stream may be cached in TestDeviceSwitcher. If the aggregate device is destroyed
+// (when the destroying the duplex stream created it) but the TestDeviceSwitcher is still
+// working, it will set a destroyed device as the default device.
+// Calling audiounit_destroy_aggregate_device is not really helpful since the created
+// aggregate device won't be remove from the system immediately.
 #[ignore]
 #[test]
 fn test_register_device_changed_callback_to_check_input_alive_changed_duplex() {

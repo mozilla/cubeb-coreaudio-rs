@@ -232,6 +232,13 @@ Only those tests commented with *FIXIT* are left.
   - A panic in `capi_register_device_collection_changed` causes `EXC_BAD_INSTRUCTION`.
   - Works fine if replacing `register_device_collection_changed: Option<unsafe extern "C" fn(..,) -> c_int>` to `register_device_collection_changed: unsafe extern "C" fn(..,) -> c_int`
   - Test them in `AudioUnitContext` directly instead of calling them via `OPS` for now.
+- `TestDeviceSwitcher` cannot work when there is an alive full-duplex stream
+  - An aggregate device will be created for a duplex stream when its input and output devices are different.
+  - `TestDeviceSwitcher` will cached the available devices, upon it's created, as the candidates for default device
+  - Hence the created aggregate device may be cached in `TestDeviceSwitcher`
+  - If the aggregate device is destroyed (when the destroying the duplex stream created it) but the `TestDeviceSwitcher` is still working,
+    it will set a destroyed device as the default device
+  - See details in [device_change.rs](src/backend/tests/device_change.rs)
 
 [cubeb]: https://github.com/kinetiknz/cubeb "Cross platform audio library"
 [cubeb]: https://github.com/kinetiknz/cubeb/blob/master/src/cubeb.c "cubeb.c"
