@@ -2249,26 +2249,6 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
     Ok(())
 }
 
-fn audiounit_stream_destroy_internal(stm: &mut AudioUnitStream)
-{
-    stm.context.mutex.assert_current_thread_owns();
-
-    if stm.uninstall_system_changed_callback().is_err() {
-        cubeb_log!("({:p}) Could not uninstall the device changed callback", stm as *const AudioUnitStream);
-    }
-
-    if stm.uninstall_device_changed_callback().is_err() {
-        cubeb_log!("({:p}) Could not uninstall all device change listeners", stm as *const AudioUnitStream);
-    }
-
-    // The scope of `_lock` is a critical section.
-    let mutex_ptr = &mut stm.mutex as *mut OwnedCriticalSection;
-    let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-    stm.close();
-    assert!(stm.context.active_streams() >= 1);
-    stm.context.decrease_active_streams();
-}
-
 fn convert_uint32_into_string(data: u32) -> CString
 {
     // Simply create an empty string if no data.
@@ -3843,6 +3823,24 @@ impl<'ctx> AudioUnitStream<'ctx> {
         }
     }
 
+    fn destroy_internal(&mut self) {
+        self.context.mutex.assert_current_thread_owns();
+
+        if self.uninstall_system_changed_callback().is_err() {
+            cubeb_log!("({:p}) Could not uninstall the device changed callback", self as *const AudioUnitStream);
+        }
+
+        if self.uninstall_device_changed_callback().is_err() {
+            cubeb_log!("({:p}) Could not uninstall all device change listeners", self as *const AudioUnitStream);
+        }
+
+        // The scope of `_lock` is a critical section.
+        let mutex_ptr = &mut self.mutex as *mut OwnedCriticalSection;
+        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        self.close();
+        assert!(self.context.active_streams() >= 1);
+        self.context.decrease_active_streams();
+    }
 
     fn start_internal(&self) {
         if !self.input_unit.is_null() {
@@ -3881,10 +3879,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
 
     fn destroy(&mut self) {
         if !self.shutdown.load(Ordering::SeqCst) {
-            // Since we cannot call `AutoLock::new(&mut stm.context.mutex)` and
-            // `audiounit_stream_destroy_internal(stm)` at the same time,
-            // We take the pointer to `stm.context.mutex` first and then dereference
-            // it to the mutex to avoid this problem for now.
             let mutex_ptr = &mut self.context.mutex as *mut OwnedCriticalSection;
             // The scope of `_context_lock` is a critical section.
             let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
@@ -3901,12 +3895,11 @@ impl<'ctx> AudioUnitStream<'ctx> {
         // with reinit when un/plug devices
         sync_dispatch(queue, move || {
             let mut stm_guard = also_mutexed_stm.lock().unwrap();
-            let stm = &mut *(*stm_guard);
             // Use `mutex_ptr` to avoid the same borrowing issue as above.
-            let mutex_ptr = &mut stm.context.mutex as *mut OwnedCriticalSection;
+            let mutex_ptr = &mut stm_guard.context.mutex as *mut OwnedCriticalSection;
             // The scope of `_context_lock` is a critical section.
             let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-            audiounit_stream_destroy_internal(stm);
+            stm_guard.destroy_internal();
         });
 
         let stm_guard = mutexed_stm.lock().unwrap();
