@@ -1,6 +1,6 @@
 use super::utils::{
-    test_change_default_device, test_create_device_change_listener, test_get_default_device,
-    test_get_devices_in_scope, test_ops_stream_operation, Scope, TestDevicePlugger,
+    test_create_device_change_listener, test_get_default_device, test_get_devices_in_scope,
+    test_ops_stream_operation, Scope, TestDevicePlugger, TestDeviceSwitcher,
 };
 use super::*;
 use std::fmt::Debug;
@@ -28,6 +28,8 @@ fn test_switch_device_in_scope(scope: Scope) {
         scope
     );
 
+    let device_switcher = TestDeviceSwitcher::new(scope.clone());
+
     let count = Arc::new(Mutex::new(0));
     let also_count = Arc::clone(&count);
     let listener = test_create_device_change_listener(scope.clone(), move |_addresses| {
@@ -41,7 +43,7 @@ fn test_switch_device_in_scope(scope: Scope) {
     test_get_started_stream_in_scope(scope.clone(), move |_stream| loop {
         thread::sleep(Duration::from_millis(500));
         changed_watcher.prepare();
-        assert!(test_change_default_device(scope.clone()).unwrap());
+        assert!(device_switcher.next().unwrap());
         changed_watcher.wait_for_change();
         if changed_watcher.current_result() >= devices.len() {
             break;
@@ -289,6 +291,9 @@ fn test_register_device_changed_callback_to_check_default_device_changed() {
     let input_count = high_pass_filter(input_devices as u32, 2);
     let output_count = high_pass_filter(output_devices as u32, 2);
 
+    let input_device_switcher = TestDeviceSwitcher::new(Scope::Input);
+    let output_device_switcher = TestDeviceSwitcher::new(Scope::Output);
+
     test_get_duplex_stream_with_device_changed_callback(
         "stream: test callback for default device changed",
         ptr::null_mut(), // Use default input device.
@@ -296,6 +301,12 @@ fn test_register_device_changed_callback_to_check_default_device_changed() {
         mtx_ptr as *mut c_void,
         callback,
         |stream| {
+            // If the duplex stream uses different input and output device,
+            // an aggregate device will be created and it will work for this duplex stream.
+            // This aggregate device will be added into the device list, but it won't
+            // be assigned to the default device, since the device list for setting
+            // default device is cached upon {input, output}_device_switcher is initialized.
+
             let mut changed_watcher = Watcher::new(&changed_count);
 
             for _ in 0..input_count {
@@ -303,7 +314,7 @@ fn test_register_device_changed_callback_to_check_default_device_changed() {
                 // switching for the default device again will be ignored.
                 while stream.switching_device.load(atomic::Ordering::SeqCst) {}
                 changed_watcher.prepare();
-                assert!(test_change_default_device(Scope::Input).unwrap());
+                assert!(input_device_switcher.next().unwrap());
                 changed_watcher.wait_for_change();
             }
 
@@ -312,7 +323,7 @@ fn test_register_device_changed_callback_to_check_default_device_changed() {
                 // switching for the default device again will be ignored.
                 while stream.switching_device.load(atomic::Ordering::SeqCst) {}
                 changed_watcher.prepare();
-                assert!(test_change_default_device(Scope::Output).unwrap());
+                assert!(output_device_switcher.next().unwrap());
                 changed_watcher.wait_for_change();
             }
         },

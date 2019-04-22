@@ -460,17 +460,34 @@ pub fn test_set_default_device(
     }
 }
 
-pub fn test_change_default_device(scope: Scope) -> std::result::Result<bool, OSStatus> {
-    let current = test_get_default_device(scope.clone()).unwrap();
-    let devices = test_get_devices_in_scope(scope.clone());
-    let mut index = devices
-        .iter()
-        .position(|device| *device == current)
-        .unwrap();
-    index = (index + 1) % devices.len();
-    let next = devices[index];
-    println!("Switch device for {:?}: {} -> {}", scope, current, next);
-    test_set_default_device(next, scope)
+pub struct TestDeviceSwitcher {
+    scope: Scope,
+    devices: Vec<AudioObjectID>,
+}
+
+impl TestDeviceSwitcher {
+    pub fn new(scope: Scope) -> Self {
+        Self {
+            scope: scope.clone(),
+            devices: test_get_devices_in_scope(scope),
+        }
+    }
+
+    pub fn next(&self) -> std::result::Result<bool, OSStatus> {
+        let current = test_get_default_device(self.scope.clone()).unwrap();
+        let mut index = self
+            .devices
+            .iter()
+            .position(|device| *device == current)
+            .unwrap();
+        index = (index + 1) % self.devices.len();
+        let next = self.devices[index];
+        println!(
+            "Switch device for {:?}: {} -> {}",
+            self.scope, current, next
+        );
+        test_set_default_device(next, self.scope.clone())
+    }
 }
 
 pub fn test_create_device_change_listener<F>(scope: Scope, listener: F) -> TestPropertyListener<F>

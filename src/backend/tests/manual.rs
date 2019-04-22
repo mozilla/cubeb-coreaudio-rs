@@ -1,6 +1,6 @@
 use super::utils::{
-    test_change_default_device, test_get_default_device, test_get_devices_in_scope,
-    test_get_empty_stream, test_ops_stream_operation, Scope,
+    test_get_default_device, test_get_devices_in_scope, test_get_empty_stream,
+    test_ops_stream_operation, Scope, TestDeviceSwitcher,
 };
 use super::*;
 
@@ -18,6 +18,8 @@ fn test_switch_output_device() {
         println!("Need 2 output devices at least.");
         return;
     }
+
+    let output_device_switcher = TestDeviceSwitcher::new(Scope::Output);
 
     // Make sure the parameters meet the requirements of AudioUnitContext::stream_init
     // (in the comments).
@@ -50,7 +52,7 @@ fn test_switch_output_device() {
                 assert_eq!(input.pop().unwrap(), '\n');
                 match input.as_str() {
                     "s" => {
-                        assert!(test_change_default_device(Scope::Output).unwrap());
+                        assert!(output_device_switcher.next().unwrap());
                     }
                     "q" => {
                         println!("Quit.");
