@@ -1,6 +1,7 @@
 use super::utils::{
-    test_create_device_change_listener, test_get_default_device, test_get_devices_in_scope,
-    test_ops_stream_operation, Scope, TestDevicePlugger, TestDeviceSwitcher,
+    test_create_device_change_listener, test_device_in_scope, test_get_default_device,
+    test_get_devices_in_scope, test_ops_stream_operation, Scope, TestDevicePlugger,
+    TestDeviceSwitcher,
 };
 use super::*;
 use std::fmt::Debug;
@@ -163,9 +164,22 @@ where
 #[ignore]
 #[test]
 fn test_plug_and_unplug_device() {
+    test_plug_and_unplug_device_in_scope(Scope::Input);
+    test_plug_and_unplug_device_in_scope(Scope::Output);
+}
+
+fn test_plug_and_unplug_device_in_scope(scope: Scope) {
+    let default_device = test_get_default_device(scope.clone());
+    if default_device.is_none() {
+        println!("No device for {:?} to test", scope);
+    }
+
+    println!("Run test for {:?}", scope);
     println!("NOTICE: The test will hang if the default input or output is an aggregate device.\nWe will fix this later.");
-    let has_input = test_get_default_device(Scope::Input).is_some();
-    let has_output = test_get_default_device(Scope::Output).is_some();
+
+    let default_device = default_device.unwrap();
+    let is_input = test_device_in_scope(default_device, Scope::Input);
+    let is_output = test_device_in_scope(default_device, Scope::Output);
 
     // Initialize the the mutex (whose type is OwnedCriticalSection) within AudioUnitContext,
     // by AudioUnitContext::Init, to make the mutex work.
@@ -197,55 +211,43 @@ fn test_plug_and_unplug_device() {
         )
         .is_ok());
 
-    let mut input_plugger = TestDevicePlugger::new(Scope::Input).unwrap();
-    let mut output_plugger = TestDevicePlugger::new(Scope::Output).unwrap();
-
     let mut input_watcher = Watcher::new(&input_count);
     let mut output_watcher = Watcher::new(&output_count);
+
+    let mut device_plugger = TestDevicePlugger::new(scope).unwrap();
 
     // Simulate adding devices and monitor the devices-changed callbacks.
     input_watcher.prepare();
     output_watcher.prepare();
-    assert_eq!(has_input, input_plugger.plug().is_ok());
-    assert_eq!(has_output, output_plugger.plug().is_ok());
 
-    if has_input {
+    assert!(device_plugger.plug().is_ok());
+
+    if is_input {
         input_watcher.wait_for_change();
     }
-    if has_output {
+    if is_output {
         output_watcher.wait_for_change();
     }
 
-    check_result(has_input, (1, 0), &input_watcher);
-    check_result(has_output, (1, 0), &output_watcher);
+    // Check changed count.
+    check_result(is_input, (1, 0), &input_watcher);
+    check_result(is_output, (1, 0), &output_watcher);
 
     // Simulate removing devices and monitor the devices-changed callbacks.
     input_watcher.prepare();
     output_watcher.prepare();
-    assert!(!has_input || input_plugger.unplug().is_ok());
-    assert!(!has_output || output_plugger.unplug().is_ok());
 
-    if has_input {
+    assert!(device_plugger.unplug().is_ok());
+
+    if is_input {
         input_watcher.wait_for_change();
     }
-    if has_output {
+    if is_output {
         output_watcher.wait_for_change();
     }
 
-    check_result(has_input, (2, 0), &input_watcher);
-    check_result(has_output, (2, 0), &output_watcher);
-
-    // The devices-changed callbacks will be unregistered when AudioUnitContext is dropped.
-
-    // Helpers for this test.
-    fn check_result<T: Clone + PartialEq + Debug>(
-        has_device: bool,
-        expected: (T, T),
-        watcher: &Watcher<T>,
-    ) {
-        let expected_result = if has_device { expected.0 } else { expected.1 };
-        assert_eq!(watcher.current_result(), expected_result);
-    }
+    check_result(is_input, (2, 0), &input_watcher);
+    check_result(is_output, (2, 0), &output_watcher);
 
     extern "C" fn input_changed_callback(context: *mut ffi::cubeb, data: *mut c_void) {
         println!(
@@ -269,6 +271,17 @@ fn test_plug_and_unplug_device() {
             let mut guard = count.lock().unwrap();
             *guard += 1;
         }
+    }
+
+    fn check_result<T: Clone + Debug + PartialEq>(
+        in_scope: bool,
+        expected: (T, T),
+        watcher: &Watcher<T>,
+    ) {
+        assert_eq!(
+            watcher.current_result(),
+            if in_scope { expected.0 } else { expected.1 }
+        );
     }
 }
 
