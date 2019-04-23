@@ -62,8 +62,6 @@ use super::*;
 //
 // The above tests are added a prefix `test_aggregate` so we can run these ignored tests easily on
 // an indivisual test command, rather than run these tests with others together.
-//
-// TODO: Find out why `test_create_blank_aggregate_device` cannot be run with others.
 
 // get_sub_devices
 // ------------------------------------
