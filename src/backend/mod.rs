@@ -406,33 +406,6 @@ extern fn audiounit_input_callback(user_ptr: *mut c_void,
     NO_ERR
 }
 
-fn audiounit_mix_output_buffer(stm: &mut AudioUnitStream,
-                               output_frames: usize,
-                               input_buffer: *mut c_void,
-                               input_buffer_size: usize,
-                               output_buffer: *mut c_void,
-                               output_buffer_size: usize)
-{
-    assert!(input_buffer_size >=
-            cubeb_sample_size(stm.output_stream_params.format()) *
-                stm.output_stream_params.channels() as usize * output_frames);
-    assert!(output_buffer_size >= stm.output_desc.mBytesPerFrame as usize * output_frames);
-
-    let r = unsafe {
-        ffi::cubeb_mixer_mix(
-            stm.mixer.as_mut(),
-            output_frames,
-            input_buffer,
-            input_buffer_size,
-            output_buffer,
-            output_buffer_size
-        )
-    };
-    if r != 0 {
-        cubeb_log!("Remix error = {}", r);
-    }
-}
-
 extern fn audiounit_output_callback(user_ptr: *mut c_void,
                                     _: *mut AudioUnitRenderActionFlags,
                                     _tstamp: *const AudioTimeStamp,
@@ -620,12 +593,13 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
         assert_eq!(stm.temp_buffer_size, stm.temp_buffer.len() * mem::size_of::<u8>());
         assert_eq!(output_buffer, stm.temp_buffer.as_mut_ptr() as *mut c_void);
         let temp_buffer_size = stm.temp_buffer_size;
-        audiounit_mix_output_buffer(stm,
-                                    output_frames as usize,
-                                    output_buffer,
-                                    temp_buffer_size,
-                                    buffers[0].mData,
-                                    buffers[0].mDataByteSize as usize);
+        stm.mix_output_buffer(
+            output_frames as usize,
+            output_buffer,
+            temp_buffer_size,
+            buffers[0].mData,
+            buffers[0].mDataByteSize as usize
+        );
     }
 
     NO_ERR
@@ -3333,6 +3307,33 @@ impl<'ctx> AudioUnitStream<'ctx> {
 
     fn has_output(&self) -> bool {
         self.output_stream_params.rate() > 0
+    }
+
+    fn mix_output_buffer(
+        &mut self,
+        output_frames: usize,
+        input_buffer: *mut c_void,
+        input_buffer_size: usize,
+        output_buffer: *mut c_void,
+        output_buffer_size: usize) {
+        assert!(input_buffer_size >=
+                cubeb_sample_size(self.output_stream_params.format()) *
+                    self.output_stream_params.channels() as usize * output_frames);
+        assert!(output_buffer_size >= self.output_desc.mBytesPerFrame as usize * output_frames);
+
+        let r = unsafe {
+            ffi::cubeb_mixer_mix(
+                self.mixer.as_mut(),
+                output_frames,
+                input_buffer,
+                input_buffer_size,
+                output_buffer,
+                output_buffer_size
+            )
+        };
+        if r != 0 {
+            cubeb_log!("Remix error = {}", r);
+        }
     }
 
     fn minimum_resampling_input_frames(&self, output_frames: i64) -> i64 {
