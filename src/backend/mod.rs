@@ -1491,166 +1491,6 @@ extern fn buffer_size_changed_callback(in_client_data: *mut c_void,
     }
 }
 
-fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
-{
-    // TODO: Add stm.context.mutex.assert_current_thread_owns() ?
-    //       audiounit_active_streams will require to own the mutex in
-    //       stm.context.
-    stm.mutex.assert_current_thread_owns();
-
-    if stm.input_stream_params.prefs().contains(StreamPrefs::LOOPBACK) ||
-       stm.output_stream_params.prefs().contains(StreamPrefs::LOOPBACK) {
-        cubeb_log!("({:p}) Loopback not supported for audiounit.", stm as *const AudioUnitStream);
-        return Err(Error::not_supported());
-    }
-
-    let mut in_dev_info = stm.input_device.clone();
-    let mut out_dev_info = stm.output_device.clone();
-
-    if stm.has_input() && stm.has_output() &&
-       stm.input_device.id != stm.output_device.id {
-        if stm.create_aggregate_device().is_err() {
-            stm.aggregate_device_id = kAudioObjectUnknown;
-            cubeb_log!("({:p}) Create aggregate devices failed.", stm as *const AudioUnitStream);
-            // !!!NOTE: It is not necessary to return here. If it does not
-            // return it will fallback to the old implementation. The intention
-            // is to investigate how often it fails. I plan to remove
-            // it after a couple of weeks.
-        } else {
-            in_dev_info.id = stm.aggregate_device_id;
-            out_dev_info.id = stm.aggregate_device_id;
-            in_dev_info.flags = device_flags::DEV_INPUT;
-            out_dev_info.flags = device_flags::DEV_OUTPUT;
-        }
-    }
-
-    if stm.has_input() {
-        if let Err(r) = audiounit_create_unit(&mut stm.input_unit, &in_dev_info) {
-            cubeb_log!("({:p}) AudioUnit creation for input failed.", stm as *const AudioUnitStream);
-            return Err(r);
-        }
-    }
-
-    if stm.has_output() {
-        if let Err(r) = audiounit_create_unit(&mut stm.output_unit, &out_dev_info) {
-            cubeb_log!("({:p}) AudioUnit creation for output failed.", stm as *const AudioUnitStream);
-            return Err(r);
-        }
-    }
-
-    /* Latency cannot change if another stream is operating in parallel. In this case
-     * latecy is set to the other stream value. */
-    if stm.context.active_streams() > 1 {
-        cubeb_log!("({:p}) More than one active stream, use global latency.", stm as *const AudioUnitStream);
-        stm.latency_frames = stm.context.global_latency_frames;
-    } else {
-        /* Silently clamp the latency down to the platform default, because we
-         * synthetize the clock from the callbacks, and we want the clock to update
-         * often. */
-        // Create a `latency_frames` here to avoid the borrowing issue.
-        let latency_frames = stm.latency_frames;
-        stm.latency_frames = stm.clamp_latency(latency_frames);
-        assert!(stm.latency_frames > 0); // Ugly error check
-        stm.context.set_global_latency(stm.latency_frames);
-    }
-
-    /* Configure I/O stream */
-    if stm.has_input() {
-        if let Err(r) = stm.configure_input() {
-            cubeb_log!("({:p}) Configure audiounit input failed.", stm as *const AudioUnitStream);
-            return Err(r);
-        }
-    }
-
-    if stm.has_output() {
-        if let Err(r) = stm.configure_output() {
-            cubeb_log!("({:p}) Configure audiounit output failed.", stm as *const AudioUnitStream);
-            return Err(r);
-        }
-    }
-
-    /* We use a resampler because input AudioUnit operates
-     * reliable only in the capture device sample rate.
-     * Resampler will convert it to the user sample rate
-     * and deliver it to the callback. */
-    let target_sample_rate = if stm.has_input() {
-        stm.input_stream_params.rate()
-    } else {
-        assert!(stm.has_output());
-        stm.output_stream_params.rate()
-    };
-
-    let mut input_unconverted_params: ffi::cubeb_stream_params = unsafe { ::std::mem::zeroed() };
-    if stm.has_input() {
-        input_unconverted_params = unsafe { (*(stm.input_stream_params.as_ptr())) }; // Perform copy.
-        input_unconverted_params.rate = stm.input_hw_rate as u32;
-    }
-
-    let stm_ptr = stm as *mut AudioUnitStream as *mut ffi::cubeb_stream;
-    let stm_has_input = stm.has_input();
-    let stm_has_output = stm.has_output();
-    stm.resampler.reset(unsafe {
-        ffi::cubeb_resampler_create(
-            stm_ptr,
-            if stm_has_input { &mut input_unconverted_params } else { ptr::null_mut() },
-            if stm_has_output { stm.output_stream_params.as_ptr() } else { ptr::null_mut() },
-            target_sample_rate,
-            stm.data_callback,
-            stm.user_ptr,
-            ffi::CUBEB_RESAMPLER_QUALITY_DESKTOP
-        )
-    });
-
-    if stm.resampler.as_mut_ptr().is_null() {
-        cubeb_log!("({:p}) Could not create resampler.", stm as *const AudioUnitStream);
-        return Err(Error::error());
-    }
-
-    if !stm.input_unit.is_null() {
-        let r = audio_unit_initialize(stm.input_unit);
-        if r != NO_ERR {
-            cubeb_log!("AudioUnitInitialize/input rv={}", r);
-            return Err(Error::error());
-        }
-    }
-
-    if !stm.output_unit.is_null() {
-        let r = audio_unit_initialize(stm.output_unit);
-        if r != NO_ERR {
-            cubeb_log!("AudioUnitInitialize/output rv={}", r);
-            return Err(Error::error());
-        }
-
-        stm.current_latency_frames.store(
-            audiounit_get_device_presentation_latency(
-                stm.output_device.id,
-                kAudioDevicePropertyScopeOutput
-            ),
-            atomic::Ordering::SeqCst
-        );
-
-        let mut unit_s: f64 = 0.0;
-        let mut size = mem::size_of_val(&unit_s);
-        if audio_unit_get_property(stm.output_unit, kAudioUnitProperty_Latency, kAudioUnitScope_Global, 0, &mut unit_s, &mut size) == NO_ERR {
-            stm.current_latency_frames.fetch_add((unit_s * stm.output_desc.mSampleRate) as u32, atomic::Ordering::SeqCst);
-        }
-    }
-
-    if !stm.input_unit.is_null() && !stm.output_unit.is_null() {
-        // According to the I/O hardware rate it is expected a specific pattern of callbacks
-        // for example is input is 44100 and output is 48000 we expected no more than 2
-        // out callback in a row.
-        // TODO: Make sure `input_hw_rate` is larger than 0 ?
-        stm.expected_output_callbacks_in_a_row = (stm.output_hw_rate / stm.input_hw_rate).ceil() as i32
-    }
-
-    if stm.install_device_changed_callback().is_err() {
-        cubeb_log!("({:p}) Could not install all device change callback.", stm as *const AudioUnitStream);
-    }
-
-    Ok(())
-}
-
 fn convert_uint32_into_string(data: u32) -> CString
 {
     // Simply create an empty string if no data.
@@ -2506,7 +2346,7 @@ impl ContextOps for AudioUnitContext {
         // ffi::cubeb_stream_params::default(). To prevent the stream from being initialized with
         // wrong values, some easy checks in `audio_stream_desc_init` are added.
         // I believe we can do more. For example,
-        // 1. the resampler will be initialized in `audiounit_setup_stream` and it only accepts
+        // 1. the resampler will be initialized in `AudioUnitStream::setup` and it only accepts
         //    the formats with FLOAT32NE or S16NE.
         // 2. If channels is 0, then size of input buffer is zero!
         // 3. What if the channels is different from the channels for the layout ?
@@ -2565,7 +2405,7 @@ impl ContextOps for AudioUnitContext {
         if let Err(r) = {
             // It's not critical to lock here, because no other thread has been started
             // yet, but it allows to assert that the lock has been taken in
-            // `audiounit_setup_stream`.
+            // `AudioUnitStream::setup`.
 
             // Since we cannot borrow boxed_stream as mutable twice
             // (for boxed_stream.mutex and boxed_stream itself), we store
@@ -2575,7 +2415,7 @@ impl ContextOps for AudioUnitContext {
             let mutex_ptr = &mut boxed_stream.mutex as *mut OwnedCriticalSection;
             // The scope of `_lock` is a critical section.
             let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-            audiounit_setup_stream(boxed_stream.as_mut())
+            boxed_stream.setup()
         } {
             cubeb_log!("({:p}) Could not setup the audiounit stream.", boxed_stream.as_ref());
             return Err(r);
@@ -3032,7 +2872,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 return Err(Error::error());
             }
 
-            if audiounit_setup_stream(self).is_err() {
+            if self.setup().is_err() {
                 cubeb_log!(
                     "({:p}) Stream reinit failed.",
                     self as *const AudioUnitStream
@@ -3044,7 +2884,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
                     if self
                         .set_device_info(kAudioObjectUnknown, io_side::INPUT)
                         .is_err()
-                        || audiounit_setup_stream(self).is_err()
+                        || self.setup().is_err()
                     {
                         cubeb_log!(
                             "({:p}) Second stream reinit failed.",
@@ -3944,6 +3784,219 @@ impl<'ctx> AudioUnitStream<'ctx> {
             "({:p}) Output audiounit init successfully.",
             self as *const AudioUnitStream
         );
+        Ok(())
+    }
+
+    fn setup(&mut self) -> Result<()> {
+        // TODO: Add self.context.mutex.assert_current_thread_owns() ?
+        //       audiounit_active_streams will require to own the mutex in
+        //       self.context.
+        self.mutex.assert_current_thread_owns();
+
+        if self
+            .input_stream_params
+            .prefs()
+            .contains(StreamPrefs::LOOPBACK)
+            || self
+                .output_stream_params
+                .prefs()
+                .contains(StreamPrefs::LOOPBACK)
+        {
+            cubeb_log!(
+                "({:p}) Loopback not supported for audiounit.",
+                self as *const AudioUnitStream
+            );
+            return Err(Error::not_supported());
+        }
+
+        let mut in_dev_info = self.input_device.clone();
+        let mut out_dev_info = self.output_device.clone();
+
+        if self.has_input() && self.has_output() && self.input_device.id != self.output_device.id {
+            if self.create_aggregate_device().is_err() {
+                self.aggregate_device_id = kAudioObjectUnknown;
+                cubeb_log!(
+                    "({:p}) Create aggregate devices failed.",
+                    self as *const AudioUnitStream
+                );
+            // !!!NOTE: It is not necessary to return here. If it does not
+            // return it will fallback to the old implementation. The intention
+            // is to investigate how often it fails. I plan to remove
+            // it after a couple of weeks.
+            } else {
+                in_dev_info.id = self.aggregate_device_id;
+                out_dev_info.id = self.aggregate_device_id;
+                in_dev_info.flags = device_flags::DEV_INPUT;
+                out_dev_info.flags = device_flags::DEV_OUTPUT;
+            }
+        }
+
+        if self.has_input() {
+            if let Err(r) = audiounit_create_unit(&mut self.input_unit, &in_dev_info) {
+                cubeb_log!(
+                    "({:p}) AudioUnit creation for input failed.",
+                    self as *const AudioUnitStream
+                );
+                return Err(r);
+            }
+        }
+
+        if self.has_output() {
+            if let Err(r) = audiounit_create_unit(&mut self.output_unit, &out_dev_info) {
+                cubeb_log!(
+                    "({:p}) AudioUnit creation for output failed.",
+                    self as *const AudioUnitStream
+                );
+                return Err(r);
+            }
+        }
+
+        /* Latency cannot change if another stream is operating in parallel. In this case
+         * latecy is set to the other stream value. */
+        if self.context.active_streams() > 1 {
+            cubeb_log!(
+                "({:p}) More than one active stream, use global latency.",
+                self as *const AudioUnitStream
+            );
+            self.latency_frames = self.context.global_latency_frames;
+        } else {
+            /* Silently clamp the latency down to the platform default, because we
+             * synthetize the clock from the callbacks, and we want the clock to update
+             * often. */
+            // Create a `latency_frames` here to avoid the borrowing issue.
+            let latency_frames = self.latency_frames;
+            self.latency_frames = self.clamp_latency(latency_frames);
+            assert!(self.latency_frames > 0); // Ugly error check
+            self.context.set_global_latency(self.latency_frames);
+        }
+
+        /* Configure I/O stream */
+        if self.has_input() {
+            if let Err(r) = self.configure_input() {
+                cubeb_log!(
+                    "({:p}) Configure audiounit input failed.",
+                    self as *const AudioUnitStream
+                );
+                return Err(r);
+            }
+        }
+
+        if self.has_output() {
+            if let Err(r) = self.configure_output() {
+                cubeb_log!(
+                    "({:p}) Configure audiounit output failed.",
+                    self as *const AudioUnitStream
+                );
+                return Err(r);
+            }
+        }
+
+        /* We use a resampler because input AudioUnit operates
+         * reliable only in the capture device sample rate.
+         * Resampler will convert it to the user sample rate
+         * and deliver it to the callback. */
+        let target_sample_rate = if self.has_input() {
+            self.input_stream_params.rate()
+        } else {
+            assert!(self.has_output());
+            self.output_stream_params.rate()
+        };
+
+        let mut input_unconverted_params: ffi::cubeb_stream_params =
+            unsafe { ::std::mem::zeroed() };
+        if self.has_input() {
+            input_unconverted_params = unsafe { (*(self.input_stream_params.as_ptr())) }; // Perform copy.
+            input_unconverted_params.rate = self.input_hw_rate as u32;
+        }
+
+        let stm_ptr = self as *mut AudioUnitStream as *mut ffi::cubeb_stream;
+        let stm_input_params = if self.has_input() {
+            &mut input_unconverted_params
+        } else {
+            ptr::null_mut()
+        };
+        let stm_output_params = if self.has_output() {
+            self.output_stream_params.as_ptr()
+        } else {
+            ptr::null_mut()
+        };
+        self.resampler.reset(unsafe {
+            ffi::cubeb_resampler_create(
+                stm_ptr,
+                stm_input_params,
+                stm_output_params,
+                target_sample_rate,
+                self.data_callback,
+                self.user_ptr,
+                ffi::CUBEB_RESAMPLER_QUALITY_DESKTOP,
+            )
+        });
+
+        if self.resampler.as_mut_ptr().is_null() {
+            cubeb_log!(
+                "({:p}) Could not create resampler.",
+                self as *const AudioUnitStream
+            );
+            return Err(Error::error());
+        }
+
+        if !self.input_unit.is_null() {
+            let r = audio_unit_initialize(self.input_unit);
+            if r != NO_ERR {
+                cubeb_log!("AudioUnitInitialize/input rv={}", r);
+                return Err(Error::error());
+            }
+        }
+
+        if !self.output_unit.is_null() {
+            let r = audio_unit_initialize(self.output_unit);
+            if r != NO_ERR {
+                cubeb_log!("AudioUnitInitialize/output rv={}", r);
+                return Err(Error::error());
+            }
+
+            self.current_latency_frames.store(
+                audiounit_get_device_presentation_latency(
+                    self.output_device.id,
+                    kAudioDevicePropertyScopeOutput,
+                ),
+                atomic::Ordering::SeqCst,
+            );
+
+            let mut unit_s: f64 = 0.0;
+            let mut size = mem::size_of_val(&unit_s);
+            if audio_unit_get_property(
+                self.output_unit,
+                kAudioUnitProperty_Latency,
+                kAudioUnitScope_Global,
+                0,
+                &mut unit_s,
+                &mut size,
+            ) == NO_ERR
+            {
+                self.current_latency_frames.fetch_add(
+                    (unit_s * self.output_desc.mSampleRate) as u32,
+                    atomic::Ordering::SeqCst,
+                );
+            }
+        }
+
+        if !self.input_unit.is_null() && !self.output_unit.is_null() {
+            // According to the I/O hardware rate it is expected a specific pattern of callbacks
+            // for example is input is 44100 and output is 48000 we expected no more than 2
+            // out callback in a row.
+            // TODO: Make sure `input_hw_rate` is larger than 0 ?
+            self.expected_output_callbacks_in_a_row =
+                (self.output_hw_rate / self.input_hw_rate).ceil() as i32
+        }
+
+        if self.install_device_changed_callback().is_err() {
+            cubeb_log!(
+                "({:p}) Could not install all device change callback.",
+                self as *const AudioUnitStream
+            );
+        }
+
         Ok(())
     }
 
