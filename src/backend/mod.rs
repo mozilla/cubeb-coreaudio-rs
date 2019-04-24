@@ -2901,7 +2901,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
 
             // If the stream was running, start it again.
             if !*self.shutdown.get_mut() {
-                self.start_internal();
+                self.start_internal()?;
             }
         }
 
@@ -4043,13 +4043,22 @@ impl<'ctx> AudioUnitStream<'ctx> {
         self.context.decrease_active_streams();
     }
 
-    fn start_internal(&self) {
+    fn start_internal(&self) -> Result<()> {
         if !self.input_unit.is_null() {
-            assert_eq!(audio_output_unit_start(self.input_unit), NO_ERR);
+            let r = audio_output_unit_start(self.input_unit);
+            if r != NO_ERR {
+                cubeb_log!("AudioOutputUnitStart (input) rv={}", r);
+                return Err(Error::error());
+            }
         }
         if !self.output_unit.is_null() {
-            assert_eq!(audio_output_unit_start(self.output_unit), NO_ERR);
+            let r = audio_output_unit_start(self.output_unit);
+            if r != NO_ERR {
+                cubeb_log!("AudioOutputUnitStart (output) rv={}", r);
+                return Err(Error::error());
+            }
         }
+        Ok(())
     }
 
     fn stop_internal(&self) {
@@ -4125,7 +4134,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         *self.shutdown.get_mut() = false;
         *self.draining.get_mut() = false;
 
-        self.start_internal();
+        self.start_internal()?;
 
         // TODO: C version doesn't check if state_callback is a null pointer.
         if self.state_callback.is_some() {
