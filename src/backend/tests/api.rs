@@ -471,17 +471,21 @@ fn test_set_device_info_and_get_default_device(
     assert_eq!(stream.output_device.flags, device_flags::DEV_UNKNOWN);
 
     let default_device = test_get_default_device(scope.clone().into());
-    // Fail to call audiounit_set_device_info when there is no available device.
+    // Fail to call set_device_info when there is no available device.
     if default_device.is_none() {
         assert_eq!(
-            audiounit_set_device_info(stream, predefined_device, scope.into()).unwrap_err(),
+            stream
+                .set_device_info(predefined_device, scope.into())
+                .unwrap_err(),
             Error::error()
         );
         return Err(());
     }
 
     // Set the device info to the predefined device
-    assert!(audiounit_set_device_info(stream, predefined_device, scope.into()).is_ok());
+    assert!(stream
+        .set_device_info(predefined_device, scope.into())
+        .is_ok());
     Ok(default_device.unwrap())
 }
 

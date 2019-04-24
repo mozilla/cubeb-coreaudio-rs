@@ -605,43 +605,6 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
     NO_ERR
 }
 
-fn audiounit_set_device_info(stm: &mut AudioUnitStream, id: AudioDeviceID, side: io_side) -> Result<()>
-{
-    let (info, devtype) = if side == io_side::INPUT {
-        (&mut stm.input_device, DeviceType::INPUT)
-    } else {
-        (&mut stm.output_device, DeviceType::OUTPUT)
-    };
-
-    *info = device_info::default();
-    info.id = id;
-    info.flags |= if side == io_side::INPUT {
-        device_flags::DEV_INPUT
-    } else {
-        device_flags::DEV_OUTPUT
-    };
-
-    let default_device_id = audiounit_get_default_device_id(devtype);
-    if default_device_id == kAudioObjectUnknown {
-        return Err(Error::error());
-    }
-
-    if id == kAudioObjectUnknown {
-        info.id = default_device_id;
-        info.flags |= device_flags::DEV_SELECTED_DEFAULT;
-    }
-
-    if info.id == default_device_id {
-        info.flags |= device_flags::DEV_SYSTEM_DEFAULT;
-    }
-
-    assert_ne!(info.id, kAudioObjectUnknown);
-    assert!(info.flags.contains(device_flags::DEV_INPUT) && !info.flags.contains(device_flags::DEV_OUTPUT) ||
-            !info.flags.contains(device_flags::DEV_INPUT) && info.flags.contains(device_flags::DEV_OUTPUT));
-
-    Ok(())
-}
-
 fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Result<()>
 {
     // Since we cannot call `AutoLock::new(&mut stm.context.mutex)` and call
@@ -686,7 +649,7 @@ fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Re
          * default to the (potentially new) default device. */
         let input_device = if flags.contains(device_flags::DEV_INPUT) { stm.input_device.id } else { kAudioObjectUnknown };
 
-        if flags.contains(device_flags::DEV_INPUT) && audiounit_set_device_info(stm, input_device, io_side::INPUT).is_err() {
+        if flags.contains(device_flags::DEV_INPUT) && stm.set_device_info(input_device, io_side::INPUT).is_err() {
             cubeb_log!("({:p}) Set input device info failed. This can happen when last media device is unplugged", stm as *const AudioUnitStream);
             return Err(Error::error());
         }
@@ -694,7 +657,7 @@ fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Re
         /* Always use the default output on reinit. This is not correct in every
          * case but it is sufficient for Firefox and prevent reinit from reporting
          * failures. It will change soon when reinit mechanism will be updated. */
-        if audiounit_set_device_info(stm, kAudioObjectUnknown, io_side::OUTPUT).is_err() {
+        if stm.set_device_info(kAudioObjectUnknown, io_side::OUTPUT).is_err() {
             cubeb_log!("({:p}) Set output device info failed. This can happen when last media device is unplugged", stm as *const AudioUnitStream);
             return Err(Error::error());
         }
@@ -705,7 +668,7 @@ fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Re
                 // Attempt to re-use the same device-id failed, so attempt again with
                 // default input device.
                 stm.close();
-                if audiounit_set_device_info(stm, kAudioObjectUnknown, io_side::INPUT).is_err() ||
+                if stm.set_device_info(kAudioObjectUnknown, io_side::INPUT).is_err() ||
                    audiounit_setup_stream(stm).is_err() {
                     cubeb_log!("({:p}) Second stream reinit failed.", stm as *const AudioUnitStream);
                     return Err(Error::error());
@@ -3044,7 +3007,7 @@ impl ContextOps for AudioUnitContext {
         if let Some(stream_params_ref) = input_stream_params {
             assert!(!stream_params_ref.as_ptr().is_null());
             boxed_stream.input_stream_params = StreamParams::from(unsafe { (*stream_params_ref.as_ptr()) });
-            if let Err(r) = audiounit_set_device_info(boxed_stream.as_mut(), input_device as AudioDeviceID, io_side::INPUT) {
+            if let Err(r) = boxed_stream.set_device_info(input_device as AudioDeviceID, io_side::INPUT) {
                 cubeb_log!("({:p}) Fail to set device info for input.", boxed_stream.as_ref());
                 return Err(r);
             }
@@ -3052,7 +3015,7 @@ impl ContextOps for AudioUnitContext {
         if let Some(stream_params_ref) = output_stream_params {
             assert!(!stream_params_ref.as_ptr().is_null());
             boxed_stream.output_stream_params = StreamParams::from(unsafe { *(stream_params_ref.as_ptr()) });
-            if let Err(r) = audiounit_set_device_info(boxed_stream.as_mut(), output_device as AudioDeviceID, io_side::OUTPUT) {
+            if let Err(r) = boxed_stream.set_device_info(output_device as AudioDeviceID, io_side::OUTPUT) {
                 cubeb_log!("({:p}) Fail to set device info for output.", boxed_stream.as_ref());
                 return Err(r);
             }
@@ -3344,6 +3307,46 @@ impl<'ctx> AudioUnitStream<'ctx> {
             return output_frames;
         }
         (self.input_hw_rate * output_frames as f64 / f64::from(self.output_stream_params.rate())).ceil() as i64
+    }
+
+    fn set_device_info(&mut self, id: AudioDeviceID, side: io_side) -> Result<()> {
+        let (info, devtype) = if side == io_side::INPUT {
+            (&mut self.input_device, DeviceType::INPUT)
+        } else {
+            (&mut self.output_device, DeviceType::OUTPUT)
+        };
+
+        *info = device_info::default();
+        info.id = id;
+        info.flags |= if side == io_side::INPUT {
+            device_flags::DEV_INPUT
+        } else {
+            device_flags::DEV_OUTPUT
+        };
+
+        let default_device_id = audiounit_get_default_device_id(devtype);
+        if default_device_id == kAudioObjectUnknown {
+            return Err(Error::error());
+        }
+
+        if id == kAudioObjectUnknown {
+            info.id = default_device_id;
+            info.flags |= device_flags::DEV_SELECTED_DEFAULT;
+        }
+
+        if info.id == default_device_id {
+            info.flags |= device_flags::DEV_SYSTEM_DEFAULT;
+        }
+
+        assert_ne!(info.id, kAudioObjectUnknown);
+        assert!(
+            info.flags.contains(device_flags::DEV_INPUT)
+                && !info.flags.contains(device_flags::DEV_OUTPUT)
+                || !info.flags.contains(device_flags::DEV_INPUT)
+                    && info.flags.contains(device_flags::DEV_OUTPUT)
+        );
+
+        Ok(())
     }
 
     fn install_device_changed_callback(&mut self) -> Result<()> {
