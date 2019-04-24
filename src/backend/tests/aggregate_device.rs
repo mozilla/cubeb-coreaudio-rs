@@ -88,6 +88,20 @@ fn test_aggregate_get_sub_devices_for_blank_aggregate_devices() {
 #[test]
 #[ignore]
 fn test_aggregate_create_blank_aggregate_device() {
+    let changes = Arc::new(Mutex::new(0u32));
+    let also_changes = Arc::clone(&changes);
+    let changes_mtx_ptr = also_changes.as_ref() as *const Mutex<u32>;
+
+    assert_eq!(
+        audio_object_add_property_listener(
+            kAudioObjectSystemObject,
+            &DEVICES_PROPERTY_ADDRESS,
+            devices_changed_callback,
+            changes_mtx_ptr as *mut c_void
+        ),
+        NO_ERR
+    );
+
     // TODO: Test this when there is no available devices.
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;
@@ -96,6 +110,15 @@ fn test_aggregate_create_blank_aggregate_device() {
     );
     assert_ne!(plugin_id, kAudioObjectUnknown);
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
+
+    // Waiting for device is added.
+    loop {
+        let guard = changes.lock().unwrap();
+        if *guard != 0 {
+            assert_eq!(*guard, 1);
+            break;
+        }
+    }
 
     let all_devices = get_all_devices();
     assert!(!all_devices.is_empty());
@@ -115,6 +138,24 @@ fn test_aggregate_create_blank_aggregate_device() {
     assert!(aggregate_device_found);
 
     assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
+
+    loop {
+        let guard = changes.lock().unwrap();
+        if *guard != 1 {
+            assert_eq!(*guard, 2);
+            break;
+        }
+    }
+
+    assert_eq!(
+        audio_object_remove_property_listener(
+            kAudioObjectSystemObject,
+            &DEVICES_PROPERTY_ADDRESS,
+            devices_changed_callback,
+            changes_mtx_ptr as *mut c_void
+        ),
+        NO_ERR
+    );
 
     fn get_all_devices() -> Vec<AudioObjectID> {
         let mut size: usize = 0;
@@ -139,6 +180,32 @@ fn test_aggregate_create_blank_aggregate_device() {
         }
         devices.sort();
         devices
+    }
+
+    extern "C" fn devices_changed_callback(
+        id: AudioObjectID,
+        number_of_addresses: u32,
+        addresses: *const AudioObjectPropertyAddress,
+        data: *mut c_void,
+    ) -> OSStatus {
+        println!("device: {}, data @ {:p}", id, data);
+        let addrs = unsafe { std::slice::from_raw_parts(addresses, number_of_addresses as usize) };
+        for (i, addr) in addrs.iter().enumerate() {
+            println!(
+                "address {}\n\tselector {}\n\tscope {}\n\telement {}",
+                i, addr.mSelector, addr.mScope, addr.mElement
+            );
+        }
+
+        assert_eq!(id, kAudioObjectSystemObject);
+
+        let count = unsafe { &*(data as *const Mutex<u32>) };
+        {
+            let mut guard = count.lock().unwrap();
+            *guard += 1;
+        }
+
+        NO_ERR
     }
 }
 
