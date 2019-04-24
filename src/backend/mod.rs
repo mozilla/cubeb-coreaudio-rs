@@ -1444,61 +1444,6 @@ fn audiounit_activate_clock_drift_compensation(aggregate_device_id: AudioDeviceI
     Ok(())
 }
 
-/*
- * Aggregate Device is a virtual audio interface which utilizes inputs and outputs
- * of one or more physical audio interfaces. It is possible to use the clock of
- * one of the devices as a master clock for all the combined devices and enable
- * drift compensation for the devices that are not designated clock master.
- *
- * Creating a new aggregate device programmatically requires [0][1]:
- * 1. Locate the base plug-in ("com.apple.audio.CoreAudio")
- * 2. Create a dictionary that describes the aggregate device
- *    (don't add sub-devices in that step, prone to fail [0])
- * 3. Ask the base plug-in to create the aggregate device (blank)
- * 4. Add the array of sub-devices.
- * 5. Set the master device (1st output device in our case)
- * 6. Enable drift compensation for the non-master devices
- *
- * [0] https://lists.apple.com/archives/coreaudio-api/2006/Apr/msg00092.html
- * [1] https://lists.apple.com/archives/coreaudio-api/2005/Jul/msg00150.html
- * [2] CoreAudio.framework/Headers/AudioHardware.h
- * */
-fn audiounit_create_aggregate_device(stm: &mut AudioUnitStream) -> Result<()>
-{
-    if let Err(r) = audiounit_create_blank_aggregate_device(&mut stm.plugin_id, &mut stm.aggregate_device_id) {
-        cubeb_log!("({:p}) Failed to create blank aggregate device", stm as *const AudioUnitStream);
-        return Err(r);
-    }
-
-    // The aggregate device may not be created at this point!
-    // It's better to listen the system devices changing to make sure it's added.
-
-    if let Err(r) = audiounit_set_aggregate_sub_device_list(stm.aggregate_device_id, stm.input_device.id, stm.output_device.id) {
-        cubeb_log!("({:p}) Failed to set aggregate sub-device list", stm as *const AudioUnitStream);
-        // TODO: Check if aggregate device is destroyed or not ?
-        audiounit_destroy_aggregate_device(stm.plugin_id, &mut stm.aggregate_device_id);
-        return Err(r);
-    }
-
-    if let Err(r) = audiounit_set_master_aggregate_device(stm.aggregate_device_id) {
-        cubeb_log!("({:p}) Failed to set master sub-device for aggregate device", stm as *const AudioUnitStream);
-        // TODO: Check if aggregate device is destroyed or not ?
-        audiounit_destroy_aggregate_device(stm.plugin_id, &mut stm.aggregate_device_id);
-        return Err(r);
-    }
-
-    if let Err(r) = audiounit_activate_clock_drift_compensation(stm.aggregate_device_id) {
-        cubeb_log!("({:p}) Failed to activate clock drift compensation for aggregate device", stm as *const AudioUnitStream);
-        // TODO: Check if aggregate device is destroyed or not ?
-        audiounit_destroy_aggregate_device(stm.plugin_id, &mut stm.aggregate_device_id);
-        return Err(r);
-    }
-
-    stm.workaround_for_airpod();
-
-    Ok(())
-}
-
 fn audiounit_destroy_aggregate_device(plugin_id: AudioObjectID, aggregate_device_id: &mut AudioDeviceID) -> Result<()>
 {
     assert_ne!(plugin_id, kAudioObjectUnknown);
@@ -1968,7 +1913,7 @@ fn audiounit_setup_stream(stm: &mut AudioUnitStream) -> Result<()>
 
     if stm.has_input() && stm.has_output() &&
        stm.input_device.id != stm.output_device.id {
-        if audiounit_create_aggregate_device(stm).is_err() {
+        if stm.create_aggregate_device().is_err() {
             stm.aggregate_device_id = kAudioObjectUnknown;
             cubeb_log!("({:p}) Create aggregate devices failed.", stm as *const AudioUnitStream);
             // !!!NOTE: It is not necessary to return here. If it does not
@@ -3605,6 +3550,76 @@ impl<'ctx> AudioUnitStream<'ctx> {
         audiounit_device_destroy(&mut input_device_info);
         assert!(output_device_info.friendly_name.is_null());
         audiounit_device_destroy(&mut output_device_info);
+    }
+
+    /*
+     * Aggregate Device is a virtual audio interface which utilizes inputs and outputs
+     * of one or more physical audio interfaces. It is possible to use the clock of
+     * one of the devices as a master clock for all the combined devices and enable
+     * drift compensation for the devices that are not designated clock master.
+     *
+     * Creating a new aggregate device programmatically requires [0][1]:
+     * 1. Locate the base plug-in ("com.apple.audio.CoreAudio")
+     * 2. Create a dictionary that describes the aggregate device
+     *    (don't add sub-devices in that step, prone to fail [0])
+     * 3. Ask the base plug-in to create the aggregate device (blank)
+     * 4. Add the array of sub-devices.
+     * 5. Set the master device (1st output device in our case)
+     * 6. Enable drift compensation for the non-master devices
+     *
+     * [0] https://lists.apple.com/archives/coreaudio-api/2006/Apr/msg00092.html
+     * [1] https://lists.apple.com/archives/coreaudio-api/2005/Jul/msg00150.html
+     * [2] CoreAudio.framework/Headers/AudioHardware.h
+     * */
+    fn create_aggregate_device(&mut self) -> Result<()> {
+        if let Err(r) = audiounit_create_blank_aggregate_device(
+            &mut self.plugin_id,
+            &mut self.aggregate_device_id,
+        ) {
+            cubeb_log!(
+                "({:p}) Failed to create blank aggregate device",
+                self as *const AudioUnitStream
+            );
+            return Err(r);
+        }
+
+        // The aggregate device may not be created at this point!
+        // It's better to listen the system devices changing to make sure it's added.
+
+        if let Err(r) = audiounit_set_aggregate_sub_device_list(
+            self.aggregate_device_id,
+            self.input_device.id,
+            self.output_device.id,
+        ) {
+            cubeb_log!(
+                "({:p}) Failed to set aggregate sub-device list",
+                self as *const AudioUnitStream
+            );
+            audiounit_destroy_aggregate_device(self.plugin_id, &mut self.aggregate_device_id);
+            return Err(r);
+        }
+
+        if let Err(r) = audiounit_set_master_aggregate_device(self.aggregate_device_id) {
+            cubeb_log!(
+                "({:p}) Failed to set master sub-device for aggregate device",
+                self as *const AudioUnitStream
+            );
+            audiounit_destroy_aggregate_device(self.plugin_id, &mut self.aggregate_device_id);
+            return Err(r);
+        }
+
+        if let Err(r) = audiounit_activate_clock_drift_compensation(self.aggregate_device_id) {
+            cubeb_log!(
+                "({:p}) Failed to activate clock drift compensation for aggregate device",
+                self as *const AudioUnitStream
+            );
+            audiounit_destroy_aggregate_device(self.plugin_id, &mut self.aggregate_device_id);
+            return Err(r);
+        }
+
+        self.workaround_for_airpod();
+
+        Ok(())
     }
 
     fn init_input_linear_buffer(&mut self, capacity: u32) -> Result<()> {
