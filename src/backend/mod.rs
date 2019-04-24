@@ -2810,7 +2810,7 @@ impl ContextOps for AudioUnitContext {
                 latency_frames
             )
         );
-        boxed_stream.init();
+        boxed_stream.init_mutex();
         // TODO: Shouldn't this be put at the first so we don't need to perform
         //       any action if the check fails? (Sync with C version)
         assert!(latency_frames > 0);
@@ -3058,7 +3058,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
         }
     }
 
-    fn init(&mut self) {
+    fn init_mutex(&mut self) {
         self.device_changed_callback_lock.init();
         self.mutex.init();
     }
