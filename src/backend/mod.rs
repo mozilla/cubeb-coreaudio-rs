@@ -316,7 +316,7 @@ fn audiounit_render_input(stm: &mut AudioUnitStream,
             // kAudioUnitErr_CannotDoInCurrentContext is returned when using a BT
             // headset and the profile is changed from A2DP to HFP/HSP. The previous
             // output device is no longer valid and must be reset.
-            audiounit_reinit_stream_async(stm, device_flags::DEV_INPUT | device_flags::DEV_OUTPUT);
+            stm.reinit_async(device_flags::DEV_INPUT | device_flags::DEV_OUTPUT);
         }
         // For now state that no error occurred and feed silence, stream will be
         // resumed once reinit has completed.
@@ -605,50 +605,6 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
     NO_ERR
 }
 
-fn audiounit_reinit_stream_async(stm: &mut AudioUnitStream, flags: device_flags)
-{
-    if stm.reinit_pending.swap(true, Ordering::SeqCst) {
-        // A reinit task is already pending, nothing more to do.
-        cubeb_log!("({:p}) re-init stream task already pending, cancelling request", stm as *const AudioUnitStream);
-        return;
-    }
-
-    let queue = stm.context.serial_queue;
-    let mutexed_stm = Arc::new(Mutex::new(stm));
-    let also_mutexed_stm = Arc::clone(&mutexed_stm);
-    // Use a new thread, through the queue, to avoid deadlock when calling
-    // Get/SetProperties method from inside notify callback
-    async_dispatch(queue, move || {
-        let mut stm_guard = also_mutexed_stm.lock().unwrap();
-        let stm = &mut *(*stm_guard);
-        if *stm.destroy_pending.get_mut() {
-            cubeb_log!("({:p}) stream pending destroy, cancelling reinit task", stm as *const AudioUnitStream);
-            return;
-        }
-
-        if stm.reinit(flags).is_err() {
-            if stm.uninstall_system_changed_callback().is_err() {
-                cubeb_log!("({:p}) Could not uninstall system changed callback", stm as *const AudioUnitStream);
-            }
-            // TODO: C version doesn't check if state_callback is a null pointer.
-            //       Either we allow null callbacks, or we do checks in cubeb.c
-            //       and cubeb-rs.
-            if stm.state_callback.is_some() {
-                unsafe {
-                    (stm.state_callback.unwrap())(
-                        stm as *mut AudioUnitStream as *mut ffi::cubeb_stream,
-                        stm.user_ptr,
-                        ffi::CUBEB_STATE_ERROR
-                    );
-                }
-            }
-            cubeb_log!("({:p}) Could not reopen the stream after switching.", stm as *const AudioUnitStream);
-        }
-        *stm.switching_device.get_mut() = false;
-        *stm.reinit_pending.get_mut() = false;
-    });
-}
-
 // TODO: Do this by From trait
 fn event_addr_to_string(selector: AudioObjectPropertySelector) -> &'static str
 {
@@ -743,7 +699,7 @@ extern fn audiounit_property_listener_callback(id: AudioObjectID, address_count:
         }
     }
 
-    audiounit_reinit_stream_async(stm, switch_side);
+    stm.reinit_async(switch_side);
 
     NO_ERR
 }
@@ -3314,6 +3270,61 @@ impl<'ctx> AudioUnitStream<'ctx> {
         }
 
         Ok(())
+    }
+
+    fn reinit_async(&mut self, flags: device_flags) {
+        if self.reinit_pending.swap(true, Ordering::SeqCst) {
+            // A reinit task is already pending, nothing more to do.
+            cubeb_log!(
+                "({:p}) re-init stream task already pending, cancelling request",
+                self as *const AudioUnitStream
+            );
+            return;
+        }
+
+        let queue = self.context.serial_queue;
+        let mutexed_stm = Arc::new(Mutex::new(self));
+        let also_mutexed_stm = Arc::clone(&mutexed_stm);
+        // Use a new thread, through the queue, to avoid deadlock when calling
+        // Get/SetProperties method from inside notify callback
+        async_dispatch(queue, move || {
+            let mut stm_guard = also_mutexed_stm.lock().unwrap();
+            let stm_ptr = *stm_guard as *const AudioUnitStream;
+            if *stm_guard.destroy_pending.get_mut() {
+                cubeb_log!(
+                    "({:p}) stream pending destroy, cancelling reinit task",
+                    stm_ptr
+                );
+                return;
+            }
+
+            if stm_guard.reinit(flags).is_err() {
+                if stm_guard.uninstall_system_changed_callback().is_err() {
+                    cubeb_log!(
+                        "({:p}) Could not uninstall system changed callback",
+                        stm_ptr
+                    );
+                }
+                // TODO: C version doesn't check if state_callback is a null pointer.
+                //       Either we allow null callbacks, or we do checks in cubeb.c
+                //       and cubeb-rs.
+                if stm_guard.state_callback.is_some() {
+                    unsafe {
+                        (stm_guard.state_callback.unwrap())(
+                            stm_ptr as *mut ffi::cubeb_stream,
+                            stm_guard.user_ptr,
+                            ffi::CUBEB_STATE_ERROR,
+                        );
+                    }
+                }
+                cubeb_log!(
+                    "({:p}) Could not reopen the stream after switching.",
+                    stm_ptr
+                );
+            }
+            *stm_guard.switching_device.get_mut() = false;
+            *stm_guard.reinit_pending.get_mut() = false;
+        });
     }
 
     fn install_device_changed_callback(&mut self) -> Result<()> {
