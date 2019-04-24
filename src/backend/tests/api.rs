@@ -1830,7 +1830,7 @@ fn test_configure_input() {
 fn test_configure_input_with_null_unit() {
     test_get_empty_stream(|stream| {
         assert!(stream.input_unit.is_null());
-        assert!(audiounit_configure_input(stream).is_err());
+        assert!(stream.configure_input().is_err());
     });
 }
 
@@ -1963,7 +1963,7 @@ where
                 assert_ne!(stream.latency_frames, 0);
             }
             let res = match scope {
-                Scope::Input => audiounit_configure_input(stream),
+                Scope::Input => stream.configure_input(),
                 Scope::Output => audiounit_configure_output(stream),
             };
             assert!(res.is_ok());
@@ -1992,7 +1992,7 @@ where
             }
             assert_eq!(stream.latency_frames, 0);
             let res = match scope {
-                Scope::Input => audiounit_configure_input(stream),
+                Scope::Input => stream.configure_input(),
                 Scope::Output => audiounit_configure_output(stream),
             };
             assert!(res.is_ok());
