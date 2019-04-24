@@ -4113,8 +4113,8 @@ impl<'ctx> AudioUnitStream<'ctx> {
         });
 
         let stm_guard = mutexed_stm.lock().unwrap();
-        let stm = &*(*stm_guard);
-        cubeb_log!("Cubeb stream ({:p}) destroyed successful.", stm as *const AudioUnitStream);
+        let stm_ptr = *stm_guard as *const AudioUnitStream;
+        cubeb_log!("Cubeb stream ({:p}) destroyed successful.", stm_ptr);
     }
 }
 
