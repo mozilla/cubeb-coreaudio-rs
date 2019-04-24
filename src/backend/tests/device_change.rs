@@ -254,7 +254,7 @@ fn test_plug_and_unplug_device_in_scope(scope: Scope) {
             "Input device collection @ {:p} is changed. Data @ {:p}",
             context, data
         );
-        let count = unsafe { &*(data as *const Mutex<i32>) };
+        let count = unsafe { &*(data as *const Mutex<u32>) };
         {
             let mut guard = count.lock().unwrap();
             *guard += 1;
@@ -266,7 +266,7 @@ fn test_plug_and_unplug_device_in_scope(scope: Scope) {
             "output device collection @ {:p} is changed. Data @ {:p}",
             context, data
         );
-        let count = unsafe { &*(data as *const Mutex<i32>) };
+        let count = unsafe { &*(data as *const Mutex<u32>) };
         {
             let mut guard = count.lock().unwrap();
             *guard += 1;
@@ -408,7 +408,7 @@ fn test_register_device_changed_callback_to_check_default_device_changed(stm_typ
 
     extern "C" fn callback(data: *mut c_void) {
         println!("Device change callback. data @ {:p}", data);
-        let count = unsafe { &*(data as *const Mutex<i32>) };
+        let count = unsafe { &*(data as *const Mutex<u32>) };
         {
             let mut guard = count.lock().unwrap();
             *guard += 1;
@@ -475,7 +475,7 @@ fn test_register_device_changed_callback_to_check_input_alive_changed(stm_type: 
 
     extern "C" fn callback(data: *mut c_void) {
         println!("Device change callback. data @ {:p}", data);
-        let count = unsafe { &*(data as *const Mutex<i32>) };
+        let count = unsafe { &*(data as *const Mutex<u32>) };
         {
             let mut guard = count.lock().unwrap();
             *guard += 1;
