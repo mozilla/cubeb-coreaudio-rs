@@ -605,90 +605,6 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
     NO_ERR
 }
 
-fn audiounit_reinit_stream(stm: &mut AudioUnitStream, flags: device_flags) -> Result<()>
-{
-    // Since we cannot call `AutoLock::new(&mut stm.context.mutex)` and call
-    // `some_func(stm)` at the same time, we take the pointer to
-    // `stm.context.mutex` first and then dereference it to the mutex to avoid
-    // this problem for now.
-    let mutex_ptr = &mut stm.context.mutex as *mut OwnedCriticalSection;
-    // The scope of `_context_lock` is a critical section.
-    let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-    // TODO: C version uses
-    // assert!(!stm.input_unit.is_null() && flags.contains(device_flags::DEV_INPUT) ||
-    //         !stm.output_unit.is_null() && flags.contains(device_flags::DEV_OUTPUT));
-    // For a stream with input and output units, if the check for input is true,
-    // then it won't check the output.
-    assert!(!stm.input_unit.is_null() || !stm.output_unit.is_null());
-    assert!((stm.input_unit.is_null() || flags.contains(device_flags::DEV_INPUT)) &&
-            (stm.output_unit.is_null() || flags.contains(device_flags::DEV_OUTPUT)));
-    if !*stm.shutdown.get_mut() {
-        stm.stop_internal();
-    }
-
-    if stm.uninstall_device_changed_callback().is_err() {
-        cubeb_log!("({:p}) Could not uninstall all device change listeners.", stm as *const AudioUnitStream);
-    }
-
-    {
-        let mutex_ptr = &mut stm.mutex as *mut OwnedCriticalSection;
-        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-        let vol_rv = if stm.output_unit.is_null() {
-            Err(Error::error())
-        } else {
-            stm.get_volume()
-        };
-
-        stm.close();
-
-        /* Reinit occurs in one of the following case:
-         * - When the device is not alive any more
-         * - When the default system device change.
-         * - The bluetooth device changed from A2DP to/from HFP/HSP profile
-         * We first attempt to re-use the same device id, should that fail we will
-         * default to the (potentially new) default device. */
-        let input_device = if flags.contains(device_flags::DEV_INPUT) { stm.input_device.id } else { kAudioObjectUnknown };
-
-        if flags.contains(device_flags::DEV_INPUT) && stm.set_device_info(input_device, io_side::INPUT).is_err() {
-            cubeb_log!("({:p}) Set input device info failed. This can happen when last media device is unplugged", stm as *const AudioUnitStream);
-            return Err(Error::error());
-        }
-
-        /* Always use the default output on reinit. This is not correct in every
-         * case but it is sufficient for Firefox and prevent reinit from reporting
-         * failures. It will change soon when reinit mechanism will be updated. */
-        if stm.set_device_info(kAudioObjectUnknown, io_side::OUTPUT).is_err() {
-            cubeb_log!("({:p}) Set output device info failed. This can happen when last media device is unplugged", stm as *const AudioUnitStream);
-            return Err(Error::error());
-        }
-
-        if audiounit_setup_stream(stm).is_err() {
-            cubeb_log!("({:p}) Stream reinit failed.", stm as *const AudioUnitStream);
-            if flags.contains(device_flags::DEV_INPUT) && input_device != kAudioObjectUnknown {
-                // Attempt to re-use the same device-id failed, so attempt again with
-                // default input device.
-                stm.close();
-                if stm.set_device_info(kAudioObjectUnknown, io_side::INPUT).is_err() ||
-                   audiounit_setup_stream(stm).is_err() {
-                    cubeb_log!("({:p}) Second stream reinit failed.", stm as *const AudioUnitStream);
-                    return Err(Error::error());
-                }
-            }
-        }
-
-        if vol_rv.is_ok() {
-            stm.set_volume(vol_rv.unwrap());
-        }
-
-        // If the stream was running, start it again.
-        if !*stm.shutdown.get_mut() {
-            stm.start_internal();
-        }
-    }
-
-    Ok(())
-}
-
 fn audiounit_reinit_stream_async(stm: &mut AudioUnitStream, flags: device_flags)
 {
     if stm.reinit_pending.swap(true, Ordering::SeqCst) {
@@ -710,7 +626,7 @@ fn audiounit_reinit_stream_async(stm: &mut AudioUnitStream, flags: device_flags)
             return;
         }
 
-        if audiounit_reinit_stream(stm, flags).is_err() {
+        if stm.reinit(flags).is_err() {
             if stm.uninstall_system_changed_callback().is_err() {
                 cubeb_log!("({:p}) Could not uninstall system changed callback", stm as *const AudioUnitStream);
             }
@@ -3290,6 +3206,112 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 || !info.flags.contains(device_flags::DEV_INPUT)
                     && info.flags.contains(device_flags::DEV_OUTPUT)
         );
+
+        Ok(())
+    }
+
+    fn reinit(&mut self, flags: device_flags) -> Result<()> {
+        // Since we cannot call `AutoLock::new(&mut self.context.mutex)` and call
+        // `self.some_func()` at the same time, we take the pointer to
+        // `self.context.mutex` first and then dereference it to the mutex to avoid
+        // this problem for now.
+        let mutex_ptr = &mut self.context.mutex as *mut OwnedCriticalSection;
+        // The scope of `_context_lock` is a critical section.
+        let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+        // TODO: C version uses
+        // assert!(!self.input_unit.is_null() && flags.contains(device_flags::DEV_INPUT) ||
+        //         !self.output_unit.is_null() && flags.contains(device_flags::DEV_OUTPUT));
+        // For a stream with input and output units, if the check for input is true,
+        // then it won't check the output.
+        assert!(!self.input_unit.is_null() || !self.output_unit.is_null());
+        assert!(
+            (self.input_unit.is_null() || flags.contains(device_flags::DEV_INPUT))
+                && (self.output_unit.is_null() || flags.contains(device_flags::DEV_OUTPUT))
+        );
+        if !*self.shutdown.get_mut() {
+            self.stop_internal();
+        }
+
+        if self.uninstall_device_changed_callback().is_err() {
+            cubeb_log!(
+                "({:p}) Could not uninstall all device change listeners.",
+                self as *const AudioUnitStream
+            );
+        }
+
+        {
+            let mutex_ptr = &mut self.mutex as *mut OwnedCriticalSection;
+            let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
+            let vol_rv = if self.output_unit.is_null() {
+                Err(Error::error())
+            } else {
+                self.get_volume()
+            };
+
+            self.close();
+
+            /* Reinit occurs in one of the following case:
+             * - When the device is not alive any more
+             * - When the default system device change.
+             * - The bluetooth device changed from A2DP to/from HFP/HSP profile
+             * We first attempt to re-use the same device id, should that fail we will
+             * default to the (potentially new) default device. */
+            let input_device = if flags.contains(device_flags::DEV_INPUT) {
+                self.input_device.id
+            } else {
+                kAudioObjectUnknown
+            };
+
+            if flags.contains(device_flags::DEV_INPUT)
+                && self.set_device_info(input_device, io_side::INPUT).is_err()
+            {
+                cubeb_log!("({:p}) Set input device info failed. This can happen when last media device is unplugged", self as *const AudioUnitStream);
+                return Err(Error::error());
+            }
+
+            /* Always use the default output on reinit. This is not correct in every
+             * case but it is sufficient for Firefox and prevent reinit from reporting
+             * failures. It will change soon when reinit mechanism will be updated. */
+            if self
+                .set_device_info(kAudioObjectUnknown, io_side::OUTPUT)
+                .is_err()
+            {
+                cubeb_log!("({:p}) Set output device info failed. This can happen when last media device is unplugged", self as *const AudioUnitStream);
+                return Err(Error::error());
+            }
+
+            if audiounit_setup_stream(self).is_err() {
+                cubeb_log!(
+                    "({:p}) Stream reinit failed.",
+                    self as *const AudioUnitStream
+                );
+                if flags.contains(device_flags::DEV_INPUT) && input_device != kAudioObjectUnknown {
+                    // Attempt to re-use the same device-id failed, so attempt again with
+                    // default input device.
+                    self.close();
+                    if self
+                        .set_device_info(kAudioObjectUnknown, io_side::INPUT)
+                        .is_err()
+                        || audiounit_setup_stream(self).is_err()
+                    {
+                        cubeb_log!(
+                            "({:p}) Second stream reinit failed.",
+                            self as *const AudioUnitStream
+                        );
+                        return Err(Error::error());
+                    }
+                }
+            }
+
+            if vol_rv.is_ok() {
+                self.set_volume(vol_rv.unwrap());
+            }
+
+            // If the stream was running, start it again.
+            if !*self.shutdown.get_mut() {
+                self.start_internal();
+            }
+        }
 
         Ok(())
     }
