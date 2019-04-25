@@ -1745,11 +1745,9 @@ fn audiounit_activate_clock_drift_compensation(aggregate_device_id: AudioDeviceI
     };
 
     // Start from the second device since the first is the master clock
-    // TODO: Check the list is longer than 1 ?
-    // assert!(sub_devices.len() > 1);
-    for device in &sub_devices[1..] {
+    for i in 1..subdevices_num {
         let drift_compensation_value: u32 = 1;
-        rv = audio_object_set_property_data(*device,
+        rv = audio_object_set_property_data(sub_devices[i],
                                             &address_drift,
                                             mem::size_of::<u32>(),
                                             &drift_compensation_value);
