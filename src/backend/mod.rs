@@ -83,7 +83,7 @@ const SAFE_MIN_LATENCY_FRAMES: u32 = 256;
 const SAFE_MAX_LATENCY_FRAMES: u32 = 512;
 
 // TODO: Move them into a seperate module, or add an API to generate these
-//       property addressed.
+//       property addresses.
 const DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS: AudioObjectPropertyAddress =
     AudioObjectPropertyAddress {
         mSelector: kAudioHardwarePropertyDefaultInputDevice,
@@ -328,9 +328,6 @@ extern fn audiounit_input_callback(user_ptr: *mut c_void,
     if outframes < total_input_frames {
         assert_eq!(audio_output_unit_stop(stm.input_unit), NO_ERR);
 
-        // TODO: C version doesn't check if state_callback is a null pointer.
-        //       Either we allow null callbacks, or we do checks in cubeb.c
-        //       and cubeb-rs.
         if stm.state_callback.is_some() {
             unsafe {
                 (stm.state_callback.unwrap())(
@@ -389,15 +386,10 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
     }
 
     if *stm.draining.get_mut() {
-        // TODO: Consider moving `stop output unit and input unit` into a function.
-        //       There are duplicated code below.
         assert_eq!(audio_output_unit_stop(stm.output_unit), NO_ERR);
         if !stm.input_unit.is_null() {
             assert_eq!(audio_output_unit_stop(stm.input_unit), NO_ERR);
         }
-        // TODO: C version doesn't check if state_callback is a null pointer.
-        //       Either we allow null callbacks, or we do checks in cubeb.c
-        //       and cubeb-rs.
         if stm.state_callback.is_some() {
             unsafe {
                 (stm.state_callback.unwrap())(
@@ -482,9 +474,6 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
         if !stm.input_unit.is_null() {
             assert_eq!(audio_output_unit_stop(stm.input_unit), NO_ERR);
         }
-        // TODO: C version doesn't check if state_callback is a null pointer.
-        //       Either we allow null callbacks, or we do checks in cubeb.c
-        //       and cubeb-rs.
         if stm.state_callback.is_some() {
             unsafe {
                 (stm.state_callback.unwrap())(
@@ -548,7 +537,6 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
     NO_ERR
 }
 
-// TODO: Do this by From trait
 fn event_addr_to_string(selector: AudioObjectPropertySelector) -> &'static str
 {
     use self::coreaudio_sys_utils::sys as sys;
@@ -1164,12 +1152,9 @@ fn audiounit_set_master_aggregate_device(aggregate_device_id: AudioDeviceID) -> 
 
     // Master become the 1st output sub device
     let output_device_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-    // TODO: Add a check ?
-    // assert_ne!(output_device_id, kAudioObjectUnknown);
+    assert_ne!(output_device_id, kAudioObjectUnknown);
     let output_sub_devices = audiounit_get_sub_devices(output_device_id);
-    // TODO: Add a check ? or use first instead ?
-    // assert!(!output_sub_devices.is_empty());
-    // let master_sub_device = get_device_name(output_sub_devices.first().unwrap().clone());
+    assert!(!output_sub_devices.is_empty());
     let master_sub_device = get_device_name(output_sub_devices[0]);
     // TODO: Check if output_sub_devices[0] is in the sub devices list of
     //       the aggregate device ?
@@ -1862,7 +1847,7 @@ fn audiounit_device_destroy(device: &mut ffi::cubeb_device_info)
     // This should be mapped to the memory allocation in
     // audiounit_create_device_from_hwdev.
     // Set the pointers to null in case it points to some released
-    // memory. (TODO: C version doesn't do this.)
+    // memory. (NOTE: C version doesn't do this.)
     unsafe {
         if !device.device_id.is_null() {
             // group_id is a mirror to device_id, so we could skip it.
@@ -2078,8 +2063,7 @@ impl AudioUnitContext {
     ) -> OSStatus {
         self.mutex.assert_current_thread_owns();
         assert!(devtype.intersects(DeviceType::INPUT | DeviceType::OUTPUT));
-        // TODO: We should add an assertion here! (Sync with C verstion.)
-        // assert!(collection_changed_callback.is_some());
+        assert!(collection_changed_callback.is_some());
 
         /* Note: second register without unregister first causes 'nope' error.
         * Current implementation requires unregister before register a new cb. */
@@ -2350,11 +2334,6 @@ impl ContextOps for AudioUnitContext {
         //    the formats with FLOAT32NE or S16NE.
         // 2. If channels is 0, then size of input buffer is zero!
         // 3. What if the channels is different from the channels for the layout ?
-        //
-        // TODO: Check data_callback and state_callback is not null!
-        // In C version. we always call `state_callback` without checking if it's null or not.
-        // It can easily fail if they are null pointers. It's better to add assertions upon they
-        // are passed here.
 
         // Since we cannot call `AutoLock::new(&mut self.mutex)` and
         // `AudioUnitStream::new(self, ...)` at the same time.
@@ -2941,9 +2920,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
                         stm_ptr
                     );
                 }
-                // TODO: C version doesn't check if state_callback is a null pointer.
-                //       Either we allow null callbacks, or we do checks in cubeb.c
-                //       and cubeb-rs.
                 if stm_guard.state_callback.is_some() {
                     unsafe {
                         (stm_guard.state_callback.unwrap())(
@@ -2971,8 +2947,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
             /* This event will notify us when the data source on the same device changes,
             * for example when the user plugs in a normal (non-usb) headset in the
             * headphone jack. */
-
-            // TODO: Assert device id is not kAudioObjectUnknown or kAudioObjectSystemObject in C version!
             assert_ne!(self.output_device.id, kAudioObjectUnknown);
             assert_ne!(self.output_device.id, kAudioObjectSystemObject);
 
@@ -2989,8 +2963,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
 
         if !self.input_unit.is_null() {
             /* This event will notify us when the data source on the input device changes. */
-
-            // TODO: Assert device id is not kAudioObjectUnknown or kAudioObjectSystemObject in C version!
             assert_ne!(self.input_device.id, kAudioObjectUnknown);
             assert_ne!(self.input_device.id, kAudioObjectSystemObject);
 
@@ -3292,21 +3264,17 @@ impl<'ctx> AudioUnitStream<'ctx> {
     }
 
     fn init_input_linear_buffer(&mut self, capacity: u32) -> Result<()> {
-        // FIXIT: Make sure `input_desc` is initialized, or the type of the buffer is set to float!
-        // assert_ne!(self.input_desc.mFormatFlags, 0);
-        // assert_ne!(self.input_desc.mChannelsPerFrame, 0);
+        assert_ne!(self.input_desc.mFormatFlags, 0);
+        assert_ne!(self.input_desc.mChannelsPerFrame, 0);
         // TODO: Make sure latency_frames is larger than zero ?
         // assert_ne!(self.latency_frames, 0);
         let size = (capacity * self.latency_frames * self.input_desc.mChannelsPerFrame) as usize;
         if self.input_desc.mFormatFlags & kAudioFormatFlagIsSignedInteger != 0 {
-            // TODO: Assert input_desc.mFormatFlags doesn't contain kAudioFormatFlagIsFloat ?
-            // assert_eq!(self.input_desc.mFormatFlags & kAudioFormatFlagIsFloat, 0);
+            assert_eq!(self.input_desc.mFormatFlags & kAudioFormatFlagIsFloat, 0);
             self.input_linear_buffer = Some(Box::new(AutoArrayImpl::<i16>::new(size)));
         } else {
-            // TODO: Assert input_desc.mFormatFlags contains kAudioFormatFlagIsFloat ?
-            // assert_ne!(self.input_desc.mFormatFlags & kAudioFormatFlagIsFloat, 0);
-            // TODO: Assert input_desc.mFormatFlags doesn't contain kAudioFormatFlagIsSignedInteger ?
-            // assert_eq!(self.input_desc.mFormatFlags & kAudioFormatFlagIsSignedInteger, 0);
+            assert_ne!(self.input_desc.mFormatFlags & kAudioFormatFlagIsFloat, 0);
+            assert_eq!(self.input_desc.mFormatFlags & kAudioFormatFlagIsSignedInteger, 0);
             self.input_linear_buffer = Some(Box::new(AutoArrayImpl::<f32>::new(size)));
         }
         assert_eq!(self.input_linear_buffer.as_ref().unwrap().elements(), 0);
@@ -3394,8 +3362,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
         } else {
             (self.output_unit, kAudioUnitScope_Input, AU_OUT_BUS)
         };
-
-        // TODO: Check au is not null ?
+        assert!(!au.is_null());
 
         let mut buffer_frames: u32 = 0;
         let mut size = mem::size_of_val(&buffer_frames);
@@ -4136,7 +4103,6 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
 
         self.start_internal()?;
 
-        // TODO: C version doesn't check if state_callback is a null pointer.
         if self.state_callback.is_some() {
             unsafe {
                 (self.state_callback.unwrap())(
@@ -4159,7 +4125,6 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
 
         self.stop_internal();
 
-        // TODO: C version doesn't check if state_callback is a null pointer.
         if self.state_callback.is_some() {
             unsafe {
                 (self.state_callback.unwrap())(
