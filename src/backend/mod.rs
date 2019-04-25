@@ -1862,6 +1862,9 @@ fn audiounit_create_aggregate_device(stm: &mut AudioUnitStream) -> Result<()>
         return Err(r);
     }
 
+    // The aggregate device may not be created at this point!
+    // It's better to listen the system devices changing to make sure it's added.
+
     if let Err(r) = audiounit_set_aggregate_sub_device_list(stm.aggregate_device_id, stm.input_device.id, stm.output_device.id) {
         cubeb_log!("({:p}) Failed to set aggregate sub-device list", stm as *const AudioUnitStream);
         // TODO: Check if aggregate device is destroyed or not ?
