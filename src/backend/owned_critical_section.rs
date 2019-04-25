@@ -184,11 +184,11 @@ fn test_critical_section_multithread() {
             // to run the threads is random.
             // The scope of `_guard` is a critical section.
             let _guard = AutoLock::new(&mut res.mutex); // -------------+
-                                                                     // |
-            res.value = i;                                           // | critical
-            thread::sleep(Duration::from_millis(1));                 // | section
-                                                                     // |
-            (i, res.value)                                           // |
+                                                        //              |
+            res.value = i; //                                           | critical
+            thread::sleep(Duration::from_millis(1)); //                 | section
+                                                     //                 |
+            (i, res.value) //                                           |
         })); // <-------------------------------------------------------+
     }
 
@@ -236,11 +236,11 @@ fn test_dummy_mutex_multithread() {
             // to run the threads is random.
             // The scope of `_guard` is a critical section.
             let _guard = res.mutex.lock().unwrap(); // -----------------+
-                                                                     // |
-            res.value = i;                                           // | critical
-            thread::sleep(Duration::from_millis(1));                 // | section
-                                                                     // |
-            (i, res.value)                                           // |
+                                                    //                  |
+            res.value = i; //                                           | critical
+            thread::sleep(Duration::from_millis(1)); //                 | section
+                                                     //                 |
+            (i, res.value) //                                           |
         })); // <-------------------------------------------------------+
     }
 
