@@ -5,7 +5,7 @@ use std::mem;
 use std::os::raw::c_void;
 use std::ptr;
 
-pub const DISPATCH_QUEUE_SERIAL: dispatch_queue_attr_t = 0 as dispatch_queue_attr_t;
+pub const DISPATCH_QUEUE_SERIAL: dispatch_queue_attr_t = ptr::null_mut::<dispatch_queue_attr_s>();
 
 pub fn create_dispatch_queue(
     label: &'static str,
