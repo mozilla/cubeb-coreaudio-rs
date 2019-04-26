@@ -6,14 +6,8 @@
 
 ## Current Goals
 - Rewrite the [C code][cubeb-au] into *Rust* on a line-by-line basis
-  - The coding style is in *C* style rather than *Rust* so it's easier to review
-    (and it's easy to re-format the style later by running `rustfmt`)
 - Create some tests for later refactoring
-
-### Working Improvement
-- Move all `fn some_func(stm: &AudioUnitStream, ...)` functions into `impl AudioUnitStream`
-- Move all `fn some_func(stm: &AudioUnitContext, ...)` functions into `impl AudioUnitContext`
-- Defusing the `OwnedCriticalSection`. See [proposal][mutex-disposal] here.
+- Defuse the `OwnedCriticalSection`. See [proposal][mutex-disposal] here.
 
 ## Status
 
@@ -26,6 +20,9 @@ and it's able to switch devices when the stream is working
 
 Now the draft version can pass all the tests within *gecko* on mozilla try-server.
 The project can be tracked on [*bugzilla* 1530715][bugzilla-cars].
+
+The plain translation version from the C code
+is in [plain-translation-from-c][translation-from-c] branch.
 
 ## Test
 Please run `sh run_tests.sh`.
@@ -283,3 +280,5 @@ Only those tests commented with *FIXIT* are left.
 [rust-58881]: https://github.com/rust-lang/rust/issues/58881
 
 [mutex-disposal]: mutex-disposal.md
+
+[translation-from-c]: https://github.com/ChunMinChang/cubeb-coreaudio-rs/tree/plain-translation-from-c
