@@ -1618,9 +1618,8 @@ fn test_init_input_linear_buffer_without_valid_audiodescription() {
 //       will check we have at least one active stream when destroying
 //       AudioUnitStream. Maybe we can add this test after refactoring.
 //       Simply add a note here for now.
-
 #[test]
-fn test_clamp_latency_with_one_active_stream() {
+fn test_clamp_latency() {
     // TODO: It works even when there is no output unit(AudioUnit).
     //       Should we throw an error or panic in this case ?
     test_get_default_raw_stream(|stream| {
@@ -1638,73 +1637,13 @@ fn test_clamp_latency_with_one_active_stream() {
             assert_eq!(clamp, test_clamp_latency(latency_frames));
         }
     });
-}
 
-#[test]
-fn test_clamp_latency_with_more_than_one_active_streams() {
-    if let Some(unit) = test_get_default_audiounit(Scope::Output) {
-        test_get_empty_stream(|stream| {
-            stream.output_unit = unit.get_inner();
-            let buffer_frame_size =
-                unit.get_buffer_frame_size(Scope::Output, PropertyScope::Output);
-
-            // clamp_latency and active_streams require a lock for context.
-            // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
-            let mutex_ptr = &mut stream.context.mutex as *mut OwnedCriticalSection;
-            let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-
-            // Lie about having another stream.
-            stream.context.increase_active_streams();
-
-            let range = 0..2 * SAFE_MAX_LATENCY_FRAMES;
-            assert!(range.start < SAFE_MIN_LATENCY_FRAMES);
-            // assert!(range.end < SAFE_MAX_LATENCY_FRAMES);
-            for latency_frames in range {
-                let min = if buffer_frame_size.is_ok() {
-                    cmp::min(buffer_frame_size.unwrap(), latency_frames)
-                } else {
-                    latency_frames
-                };
-                let clamp = stream.clamp_latency(latency_frames);
-                assert_eq!(clamp, test_clamp_latency(min));
-            }
-
-            // Recant the lie about having another stream.
-            stream.context.decrease_active_streams();
-        });
-    } else {
-        println!("No output audiounit.");
+    fn test_clamp_latency(value: u32) -> u32 {
+        cmp::max(
+            cmp::min(value, SAFE_MAX_LATENCY_FRAMES),
+            SAFE_MIN_LATENCY_FRAMES,
+        )
     }
-}
-
-#[test]
-#[should_panic]
-fn test_clamp_latency_with_more_than_one_active_streams_without_output_unit() {
-    test_get_empty_stream(|stream| {
-        // clamp_latency and active_streams require a lock for context.
-        // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
-        let mutex_ptr = &mut stream.context.mutex as *mut OwnedCriticalSection;
-        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-
-        // Lie about having another stream.
-        stream.context.increase_active_streams();
-
-        // TODO: We only check this when we have more than one streams.
-        //       Should we also check this when we have only one stream ?
-        // Get a panic since we don't have valid output AudioUnit.
-        let _ = stream.clamp_latency(0);
-        // The following code won't be executed since we get a panic above.
-
-        // Recant the lie about having another stream.
-        stream.context.decrease_active_streams();
-    });
-}
-
-fn test_clamp_latency(value: u32) -> u32 {
-    cmp::max(
-        cmp::min(value, SAFE_MAX_LATENCY_FRAMES),
-        SAFE_MIN_LATENCY_FRAMES,
-    )
 }
 
 // set_buffer_size
