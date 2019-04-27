@@ -204,17 +204,15 @@ fn test_cubeb_channel_layout_to_channel_label_with_unknown_channel() {
 #[test]
 fn test_increase_and_decrease_active_streams() {
     test_get_locked_raw_context(|context| {
-        assert_eq!(context.active_streams, 0);
+        assert_eq!(context.active_streams(), 0);
 
         for i in 1..10 {
             context.increase_active_streams();
-            assert_eq!(context.active_streams, i);
             assert_eq!(context.active_streams(), i);
         }
 
         for i in (0..9).rev() {
             context.decrease_active_streams();
-            assert_eq!(context.active_streams, i);
             assert_eq!(context.active_streams(), i);
         }
     });
@@ -225,9 +223,9 @@ fn test_increase_and_decrease_active_streams() {
 #[test]
 fn test_set_global_latency() {
     test_get_locked_raw_context(|context| {
-        assert_eq!(context.active_streams, 0);
+        assert_eq!(context.active_streams(), 0);
         context.increase_active_streams();
-        assert_eq!(context.active_streams, 1);
+        assert_eq!(context.active_streams(), 1);
 
         for i in 0..10 {
             context.set_global_latency(i);
