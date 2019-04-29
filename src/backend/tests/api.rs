@@ -197,41 +197,61 @@ fn test_cubeb_channel_layout_to_channel_label_with_unknown_channel() {
     let _label = CAChannelLabel::from(ChannelLayout::UNDEFINED);
 }
 
-// increase_active_streams
-// decrease_active_streams
 // active_streams
+// update_latency_by_adding_stream
+// update_latency_by_removing_stream
 // ------------------------------------
 #[test]
-fn test_increase_and_decrease_active_streams() {
-    test_get_locked_raw_context(|context| {
-        assert_eq!(context.active_streams(), 0);
+fn test_increase_and_decrease_context_streams() {
+    use std::thread;
+    const STREAMS: u32 = 10;
 
-        for i in 1..10 {
-            context.increase_active_streams();
-            assert_eq!(context.active_streams(), i);
-        }
+    let context = AudioUnitContext::new();
+    let context_ptr_value = &context as *const AudioUnitContext as usize;
 
-        for i in (0..9).rev() {
-            context.decrease_active_streams();
-            assert_eq!(context.active_streams(), i);
-        }
-    });
+    let mut join_handles = vec![];
+    for i in 0..STREAMS {
+        join_handles.push(thread::spawn(move || {
+            let context = unsafe { &*(context_ptr_value as *const AudioUnitContext) };
+            let global_latency = context.update_latency_by_adding_stream(i);
+            global_latency
+        }));
+    }
+    let mut latencies = vec![];
+    for handle in join_handles {
+        latencies.push(handle.join().unwrap());
+    }
+    assert_eq!(context.active_streams(), STREAMS);
+    check_streams(&context, STREAMS);
+
+    check_latency(&context, latencies[0]);
+    for i in 0..latencies.len() - 1 {
+        assert_eq!(latencies[i], latencies[i + 1]);
+    }
+
+    let mut join_handles = vec![];
+    for _ in 0..STREAMS {
+        join_handles.push(thread::spawn(move || {
+            let context = unsafe { &*(context_ptr_value as *const AudioUnitContext) };
+            context.update_latency_by_removing_stream();
+        }));
+    }
+    for handle in join_handles {
+        let _ = handle.join();
+    }
+    check_streams(&context, 0);
+
+    check_latency(&context, None);
 }
 
-// set_global_latency
-// ------------------------------------
-#[test]
-fn test_set_global_latency() {
-    test_get_locked_raw_context(|context| {
-        assert_eq!(context.active_streams(), 0);
-        context.increase_active_streams();
-        assert_eq!(context.active_streams(), 1);
+fn check_streams(context: &AudioUnitContext, number: u32) {
+    let guard = context.latency_controller.lock().unwrap();
+    assert_eq!(guard.streams, number);
+}
 
-        for i in 0..10 {
-            context.set_global_latency(i);
-            assert_eq!(context.global_latency_frames, i);
-        }
-    });
+fn check_latency(context: &AudioUnitContext, latency: Option<u32>) {
+    let guard = context.latency_controller.lock().unwrap();
+    assert_eq!(guard.latency, latency);
 }
 
 // make_silent
@@ -1607,40 +1627,15 @@ fn test_init_input_linear_buffer_without_valid_audiodescription() {
 
 // clamp_latency
 // ------------------------------------
-// TODO: Add a test to test the behavior of clamp_latency without any
-//       active stream.
-//       We are unable to test it right now. If we add a test that should get
-//       a panic when hitting the assertion in clamp_latency since
-//       there is no active stream, then we will get another panic when
-//       AudioUnitStream::drop/destroy is called. AudioUnitStream::drop/destroy
-//       will check we have at least one active stream when destroying
-//       AudioUnitStream. Maybe we can add this test after refactoring.
-//       Simply add a note here for now.
 #[test]
 fn test_clamp_latency() {
-    // TODO: It works even when there is no output unit(AudioUnit).
-    //       Should we throw an error or panic in this case ?
-    test_get_default_raw_stream(|stream| {
-        // clamp_latency will call active_streams that requires a lock for
-        // context.
-        // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
-        let mutex_ptr = &mut stream.context.mutex as *mut OwnedCriticalSection;
-        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-
-        let range = 0..2 * SAFE_MAX_LATENCY_FRAMES;
-        assert!(range.start < SAFE_MIN_LATENCY_FRAMES);
-        // assert!(range.end < SAFE_MAX_LATENCY_FRAMES);
-        for latency_frames in range {
-            let clamp = stream.clamp_latency(latency_frames);
-            assert_eq!(clamp, test_clamp_latency(latency_frames));
-        }
-    });
-
-    fn test_clamp_latency(value: u32) -> u32 {
-        cmp::max(
-            cmp::min(value, SAFE_MAX_LATENCY_FRAMES),
-            SAFE_MIN_LATENCY_FRAMES,
-        )
+    let range = 0..2 * SAFE_MAX_LATENCY_FRAMES;
+    assert!(range.start < SAFE_MIN_LATENCY_FRAMES);
+    // assert!(range.end < SAFE_MAX_LATENCY_FRAMES);
+    for latency_frames in range {
+        let clamp = clamp_latency(latency_frames);
+        assert!(clamp >= SAFE_MIN_LATENCY_FRAMES);
+        assert!(clamp <= SAFE_MAX_LATENCY_FRAMES);
     }
 }
 
@@ -1707,9 +1702,8 @@ fn test_set_buffer_size_by_scope_with_null_unit(scope: Scope) {
 
 // configure_input
 // ------------------------------------
-// Ignore the test by default to avoid overwritting the buffer frame size for the output device
-// that is using in test_clamp_latency_with_more_than_one_active_streams. The device may serve as
-// both default input and default output device.
+// Ignore the test by default to avoid overwritting the buffer frame size to the device that is
+// probably operating in other tests in parallel.
 #[ignore]
 #[test]
 fn test_configure_input() {
@@ -1813,8 +1807,8 @@ fn test_configure_input_with_zero_latency_frames() {
 
 // configure_output
 // ------------------------------------
-// Ignore the test by default to avoid overwritting the buffer frame size for the output device
-// that is using in test_clamp_latency_with_more_than_one_active_streams.
+// Ignore the test by default to avoid overwritting the buffer frame size to the device that is
+// probably operating in other tests in parallel.
 #[ignore]
 #[test]
 fn test_configure_output() {
@@ -1902,17 +1896,11 @@ where
                     stream.output_stream_params = params;
                 }
             }
+
             // Set the latency_frames to a valid value so `buffer frames size` and
             // `frames per slice` can be set correctly!
-            {
-                // Create a `ctx_mutext_ptr` here to avoid borrowing issues for `ctx`.
-                let ctx_mutex_ptr = &mut stream.context.mutex as *mut OwnedCriticalSection;
-                // The scope of `_ctx_lock` is a critical section.
-                let _ctx_lock = AutoLock::new(unsafe { &mut (*ctx_mutex_ptr) });
-                assert_eq!(stream.latency_frames, 0);
-                stream.latency_frames = stream.clamp_latency(0);
-                assert_ne!(stream.latency_frames, 0);
-            }
+            stream.latency_frames = clamp_latency(0);
+
             let res = match scope {
                 Scope::Input => stream.configure_input(),
                 Scope::Output => stream.configure_output(),

@@ -994,20 +994,14 @@ fn test_get_raw_stream<F>(
 
     // Add a stream to the context since we are about to create one.
     // AudioUnitStream::drop() will check the context has at least one stream.
-    {
-        // Create a `mutext_ptr` here to avoid the borrowing-twice issue.
-        let mutex_ptr = &mut context.mutex as *mut OwnedCriticalSection;
-        // The scope of `_lock` is a critical section.
-        let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-        context.increase_active_streams();
-    }
+    let global_latency_frames = context.update_latency_by_adding_stream(latency_frames);
 
     let mut stream = AudioUnitStream::new(
         &mut context,
         user_ptr,
         data_callback,
         state_callback,
-        latency_frames,
+        global_latency_frames.unwrap(),
     );
     // Initialize the the mutex (whose type is OwnedCriticalSection) within AudioUnitStream
     // to make the mutex work.
