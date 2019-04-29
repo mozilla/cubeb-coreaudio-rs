@@ -2451,6 +2451,14 @@ impl ContextOps for AudioUnitContext {
         state_callback: ffi::cubeb_state_callback,
         user_ptr: *mut c_void,
     ) -> Result<Stream> {
+        assert!(latency_frames > 0);
+
+        if (!input_device.is_null() && input_stream_params.is_none())
+            || (!output_device.is_null() && output_stream_params.is_none())
+        {
+            return Err(Error::invalid_parameter());
+        }
+
         // TODO: Check stm.input_stream_params and stm.output_stream_params are valid and matched ?
         // The code can easily fail if {input, output}_stream_params is
         // ffi::cubeb_stream_params::default(). To prevent the stream from being initialized with
@@ -2478,16 +2486,7 @@ impl ContextOps for AudioUnitContext {
             latency_frames,
         ));
         boxed_stream.init_mutex();
-        // TODO: Shouldn't this be put at the first so we don't need to perform
-        //       any action if the check fails? (Sync with C version)
-        assert!(latency_frames > 0);
-        // TODO: Shouldn't this be put at the first so we don't need to perform
-        //       any action if the check fails? (Sync with C version)
-        if (!input_device.is_null() && input_stream_params.is_none())
-            || (!output_device.is_null() && output_stream_params.is_none())
-        {
-            return Err(Error::invalid_parameter());
-        }
+
         // TODO: Add a method `to_owned` in `StreamParamsRef`.
         if let Some(stream_params_ref) = input_stream_params {
             assert!(!stream_params_ref.as_ptr().is_null());
