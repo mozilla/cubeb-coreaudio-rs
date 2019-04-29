@@ -2165,39 +2165,39 @@ extern "C" fn audiounit_collection_changed_callback(
     // This can be called from inside an AudioUnit function, dispatch to another queue.
     async_dispatch(queue, move || {
         let mut ctx_guard = also_mutexed_context.lock().unwrap();
-        let ctx = &mut *(*ctx_guard);
+        let ctx_ptr = *ctx_guard as *const AudioUnitContext;
 
-        let mutex_ptr = &mut ctx.mutex as *mut OwnedCriticalSection;
+        let mutex_ptr = &mut ctx_guard.mutex as *mut OwnedCriticalSection;
         // The scope of `_context_lock` is a critical section.
         let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
 
-        if ctx.input_collection_changed_callback.is_none()
-            && ctx.output_collection_changed_callback.is_none()
+        if ctx_guard.input_collection_changed_callback.is_none()
+            && ctx_guard.output_collection_changed_callback.is_none()
         {
             return;
         }
-        if ctx.input_collection_changed_callback.is_some() {
+        if ctx_guard.input_collection_changed_callback.is_some() {
             let devices = audiounit_get_devices_of_type(DeviceType::INPUT);
             /* Elements in the vector expected sorted. */
-            if ctx.input_device_array != devices {
-                ctx.input_device_array = devices;
+            if ctx_guard.input_device_array != devices {
+                ctx_guard.input_device_array = devices;
                 unsafe {
-                    ctx.input_collection_changed_callback.unwrap()(
-                        ctx as *mut AudioUnitContext as *mut ffi::cubeb,
-                        ctx.input_collection_changed_user_ptr,
+                    ctx_guard.input_collection_changed_callback.unwrap()(
+                        ctx_ptr as *mut ffi::cubeb,
+                        ctx_guard.input_collection_changed_user_ptr,
                     );
                 }
             }
         }
-        if ctx.output_collection_changed_callback.is_some() {
+        if ctx_guard.output_collection_changed_callback.is_some() {
             let devices = audiounit_get_devices_of_type(DeviceType::OUTPUT);
             /* Elements in the vector expected sorted. */
-            if ctx.output_device_array != devices {
-                ctx.output_device_array = devices;
+            if ctx_guard.output_device_array != devices {
+                ctx_guard.output_device_array = devices;
                 unsafe {
-                    ctx.output_collection_changed_callback.unwrap()(
-                        ctx as *mut AudioUnitContext as *mut ffi::cubeb,
-                        ctx.output_collection_changed_user_ptr,
+                    ctx_guard.output_collection_changed_callback.unwrap()(
+                        ctx_ptr as *mut ffi::cubeb,
+                        ctx_guard.output_collection_changed_user_ptr,
                     );
                 }
             }
