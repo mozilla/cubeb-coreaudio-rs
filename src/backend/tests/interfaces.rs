@@ -202,70 +202,65 @@ fn test_ops_context_register_device_collection_changed_unknown() {
     );
 }
 
-// FIXIT: These tests failed! Fix them!
-// #[test]
-// #[should_panic]
-// fn test_ops_context_register_device_collection_changed_twice_input() {
-//     test_ops_context_register_device_collection_changed_twice(ffi::CUBEB_DEVICE_TYPE_INPUT);
-// }
+#[test]
+fn test_ops_context_register_device_collection_changed_twice_input() {
+    test_ops_context_register_device_collection_changed_twice(ffi::CUBEB_DEVICE_TYPE_INPUT);
+}
 
-// #[test]
-// #[should_panic]
-// fn test_ops_context_register_device_collection_changed_twice_output() {
-//     test_ops_context_register_device_collection_changed_twice(ffi::CUBEB_DEVICE_TYPE_OUTPUT);
-// }
+#[test]
+fn test_ops_context_register_device_collection_changed_twice_output() {
+    test_ops_context_register_device_collection_changed_twice(ffi::CUBEB_DEVICE_TYPE_OUTPUT);
+}
 
-// #[test]
-// #[should_panic]
-// fn test_ops_context_register_device_collection_changed_twice_inout() {
-//     test_ops_context_register_device_collection_changed_twice(
-//         ffi::CUBEB_DEVICE_TYPE_INPUT | ffi::CUBEB_DEVICE_TYPE_OUTPUT,
-//     );
-// }
+#[test]
+fn test_ops_context_register_device_collection_changed_twice_inout() {
+    test_ops_context_register_device_collection_changed_twice(
+        ffi::CUBEB_DEVICE_TYPE_INPUT | ffi::CUBEB_DEVICE_TYPE_OUTPUT,
+    );
+}
 
-// fn test_ops_context_register_device_collection_changed_twice(devtype: u32) {
-//     extern "C" fn callback(_: *mut ffi::cubeb, _: *mut c_void) {}
-//     let label_input: &'static str = "context: register device collection changed twice (input)";
-//     let label_output: &'static str = "context: register device collection changed twice (output)";
-//     let label_inout: &'static str = "context: register device collection changed twice (inout)";
-//     let label = if devtype == ffi::CUBEB_DEVICE_TYPE_INPUT {
-//         label_input
-//     } else if devtype == ffi::CUBEB_DEVICE_TYPE_OUTPUT {
-//         label_output
-//     } else if devtype == ffi::CUBEB_DEVICE_TYPE_INPUT | ffi::CUBEB_DEVICE_TYPE_OUTPUT {
-//         label_inout
-//     } else {
-//         return;
-//     };
+fn test_ops_context_register_device_collection_changed_twice(devtype: u32) {
+    extern "C" fn callback(_: *mut ffi::cubeb, _: *mut c_void) {}
+    let label_input: &'static str = "context: register device collection changed twice (input)";
+    let label_output: &'static str = "context: register device collection changed twice (output)";
+    let label_inout: &'static str = "context: register device collection changed twice (inout)";
+    let label = if devtype == ffi::CUBEB_DEVICE_TYPE_INPUT {
+        label_input
+    } else if devtype == ffi::CUBEB_DEVICE_TYPE_OUTPUT {
+        label_output
+    } else if devtype == ffi::CUBEB_DEVICE_TYPE_INPUT | ffi::CUBEB_DEVICE_TYPE_OUTPUT {
+        label_inout
+    } else {
+        return;
+    };
 
-//     test_ops_context_operation(label, |context_ptr| {
-//         // Register a callback within the defined scope.
-//         assert_eq!(
-//             unsafe {
-//                 OPS.register_device_collection_changed.unwrap()(
-//                     context_ptr,
-//                     devtype,
-//                     Some(callback),
-//                     ptr::null_mut(),
-//                 )
-//             },
-//             ffi::CUBEB_OK
-//         );
+    test_ops_context_operation(label, |context_ptr| {
+        // Register a callback within the defined scope.
+        assert_eq!(
+            unsafe {
+                OPS.register_device_collection_changed.unwrap()(
+                    context_ptr,
+                    devtype,
+                    Some(callback),
+                    ptr::null_mut(),
+                )
+            },
+            ffi::CUBEB_OK
+        );
 
-//         // Hit an assertion when registering two callbacks within the same scope.
-//         assert_eq!(
-//             unsafe {
-//                 OPS.register_device_collection_changed.unwrap()(
-//                     context_ptr,
-//                     devtype,
-//                     Some(callback),
-//                     ptr::null_mut(),
-//                 )
-//             },
-//             ffi::CUBEB_ERROR
-//         );
-//     });
-// }
+        assert_eq!(
+            unsafe {
+                OPS.register_device_collection_changed.unwrap()(
+                    context_ptr,
+                    devtype,
+                    Some(callback),
+                    ptr::null_mut(),
+                )
+            },
+            ffi::CUBEB_ERROR_INVALID_PARAMETER
+        );
+    });
+}
 
 #[test]
 fn test_ops_context_register_device_collection_changed() {
