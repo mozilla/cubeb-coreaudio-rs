@@ -2458,8 +2458,8 @@ fn test_add_devices_changed_listener() {
 
     test_get_locked_raw_context(|context| {
         for (devtype, callback) in map.iter() {
-            assert!(context.input_collection_changed_callback.is_none());
-            assert!(context.output_collection_changed_callback.is_none());
+            assert!(get_devices_changed_callback(context, Scope::Input).is_none());
+            assert!(get_devices_changed_callback(context, Scope::Output).is_none());
 
             // Register a callback within a specific scope.
             assert_eq!(
@@ -2468,23 +2468,21 @@ fn test_add_devices_changed_listener() {
             );
 
             if devtype.contains(DeviceType::INPUT) {
-                assert!(context.input_collection_changed_callback.is_some());
-                assert_eq!(
-                    context.input_collection_changed_callback.unwrap(),
-                    *callback
-                );
+                let cb = get_devices_changed_callback(context, Scope::Input);
+                assert!(cb.is_some());
+                assert_eq!(cb.unwrap(), *callback);
             } else {
-                assert!(context.input_collection_changed_callback.is_none());
+                let cb = get_devices_changed_callback(context, Scope::Input);
+                assert!(cb.is_none());
             }
 
             if devtype.contains(DeviceType::OUTPUT) {
-                assert!(context.output_collection_changed_callback.is_some());
-                assert_eq!(
-                    context.output_collection_changed_callback.unwrap(),
-                    *callback
-                );
+                let cb = get_devices_changed_callback(context, Scope::Output);
+                assert!(cb.is_some());
+                assert_eq!(cb.unwrap(), *callback);
             } else {
-                assert!(context.output_collection_changed_callback.is_none());
+                let cb = get_devices_changed_callback(context, Scope::Output);
+                assert!(cb.is_none());
             }
 
             // Unregister the callbacks within all scopes.
@@ -2493,8 +2491,8 @@ fn test_add_devices_changed_listener() {
                 NO_ERR
             );
 
-            assert!(context.input_collection_changed_callback.is_none());
-            assert!(context.output_collection_changed_callback.is_none());
+            assert!(get_devices_changed_callback(context, Scope::Input).is_none());
+            assert!(get_devices_changed_callback(context, Scope::Output).is_none());
         }
     });
 }
@@ -2541,8 +2539,8 @@ fn test_remove_devices_changed_listener() {
 
     test_get_locked_raw_context(|context| {
         for (devtype, _callback) in map.iter() {
-            assert!(context.input_collection_changed_callback.is_none());
-            assert!(context.output_collection_changed_callback.is_none());
+            assert!(get_devices_changed_callback(context, Scope::Input).is_none());
+            assert!(get_devices_changed_callback(context, Scope::Output).is_none());
 
             // Register callbacks within all scopes.
             for (scope, listener) in map.iter() {
@@ -2552,14 +2550,16 @@ fn test_remove_devices_changed_listener() {
                 );
             }
 
-            assert!(context.input_collection_changed_callback.is_some());
+            let input_callback = get_devices_changed_callback(context, Scope::Input);
+            assert!(input_callback.is_some());
             assert_eq!(
-                context.input_collection_changed_callback.unwrap(),
+                input_callback.unwrap(),
                 *(map.get(&DeviceType::INPUT).unwrap())
             );
-            assert!(context.output_collection_changed_callback.is_some());
+            let output_callback = get_devices_changed_callback(context, Scope::Output);
+            assert!(output_callback.is_some());
             assert_eq!(
-                context.output_collection_changed_callback.unwrap(),
+                output_callback.unwrap(),
                 *(map.get(&DeviceType::OUTPUT).unwrap())
             );
 
@@ -2567,23 +2567,21 @@ fn test_remove_devices_changed_listener() {
             assert_eq!(context.remove_devices_changed_listener(*devtype), NO_ERR);
 
             if devtype.contains(DeviceType::INPUT) {
-                assert!(context.input_collection_changed_callback.is_none());
+                let cb = get_devices_changed_callback(context, Scope::Input);
+                assert!(cb.is_none());
             } else {
-                assert!(context.input_collection_changed_callback.is_some());
-                assert_eq!(
-                    context.input_collection_changed_callback.unwrap(),
-                    *(map.get(&DeviceType::INPUT).unwrap())
-                );
+                let cb = get_devices_changed_callback(context, Scope::Input);
+                assert!(cb.is_some());
+                assert_eq!(cb.unwrap(), *(map.get(&DeviceType::INPUT).unwrap()));
             }
 
             if devtype.contains(DeviceType::OUTPUT) {
-                assert!(context.output_collection_changed_callback.is_none());
+                let cb = get_devices_changed_callback(context, Scope::Output);
+                assert!(cb.is_none());
             } else {
-                assert!(context.output_collection_changed_callback.is_some());
-                assert_eq!(
-                    context.output_collection_changed_callback.unwrap(),
-                    *(map.get(&DeviceType::OUTPUT).unwrap())
-                );
+                let cb = get_devices_changed_callback(context, Scope::Output);
+                assert!(cb.is_some());
+                assert_eq!(cb.unwrap(), *(map.get(&DeviceType::OUTPUT).unwrap()));
             }
 
             // Unregister the callbacks within all scopes.
@@ -2623,8 +2621,8 @@ fn test_remove_devices_changed_listener_within_all_scopes() {
 
     test_get_locked_raw_context(|context| {
         for (devtype, callback) in map.iter() {
-            assert!(context.input_collection_changed_callback.is_none());
-            assert!(context.output_collection_changed_callback.is_none());
+            assert!(get_devices_changed_callback(context, Scope::Input).is_none());
+            assert!(get_devices_changed_callback(context, Scope::Output).is_none());
 
             assert_eq!(
                 context.add_devices_changed_listener(*devtype, Some(*callback), ptr::null_mut()),
@@ -2632,19 +2630,15 @@ fn test_remove_devices_changed_listener_within_all_scopes() {
             );
 
             if devtype.contains(DeviceType::INPUT) {
-                assert!(context.input_collection_changed_callback.is_some());
-                assert_eq!(
-                    context.input_collection_changed_callback.unwrap(),
-                    *callback
-                );
+                let cb = get_devices_changed_callback(context, Scope::Input);
+                assert!(cb.is_some());
+                assert_eq!(cb.unwrap(), *callback);
             }
 
             if devtype.contains(DeviceType::OUTPUT) {
-                assert!(context.output_collection_changed_callback.is_some());
-                assert_eq!(
-                    context.output_collection_changed_callback.unwrap(),
-                    *callback
-                );
+                let cb = get_devices_changed_callback(context, Scope::Output);
+                assert!(cb.is_some());
+                assert_eq!(cb.unwrap(), *callback);
             }
 
             assert_eq!(
@@ -2652,8 +2646,19 @@ fn test_remove_devices_changed_listener_within_all_scopes() {
                 NO_ERR
             );
 
-            assert!(context.input_collection_changed_callback.is_none());
-            assert!(context.output_collection_changed_callback.is_none());
+            assert!(get_devices_changed_callback(context, Scope::Input).is_none());
+            assert!(get_devices_changed_callback(context, Scope::Output).is_none());
         }
     });
+}
+
+fn get_devices_changed_callback(
+    context: &AudioUnitContext,
+    scope: Scope,
+) -> ffi::cubeb_device_collection_changed_callback {
+    let devices_guard = context.devices.lock().unwrap();
+    match scope {
+        Scope::Input => devices_guard.input.changed_callback,
+        Scope::Output => devices_guard.output.changed_callback,
+    }
 }
