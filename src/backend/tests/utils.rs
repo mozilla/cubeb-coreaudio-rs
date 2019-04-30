@@ -954,7 +954,7 @@ pub fn test_ops_stream_operation<F>(
     });
 }
 
-pub fn test_get_locked_context<F>(operation: F)
+pub fn test_get_locked_raw_context<F>(operation: F)
 where
     F: FnOnce(&mut AudioUnitContext),
 {
@@ -971,14 +971,14 @@ where
     operation(&mut context);
 }
 
-pub fn test_get_empty_stream<F>(operation: F)
+pub fn test_get_default_raw_stream<F>(operation: F)
 where
     F: FnOnce(&mut AudioUnitStream),
 {
-    test_get_stream(ptr::null_mut(), None, None, 0, operation);
+    test_get_raw_stream(ptr::null_mut(), None, None, 0, operation);
 }
 
-fn test_get_stream<F>(
+fn test_get_raw_stream<F>(
     user_ptr: *mut c_void,
     data_callback: ffi::cubeb_data_callback,
     state_callback: ffi::cubeb_state_callback,

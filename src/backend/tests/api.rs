@@ -1,9 +1,9 @@
 use super::utils::{
     test_audiounit_get_buffer_frame_size, test_audiounit_scope_is_enabled, test_create_audiounit,
     test_device_channels_in_scope, test_device_in_scope, test_get_all_devices,
-    test_get_default_audiounit, test_get_default_device, test_get_default_source_data,
-    test_get_default_source_name, test_get_empty_stream, test_get_locked_context, ComponentSubType,
-    PropertyScope, Scope,
+    test_get_default_audiounit, test_get_default_device, test_get_default_raw_stream,
+    test_get_default_source_data, test_get_default_source_name, test_get_locked_raw_context,
+    ComponentSubType, PropertyScope, Scope,
 };
 use super::*;
 use std::any::Any;
@@ -204,7 +204,7 @@ fn test_cubeb_channel_to_channel_label_with_unknown_channel() {
 // ------------------------------------
 #[test]
 fn test_increase_and_decrease_active_streams() {
-    test_get_locked_context(|context| {
+    test_get_locked_raw_context(|context| {
         assert_eq!(context.active_streams, 0);
 
         for i in 1..10 {
@@ -225,7 +225,7 @@ fn test_increase_and_decrease_active_streams() {
 // ------------------------------------
 #[test]
 fn test_set_global_latency() {
-    test_get_locked_context(|context| {
+    test_get_locked_raw_context(|context| {
         assert_eq!(context.active_streams, 0);
         context.increase_active_streams();
         assert_eq!(context.active_streams, 1);
@@ -273,7 +273,7 @@ fn test_make_silent() {
 // ------------------------------------
 #[test]
 fn test_minimum_resampling_input_frames() {
-    test_get_empty_stream(|stream| {
+    test_get_default_raw_stream(|stream| {
         // Set input and output rates to 48000 and 44100 respectively.
         test_minimum_resampling_input_frames_set_stream_rates(stream, (48000_f64, 44100_f64));
         let frames: i64 = 100;
@@ -286,7 +286,7 @@ fn test_minimum_resampling_input_frames() {
 #[test]
 #[should_panic]
 fn test_minimum_resampling_input_frames_zero_input_rate() {
-    test_get_empty_stream(|stream| {
+    test_get_default_raw_stream(|stream| {
         // Set input and output rates to 0 and 44100 respectively.
         test_minimum_resampling_input_frames_set_stream_rates(stream, (0_f64, 44100_f64));
         let frames: i64 = 100;
@@ -297,7 +297,7 @@ fn test_minimum_resampling_input_frames_zero_input_rate() {
 #[test]
 #[should_panic]
 fn test_minimum_resampling_input_frames_zero_output_rate() {
-    test_get_empty_stream(|stream| {
+    test_get_default_raw_stream(|stream| {
         // Set input and output rates to 48000 and 0 respectively.
         test_minimum_resampling_input_frames_set_stream_rates(stream, (48000_f64, 0_f64));
         let frames: i64 = 100;
@@ -307,7 +307,7 @@ fn test_minimum_resampling_input_frames_zero_output_rate() {
 
 #[test]
 fn test_minimum_resampling_input_frames_equal_input_output_rate() {
-    test_get_empty_stream(|stream| {
+    test_get_default_raw_stream(|stream| {
         // Set both input and output rates to 44100.
         test_minimum_resampling_input_frames_set_stream_rates(stream, (44100_f64, 44100_f64));
         let frames: i64 = 100;
@@ -342,7 +342,7 @@ fn test_minimum_resampling_input_frames_set_stream_rates(
 // ------------------------------------
 #[test]
 fn test_set_device_info_to_unknown_input_device() {
-    test_get_empty_stream(|stream| {
+    test_get_default_raw_stream(|stream| {
         // The input device info of the stream will be set to the system default if the predefined
         // input device is unknown.
         if let Ok(default_input) =
@@ -361,7 +361,7 @@ fn test_set_device_info_to_unknown_input_device() {
 
 #[test]
 fn test_set_device_info_to_unknown_output_device() {
-    test_get_empty_stream(|stream| {
+    test_get_default_raw_stream(|stream| {
         // The output device info of the stream will be set to the system default if the predefined
         // output device is unknown.
         if let Ok(default_output) =
@@ -384,7 +384,7 @@ fn test_set_device_info_to_unknown_output_device() {
 #[ignore]
 #[test]
 fn test_set_device_info_to_system_input_device() {
-    test_get_empty_stream(|stream| {
+    test_get_default_raw_stream(|stream| {
         // Will the input device info of the stream be set to the system default if the predefined
         // input device is system device ?
         if let Ok(default_input) = test_set_device_info_and_get_default_device(
@@ -410,7 +410,7 @@ fn test_set_device_info_to_system_input_device() {
 #[ignore]
 #[test]
 fn test_set_device_info_to_system_output_device() {
-    test_get_empty_stream(|stream| {
+    test_get_default_raw_stream(|stream| {
         // Will the output device info of the stream be set to the system default if the predefined
         // input device is system device ?
         if let Ok(default_output) = test_set_device_info_and_get_default_device(
@@ -434,7 +434,7 @@ fn test_set_device_info_to_system_output_device() {
 #[ignore]
 #[test]
 fn test_set_device_info_to_nonexistent_input_device() {
-    test_get_empty_stream(|stream| {
+    test_get_default_raw_stream(|stream| {
         if let Ok(_default_input) = test_set_device_info_and_get_default_device(
             stream,
             Scope::Input,
@@ -449,7 +449,7 @@ fn test_set_device_info_to_nonexistent_input_device() {
 #[ignore]
 #[test]
 fn test_set_device_info_to_nonexistent_output_device() {
-    test_get_empty_stream(|stream| {
+    test_get_default_raw_stream(|stream| {
         if let Ok(_default_output) = test_set_device_info_and_get_default_device(
             stream,
             Scope::Output,
@@ -519,7 +519,7 @@ fn test_add_listener_unknown_device() {
         kAudioHardwareUnspecifiedError as OSStatus
     }
 
-    test_get_empty_stream(|stream| {
+    test_get_default_raw_stream(|stream| {
         let listener = device_property_listener::new(
             kAudioObjectUnknown,
             &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
@@ -546,7 +546,7 @@ fn test_add_listener_then_remove_system_device() {
         kAudioHardwareUnspecifiedError as OSStatus
     }
 
-    test_get_empty_stream(|stream| {
+    test_get_default_raw_stream(|stream| {
         let listener = device_property_listener::new(
             kAudioObjectSystemObject,
             &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
@@ -569,7 +569,7 @@ fn test_remove_listener_without_adding_any_listener_before_system_device() {
         kAudioHardwareUnspecifiedError as OSStatus
     }
 
-    test_get_empty_stream(|stream| {
+    test_get_default_raw_stream(|stream| {
         let listener = device_property_listener::new(
             kAudioObjectSystemObject,
             &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
@@ -591,7 +591,7 @@ fn test_remove_listener_unknown_device() {
         kAudioHardwareUnspecifiedError as OSStatus
     }
 
-    test_get_empty_stream(|stream| {
+    test_get_default_raw_stream(|stream| {
         let listener = device_property_listener::new(
             kAudioObjectUnknown,
             &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
@@ -1046,7 +1046,7 @@ fn test_audio_stream_desc_init() {
 // ------------------------------------
 #[test]
 fn test_init_mixer() {
-    test_get_empty_stream(|stream| {
+    test_get_default_raw_stream(|stream| {
         stream.init_mixer();
         assert!(!stream.mixer.as_mut_ptr().is_null());
         // stream.mixer will be deallocated when stream is destroyed.
@@ -1143,7 +1143,7 @@ fn test_set_channel_layout_with_null_unit() {
 #[test]
 fn test_layout_init() {
     if let Some(unit) = test_get_default_audiounit(Scope::Output) {
-        test_get_empty_stream(move |stream| {
+        test_get_default_raw_stream(move |stream| {
             stream.output_unit = unit.get_inner();
 
             assert_eq!(
@@ -1554,7 +1554,7 @@ fn test_init_input_linear_buffer() {
             panic!("Unsupported type!");
         };
 
-        test_get_empty_stream(|stream| {
+        test_get_default_raw_stream(|stream| {
             stream.latency_frames = latency;
             stream.input_desc.mFormatFlags |= format;
             stream.input_desc.mChannelsPerFrame = CHANNEL;
@@ -1582,7 +1582,7 @@ fn test_init_input_linear_buffer() {
 #[test]
 #[should_panic]
 fn test_init_input_linear_buffer_without_valid_audiodescription() {
-    test_get_empty_stream(|stream| {
+    test_get_default_raw_stream(|stream| {
         stream.latency_frames = 4096;
         assert!(stream.input_linear_buffer.is_none());
         assert!(stream.init_input_linear_buffer(1).is_err());
@@ -1605,7 +1605,7 @@ fn test_init_input_linear_buffer_without_valid_audiodescription() {
 fn test_clamp_latency_with_one_active_stream() {
     // TODO: It works even when there is no output unit(AudioUnit).
     //       Should we throw an error or panic in this case ?
-    test_get_empty_stream(|stream| {
+    test_get_default_raw_stream(|stream| {
         // clamp_latency will call active_streams that requires a lock for
         // context.
         // Create a `mutext_ptr` here to avoid borrowing issues for `ctx`.
@@ -1697,7 +1697,7 @@ fn test_set_buffer_size() {
     test_set_buffer_size_by_scope(Scope::Output);
 
     fn test_set_buffer_size_by_scope(scope: Scope) {
-        test_get_empty_stream(|stream| {
+        test_get_default_raw_stream(|stream| {
             let default_unit = test_get_default_audiounit(scope.clone());
             if default_unit.is_none() {
                 println!("No audiounit for {:?}.", scope);
@@ -1737,7 +1737,7 @@ fn test_set_buffer_size_for_output_with_null_output_unit() {
 }
 
 fn test_set_buffer_size_by_scope_with_null_unit(scope: Scope) {
-    test_get_empty_stream(|stream| {
+    test_get_default_raw_stream(|stream| {
         let unit = match scope {
             Scope::Input => stream.input_unit,
             Scope::Output => stream.output_unit,
@@ -1828,7 +1828,7 @@ fn test_configure_input() {
 #[test]
 #[should_panic]
 fn test_configure_input_with_null_unit() {
-    test_get_empty_stream(|stream| {
+    test_get_default_raw_stream(|stream| {
         assert!(stream.input_unit.is_null());
         assert!(stream.configure_input().is_err());
     });
@@ -1903,7 +1903,7 @@ fn test_configure_output() {
 #[test]
 #[should_panic]
 fn test_configure_output_with_null_unit() {
-    test_get_empty_stream(|stream| {
+    test_get_default_raw_stream(|stream| {
         assert!(stream.output_unit.is_null());
         assert!(stream.configure_output().is_err());
     });
@@ -1940,7 +1940,7 @@ where
     F: FnOnce(&mut AudioUnitStream),
 {
     if let Some(unit) = test_get_default_audiounit(scope.clone()) {
-        test_get_empty_stream(|stream| {
+        test_get_default_raw_stream(|stream| {
             match scope {
                 Scope::Input => {
                     stream.input_unit = unit.get_inner();
@@ -1979,7 +1979,7 @@ where
     F: FnOnce(&mut AudioUnitStream),
 {
     if let Some(unit) = test_get_default_audiounit(scope.clone()) {
-        test_get_empty_stream(|stream| {
+        test_get_default_raw_stream(|stream| {
             match scope {
                 Scope::Input => {
                     stream.input_unit = unit.get_inner();
@@ -2064,7 +2064,7 @@ fn check_frames_per_slice(stream: &mut AudioUnitStream, scope: Scope) {
 #[test]
 fn test_stream_get_volume() {
     if let Some(unit) = test_get_default_audiounit(Scope::Output) {
-        test_get_empty_stream(|stream| {
+        test_get_default_raw_stream(|stream| {
             stream.output_unit = unit.get_inner();
             let expected_volume: f32 = 0.5;
             stream.set_volume(expected_volume);
@@ -2499,7 +2499,7 @@ fn test_add_devices_changed_listener() {
     map.insert(DeviceType::OUTPUT, out_callback);
     map.insert(DeviceType::INPUT | DeviceType::OUTPUT, inout_callback);
 
-    test_get_locked_context(|context| {
+    test_get_locked_raw_context(|context| {
         for (devtype, callback) in map.iter() {
             assert!(context.input_collection_changed_callback.is_none());
             assert!(context.output_collection_changed_callback.is_none());
@@ -2553,7 +2553,7 @@ fn test_add_devices_changed_listener() {
 fn test_add_devices_changed_listener_in_unknown_scope() {
     extern "C" fn callback(_: *mut ffi::cubeb, _: *mut c_void) {}
 
-    test_get_locked_context(|context| {
+    test_get_locked_raw_context(|context| {
         let _ = context.add_devices_changed_listener(
             DeviceType::UNKNOWN,
             Some(callback),
@@ -2565,7 +2565,7 @@ fn test_add_devices_changed_listener_in_unknown_scope() {
 #[test]
 #[should_panic]
 fn test_add_devices_changed_listener_with_none_callback() {
-    test_get_locked_context(|context| {
+    test_get_locked_raw_context(|context| {
         for devtype in &[DeviceType::INPUT, DeviceType::OUTPUT] {
             assert_ne!(
                 context.add_devices_changed_listener(*devtype, None, ptr::null_mut()),
@@ -2588,7 +2588,7 @@ fn test_remove_devices_changed_listener() {
     map.insert(DeviceType::INPUT, in_callback);
     map.insert(DeviceType::OUTPUT, out_callback);
 
-    test_get_locked_context(|context| {
+    test_get_locked_raw_context(|context| {
         for (devtype, _callback) in map.iter() {
             assert!(context.input_collection_changed_callback.is_none());
             assert!(context.output_collection_changed_callback.is_none());
@@ -2646,7 +2646,7 @@ fn test_remove_devices_changed_listener() {
 
 #[test]
 fn test_remove_devices_changed_listener_without_adding_listeners() {
-    test_get_locked_context(|context| {
+    test_get_locked_raw_context(|context| {
         for devtype in &[
             DeviceType::UNKNOWN,
             DeviceType::INPUT,
@@ -2671,7 +2671,7 @@ fn test_remove_devices_changed_listener_within_all_scopes() {
     map.insert(DeviceType::OUTPUT, out_callback);
     map.insert(DeviceType::INPUT | DeviceType::OUTPUT, inout_callback);
 
-    test_get_locked_context(|context| {
+    test_get_locked_raw_context(|context| {
         for (devtype, callback) in map.iter() {
             assert!(context.input_collection_changed_callback.is_none());
             assert!(context.output_collection_changed_callback.is_none());

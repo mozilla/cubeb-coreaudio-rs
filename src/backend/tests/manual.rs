@@ -1,5 +1,5 @@
 use super::utils::{
-    test_get_default_device, test_get_devices_in_scope, test_get_empty_stream,
+    test_get_default_device, test_get_default_raw_stream, test_get_devices_in_scope,
     test_ops_stream_operation, Scope, TestDeviceSwitcher,
 };
 use super::*;
@@ -137,7 +137,7 @@ fn test_add_then_remove_listeners() {
         NO_ERR
     }
 
-    test_get_empty_stream(|stream| {
+    test_get_default_raw_stream(|stream| {
         let mut listeners = Vec::new();
 
         let default_output_listener = device_property_listener::new(
