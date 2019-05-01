@@ -692,7 +692,7 @@ extern "C" fn audiounit_property_listener_callback(
     NO_ERR
 }
 
-fn audiounit_get_acceptable_latency_range() -> Result<(AudioValueRange)> {
+fn audiounit_get_acceptable_latency_range() -> Result<AudioValueRange> {
     let output_device_buffer_size_range = AudioObjectPropertyAddress {
         mSelector: kAudioDevicePropertyBufferFrameSizeRange,
         mScope: kAudioDevicePropertyScopeOutput,
