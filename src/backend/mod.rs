@@ -319,7 +319,6 @@ extern "C" fn audiounit_output_callback(
         slice::from_raw_parts_mut(ptr, len)
     };
 
-    // TODO: Why don't we replace `has_input(stm)` by `stm.input_linear_buffer.is_some()` ?
     cubeb_logv!(
         "({:p}) output: buffers {}, size {}, channels {}, frames {}, total input frames {}.",
         stm as *const AudioUnitStream,
@@ -327,7 +326,7 @@ extern "C" fn audiounit_output_callback(
         buffers[0].mDataByteSize,
         buffers[0].mNumberChannels,
         output_frames,
-        if stm.has_input() {
+        if stm.input_linear_buffer.is_some() {
             stm.input_linear_buffer.as_ref().unwrap().elements()
                 / stm.input_desc.mChannelsPerFrame as usize
         } else {
