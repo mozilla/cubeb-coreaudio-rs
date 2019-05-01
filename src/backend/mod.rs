@@ -1350,8 +1350,7 @@ fn audiounit_destroy_aggregate_device(
         return Err(Error::error());
     }
 
-    // TODO: Add a check ?
-    // assert!(size > 0);
+    assert!(size > 0);
 
     rv = audio_object_get_property_data(
         plugin_id,
