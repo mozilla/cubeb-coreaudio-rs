@@ -941,13 +941,7 @@ fn audiounit_get_sub_devices(device_id: AudioDeviceID) -> Vec<AudioObjectID> {
         return sub_devices;
     }
 
-    // TODO: Add a check ? If device_id is a blank aggregate device,
-    //       the size is 0! We should just return an empty directly
-    //       or get a panic!
-    // assert_ne!(size, 0);
-    // if size == 0 {
-    //     return sub_devices;
-    // }
+    assert_ne!(size, 0);
 
     let count = size / mem::size_of::<AudioObjectID>();
     sub_devices = allocate_array(count);

@@ -67,6 +67,7 @@ use super::*;
 // ------------------------------------
 #[test]
 #[ignore]
+#[should_panic]
 fn test_aggregate_get_sub_devices_for_blank_aggregate_devices() {
     // TODO: Test this when there is no available devices.
     let mut plugin_id = kAudioObjectUnknown;
