@@ -124,13 +124,10 @@ fn test_add_then_remove_listeners() {
         println!("device: {}, data @ {:p}", id, data);
         let addrs = unsafe { std::slice::from_raw_parts(addresses, number_of_addresses as usize) };
         for (i, addr) in addrs.iter().enumerate() {
+            let property_selector = PropertySelector::new(addr.mSelector);
             println!(
                 "address {}\n\tselector {}({})\n\tscope {}\n\telement {}",
-                i,
-                addr.mSelector,
-                event_addr_to_string(addr.mSelector),
-                addr.mScope,
-                addr.mElement
+                i, addr.mSelector, property_selector, addr.mScope, addr.mElement
             );
         }
 

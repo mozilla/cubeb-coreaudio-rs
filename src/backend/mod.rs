@@ -184,8 +184,6 @@ fn cubeb_channel_to_channel_label(channel: ChannelLayout) -> AudioChannelLabel {
     // Make sure the argument is a channel (only one bit set to 1)
     // If channel.bits() is 0, channel.bits() - 1 will get a panic on subtraction with overflow.
     assert_eq!(channel.bits() & (channel.bits() - 1), 0);
-    // TODO: Allow ffi::CHANNEL_UNKNOWN / ChannelLayout::UNDEFINED / ChannelLayout::from(0) ?
-    // assert!(channel.bits() == 0 || channel.bits() & (channel.bits() - 1) == 0);
     match channel {
         ChannelLayout::FRONT_LEFT => kAudioChannelLabel_Left,
         ChannelLayout::FRONT_RIGHT => kAudioChannelLabel_Right,
@@ -519,20 +517,6 @@ extern "C" fn audiounit_output_callback(
     NO_ERR
 }
 
-fn event_addr_to_string(selector: AudioObjectPropertySelector) -> &'static str {
-    use self::coreaudio_sys_utils::sys;
-
-    match selector {
-        sys::kAudioHardwarePropertyDefaultOutputDevice => {
-            "kAudioHardwarePropertyDefaultOutputDevice"
-        }
-        sys::kAudioHardwarePropertyDefaultInputDevice => "kAudioHardwarePropertyDefaultInputDevice",
-        sys::kAudioDevicePropertyDeviceIsAlive => "kAudioDevicePropertyDeviceIsAlive",
-        sys::kAudioDevicePropertyDataSource => "kAudioDevicePropertyDataSource",
-        _ => "Unknown",
-    }
-}
-
 extern "C" fn audiounit_property_listener_callback(
     id: AudioObjectID,
     address_count: u32,
@@ -543,10 +527,11 @@ extern "C" fn audiounit_property_listener_callback(
 
     let stm = unsafe { &mut *(user as *mut AudioUnitStream) };
     let addrs = unsafe { slice::from_raw_parts(addresses, address_count as usize) };
+    let property_selector = PropertySelector::new(addrs[0].mSelector);
     if *stm.switching_device.get_mut() {
         cubeb_log!(
             "Switching is already taking place. Skip Event {} for id={}",
-            event_addr_to_string(addrs[0].mSelector),
+            property_selector,
             id
         );
         return NO_ERR;

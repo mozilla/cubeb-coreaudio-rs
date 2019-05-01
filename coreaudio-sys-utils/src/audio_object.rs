@@ -1,4 +1,5 @@
 use coreaudio_sys::*;
+use std::fmt;
 use std::os::raw::c_void;
 use std::ptr;
 
@@ -70,4 +71,26 @@ pub fn audio_object_remove_property_listener(
     data: *mut c_void,
 ) -> OSStatus {
     unsafe { AudioObjectRemovePropertyListener(id, address, Some(listener), data) }
+}
+
+pub struct PropertySelector(AudioObjectPropertySelector);
+
+impl PropertySelector {
+    pub fn new(selector: AudioObjectPropertySelector) -> Self {
+        Self(selector)
+    }
+}
+
+impl fmt::Display for PropertySelector {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use coreaudio_sys as sys;
+        let s = match self.0 {
+            sys::kAudioHardwarePropertyDefaultOutputDevice => "kAudioHardwarePropertyDefaultOutputDevice",
+            sys::kAudioHardwarePropertyDefaultInputDevice => "kAudioHardwarePropertyDefaultInputDevice",
+            sys::kAudioDevicePropertyDeviceIsAlive => "kAudioDevicePropertyDeviceIsAlive",
+            sys::kAudioDevicePropertyDataSource => "kAudioDevicePropertyDataSource",
+            _ => "Unknown",
+        };
+        write!(f, "{}", s)
+    }
 }
