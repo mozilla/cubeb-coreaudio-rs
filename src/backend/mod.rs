@@ -13,20 +13,6 @@ mod auto_release;
 mod owned_critical_section;
 mod utils;
 
-// cubeb_backend::{*} is referred:
-// - ffi                : cubeb_sys::*                      (cubeb-core/lib.rs).
-// - Context            : pub struct Context                (cubeb-core/context.rs).
-// - ContextOps         : pub trait ContextOps              (cubeb-backend/trait.rs).
-// - DeviceCollectionRef: pub struct DeviceCollectionRef    (cubeb-core/device_collection.rs).
-// - DeviceId           : pub type DeviceId                 (cubeb-core/device.rs).
-// - DeviceType         : pub struct DeviceType             (cubeb-core/device.rs).
-// - Error              : pub struct Error                  (cubeb-core/error.rs).
-// - Ops                : pub struct Ops                    (cubeb-backend/ops.rs).
-// - Result             : pub type Result<T>                (cubeb-core/error.rs).
-// - Stream             : pub struct Stream                 (cubeb-core/stream.rs)
-// - StreamOps          : pub trait StreamOps               (cubeb-backend/traits.rs)
-// - StreamParams       : pub struct StreamParams           (cubeb-core/stream.rs)
-// - StreamParamsRef    : pub struct StreamParamsRef        (cubeb-core/stream.rs)
 use self::auto_array::*;
 use self::auto_release::*;
 use self::coreaudio_sys_utils::aggregate_device::*;
