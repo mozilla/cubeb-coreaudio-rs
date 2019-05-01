@@ -211,13 +211,11 @@ fn cubeb_channel_to_channel_label(channel: ChannelLayout) -> AudioChannelLabel {
 
 fn audiounit_make_silent(io_data: &mut AudioBuffer) {
     assert!(!io_data.mData.is_null());
-    // Get a byte slice from io_data.
     let bytes = unsafe {
         let ptr = io_data.mData as *mut u8;
         let len = io_data.mDataByteSize as usize;
         slice::from_raw_parts_mut(ptr, len)
     };
-    // Compiler will optimize it by using memset.
     for data in bytes.iter_mut() {
         *data = 0;
     }
@@ -252,7 +250,7 @@ extern "C" fn audiounit_input_callback(
     }
 
     /* Input only. Call the user callback through resampler.
-    Resampler will deliver input buffer in the correct rate. */
+     * Resampler will deliver input buffer in the correct rate. */
     assert!(
         input_frames as usize
             <= stm.input_linear_buffer.as_ref().unwrap().elements()
@@ -392,7 +390,6 @@ extern "C" fn audiounit_output_callback(
             );
             stm.frames_read
                 .store(input_frames_needed, atomic::Ordering::SeqCst);
-            // Using `stm_ptr` to avoid the borrowing issue below.
             let stm_ptr = stm as *const AudioUnitStream;
             cubeb_log!(
                 "({:p}) {} pushed {} frames of input silence.",
@@ -1020,8 +1017,6 @@ fn audiounit_create_blank_aggregate_device(
     }
     assert_ne!(size, 0);
 
-    // `rust-bindgen` doesn't support `macro`
-    // so we replace `CFSTR` by `cfstringref_from_static_string`.
     let mut in_bundle_ref = cfstringref_from_static_string("com.apple.audio.CoreAudio");
     let mut translation_value = AudioValueTranslation {
         mInputData: &mut in_bundle_ref as *mut CFStringRef as *mut c_void,
@@ -1079,9 +1074,6 @@ fn audiounit_create_blank_aggregate_device(
         libc::gettimeofday(&mut timestamp, ptr::null_mut());
         let time_id = timestamp.tv_sec as i64 * 1_000_000 + i64::from(timestamp.tv_usec);
 
-        // In C version, we use CFStringCreateWithFormat to format a CFStringRef. It's a variadic
-        // function. However, the C variadic function is not compatible in Rust for now.
-        // (Rust RFC 2137).
         let device_name_string = format!("{}_{}", PRIVATE_AGGREGATE_DEVICE_NAME, time_id);
         let aggregate_device_name = cfstringref_from_string(&device_name_string);
         CFDictionaryAddValue(
@@ -1127,7 +1119,7 @@ fn audiounit_create_blank_aggregate_device(
         );
         CFRelease(aggregate_device_stacked_key as *const c_void);
 
-        // NOTE: This call will fire `audiounit_collection_changed_callback`!
+        // This call will fire `audiounit_collection_changed_callback` indirectly!
         r = AudioObjectGetPropertyData(
             *plugin_id,
             &create_aggregate_device_address,
@@ -1191,7 +1183,7 @@ fn audiounit_set_aggregate_sub_device_list(
         let aggregate_sub_devices_array =
             CFArrayCreateMutable(ptr::null(), 0, &kCFTypeArrayCallBacks);
         /* The order of the items in the array is significant and is used to determine the order of the streams
-        of the AudioAggregateDevice. */
+         * of the AudioAggregateDevice. */
         // TODO: We will add duplicate devices into the array if there are
         //       common devices in output_sub_devices and input_sub_devices!
         //       (if they are same device or
@@ -1632,7 +1624,6 @@ extern "C" fn buffer_size_changed_callback(
 }
 
 fn convert_uint32_into_string(data: u32) -> CString {
-    // Simply create an empty string if no data.
     let empty = CString::default();
     if data == 0 {
         return empty;
@@ -1647,9 +1638,7 @@ fn convert_uint32_into_string(data: u32) -> CString {
 
     // CString::new() will consume the input bytes vec and add a '\0' at the
     // end of the bytes. The input bytes vec must not contain any 0 bytes in
-    // it, in case causing memory leaks when we leak its memory to the
-    // external code and then retake the ownership of its memory.
-    // https://doc.rust-lang.org/std/ffi/struct.CString.html#method.new
+    // it in case causing memory leaks.
     CString::new(buffer).unwrap_or(empty)
 }
 
@@ -1706,7 +1695,6 @@ fn audiounit_strref_to_cstr_utf8(strref: CFStringRef) -> CString {
     // CString::new() will consume the input bytes vec and add a '\0' at the
     // end of the bytes. We need to remove the '\0' from the bytes data
     // returned from CFStringGetCString by ourselves to avoid memory leaks.
-    // https://doc.rust-lang.org/std/ffi/struct.CString.html#method.new
     // The size returned from CFStringGetMaximumSizeForEncoding is always
     // greater than or equal to the string length, where the string length
     // is the number of characters from the beginning to nul-terminator('\0'),
@@ -1731,14 +1719,6 @@ fn audiounit_get_channel_count(devid: AudioObjectID, scope: AudioObjectPropertyS
         let mut data: Vec<u8> = allocate_array_by_size(size);
         let ptr = data.as_mut_ptr() as *mut AudioBufferList;
         if audio_object_get_property_data(devid, &adr, &mut size, ptr) == NO_ERR {
-            // Cannot dereference *ptr to a AudioBufferList directly
-            // since it's a variable-size struct: https://bit.ly/2CYFhJ0
-            // `let list: = unsafe { *ptr }` will copy the `*ptr` whose type
-            // is AudioBufferList to a list. However, it contains only one
-            // `UInt32` and only one `AudioBuffer`, while the memory pointed
-            // by `ptr` may have one `UInt32` and lots of `AudioBuffer`s.
-            // See reference:
-            // https://bit.ly/2O2MJE4
             let list: &AudioBufferList = unsafe { &(*ptr) };
             let ptr = list.mBuffers.as_ptr() as *const AudioBuffer;
             let len = list.mNumberBuffers as usize;
@@ -1864,7 +1844,6 @@ fn audiounit_create_device_from_hwdev(
         return Err(Error::error());
     }
 
-    // Set all data in dev_info to zero (its default data is zero).
     *dev_info = ffi::cubeb_device_info::default();
 
     let mut device_id_str: CFStringRef = ptr::null();
@@ -2007,7 +1986,7 @@ fn audiounit_device_destroy(device: &mut ffi::cubeb_device_info) {
     // This should be mapped to the memory allocation in
     // audiounit_create_device_from_hwdev.
     // Set the pointers to null in case it points to some released
-    // memory. (NOTE: C version doesn't do this.)
+    // memory.
     unsafe {
         if !device.device_id.is_null() {
             // group_id is a mirror to device_id, so we could skip it.
@@ -2058,8 +2037,6 @@ fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID> {
         if name.is_null() {
             return true;
         }
-        // `rust-bindgen` doesn't support `macro`
-        // so we replace `CFSTR` by `cfstringref_from_static_string`.
         let private_device = cfstringref_from_static_string(PRIVATE_AGGREGATE_DEVICE_NAME);
         unsafe {
             let found = CFStringFind(name, private_device, 0).location;
@@ -2310,7 +2287,6 @@ impl ContextOps for AudioUnitContext {
     }
     #[cfg(target_os = "ios")]
     fn max_channel_count(&mut self) -> Result<u32> {
-        //TODO: [[AVAudioSession sharedInstance] maximumOutputNumberOfChannels]
         Ok(2u32)
     }
     #[cfg(not(target_os = "ios"))]
@@ -2476,8 +2452,7 @@ impl ContextOps for AudioUnitContext {
         // Retake the ownership of the previous leaked memory from the external code.
         let mut devices = retake_leaked_vec(coll.device, coll.count);
         for device in &mut devices {
-            // This should be mapped to the memory allocation in
-            // audiounit_create_device_from_hwdev.
+            // This should be mapped to the memory allocation in audiounit_create_device_from_hwdev.
             audiounit_device_destroy(device);
         }
         drop(devices); // Release the memory.
@@ -2566,14 +2541,7 @@ impl ContextOps for AudioUnitContext {
 
         if let Err(r) = {
             // It's not critical to lock here, because no other thread has been started
-            // yet, but it allows to assert that the lock has been taken in
-            // `AudioUnitStream::setup`.
-
-            // Since we cannot borrow boxed_stream as mutable twice
-            // (for boxed_stream.mutex and boxed_stream itself), we store
-            // the pointer to boxed_stream.mutex(it's a value) and convert it
-            // to a reference as the workaround to borrow as mutable twice.
-            // Same as what we did above for AudioUnitContext.mutex.
+            // yet, but it allows to assert that the lock has been taken in `AudioUnitStream::setup`.
             let mutex_ptr = &mut boxed_stream.mutex as *mut OwnedCriticalSection;
             // The scope of `_lock` is a critical section.
             let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
@@ -2653,7 +2621,6 @@ impl Drop for AudioUnitContext {
     }
 }
 
-// An unsafe workaround to pass AudioUnitContext across threads.
 unsafe impl Send for AudioUnitContext {}
 unsafe impl Sync for AudioUnitContext {}
 
@@ -2701,7 +2668,6 @@ struct AudioUnitStream<'ctx> {
     destroy_pending: AtomicBool,
     /* Latency requested by the user. */
     latency_frames: u32,
-    // current_latency_frames: AtomicU32,
     current_latency_frames: atomic::Atomic<u32>,
     panning: atomic::Atomic<f32>,
     resampler: AutoRelease<ffi::cubeb_resampler>,
@@ -2977,18 +2943,8 @@ impl<'ctx> AudioUnitStream<'ctx> {
     }
 
     fn reinit(&mut self, flags: device_flags) -> Result<()> {
-        // Since we cannot call `AutoLock::new(&mut self.context.mutex)` and call
-        // `self.some_func()` at the same time, we take the pointer to
-        // `self.context.mutex` first and then dereference it to the mutex to avoid
-        // this problem for now.
         let mutex_ptr = &mut self.context.mutex as *mut OwnedCriticalSection;
-        // The scope of `_context_lock` is a critical section.
         let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-        // TODO: C version uses
-        // assert!(!self.input_unit.is_null() && flags.contains(device_flags::DEV_INPUT) ||
-        //         !self.output_unit.is_null() && flags.contains(device_flags::DEV_OUTPUT));
-        // For a stream with input and output units, if the check for input is true,
-        // then it won't check the output.
         assert!(!self.input_unit.is_null() || !self.output_unit.is_null());
         assert!(
             (self.input_unit.is_null() || flags.contains(device_flags::DEV_INPUT))
@@ -3821,7 +3777,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
 
         let mut src_desc = self.input_desc;
         /* Input AudioUnit must be configured with device's sample rate.
-        we will resample inside input callback. */
+         * we will resample inside input callback. */
         src_desc.mSampleRate = self.input_hw_rate;
 
         r = audio_unit_set_property(
@@ -4121,7 +4077,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
             /* Silently clamp the latency down to the platform default, because we
              * synthetize the clock from the callbacks, and we want the clock to update
              * often. */
-            // Create a `latency_frames` here to avoid the borrowing issue.
             let latency_frames = self.latency_frames;
             self.latency_frames = self.clamp_latency(latency_frames);
             assert!(self.latency_frames > 0); // Ugly error check
@@ -4299,7 +4254,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
             );
         }
 
-        // The scope of `_lock` is a critical section.
         let mutex_ptr = &mut self.mutex as *mut OwnedCriticalSection;
         let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
         self.close();
@@ -4354,7 +4308,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
     fn destroy(&mut self) {
         if !self.shutdown.load(Ordering::SeqCst) {
             let mutex_ptr = &mut self.context.mutex as *mut OwnedCriticalSection;
-            // The scope of `_context_lock` is a critical section.
             let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
             self.stop_internal();
             *self.shutdown.get_mut() = true;
@@ -4369,9 +4322,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
         // with reinit when un/plug devices
         sync_dispatch(queue, move || {
             let mut stm_guard = also_mutexed_stm.lock().unwrap();
-            // Use `mutex_ptr` to avoid the same borrowing issue as above.
             let mutex_ptr = &mut stm_guard.context.mutex as *mut OwnedCriticalSection;
-            // The scope of `_context_lock` is a critical section.
             let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
             stm_guard.destroy_internal();
         });
@@ -4390,8 +4341,6 @@ impl<'ctx> Drop for AudioUnitStream<'ctx> {
 
 impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     fn start(&mut self) -> Result<()> {
-        // The scope of `_context_lock` is a critical section.
-        // Use `mutex_ptr` to avoid the borrowing twice issue.
         let mutex_ptr = &mut self.context.mutex as *mut OwnedCriticalSection;
         let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
 
@@ -4417,8 +4366,6 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         Ok(())
     }
     fn stop(&mut self) -> Result<()> {
-        // The scope of `_context_lock` is a critical section.
-        // Use `mutex_ptr` to avoid the borrowing twice issue.
         let mutex_ptr = &mut self.context.mutex as *mut OwnedCriticalSection;
         let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
 
@@ -4462,7 +4409,6 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     }
     #[cfg(not(target_os = "ios"))]
     fn latency(&mut self) -> Result<u32> {
-        // Ok(self.current_latency_frames.load(Ordering::SeqCst))
         Ok(self.current_latency_frames.load(atomic::Ordering::SeqCst))
     }
     fn set_volume(&mut self, volume: f32) -> Result<()> {
@@ -4532,7 +4478,6 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         &mut self,
         device_changed_callback: ffi::cubeb_device_changed_callback,
     ) -> Result<()> {
-        // The scope of `_dev_cb_lock` is a critical section.
         let _dev_cb_lock = AutoLock::new(&mut self.device_changed_callback_lock);
         /* Note: second register without unregister first causes 'nope' error.
          * Current implementation requires unregister before register a new cb. */
@@ -4542,7 +4487,6 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     }
 }
 
-// An unsafe workaround to pass AudioUnitStream across threads.
 unsafe impl<'ctx> Send for AudioUnitStream<'ctx> {}
 unsafe impl<'ctx> Sync for AudioUnitStream<'ctx> {}
 

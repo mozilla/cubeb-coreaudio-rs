@@ -19,8 +19,6 @@ pub fn allocate_array<T>(elements: usize) -> Vec<T> {
     array
 }
 
-// Reference: leak_vec and retake_leaked_vec
-// https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=6d6c2271e3811d55f740b20a00975ecf
 pub fn leak_vec<T>(v: Vec<T>) -> (*mut T, usize) {
     // Drop any excess capacity by into_boxed_slice.
     let mut slice = v.into_boxed_slice();

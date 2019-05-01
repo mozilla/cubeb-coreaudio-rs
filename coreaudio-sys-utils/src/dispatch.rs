@@ -23,8 +23,6 @@ pub fn release_dispatch_queue(queue: dispatch_queue_t) {
     }
 }
 
-// Send: Types that can be transferred across thread boundaries.
-// FnOnce: One-time function.
 pub fn async_dispatch<F>(queue: dispatch_queue_t, work: F)
 where
     F: Send + FnOnce(),
@@ -35,8 +33,6 @@ where
     }
 }
 
-// Send: Types that can be transferred across thread boundaries.
-// FnOnce: One-time function.
 pub fn sync_dispatch<F>(queue: dispatch_queue_t, work: F)
 where
     F: Send + FnOnce(),

@@ -1,5 +1,3 @@
-// https://play.rust-lang.org/?version=stable&mode=debug&edition=2018&gist=9832f58ca6db9f6e6c597f7dfead994c
-
 use std::fmt::Debug;
 use std::os::raw::c_void;
 use std::ptr;
