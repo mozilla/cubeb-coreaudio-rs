@@ -933,7 +933,7 @@ fn audiounit_get_sub_devices(device_id: AudioDeviceID) -> Vec<AudioObjectID> {
         mElement: kAudioObjectPropertyElementMaster,
     };
     let mut size: usize = 0;
-    let mut rv = audio_object_get_property_data_size(device_id, &property_address, &mut size);
+    let rv = audio_object_get_property_data_size(device_id, &property_address, &mut size);
 
     // NOTE: Hit this if `device_id` is not an aggregate device!
     if rv != NO_ERR {
@@ -945,9 +945,7 @@ fn audiounit_get_sub_devices(device_id: AudioDeviceID) -> Vec<AudioObjectID> {
 
     let count = size / mem::size_of::<AudioObjectID>();
     sub_devices = allocate_array(count);
-    // assert_eq!(count, sub_devices.len());
-    // assert_eq!(size, sub_devices.len() * mem::size_of::<AudioObjectID>());
-    rv = audio_object_get_property_data(
+    let rv = audio_object_get_property_data(
         device_id,
         &property_address,
         &mut size,
