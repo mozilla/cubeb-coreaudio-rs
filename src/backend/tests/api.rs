@@ -1222,6 +1222,7 @@ fn test_get_device_name() {
 // set_aggregate_sub_device_list
 // ------------------------------------
 #[test]
+#[should_panic]
 fn test_set_aggregate_sub_device_list_for_an_unknown_aggregate_device() {
     // If aggregate device id is kAudioObjectUnknown, we are unable to set device list.
     let default_input = test_get_default_device(Scope::Input);

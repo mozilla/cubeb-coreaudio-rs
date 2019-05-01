@@ -1133,11 +1133,10 @@ fn audiounit_set_aggregate_sub_device_list(
     input_device_id: AudioDeviceID,
     output_device_id: AudioDeviceID,
 ) -> Result<()> {
-    // TODO: Check the devices are known ?
-    // assert_ne!(aggregate_device_id, kAudioObjectUnknown);
-    // assert_ne!(input_device_id, kAudioObjectUnknown);
-    // assert_ne!(output_device_id, kAudioObjectUnknown);
-    // assert_ne!(input_device_id, output_device_id);
+    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
+    assert_ne!(input_device_id, kAudioObjectUnknown);
+    assert_ne!(output_device_id, kAudioObjectUnknown);
+    assert_ne!(input_device_id, output_device_id);
 
     cubeb_log!(
         "Add devices input {} and output {} into aggregate device {}",
