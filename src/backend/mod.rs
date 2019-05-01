@@ -11,6 +11,7 @@ extern crate libc;
 mod auto_array;
 mod auto_release;
 mod owned_critical_section;
+mod property_address;
 mod utils;
 
 use self::auto_array::*;
@@ -22,6 +23,7 @@ use self::coreaudio_sys_utils::dispatch::*;
 use self::coreaudio_sys_utils::string::*;
 use self::coreaudio_sys_utils::sys::*;
 use self::owned_critical_section::*;
+use self::property_address::*;
 use self::utils::*;
 use atomic;
 use cubeb_backend::{
@@ -61,47 +63,6 @@ const PRIVATE_AGGREGATE_DEVICE_NAME: &str = "CubebAggregateDevice";
  * frames. */
 const SAFE_MIN_LATENCY_FRAMES: u32 = 256;
 const SAFE_MAX_LATENCY_FRAMES: u32 = 512;
-
-// TODO: Move them into a seperate module, or add an API to generate these
-//       property addresses.
-const DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS: AudioObjectPropertyAddress =
-    AudioObjectPropertyAddress {
-        mSelector: kAudioHardwarePropertyDefaultInputDevice,
-        mScope: kAudioObjectPropertyScopeGlobal,
-        mElement: kAudioObjectPropertyElementMaster,
-    };
-
-const DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS: AudioObjectPropertyAddress =
-    AudioObjectPropertyAddress {
-        mSelector: kAudioHardwarePropertyDefaultOutputDevice,
-        mScope: kAudioObjectPropertyScopeGlobal,
-        mElement: kAudioObjectPropertyElementMaster,
-    };
-
-const DEVICE_IS_ALIVE_PROPERTY_ADDRESS: AudioObjectPropertyAddress = AudioObjectPropertyAddress {
-    mSelector: kAudioDevicePropertyDeviceIsAlive,
-    mScope: kAudioObjectPropertyScopeGlobal,
-    mElement: kAudioObjectPropertyElementMaster,
-};
-
-const DEVICES_PROPERTY_ADDRESS: AudioObjectPropertyAddress = AudioObjectPropertyAddress {
-    mSelector: kAudioHardwarePropertyDevices,
-    mScope: kAudioObjectPropertyScopeGlobal,
-    mElement: kAudioObjectPropertyElementMaster,
-};
-
-const INPUT_DATA_SOURCE_PROPERTY_ADDRESS: AudioObjectPropertyAddress = AudioObjectPropertyAddress {
-    mSelector: kAudioDevicePropertyDataSource,
-    mScope: kAudioDevicePropertyScopeInput,
-    mElement: kAudioObjectPropertyElementMaster,
-};
-
-const OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS: AudioObjectPropertyAddress =
-    AudioObjectPropertyAddress {
-        mSelector: kAudioDevicePropertyDataSource,
-        mScope: kAudioDevicePropertyScopeOutput,
-        mElement: kAudioObjectPropertyElementMaster,
-    };
 
 bitflags! {
     #[allow(non_camel_case_types)]
