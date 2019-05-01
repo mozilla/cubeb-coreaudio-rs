@@ -614,24 +614,11 @@ extern "C" fn audiounit_property_listener_callback(
         switch_side |= device_flags::DEV_OUTPUT;
     }
 
-    for addr in addrs.iter() {
-        // TODO: Since match only use `_` here, why don't we remove the match ?
-        //       It will be called anyway (Sync with C version).
-        match addr.mSelector {
-            // If addr.mSelector is not
-            // kAudioHardwarePropertyDefaultOutputDevice or
-            // kAudioHardwarePropertyDefaultInputDevice or
-            // kAudioDevicePropertyDeviceIsAlive or
-            // kAudioDevicePropertyDataSource
-            // then this function will early return in the match block above.
-            _ => {
-                // The scope of `_dev_cb_lock` is a critical section.
-                let _dev_cb_lock = AutoLock::new(&mut stm.device_changed_callback_lock);
-                if let Some(device_changed_callback) = stm.device_changed_callback {
-                    unsafe {
-                        device_changed_callback(stm.user_ptr);
-                    }
-                }
+    for _addr in addrs.iter() {
+        let _dev_cb_lock = AutoLock::new(&mut stm.device_changed_callback_lock);
+        if let Some(device_changed_callback) = stm.device_changed_callback {
+            unsafe {
+                device_changed_callback(stm.user_ptr);
             }
         }
     }
