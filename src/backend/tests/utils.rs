@@ -958,16 +958,7 @@ pub fn test_get_locked_raw_context<F>(operation: F)
 where
     F: FnOnce(&mut AudioUnitContext),
 {
-    // Initialize the the mutex (whose type is OwnedCriticalSection) within AudioUnitContext,
-    // by AudioUnitContext::Init, to make the mutex work.
     let mut context = AudioUnitContext::new();
-    context.init();
-
-    // Create a `mutext_ptr` here to avoid the borrowing-twice issue.
-    let mutex_ptr = &mut context.mutex as *mut OwnedCriticalSection;
-    // The scope of `_lock` is a critical section.
-    let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
-
     operation(&mut context);
 }
 
@@ -987,10 +978,7 @@ fn test_get_raw_stream<F>(
 ) where
     F: FnOnce(&mut AudioUnitStream),
 {
-    // Initialize the the mutex (whose type is OwnedCriticalSection) within AudioUnitContext,
-    // by AudioUnitContext::Init, to make the mutex work.
     let mut context = AudioUnitContext::new();
-    context.init();
 
     // Add a stream to the context since we are about to create one.
     // AudioUnitStream::drop() will check the context has at least one stream.

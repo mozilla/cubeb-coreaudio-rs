@@ -204,10 +204,7 @@ fn test_add_then_remove_listeners() {
 #[test]
 fn test_device_collection_change() {
     const DUMMY_PTR: *mut c_void = 0xDEAD_BEEF as *mut c_void;
-    // Initialize the the mutex (whose type is OwnedCriticalSection) within AudioUnitContext,
-    // by AudioUnitContext::Init, to make the mutex work.
     let mut context = AudioUnitContext::new();
-    context.init();
     println!("Context allocated @ {:p}", &context);
 
     extern "C" fn input_changed_callback(context: *mut ffi::cubeb, data: *mut c_void) {

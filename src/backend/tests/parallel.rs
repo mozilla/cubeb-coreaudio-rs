@@ -416,10 +416,7 @@ fn create_streams_in_parallel_with_different_latency<F>(
         return;
     }
 
-    // Initialize the the mutex (whose type is OwnedCriticalSection) within AudioUnitContext,
-    // by AudioUnitContext::Init, to make the mutex work.
-    let mut context = AudioUnitContext::new();
-    context.init();
+    let context = AudioUnitContext::new();
 
     let context_ptr_value = &context as *const AudioUnitContext as usize;
 

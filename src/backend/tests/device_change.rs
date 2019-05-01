@@ -182,10 +182,7 @@ fn test_plug_and_unplug_device_in_scope(scope: Scope) {
     let is_input = test_device_in_scope(default_device, Scope::Input);
     let is_output = test_device_in_scope(default_device, Scope::Output);
 
-    // Initialize the the mutex (whose type is OwnedCriticalSection) within AudioUnitContext,
-    // by AudioUnitContext::Init, to make the mutex work.
     let mut context = AudioUnitContext::new();
-    context.init();
 
     // Register the devices-changed callbacks.
     let input_count = Arc::new(Mutex::new(0u32));
