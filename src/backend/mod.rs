@@ -553,7 +553,6 @@ extern "C" fn audiounit_property_listener_callback(
         address_count
     );
     for (i, addr) in addrs.iter().enumerate() {
-        // TODO: Use cubeb_log!("Event[{}] - mSelector == {} for id={}", i, event_addr_to_string(addr.mSelector), id)
         match addr.mSelector {
             sys::kAudioHardwarePropertyDefaultOutputDevice => {
                 cubeb_log!(
@@ -614,8 +613,6 @@ extern "C" fn audiounit_property_listener_callback(
     if stm.has_output() {
         switch_side |= device_flags::DEV_OUTPUT;
     }
-    // TODO: Assert it's either input or output here ?
-    //       or early return if it's not input and it's not output ?
 
     for addr in addrs.iter() {
         // TODO: Since match only use `_` here, why don't we remove the match ?
