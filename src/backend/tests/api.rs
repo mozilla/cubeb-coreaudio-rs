@@ -634,16 +634,6 @@ fn test_get_acceptable_latency_range() {
 // ------------------------------------
 #[test]
 fn test_get_default_device_id() {
-    // Invalid types:
-    assert_eq!(
-        audiounit_get_default_device_id(DeviceType::UNKNOWN),
-        kAudioObjectUnknown,
-    );
-    assert_eq!(
-        audiounit_get_default_device_id(DeviceType::INPUT | DeviceType::OUTPUT),
-        kAudioObjectUnknown,
-    );
-
     if test_get_default_device(Scope::Input).is_some() {
         assert_ne!(
             audiounit_get_default_device_id(DeviceType::INPUT),
@@ -657,6 +647,24 @@ fn test_get_default_device_id() {
             kAudioObjectUnknown,
         );
     }
+}
+
+#[test]
+#[should_panic]
+fn test_get_default_device_id_with_unknown_type() {
+    assert_eq!(
+        audiounit_get_default_device_id(DeviceType::UNKNOWN),
+        kAudioObjectUnknown,
+    );
+}
+
+#[test]
+#[should_panic]
+fn test_get_default_device_id_with_inout_type() {
+    assert_eq!(
+        audiounit_get_default_device_id(DeviceType::INPUT | DeviceType::OUTPUT),
+        kAudioObjectUnknown,
+    );
 }
 
 // convert_channel_layout
@@ -2275,9 +2283,7 @@ fn test_create_device_from_hwdev() {
             let is_input = test_device_in_scope(device, Scope::Input);
             let is_output = test_device_in_scope(device, Scope::Output);
             let mut results = test_create_device_from_hwdev_by_device(device);
-            assert_eq!(results.len(), 4);
-            // Unknown device type:
-            assert_eq!(results.pop_front().unwrap().unwrap_err(), Error::error());
+            assert_eq!(results.len(), 2);
             // Input device type:
             if is_input {
                 check_device_info_by_device(
@@ -2298,9 +2304,6 @@ fn test_create_device_from_hwdev() {
             } else {
                 assert_eq!(results.pop_front().unwrap().unwrap_err(), Error::error());
             }
-            // In-out device type:
-            // FIXIT: What if the device is a in-out device ?
-            assert_eq!(results.pop_front().unwrap().unwrap_err(), Error::error());
         } else {
             println!("No device for {:?}.", scope);
         }
@@ -2309,12 +2312,7 @@ fn test_create_device_from_hwdev() {
     fn test_create_device_from_hwdev_by_device(
         id: AudioObjectID,
     ) -> VecDeque<std::result::Result<ffi::cubeb_device_info, Error>> {
-        let dev_types = [
-            DeviceType::UNKNOWN,
-            DeviceType::INPUT,
-            DeviceType::OUTPUT,
-            DeviceType::INPUT | DeviceType::OUTPUT,
-        ];
+        let dev_types = [DeviceType::INPUT, DeviceType::OUTPUT];
         let mut results = VecDeque::new();
         for dev_type in dev_types.iter() {
             let mut info = ffi::cubeb_device_info::default();
@@ -2367,6 +2365,30 @@ fn test_create_device_from_hwdev() {
             }
         }
     }
+}
+
+#[test]
+#[should_panic]
+fn test_create_device_from_hwdev_unknown_type() {
+    let mut info = ffi::cubeb_device_info::default();
+    assert!(audiounit_create_device_from_hwdev(
+        &mut info,
+        kAudioObjectUnknown,
+        DeviceType::UNKNOWN
+    )
+    .is_err());
+}
+
+#[test]
+#[should_panic]
+fn test_create_device_from_hwdev_inout_type() {
+    let mut info = ffi::cubeb_device_info::default();
+    assert!(audiounit_create_device_from_hwdev(
+        &mut info,
+        kAudioObjectUnknown,
+        DeviceType::INPUT | DeviceType::OUTPUT
+    )
+    .is_err());
 }
 
 // is_aggregate_device
@@ -2457,9 +2479,6 @@ fn test_device_destroy_empty_device() {
 fn test_get_devices_of_type() {
     use std::collections::HashSet;
 
-    // FIXIT: Open this assertion after C version is updated.
-    // let no_devs = audiounit_get_devices_of_type(DeviceType::UNKNOWN);
-    // assert!(no_devs.is_empty());
     let all_devices = audiounit_get_devices_of_type(DeviceType::INPUT | DeviceType::OUTPUT);
     let input_devices = audiounit_get_devices_of_type(DeviceType::INPUT);
     let output_devices = audiounit_get_devices_of_type(DeviceType::OUTPUT);
@@ -2482,6 +2501,13 @@ fn test_get_devices_of_type() {
     let mut union_devices: Vec<AudioObjectID> = union.iter().cloned().collect();
     union_devices.sort();
     assert_eq!(all_devices, union_devices);
+}
+
+#[test]
+#[should_panic]
+fn test_get_devices_of_type_unknown() {
+    let no_devs = audiounit_get_devices_of_type(DeviceType::UNKNOWN);
+    assert!(no_devs.is_empty());
 }
 
 // add_devices_changed_listener

@@ -46,12 +46,6 @@ use std::sync::{Arc, Mutex};
 //    They are actually same. Maybe it's better to use only one
 //    of them so code reader don't get confused about their types.
 // 2. Maybe we can merge `io_side` and `DeviceType`.
-// 3. Add assertions like:
-//    `assert!(devtype == DeviceType::INPUT || devtype == DeviceType::OUTPUT)`
-//    if the function is only called for either input or output. Then
-//    `if (devtype == DeviceType::INPUT) { ... } else { ... }`
-//    makes sense. In fact, for those variables depends on DeviceType, we can
-//    implement a `From` trait to get them.
 
 const NO_ERR: OSStatus = 0;
 
@@ -729,14 +723,13 @@ fn audiounit_get_acceptable_latency_range() -> Result<(AudioValueRange)> {
 }
 
 fn audiounit_get_default_device_id(devtype: DeviceType) -> AudioObjectID {
-    let adr;
-    if devtype == DeviceType::OUTPUT {
-        adr = &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS;
-    } else if devtype == DeviceType::INPUT {
-        adr = &DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS;
+    assert!(devtype == DeviceType::INPUT || devtype == DeviceType::OUTPUT);
+
+    let adr = if devtype == DeviceType::OUTPUT {
+        &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS
     } else {
-        return kAudioObjectUnknown;
-    }
+        &DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS
+    };
 
     let mut devid: AudioDeviceID = kAudioObjectUnknown;
     let mut size = mem::size_of::<AudioDeviceID>();
@@ -1882,12 +1875,16 @@ fn audiounit_get_device_presentation_latency(
     dev + stream
 }
 
-// TODO: Put dev_info in Ok.
+// TODO:
+// 1. Put dev_info in Ok.
+// 2. What if the device is a in-out device
 fn audiounit_create_device_from_hwdev(
     dev_info: &mut ffi::cubeb_device_info,
     devid: AudioObjectID,
     devtype: DeviceType,
 ) -> Result<()> {
+    assert!(devtype == DeviceType::INPUT || devtype == DeviceType::OUTPUT);
+
     let mut adr = AudioObjectPropertyAddress {
         mSelector: 0,
         mScope: 0,
@@ -1895,13 +1892,11 @@ fn audiounit_create_device_from_hwdev(
     };
     let mut size: usize = 0;
 
-    if devtype == DeviceType::OUTPUT {
-        adr.mScope = kAudioDevicePropertyScopeOutput;
-    } else if devtype == DeviceType::INPUT {
-        adr.mScope = kAudioDevicePropertyScopeInput;
+    adr.mScope = if devtype == DeviceType::OUTPUT {
+        kAudioDevicePropertyScopeOutput
     } else {
-        return Err(Error::error());
-    }
+        kAudioDevicePropertyScopeInput
+    };
 
     let ch = audiounit_get_channel_count(devid, adr.mScope);
     if ch == 0 {
@@ -1996,10 +1991,8 @@ fn audiounit_create_device_from_hwdev(
     // `devtype.into()` to get `ffi::CUBEB_DEVICE_TYPE_*`.
     dev_info.device_type = if devtype == DeviceType::OUTPUT {
         ffi::CUBEB_DEVICE_TYPE_OUTPUT
-    } else if devtype == DeviceType::INPUT {
-        ffi::CUBEB_DEVICE_TYPE_INPUT
     } else {
-        ffi::CUBEB_DEVICE_TYPE_UNKNOWN
+        ffi::CUBEB_DEVICE_TYPE_INPUT
     };
     dev_info.state = ffi::CUBEB_DEVICE_STATE_ENABLED;
     dev_info.preferred = if devid == audiounit_get_default_device_id(devtype) {
@@ -2075,6 +2068,8 @@ fn audiounit_device_destroy(device: &mut ffi::cubeb_device_info) {
 }
 
 fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID> {
+    assert!(devtype.intersects(DeviceType::INPUT | DeviceType::OUTPUT));
+
     let mut size: usize = 0;
     let mut ret = audio_object_get_property_data_size(
         kAudioObjectSystemObject,
@@ -2119,8 +2114,6 @@ fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID> {
         return devices;
     }
 
-    // FIXIT: This is wrong. We will use output scope when devtype
-    //        is unknown. Change it after C version is updated!
     let scope = if devtype == DeviceType::INPUT {
         kAudioDevicePropertyScopeInput
     } else {
