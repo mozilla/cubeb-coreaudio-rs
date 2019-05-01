@@ -213,6 +213,7 @@ fn test_aggregate_create_blank_aggregate_device() {
 // ------------------------------------
 #[test]
 #[ignore]
+#[should_panic]
 fn test_aggregate_set_aggregate_sub_device_list_for_unknown_input_output_devices() {
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;
@@ -237,8 +238,25 @@ fn test_aggregate_set_aggregate_sub_device_list_for_unknown_input_output_devices
         .unwrap_err(),
         Error::error()
     );
+}
 
-    let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
+#[test]
+#[ignore]
+#[should_panic]
+fn test_aggregate_set_aggregate_sub_device_list_for_unknown_input_devices() {
+    let mut plugin_id = kAudioObjectUnknown;
+    let mut aggregate_device_id = kAudioObjectUnknown;
+    assert!(
+        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
+    );
+    assert_ne!(plugin_id, kAudioObjectUnknown);
+    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
+
+    // NOTE: We will get errors and pass the test here since get_device_name()
+    //       return a NULL CFStringRef for a unknown devicie. Instead of
+    //       replying on get_device_name(). We should check this in the
+    //       beginning of the audiounit_set_aggregate_sub_device_list().
+
     let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
 
     // Only input is unknown.
@@ -253,6 +271,28 @@ fn test_aggregate_set_aggregate_sub_device_list_for_unknown_input_output_devices
             Error::error()
         );
     }
+
+    assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
+}
+
+#[test]
+#[ignore]
+#[should_panic]
+fn test_aggregate_set_aggregate_sub_device_list_for_unknown_output_devices() {
+    let mut plugin_id = kAudioObjectUnknown;
+    let mut aggregate_device_id = kAudioObjectUnknown;
+    assert!(
+        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
+    );
+    assert_ne!(plugin_id, kAudioObjectUnknown);
+    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
+
+    // NOTE: We will get errors and pass the test here since get_device_name()
+    //       return a NULL CFStringRef for a unknown devicie. Instead of
+    //       replying on get_device_name(). We should check this in the
+    //       beginning of the audiounit_set_aggregate_sub_device_list().
+
+    let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
 
     // Only output is unknown.
     if valid_id(input_id) {

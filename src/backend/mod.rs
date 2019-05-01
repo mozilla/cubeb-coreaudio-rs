@@ -924,9 +924,7 @@ fn audiounit_set_channel_layout(
 }
 
 fn audiounit_get_sub_devices(device_id: AudioDeviceID) -> Vec<AudioObjectID> {
-    // FIXIT: Add a check ? We will fail to get data size if `device_id`
-    //        is `kAudioObjectUnknown`!
-    // assert_ne!(device_id, kAudioObjectUnknown);
+    assert_ne!(device_id, kAudioObjectUnknown);
 
     let mut sub_devices = Vec::new();
     let property_address = AudioObjectPropertyAddress {

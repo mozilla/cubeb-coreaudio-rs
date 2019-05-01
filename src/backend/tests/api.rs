@@ -1186,11 +1186,8 @@ fn test_get_sub_devices() {
     }
 }
 
-// FIXIT: It doesn't make any sense to return the sub devices for an unknown
-//        device! It should either get a panic or return an empty list!
 #[test]
 #[should_panic]
-#[ignore]
 fn test_get_sub_devices_for_a_unknown_device() {
     let devices = audiounit_get_sub_devices(kAudioObjectUnknown);
     assert!(devices.is_empty());
@@ -1226,18 +1223,7 @@ fn test_get_device_name() {
 // ------------------------------------
 #[test]
 fn test_set_aggregate_sub_device_list_for_an_unknown_aggregate_device() {
-    // If aggregate device id is kAudioObjectUnknown, we won't be able to
-    // set device list.
-    assert_eq!(
-        audiounit_set_aggregate_sub_device_list(
-            kAudioObjectUnknown,
-            kAudioObjectUnknown,
-            kAudioObjectUnknown
-        )
-        .unwrap_err(),
-        Error::error()
-    );
-
+    // If aggregate device id is kAudioObjectUnknown, we are unable to set device list.
     let default_input = test_get_default_device(Scope::Input);
     let default_output = test_get_default_device(Scope::Output);
     if default_input.is_none() || default_output.is_none() {
@@ -1250,6 +1236,21 @@ fn test_set_aggregate_sub_device_list_for_an_unknown_aggregate_device() {
     assert_eq!(
         audiounit_set_aggregate_sub_device_list(kAudioObjectUnknown, default_input, default_output)
             .unwrap_err(),
+        Error::error()
+    );
+}
+
+#[test]
+#[should_panic]
+fn test_set_aggregate_sub_device_list_for_unknown_devices() {
+    // If aggregate device id is kAudioObjectUnknown, we are unable to set device list.
+    assert_eq!(
+        audiounit_set_aggregate_sub_device_list(
+            kAudioObjectUnknown,
+            kAudioObjectUnknown,
+            kAudioObjectUnknown
+        )
+        .unwrap_err(),
         Error::error()
     );
 }
