@@ -51,8 +51,9 @@ fn test_to_string() {
 
 // channel_label_to_cubeb_channel
 // ------------------------------------
+// Convert a CAChannelLabel into a ChannelLayout
 #[test]
-fn test_channel_label_to_cubeb_channel() {
+fn test_channel_label_to_cubeb_channel_layout() {
     let pairs = [
         (kAudioChannelLabel_Left, ChannelLayout::FRONT_LEFT),
         (kAudioChannelLabel_Right, ChannelLayout::FRONT_RIGHT),
@@ -109,14 +110,17 @@ fn test_channel_label_to_cubeb_channel() {
     ];
 
     for (label, channel) in pairs.iter() {
-        assert_eq!(channel_label_to_cubeb_channel(*label), *channel);
+        let channel_label = CAChannelLabel(*label);
+        let layout: ChannelLayout = channel_label.into();
+        assert_eq!(layout, *channel);
     }
 }
 
 // cubeb_channel_to_channel_label
 // ------------------------------------
+// Convert a ChannelLayout into a CAChannelLabel
 #[test]
-fn test_cubeb_channel_to_channel_label() {
+fn test_cubeb_channel_layout_to_channel_label() {
     let pairs = [
         (ChannelLayout::FRONT_LEFT, kAudioChannelLabel_Left),
         (ChannelLayout::FRONT_RIGHT, kAudioChannelLabel_Right),
@@ -172,30 +176,25 @@ fn test_cubeb_channel_to_channel_label() {
     ];
 
     for (channel, label) in pairs.iter() {
-        assert_eq!(cubeb_channel_to_channel_label(*channel), *label);
+        let channel_label = CAChannelLabel(*label);
+        assert_eq!(CAChannelLabel::from(*channel), channel_label);
     }
 }
 
 #[test]
 #[should_panic]
-fn test_cubeb_channel_to_channel_label_with_invalid_channel() {
-    assert_eq!(
-        cubeb_channel_to_channel_label(ChannelLayout::_3F4_LFE),
-        kAudioChannelLabel_Unknown
-    );
+fn test_cubeb_channel_layout_to_channel_label_with_invalid_channel() {
+    let _label = CAChannelLabel::from(ChannelLayout::_3F4_LFE);
 }
 
 #[test]
 #[should_panic]
-fn test_cubeb_channel_to_channel_label_with_unknown_channel() {
+fn test_cubeb_channel_layout_to_channel_label_with_unknown_channel() {
     assert_eq!(
         ChannelLayout::from(ffi::CHANNEL_UNKNOWN),
         ChannelLayout::UNDEFINED
     );
-    assert_eq!(
-        cubeb_channel_to_channel_label(ChannelLayout::UNDEFINED),
-        kAudioChannelLabel_Unknown
-    );
+    let _label = CAChannelLabel::from(ChannelLayout::UNDEFINED);
 }
 
 // increase_active_streams

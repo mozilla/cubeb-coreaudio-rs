@@ -152,58 +152,68 @@ impl device_property_listener {
     }
 }
 
-// TODO: Do this by From trait
-fn channel_label_to_cubeb_channel(label: AudioChannelLabel) -> ChannelLayout {
-    use self::coreaudio_sys_utils::sys;
+#[derive(Debug, PartialEq)]
+struct CAChannelLabel(AudioChannelLabel);
 
-    match label {
-        sys::kAudioChannelLabel_Left => ChannelLayout::FRONT_LEFT,
-        sys::kAudioChannelLabel_Right => ChannelLayout::FRONT_RIGHT,
-        sys::kAudioChannelLabel_Center => ChannelLayout::FRONT_CENTER,
-        sys::kAudioChannelLabel_LFEScreen => ChannelLayout::LOW_FREQUENCY,
-        sys::kAudioChannelLabel_LeftSurround => ChannelLayout::BACK_LEFT,
-        sys::kAudioChannelLabel_RightSurround => ChannelLayout::BACK_RIGHT,
-        sys::kAudioChannelLabel_LeftCenter => ChannelLayout::FRONT_LEFT_OF_CENTER,
-        sys::kAudioChannelLabel_RightCenter => ChannelLayout::FRONT_RIGHT_OF_CENTER,
-        sys::kAudioChannelLabel_CenterSurround => ChannelLayout::BACK_CENTER,
-        sys::kAudioChannelLabel_LeftSurroundDirect => ChannelLayout::SIDE_LEFT,
-        sys::kAudioChannelLabel_RightSurroundDirect => ChannelLayout::SIDE_RIGHT,
-        sys::kAudioChannelLabel_TopCenterSurround => ChannelLayout::TOP_CENTER,
-        sys::kAudioChannelLabel_VerticalHeightLeft => ChannelLayout::TOP_FRONT_LEFT,
-        sys::kAudioChannelLabel_VerticalHeightCenter => ChannelLayout::TOP_FRONT_CENTER,
-        sys::kAudioChannelLabel_VerticalHeightRight => ChannelLayout::TOP_FRONT_RIGHT,
-        sys::kAudioChannelLabel_TopBackLeft => ChannelLayout::TOP_BACK_LEFT,
-        sys::kAudioChannelLabel_TopBackCenter => ChannelLayout::TOP_BACK_CENTER,
-        sys::kAudioChannelLabel_TopBackRight => ChannelLayout::TOP_BACK_RIGHT,
-        _ => ChannelLayout::UNDEFINED,
+impl CAChannelLabel {
+    fn get_raw_label(&self) -> AudioChannelLabel {
+        self.0
     }
 }
 
-// TODO: Do this by From trait
-fn cubeb_channel_to_channel_label(channel: ChannelLayout) -> AudioChannelLabel {
-    // Make sure the argument is a channel (only one bit set to 1)
-    // If channel.bits() is 0, channel.bits() - 1 will get a panic on subtraction with overflow.
-    assert_eq!(channel.bits() & (channel.bits() - 1), 0);
-    match channel {
-        ChannelLayout::FRONT_LEFT => kAudioChannelLabel_Left,
-        ChannelLayout::FRONT_RIGHT => kAudioChannelLabel_Right,
-        ChannelLayout::FRONT_CENTER => kAudioChannelLabel_Center,
-        ChannelLayout::LOW_FREQUENCY => kAudioChannelLabel_LFEScreen,
-        ChannelLayout::BACK_LEFT => kAudioChannelLabel_LeftSurround,
-        ChannelLayout::BACK_RIGHT => kAudioChannelLabel_RightSurround,
-        ChannelLayout::FRONT_LEFT_OF_CENTER => kAudioChannelLabel_LeftCenter,
-        ChannelLayout::FRONT_RIGHT_OF_CENTER => kAudioChannelLabel_RightCenter,
-        ChannelLayout::BACK_CENTER => kAudioChannelLabel_CenterSurround,
-        ChannelLayout::SIDE_LEFT => kAudioChannelLabel_LeftSurroundDirect,
-        ChannelLayout::SIDE_RIGHT => kAudioChannelLabel_RightSurroundDirect,
-        ChannelLayout::TOP_CENTER => kAudioChannelLabel_TopCenterSurround,
-        ChannelLayout::TOP_FRONT_LEFT => kAudioChannelLabel_VerticalHeightLeft,
-        ChannelLayout::TOP_FRONT_CENTER => kAudioChannelLabel_VerticalHeightCenter,
-        ChannelLayout::TOP_FRONT_RIGHT => kAudioChannelLabel_VerticalHeightRight,
-        ChannelLayout::TOP_BACK_LEFT => kAudioChannelLabel_TopBackLeft,
-        ChannelLayout::TOP_BACK_CENTER => kAudioChannelLabel_TopBackCenter,
-        ChannelLayout::TOP_BACK_RIGHT => kAudioChannelLabel_TopBackRight,
-        _ => kAudioChannelLabel_Unknown,
+impl From<ChannelLayout> for CAChannelLabel {
+    fn from(layout: ChannelLayout) -> Self {
+        // Make sure the layout is a channel (only one bit set to 1)
+        assert_eq!(layout.bits() & (layout.bits() - 1), 0);
+        let channel = match layout {
+            ChannelLayout::FRONT_LEFT => kAudioChannelLabel_Left,
+            ChannelLayout::FRONT_RIGHT => kAudioChannelLabel_Right,
+            ChannelLayout::FRONT_CENTER => kAudioChannelLabel_Center,
+            ChannelLayout::LOW_FREQUENCY => kAudioChannelLabel_LFEScreen,
+            ChannelLayout::BACK_LEFT => kAudioChannelLabel_LeftSurround,
+            ChannelLayout::BACK_RIGHT => kAudioChannelLabel_RightSurround,
+            ChannelLayout::FRONT_LEFT_OF_CENTER => kAudioChannelLabel_LeftCenter,
+            ChannelLayout::FRONT_RIGHT_OF_CENTER => kAudioChannelLabel_RightCenter,
+            ChannelLayout::BACK_CENTER => kAudioChannelLabel_CenterSurround,
+            ChannelLayout::SIDE_LEFT => kAudioChannelLabel_LeftSurroundDirect,
+            ChannelLayout::SIDE_RIGHT => kAudioChannelLabel_RightSurroundDirect,
+            ChannelLayout::TOP_CENTER => kAudioChannelLabel_TopCenterSurround,
+            ChannelLayout::TOP_FRONT_LEFT => kAudioChannelLabel_VerticalHeightLeft,
+            ChannelLayout::TOP_FRONT_CENTER => kAudioChannelLabel_VerticalHeightCenter,
+            ChannelLayout::TOP_FRONT_RIGHT => kAudioChannelLabel_VerticalHeightRight,
+            ChannelLayout::TOP_BACK_LEFT => kAudioChannelLabel_TopBackLeft,
+            ChannelLayout::TOP_BACK_CENTER => kAudioChannelLabel_TopBackCenter,
+            ChannelLayout::TOP_BACK_RIGHT => kAudioChannelLabel_TopBackRight,
+            _ => kAudioChannelLabel_Unknown,
+        };
+        Self(channel)
+    }
+}
+
+impl Into<ChannelLayout> for CAChannelLabel {
+    fn into(self) -> ChannelLayout {
+        use self::coreaudio_sys_utils::sys;
+        match self.0 {
+            sys::kAudioChannelLabel_Left => ChannelLayout::FRONT_LEFT,
+            sys::kAudioChannelLabel_Right => ChannelLayout::FRONT_RIGHT,
+            sys::kAudioChannelLabel_Center => ChannelLayout::FRONT_CENTER,
+            sys::kAudioChannelLabel_LFEScreen => ChannelLayout::LOW_FREQUENCY,
+            sys::kAudioChannelLabel_LeftSurround => ChannelLayout::BACK_LEFT,
+            sys::kAudioChannelLabel_RightSurround => ChannelLayout::BACK_RIGHT,
+            sys::kAudioChannelLabel_LeftCenter => ChannelLayout::FRONT_LEFT_OF_CENTER,
+            sys::kAudioChannelLabel_RightCenter => ChannelLayout::FRONT_RIGHT_OF_CENTER,
+            sys::kAudioChannelLabel_CenterSurround => ChannelLayout::BACK_CENTER,
+            sys::kAudioChannelLabel_LeftSurroundDirect => ChannelLayout::SIDE_LEFT,
+            sys::kAudioChannelLabel_RightSurroundDirect => ChannelLayout::SIDE_RIGHT,
+            sys::kAudioChannelLabel_TopCenterSurround => ChannelLayout::TOP_CENTER,
+            sys::kAudioChannelLabel_VerticalHeightLeft => ChannelLayout::TOP_FRONT_LEFT,
+            sys::kAudioChannelLabel_VerticalHeightCenter => ChannelLayout::TOP_FRONT_CENTER,
+            sys::kAudioChannelLabel_VerticalHeightRight => ChannelLayout::TOP_FRONT_RIGHT,
+            sys::kAudioChannelLabel_TopBackLeft => ChannelLayout::TOP_BACK_LEFT,
+            sys::kAudioChannelLabel_TopBackCenter => ChannelLayout::TOP_BACK_CENTER,
+            sys::kAudioChannelLabel_TopBackRight => ChannelLayout::TOP_BACK_RIGHT,
+            _ => ChannelLayout::UNDEFINED,
+        }
     }
 }
 
@@ -711,10 +721,10 @@ fn audiounit_convert_channel_layout(layout: &AudioChannelLayout) -> ChannelLayou
         )
     };
 
-    let mut cl = ChannelLayout::UNDEFINED; // ChannelLayout::from(0)
+    let mut cl = ChannelLayout::UNDEFINED;
     for description in channel_descriptions {
-        let channel = channel_label_to_cubeb_channel(description.mChannelLabel);
-
+        let label = CAChannelLabel(description.mChannelLabel);
+        let channel: ChannelLayout = label.into();
         if channel == ChannelLayout::UNDEFINED {
             return ChannelLayout::UNDEFINED;
         }
@@ -892,8 +902,9 @@ fn audiounit_set_channel_layout(
         assert!(channels < nb_channels as usize);
         let channel = (channel_map & 1) << i;
         if channel != 0 {
-            channel_descriptions[channels].mChannelLabel =
-                cubeb_channel_to_channel_label(ChannelLayout::from(channel));
+            let layout = ChannelLayout::from(channel);
+            let label = CAChannelLabel::from(layout);
+            channel_descriptions[channels].mChannelLabel = label.get_raw_label();
             channel_descriptions[channels].mChannelFlags = kAudioChannelFlags_AllOff;
             channels += 1;
         }
