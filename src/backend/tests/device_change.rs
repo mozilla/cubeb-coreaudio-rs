@@ -172,6 +172,7 @@ fn test_plug_and_unplug_device_in_scope(scope: Scope) {
     let default_device = test_get_default_device(scope.clone());
     if default_device.is_none() {
         println!("No device for {:?} to test", scope);
+        return;
     }
 
     println!("Run test for {:?}", scope);

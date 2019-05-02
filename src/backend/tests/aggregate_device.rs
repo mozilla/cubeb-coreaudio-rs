@@ -271,6 +271,8 @@ fn test_aggregate_set_aggregate_sub_device_list_for_unknown_input_devices() {
             .unwrap_err(),
             Error::error()
         );
+    } else {
+        panic!("Need a output device!");
     }
 
     assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
@@ -306,6 +308,8 @@ fn test_aggregate_set_aggregate_sub_device_list_for_unknown_output_devices() {
             .unwrap_err(),
             Error::error()
         );
+    } else {
+        panic!("Need a input device!");
     }
 
     assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
@@ -397,14 +401,10 @@ fn test_aggregate_set_master_aggregate_device_for_a_blank_aggregate_device() {
     assert_ne!(plugin_id, kAudioObjectUnknown);
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
 
-    // TODO: If there is no available device, we will set master device
-    //       to a device whose name is a NULL CFStringRef (see implementation)
-    //       but surprisingly it's ok! On the other hand, it's also ok to set
-    //       the default ouput device(if any) for a blank aggregate device.
-    //       That is, it's ok to set the default ouput device to an aggregate
-    //       device whose sub devices list doesn't include default ouput device!
-    //       This is weird to me. Maybe we should return errors when above
-    //       conditions are met.
+    let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
+    if !valid_id(output_id) {
+        return;
+    }
     assert!(audiounit_set_master_aggregate_device(aggregate_device_id).is_ok());
 
     // Make sure this blank aggregate device owns nothing.

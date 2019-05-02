@@ -1228,8 +1228,7 @@ fn test_set_aggregate_sub_device_list_for_an_unknown_aggregate_device() {
     let default_input = test_get_default_device(Scope::Input);
     let default_output = test_get_default_device(Scope::Output);
     if default_input.is_none() || default_output.is_none() {
-        println!("No input or output device.");
-        return;
+        panic!("No input or output device.");
     }
 
     let default_input = default_input.unwrap();
@@ -1869,9 +1868,7 @@ fn test_configure_input_with_zero_latency_frames() {
         Scope::Input,
         StreamParams::from(params),
         |stream| {
-            // TODO: The buffer frames size won't be 0 even it's ok to set that!
             check_buffer_frame_size(stream, Scope::Input);
-            // TODO: The frames per slice won't be 0 even it's ok to set that!
             check_frames_per_slice(stream, Scope::Input);
         },
     );
@@ -1944,9 +1941,7 @@ fn test_configure_output_with_zero_latency_frames() {
         Scope::Output,
         StreamParams::from(params),
         |stream| {
-            // TODO: The buffer frames size won't be 0 even it's ok to set that!
             check_buffer_frame_size(stream, Scope::Output);
-            // TODO: The frames per slice won't be 0 even it's ok to set that!
             check_frames_per_slice(stream, Scope::Output);
         },
     );
@@ -2018,7 +2013,7 @@ where
             callback(stream);
         });
     } else {
-        println!("No audiounit for {:?}.", scope);
+        panic!("No audiounit for {:?}.", scope);
     }
 }
 
