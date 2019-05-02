@@ -9,13 +9,168 @@ use std::thread;
 // currently used by other streams in other tests.
 #[ignore]
 #[test]
-fn test_parallel_ops_init_streams_in_parallel() {
-    const THREADS: u32 = 10;
+fn test_parallel_ops_init_streams_in_parallel_input() {
+    const THREADS: u32 = 50;
+    create_streams_by_ops_in_parallel_with_different_latency(
+        THREADS,
+        StreamType::Input,
+        |streams| {
+            // All the latency frames should be the same value as the first stream's one, since the
+            // latency frames cannot be changed if another stream is operating in parallel.
+            let mut latency_frames = vec![];
+            let mut in_buffer_frame_sizes = vec![];
 
+            for stream in streams {
+                latency_frames.push(stream.latency_frames);
+
+                assert!(!stream.input_unit.is_null());
+                let in_buffer_frame_size = test_audiounit_get_buffer_frame_size(
+                    stream.input_unit,
+                    Scope::Input,
+                    PropertyScope::Output,
+                )
+                .unwrap();
+                in_buffer_frame_sizes.push(in_buffer_frame_size);
+
+                assert!(stream.output_unit.is_null());
+            }
+
+            // Make sure all the latency frames are same as the first stream's one.
+            for i in 0..latency_frames.len() - 1 {
+                assert_eq!(latency_frames[i], latency_frames[i + 1]);
+            }
+
+            // Make sure all the buffer frame sizes on output scope of the input audiounit are same
+            // as the defined latency of the first initial stream.
+            for i in 0..in_buffer_frame_sizes.len() - 1 {
+                assert_eq!(in_buffer_frame_sizes[i], in_buffer_frame_sizes[i + 1]);
+            }
+        },
+    );
+}
+
+// Ignore the test by default to avoid overwritting the buffer frame size of the device that is
+// currently used by other streams in other tests.
+#[ignore]
+#[test]
+fn test_parallel_ops_init_streams_in_parallel_output() {
+    const THREADS: u32 = 50;
+    create_streams_by_ops_in_parallel_with_different_latency(
+        THREADS,
+        StreamType::Output,
+        |streams| {
+            // All the latency frames should be the same value as the first stream's one, since the
+            // latency frames cannot be changed if another stream is operating in parallel.
+            let mut latency_frames = vec![];
+            let mut out_buffer_frame_sizes = vec![];
+
+            for stream in streams {
+                latency_frames.push(stream.latency_frames);
+
+                assert!(stream.input_unit.is_null());
+
+                assert!(!stream.output_unit.is_null());
+                let out_buffer_frame_size = test_audiounit_get_buffer_frame_size(
+                    stream.output_unit,
+                    Scope::Output,
+                    PropertyScope::Input,
+                )
+                .unwrap();
+                out_buffer_frame_sizes.push(out_buffer_frame_size);
+            }
+
+            // Make sure all the latency frames are same as the first stream's one.
+            for i in 0..latency_frames.len() - 1 {
+                assert_eq!(latency_frames[i], latency_frames[i + 1]);
+            }
+
+            // Make sure all the buffer frame sizes on input scope of the output audiounit are same
+            // as the defined latency of the first initial stream.
+            for i in 0..out_buffer_frame_sizes.len() - 1 {
+                assert_eq!(out_buffer_frame_sizes[i], out_buffer_frame_sizes[i + 1]);
+            }
+        },
+    );
+}
+
+// Ignore the test by default to avoid overwritting the buffer frame size of the device that is
+// currently used by other streams in other tests.
+#[ignore]
+#[test]
+fn test_parallel_ops_init_streams_in_parallel_duplex() {
+    const THREADS: u32 = 50;
+    create_streams_by_ops_in_parallel_with_different_latency(
+        THREADS,
+        StreamType::Duplex,
+        |streams| {
+            // All the latency frames should be the same value as the first stream's one, since the
+            // latency frames cannot be changed if another stream is operating in parallel.
+            let mut latency_frames = vec![];
+            let mut in_buffer_frame_sizes = vec![];
+            let mut out_buffer_frame_sizes = vec![];
+
+            for stream in streams {
+                latency_frames.push(stream.latency_frames);
+
+                assert!(!stream.input_unit.is_null());
+                let in_buffer_frame_size = test_audiounit_get_buffer_frame_size(
+                    stream.input_unit,
+                    Scope::Input,
+                    PropertyScope::Output,
+                )
+                .unwrap();
+                in_buffer_frame_sizes.push(in_buffer_frame_size);
+
+                assert!(!stream.output_unit.is_null());
+                let out_buffer_frame_size = test_audiounit_get_buffer_frame_size(
+                    stream.output_unit,
+                    Scope::Output,
+                    PropertyScope::Input,
+                )
+                .unwrap();
+                out_buffer_frame_sizes.push(out_buffer_frame_size);
+            }
+
+            // Make sure all the latency frames are same as the first stream's one.
+            for i in 0..latency_frames.len() - 1 {
+                assert_eq!(latency_frames[i], latency_frames[i + 1]);
+            }
+
+            // Make sure all the buffer frame sizes on output scope of the input audiounit are same
+            // as the defined latency of the first initial stream.
+            for i in 0..in_buffer_frame_sizes.len() - 1 {
+                assert_eq!(in_buffer_frame_sizes[i], in_buffer_frame_sizes[i + 1]);
+            }
+
+            // Make sure all the buffer frame sizes on input scope of the output audiounit are same
+            // as the defined latency of the first initial stream.
+            for i in 0..out_buffer_frame_sizes.len() - 1 {
+                assert_eq!(out_buffer_frame_sizes[i], out_buffer_frame_sizes[i + 1]);
+            }
+        },
+    );
+}
+
+fn create_streams_by_ops_in_parallel_with_different_latency<F>(
+    amount: u32,
+    stm_type: StreamType,
+    callback: F,
+) where
+    F: FnOnce(Vec<&AudioUnitStream>),
+{
     let default_input = test_get_default_device(Scope::Input);
     let default_output = test_get_default_device(Scope::Output);
-    if default_input.is_none() || default_output.is_none() {
-        println!("No default input or output device to perform the test of creating duplex streams in parallel");
+
+    let has_input = stm_type == StreamType::Input || stm_type == StreamType::Duplex;
+    let has_output = stm_type == StreamType::Output || stm_type == StreamType::Duplex;
+
+    if has_input && default_input.is_none() {
+        println!("No input device to perform the test.");
+        return;
+    }
+
+    if has_output && default_output.is_none() {
+        println!("No output device to perform the test.");
         return;
     }
 
@@ -23,13 +178,7 @@ fn test_parallel_ops_init_streams_in_parallel() {
         let context_ptr_value = context_ptr as usize;
 
         let mut join_handles = vec![];
-        for i in 0..THREADS {
-            // Latency cannot be changed if another stream is operating in parallel. All the latecy
-            // should be set to the same latency value of the first stream that is operating in the
-            // context.
-            let latency_frames = SAFE_MIN_LATENCY_FRAMES + i;
-            assert!(latency_frames < SAFE_MAX_LATENCY_FRAMES);
-
+        for i in 0..amount {
             // Make sure the parameters meet the requirements of AudioUnitContext::stream_init
             // (in the comments).
             let mut input_params = ffi::cubeb_stream_params::default();
@@ -45,6 +194,12 @@ fn test_parallel_ops_init_streams_in_parallel() {
             output_params.channels = 2;
             output_params.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
             output_params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+
+            // Latency cannot be changed if another stream is operating in parallel. All the latecy
+            // should be set to the same latency value of the first stream that is operating in the
+            // context.
+            let latency_frames = SAFE_MIN_LATENCY_FRAMES + i;
+            assert!(latency_frames < SAFE_MAX_LATENCY_FRAMES);
 
             // Create many streams within the same context. The order of the stream creation
             // is random (The order of execution of the spawned threads is random.).assert!
@@ -65,9 +220,17 @@ fn test_parallel_ops_init_streams_in_parallel() {
                                     &mut stream,
                                     stream_name.as_ptr(),
                                     ptr::null_mut(), // Use default input device.
-                                    &mut input_params,
+                                    if has_input {
+                                        &mut input_params
+                                    } else {
+                                        ptr::null_mut()
+                                    },
                                     ptr::null_mut(), // Use default output device.
-                                    &mut output_params,
+                                    if has_output {
+                                        &mut output_params
+                                    } else {
+                                        ptr::null_mut()
+                                    },
                                     latency_frames,
                                     None,            // No data callback.
                                     None,            // No state callback.
@@ -83,22 +246,55 @@ fn test_parallel_ops_init_streams_in_parallel() {
             );
         }
 
-        // All the latency frames should be the same value as the first stream's one, since the
-        // latency frames cannot be changed if another stream is operating in parallel.
-        let mut latency_frames = vec![];
-
+        let mut streams = vec![];
+        // Wait for finishing the tasks on the different threads.
         for handle in join_handles {
             let stream_ptr_value = handle.join().unwrap();
             let stream = unsafe { Box::from_raw(stream_ptr_value as *mut AudioUnitStream) };
-            // There is no need to call `stream_destroy`. The `stream` created is leaked from a Box
-            // and it's retaken within a Box now. It will be destroyed/dropped automatically.
+            streams.push(stream);
+        }
 
+        let stream_refs: Vec<&AudioUnitStream> = streams.iter().map(|stm| stm.as_ref()).collect();
+        callback(stream_refs);
+    });
+}
+
+// Ignore the test by default to avoid overwritting the buffer frame size of the device that is
+// currently used by other streams in other tests.
+#[ignore]
+#[test]
+fn test_parallel_init_streams_in_parallel_input() {
+    const THREADS: u32 = 10;
+    create_streams_in_parallel_with_different_latency(THREADS, StreamType::Input, |streams| {
+        // All the latency frames should be the same value as the first stream's one, since the
+        // latency frames cannot be changed if another stream is operating in parallel.
+        let mut latency_frames = vec![];
+        let mut in_buffer_frame_sizes = vec![];
+
+        for stream in streams {
             latency_frames.push(stream.latency_frames);
+
+            assert!(!stream.input_unit.is_null());
+            let in_buffer_frame_size = test_audiounit_get_buffer_frame_size(
+                stream.input_unit,
+                Scope::Input,
+                PropertyScope::Output,
+            )
+            .unwrap();
+            in_buffer_frame_sizes.push(in_buffer_frame_size);
+
+            assert!(stream.output_unit.is_null());
         }
 
         // Make sure all the latency frames are same as the first stream's one.
         for i in 0..latency_frames.len() - 1 {
             assert_eq!(latency_frames[i], latency_frames[i + 1]);
+        }
+
+        // Make sure all the buffer frame sizes on output scope of the input audiounit are same
+        // as the defined latency of the first initial stream.
+        for i in 0..in_buffer_frame_sizes.len() - 1 {
+            assert_eq!(in_buffer_frame_sizes[i], in_buffer_frame_sizes[i + 1]);
         }
     });
 }
@@ -107,13 +303,116 @@ fn test_parallel_ops_init_streams_in_parallel() {
 // currently used by other streams in other tests.
 #[ignore]
 #[test]
-fn test_parallel_init_streams_in_parallel() {
+fn test_parallel_init_streams_in_parallel_output() {
     const THREADS: u32 = 10;
+    create_streams_in_parallel_with_different_latency(THREADS, StreamType::Output, |streams| {
+        // All the latency frames should be the same value as the first stream's one, since the
+        // latency frames cannot be changed if another stream is operating in parallel.
+        let mut latency_frames = vec![];
+        let mut out_buffer_frame_sizes = vec![];
 
+        for stream in streams {
+            latency_frames.push(stream.latency_frames);
+
+            assert!(stream.input_unit.is_null());
+
+            assert!(!stream.output_unit.is_null());
+            let out_buffer_frame_size = test_audiounit_get_buffer_frame_size(
+                stream.output_unit,
+                Scope::Output,
+                PropertyScope::Input,
+            )
+            .unwrap();
+            out_buffer_frame_sizes.push(out_buffer_frame_size);
+        }
+
+        // Make sure all the latency frames are same as the first stream's one.
+        for i in 0..latency_frames.len() - 1 {
+            assert_eq!(latency_frames[i], latency_frames[i + 1]);
+        }
+
+        // Make sure all the buffer frame sizes on input scope of the output audiounit are same
+        // as the defined latency of the first initial stream.
+        for i in 0..out_buffer_frame_sizes.len() - 1 {
+            assert_eq!(out_buffer_frame_sizes[i], out_buffer_frame_sizes[i + 1]);
+        }
+    });
+}
+
+// Ignore the test by default to avoid overwritting the buffer frame size of the device that is
+// currently used by other streams in other tests.
+#[ignore]
+#[test]
+fn test_parallel_init_streams_in_parallel_duplex() {
+    const THREADS: u32 = 10;
+    create_streams_in_parallel_with_different_latency(THREADS, StreamType::Duplex, |streams| {
+        // All the latency frames should be the same value as the first stream's one, since the
+        // latency frames cannot be changed if another stream is operating in parallel.
+        let mut latency_frames = vec![];
+        let mut in_buffer_frame_sizes = vec![];
+        let mut out_buffer_frame_sizes = vec![];
+
+        for stream in streams {
+            latency_frames.push(stream.latency_frames);
+
+            assert!(!stream.input_unit.is_null());
+            let in_buffer_frame_size = test_audiounit_get_buffer_frame_size(
+                stream.input_unit,
+                Scope::Input,
+                PropertyScope::Output,
+            )
+            .unwrap();
+            in_buffer_frame_sizes.push(in_buffer_frame_size);
+
+            assert!(!stream.output_unit.is_null());
+            let out_buffer_frame_size = test_audiounit_get_buffer_frame_size(
+                stream.output_unit,
+                Scope::Output,
+                PropertyScope::Input,
+            )
+            .unwrap();
+            out_buffer_frame_sizes.push(out_buffer_frame_size);
+        }
+
+        // Make sure all the latency frames are same as the first stream's one.
+        for i in 0..latency_frames.len() - 1 {
+            assert_eq!(latency_frames[i], latency_frames[i + 1]);
+        }
+
+        // Make sure all the buffer frame sizes on output scope of the input audiounit are same
+        // as the defined latency of the first initial stream.
+        for i in 0..in_buffer_frame_sizes.len() - 1 {
+            assert_eq!(in_buffer_frame_sizes[i], in_buffer_frame_sizes[i + 1]);
+        }
+
+        // Make sure all the buffer frame sizes on input scope of the output audiounit are same
+        // as the defined latency of the first initial stream.
+        for i in 0..out_buffer_frame_sizes.len() - 1 {
+            assert_eq!(out_buffer_frame_sizes[i], out_buffer_frame_sizes[i + 1]);
+        }
+    });
+}
+
+fn create_streams_in_parallel_with_different_latency<F>(
+    amount: u32,
+    stm_type: StreamType,
+    callback: F,
+) where
+    F: FnOnce(Vec<&AudioUnitStream>),
+{
     let default_input = test_get_default_device(Scope::Input);
     let default_output = test_get_default_device(Scope::Output);
-    if default_input.is_none() || default_output.is_none() {
-        println!("No default input or output device to perform the test of creating duplex streams in parallel");
+
+    let has_input = stm_type == StreamType::Input || stm_type == StreamType::Duplex;
+    let has_output = stm_type == StreamType::Output || stm_type == StreamType::Duplex;
+
+    if has_input && default_input.is_none() {
+        println!("No input device to perform the test.");
+        return;
+    }
+
+    if has_output && default_output.is_none() {
+        println!("No output device to perform the test.");
         return;
     }
 
@@ -125,13 +424,7 @@ fn test_parallel_init_streams_in_parallel() {
     let context_ptr_value = &context as *const AudioUnitContext as usize;
 
     let mut join_handles = vec![];
-    for i in 0..THREADS {
-        // Latency cannot be changed if another stream is operating in parallel. All the latecy
-        // should be set to the same latency value of the first stream that is operating in the
-        // context.
-        let latency_frames = SAFE_MIN_LATENCY_FRAMES + i;
-        assert!(latency_frames < SAFE_MAX_LATENCY_FRAMES);
-
+    for i in 0..amount {
         // Make sure the parameters meet the requirements of AudioUnitContext::stream_init
         // (in the comments).
         let mut input_params = ffi::cubeb_stream_params::default();
@@ -147,6 +440,12 @@ fn test_parallel_init_streams_in_parallel() {
         output_params.channels = 2;
         output_params.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
         output_params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+
+        // Latency cannot be changed if another stream is operating in parallel. All the latecy
+        // should be set to the same latency value of the first stream that is operating in the
+        // context.
+        let latency_frames = SAFE_MIN_LATENCY_FRAMES + i;
+        assert!(latency_frames < SAFE_MAX_LATENCY_FRAMES);
 
         // Create many streams within the same context. The order of the stream creation
         // is random. (The order of execution of the spawned threads is random.)
@@ -164,9 +463,13 @@ fn test_parallel_init_streams_in_parallel() {
                         .stream_init(
                             None,
                             ptr::null_mut(), // Use default input device.
-                            Some(input_params),
+                            if has_input { Some(input_params) } else { None },
                             ptr::null_mut(), // Use default output device.
-                            Some(output_params),
+                            if has_output {
+                                Some(output_params)
+                            } else {
+                                None
+                            },
                             latency_frames,
                             None,            // No data callback.
                             None,            // No state callback.
@@ -183,53 +486,24 @@ fn test_parallel_init_streams_in_parallel() {
         );
     }
 
-    // All the latency frames should be the same value as the first stream's one, since the
-    // latency frames cannot be changed if another stream is operating in parallel.
-    let mut latency_frames = vec![];
-    let mut in_buffer_frame_sizes = vec![];
-    let mut out_buffer_frame_sizes = vec![];
-
+    let mut streams = vec![];
     // Wait for finishing the tasks on the different threads.
     for handle in join_handles {
         let stream_ptr_value = handle.join().unwrap();
         // Retake the leaked stream.
         let stream = unsafe { Box::from_raw(stream_ptr_value as *mut AudioUnitStream) };
-        latency_frames.push(stream.latency_frames);
-        assert!(!stream.input_unit.is_null());
-        let in_buffer_frame_size = test_audiounit_get_buffer_frame_size(
-            stream.input_unit,
-            Scope::Input,
-            PropertyScope::Output,
-        )
-        .unwrap();
-        in_buffer_frame_sizes.push(in_buffer_frame_size);
-
-        assert!(!stream.output_unit.is_null());
-        let out_buffer_frame_size = test_audiounit_get_buffer_frame_size(
-            stream.output_unit,
-            Scope::Output,
-            PropertyScope::Input,
-        )
-        .unwrap();
-        out_buffer_frame_sizes.push(out_buffer_frame_size);
+        streams.push(stream);
     }
 
-    // Make sure all the latency frames are same as the first stream's one.
-    for i in 0..latency_frames.len() - 1 {
-        assert_eq!(latency_frames[i], latency_frames[i + 1]);
-    }
+    let stream_refs: Vec<&AudioUnitStream> = streams.iter().map(|stm| stm.as_ref()).collect();
+    callback(stream_refs);
+}
 
-    // Make sure all the buffer frame sizes on output scope of the input audiounit are same
-    // as the defined latency of the first initial stream.
-    for i in 0..in_buffer_frame_sizes.len() - 1 {
-        assert_eq!(in_buffer_frame_sizes[i], in_buffer_frame_sizes[i + 1]);
-    }
-
-    // Make sure all the buffer frame sizes on input scope of the output audiounit are same
-    // as the defined latency of the first initial stream.
-    for i in 0..out_buffer_frame_sizes.len() - 1 {
-        assert_eq!(out_buffer_frame_sizes[i], out_buffer_frame_sizes[i + 1]);
-    }
+#[derive(Debug, PartialEq)]
+enum StreamType {
+    Input,
+    Output,
+    Duplex,
 }
 
 // This is used to interfere other active streams.

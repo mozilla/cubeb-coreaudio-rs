@@ -5,8 +5,7 @@ cargo test test_configure_output -- --ignored
 cargo test test_aggregate -- --ignored --test-threads=1
 
 # Parallel Tests
-cargo test test_parallel_ops_init_streams_in_parallel -- --ignored
-cargo test test_parallel_init_streams_in_parallel -- --ignored
+cargo test test_parallel -- --ignored --nocapture --test-threads=1
 
 # Device-changed Tests
 cargo test test_switch_device -- --ignored --nocapture
