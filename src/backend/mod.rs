@@ -1295,6 +1295,11 @@ fn audiounit_activate_clock_drift_compensation(aggregate_device_id: AudioDeviceI
         return Err(Error::error());
     }
 
+    assert!(
+        size > 0,
+        "The sub devices of the aggregate device have not been added yet."
+    );
+
     let subdevices_num = size / mem::size_of::<AudioObjectID>();
     let mut sub_devices: Vec<AudioObjectID> = allocate_array(subdevices_num);
 
@@ -1323,11 +1328,15 @@ fn audiounit_activate_clock_drift_compensation(aggregate_device_id: AudioDeviceI
         mElement: kAudioObjectPropertyElementMaster,
     };
 
+    assert!(
+        subdevices_num >= 2,
+        "We should have at least 2 devices for the aggregate device."
+    );
     // Start from the second device since the first is the master clock
-    for i in 1..subdevices_num {
+    for device in &sub_devices[1..] {
         let drift_compensation_value: u32 = 1;
         rv = audio_object_set_property_data(
-            sub_devices[i],
+            *device,
             &address_drift,
             mem::size_of::<u32>(),
             &drift_compensation_value,
