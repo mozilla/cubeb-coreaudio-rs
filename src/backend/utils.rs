@@ -27,9 +27,8 @@ pub fn leak_vec<T>(v: Vec<T>) -> (*mut T, usize) {
     ptr_and_len
 }
 
+#[inline]
 pub fn retake_leaked_vec<T>(ptr: *mut T, len: usize) -> Vec<T> {
-    // TODO: It's better to set ptr to null and len to 0.
-    //       so the address won't be used again.
     unsafe { Vec::from_raw_parts(ptr, len, len) }
 }
 
