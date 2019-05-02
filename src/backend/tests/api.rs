@@ -1545,45 +1545,55 @@ fn test_init_input_linear_buffer() {
     // Test if the stream latency frame is 4096
     test_init_input_linear_buffer_impl(&buffer_f32, 4096);
     test_init_input_linear_buffer_impl(&buffer_i16, 4096);
+}
 
-    // TODO: Is it ok without setting latency ?
+#[test]
+#[should_panic]
+fn test_init_input_linear_buffer_with_zero_latency_f32() {
+    let buffer_f32 = [3.1_f32, 4.1, 5.9, 2.6, 5.35];
     test_init_input_linear_buffer_impl(&buffer_f32, 0);
+}
+
+#[test]
+#[should_panic]
+fn test_init_input_linear_buffer_with_zero_latency_i16() {
+    let buffer_i16 = [13_i16, 21, 34, 55, 89, 144];
     test_init_input_linear_buffer_impl(&buffer_i16, 0);
+}
 
-    fn test_init_input_linear_buffer_impl<T: Any + Debug + PartialEq>(array: &[T], latency: u32) {
-        const CHANNEL: u32 = 2;
-        const BUF_CAPACITY: u32 = 1;
+fn test_init_input_linear_buffer_impl<T: Any + Debug + PartialEq>(array: &[T], latency: u32) {
+    const CHANNEL: u32 = 2;
+    const BUF_CAPACITY: u32 = 1;
 
-        let type_id = std::any::TypeId::of::<T>();
-        let format = if type_id == std::any::TypeId::of::<f32>() {
-            kAudioFormatFlagIsFloat
-        } else if type_id == std::any::TypeId::of::<i16>() {
-            kAudioFormatFlagIsSignedInteger
-        } else {
-            panic!("Unsupported type!");
-        };
+    let type_id = std::any::TypeId::of::<T>();
+    let format = if type_id == std::any::TypeId::of::<f32>() {
+        kAudioFormatFlagIsFloat
+    } else if type_id == std::any::TypeId::of::<i16>() {
+        kAudioFormatFlagIsSignedInteger
+    } else {
+        panic!("Unsupported type!");
+    };
 
-        test_get_default_raw_stream(|stream| {
-            stream.latency_frames = latency;
-            stream.input_desc.mFormatFlags |= format;
-            stream.input_desc.mChannelsPerFrame = CHANNEL;
+    test_get_default_raw_stream(|stream| {
+        stream.latency_frames = latency;
+        stream.input_desc.mFormatFlags |= format;
+        stream.input_desc.mChannelsPerFrame = CHANNEL;
 
-            assert!(stream.input_linear_buffer.is_none());
-            assert!(stream.init_input_linear_buffer(BUF_CAPACITY).is_ok());
-            assert!(stream.input_linear_buffer.is_some());
+        assert!(stream.input_linear_buffer.is_none());
+        assert!(stream.init_input_linear_buffer(BUF_CAPACITY).is_ok());
+        assert!(stream.input_linear_buffer.is_some());
 
-            let buffer_ref = stream.input_linear_buffer.as_mut().unwrap();
-            buffer_ref.push(array.as_ptr() as *const c_void, array.len());
+        let buffer_ref = stream.input_linear_buffer.as_mut().unwrap();
+        buffer_ref.push(array.as_ptr() as *const c_void, array.len());
 
-            assert_eq!(buffer_ref.elements(), array.len());
-            let data = buffer_ref.as_ptr() as *const T;
-            for (idx, item) in array.iter().enumerate() {
-                unsafe {
-                    assert_eq!(*data.add(idx), *item);
-                }
+        assert_eq!(buffer_ref.elements(), array.len());
+        let data = buffer_ref.as_ptr() as *const T;
+        for (idx, item) in array.iter().enumerate() {
+            unsafe {
+                assert_eq!(*data.add(idx), *item);
             }
-        });
-    }
+        }
+    });
 }
 
 // FIXIT: We should get a panic! The type is unknown before the audio description is set!
@@ -1845,9 +1855,9 @@ fn test_configure_input_with_null_unit() {
 
 // Ignore the test by default to avoid overwritting the buffer frame size for the input or output
 // device that is using in test_configure_input or test_configure_output.
-// TODO: Should we get a panic if the buffer frames size cannot be set to 0 actually ?
 #[ignore]
 #[test]
+#[should_panic]
 fn test_configure_input_with_zero_latency_frames() {
     let mut params = ffi::cubeb_stream_params::default();
     params.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
@@ -1920,9 +1930,9 @@ fn test_configure_output_with_null_unit() {
 
 // Ignore the test by default to avoid overwritting the buffer frame size for the input or output
 // device that is using in test_configure_input or test_configure_output.
-// TODO: Should we get a panic if the buffer frames size cannot be set to 0 actually ?
 #[ignore]
 #[test]
+#[should_panic]
 fn test_configure_output_with_zero_latency_frames() {
     let mut params = ffi::cubeb_stream_params::default();
     params.format = ffi::CUBEB_SAMPLE_FLOAT32NE;

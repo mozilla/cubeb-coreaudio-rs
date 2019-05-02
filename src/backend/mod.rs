@@ -3420,8 +3420,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
     fn init_input_linear_buffer(&mut self, capacity: u32) -> Result<()> {
         assert_ne!(self.input_desc.mFormatFlags, 0);
         assert_ne!(self.input_desc.mChannelsPerFrame, 0);
-        // TODO: Make sure latency_frames is larger than zero ?
-        // assert_ne!(self.latency_frames, 0);
+        assert_ne!(self.latency_frames, 0);
         let size = (capacity * self.latency_frames * self.input_desc.mChannelsPerFrame) as usize;
         if self.input_desc.mFormatFlags & kAudioFormatFlagIsSignedInteger != 0 {
             assert_eq!(self.input_desc.mFormatFlags & kAudioFormatFlagIsFloat, 0);
@@ -3529,10 +3528,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
     }
 
     fn set_buffer_size(&mut self, new_size_frames: u32, side: io_side) -> Result<()> {
-        // assert_ne!(new_size_frames, 0);
-        // Surprisingly, it's ok to set `new_size_frames` to zero without getting
-        // any error. However, the `buffer frames size` won't become 0 even it's
-        // ok to set it to 0. Maybe we should fix it!
+        assert_ne!(new_size_frames, 0);
         let (au, au_scope, au_element) = if side == io_side::INPUT {
             (self.input_unit, kAudioUnitScope_Output, AU_IN_BUS)
         } else {
@@ -3726,12 +3722,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
         }
 
         // Use latency to set buffer size
-        // TODO: Make sure self.latency_frames is larger than 0 ?
-        // assert_ne!(self.latency_frames, 0);
-        // Surprisingly, it's ok to set buffer frame size to zero without getting
-        // any error. However, the buffer frame size won't become 0 even it's ok to
-        // set that. Maybe we should fix it!
-        // Use a temporary variable `latency_frames` to avoid borrowing issue.
+        assert_ne!(self.latency_frames, 0);
         let latency_frames = self.latency_frames;
         if let Err(r) = self.set_buffer_size(latency_frames, io_side::INPUT) {
             cubeb_log!(
@@ -3762,9 +3753,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
             return Err(Error::error());
         }
 
-        // TODO: Surprisingly, it's ok to set frames per slice to zero without
-        // getting any error. However, the frames per slice won't become 0 even
-        // it's ok to set that. Maybe we should fix it!
         /* Frames per buffer in the input callback. */
         r = audio_unit_set_property(
             self.input_unit,
@@ -3908,12 +3896,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
         }
 
         // Use latency to set buffer size
-        // TODO: Make sure self.latency_frames is larger than 0 ?
-        // assert_ne!(self.latency_frames, 0);
-        // Surprisingly, it's ok to set buffer frame size to zero without getting
-        // any error. However, the buffer frame size won't become 0 even it's ok to
-        // set that. Maybe we should fix it!
-        // Use a temporary variable `latency_frames` to avoid borrowing issue.
+        assert_ne!(self.latency_frames, 0);
         let latency_frames = self.latency_frames;
         if let Err(r) = self.set_buffer_size(latency_frames, io_side::OUTPUT) {
             cubeb_log!(
