@@ -2052,7 +2052,6 @@ extern "C" fn audiounit_collection_changed_callback(
         let ctx_ptr = *ctx_guard as *const AudioUnitContext;
 
         let mutex_ptr = &mut ctx_guard.mutex as *mut OwnedCriticalSection;
-        // The scope of `_context_lock` is a critical section.
         let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
 
         if ctx_guard.input_collection_changed_callback.is_none()
@@ -2457,13 +2456,7 @@ impl ContextOps for AudioUnitContext {
         // 2. If channels is 0, then size of input buffer is zero!
         // 3. What if the channels is different from the channels for the layout ?
 
-        // Since we cannot call `AutoLock::new(&mut self.mutex)` and
-        // `AudioUnitStream::new(self, ...)` at the same time.
-        // (`self` cannot be borrowed immutably after it's borrowed as mutable.),
-        // we take the pointer to `self.mutex` first and then dereference it to
-        // the mutex to avoid this problem for now.
         let mutex_ptr = &mut self.mutex as *mut OwnedCriticalSection;
-        // The scope of `_context_lock` is a critical section.
         let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
         self.increase_active_streams();
         let mut boxed_stream = Box::new(AudioUnitStream::new(
@@ -2475,7 +2468,6 @@ impl ContextOps for AudioUnitContext {
         ));
         boxed_stream.init_mutex();
 
-        // TODO: Add a method `to_owned` in `StreamParamsRef`.
         if let Some(stream_params_ref) = input_stream_params {
             assert!(!stream_params_ref.as_ptr().is_null());
             boxed_stream.input_stream_params =
@@ -2509,7 +2501,6 @@ impl ContextOps for AudioUnitContext {
             // It's not critical to lock here, because no other thread has been started
             // yet, but it allows to assert that the lock has been taken in `AudioUnitStream::setup`.
             let mutex_ptr = &mut boxed_stream.mutex as *mut OwnedCriticalSection;
-            // The scope of `_lock` is a critical section.
             let _lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
             boxed_stream.setup()
         } {
@@ -4007,7 +3998,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
         }
 
         /* Latency cannot change if another stream is operating in parallel. In this case
-         * latecy is set to the other stream value. */
+         * latency is set to the other stream value. */
         if self.context.active_streams() > 1 {
             cubeb_log!(
                 "({:p}) More than one active stream, use global latency.",
