@@ -3528,6 +3528,8 @@ impl<'ctx> AudioUnitStream<'ctx> {
     }
 
     fn set_buffer_size(&mut self, new_size_frames: u32, side: io_side) -> Result<()> {
+        use std::{thread, time};
+
         assert_ne!(new_size_frames, 0);
         let (au, au_scope, au_element) = if side == io_side::INPUT {
             (self.input_unit, kAudioUnitScope_Output, AU_IN_BUS)
@@ -3617,21 +3619,11 @@ impl<'ctx> AudioUnitStream<'ctx> {
         }
 
         let mut count: u32 = 0;
+        let duration = time::Duration::from_millis(100); // 0.1 sec
+
         while !*self.buffer_size_change_state.get_mut() && count < 30 {
             count += 1;
-            unsafe {
-                let req = libc::timespec {
-                    tv_sec: 0,
-                    tv_nsec: 100_000_000, // 0.1 sec
-                };
-                let mut rem = libc::timespec {
-                    tv_sec: 0,
-                    tv_nsec: 0,
-                };
-                if libc::nanosleep(&req, &mut rem) < 0 {
-                    cubeb_log!("({:p}) Warning: nanosleep call failed or interrupted. Remaining time {} nano secs", self as *const AudioUnitStream, rem.tv_nsec);
-                }
-            }
+            thread::sleep(duration);
             cubeb_log!(
                 "({:p}) audiounit_set_buffer_size : wait count = {}",
                 self as *const AudioUnitStream,
