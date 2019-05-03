@@ -951,7 +951,7 @@ pub fn test_ops_stream_operation<F>(
     });
 }
 
-pub fn test_get_locked_raw_context<F>(operation: F)
+pub fn test_get_raw_context<F>(operation: F)
 where
     F: FnOnce(&mut AudioUnitContext),
 {
