@@ -89,37 +89,15 @@ fn test_aggregate_get_sub_devices_for_blank_aggregate_devices() {
 #[test]
 #[ignore]
 fn test_aggregate_create_blank_aggregate_device() {
-    let changes = Arc::new(Mutex::new(0u32));
-    let also_changes = Arc::clone(&changes);
-    let changes_mtx_ptr = also_changes.as_ref() as *const Mutex<u32>;
-
-    assert_eq!(
-        audio_object_add_property_listener(
-            kAudioObjectSystemObject,
-            &DEVICES_PROPERTY_ADDRESS,
-            devices_changed_callback,
-            changes_mtx_ptr as *mut c_void
-        ),
-        NO_ERR
-    );
-
     // TODO: Test this when there is no available devices.
     let mut plugin_id = kAudioObjectUnknown;
     let mut aggregate_device_id = kAudioObjectUnknown;
     assert!(
-        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
+        audiounit_create_blank_aggregate_device_sync(&mut plugin_id, &mut aggregate_device_id)
+            .is_ok()
     );
     assert_ne!(plugin_id, kAudioObjectUnknown);
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
-
-    // Waiting for device is added.
-    loop {
-        let guard = changes.lock().unwrap();
-        if *guard != 0 {
-            assert_eq!(*guard, 1);
-            break;
-        }
-    }
 
     let all_devices = get_all_devices();
     assert!(!all_devices.is_empty());
@@ -139,24 +117,6 @@ fn test_aggregate_create_blank_aggregate_device() {
     assert!(aggregate_device_found);
 
     assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
-
-    loop {
-        let guard = changes.lock().unwrap();
-        if *guard != 1 {
-            assert_eq!(*guard, 2);
-            break;
-        }
-    }
-
-    assert_eq!(
-        audio_object_remove_property_listener(
-            kAudioObjectSystemObject,
-            &DEVICES_PROPERTY_ADDRESS,
-            devices_changed_callback,
-            changes_mtx_ptr as *mut c_void
-        ),
-        NO_ERR
-    );
 
     fn get_all_devices() -> Vec<AudioObjectID> {
         let mut size: usize = 0;
@@ -182,32 +142,6 @@ fn test_aggregate_create_blank_aggregate_device() {
         devices.sort();
         devices
     }
-
-    extern "C" fn devices_changed_callback(
-        id: AudioObjectID,
-        number_of_addresses: u32,
-        addresses: *const AudioObjectPropertyAddress,
-        data: *mut c_void,
-    ) -> OSStatus {
-        println!("device: {}, data @ {:p}", id, data);
-        let addrs = unsafe { std::slice::from_raw_parts(addresses, number_of_addresses as usize) };
-        for (i, addr) in addrs.iter().enumerate() {
-            println!(
-                "address {}\n\tselector {}\n\tscope {}\n\telement {}",
-                i, addr.mSelector, addr.mScope, addr.mElement
-            );
-        }
-
-        assert_eq!(id, kAudioObjectSystemObject);
-
-        let count = unsafe { &*(data as *const Mutex<u32>) };
-        {
-            let mut guard = count.lock().unwrap();
-            *guard += 1;
-        }
-
-        NO_ERR
-    }
 }
 
 // set_aggregate_sub_device_list
@@ -227,11 +161,11 @@ fn test_aggregate_set_aggregate_sub_device_list_for_unknown_input_output_devices
     // NOTE: We will get errors and pass the test here since get_device_name()
     //       return a NULL CFStringRef for a unknown devicie. Instead of
     //       replying on get_device_name(). We should check this in the
-    //       beginning of the audiounit_set_aggregate_sub_device_list().
+    //       beginning of the audiounit_set_aggregate_sub_device_list_sync().
 
     // Both input and output are unknown.
     assert_eq!(
-        audiounit_set_aggregate_sub_device_list(
+        audiounit_set_aggregate_sub_device_list_sync(
             aggregate_device_id,
             kAudioObjectUnknown,
             kAudioObjectUnknown
@@ -256,14 +190,14 @@ fn test_aggregate_set_aggregate_sub_device_list_for_unknown_input_devices() {
     // NOTE: We will get errors and pass the test here since get_device_name()
     //       return a NULL CFStringRef for a unknown devicie. Instead of
     //       replying on get_device_name(). We should check this in the
-    //       beginning of the audiounit_set_aggregate_sub_device_list().
+    //       beginning of the audiounit_set_aggregate_sub_device_list_sync().
 
     let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
 
     // Only input is unknown.
     if valid_id(output_id) {
         assert_eq!(
-            audiounit_set_aggregate_sub_device_list(
+            audiounit_set_aggregate_sub_device_list_sync(
                 aggregate_device_id,
                 kAudioObjectUnknown,
                 output_id
@@ -293,14 +227,14 @@ fn test_aggregate_set_aggregate_sub_device_list_for_unknown_output_devices() {
     // NOTE: We will get errors and pass the test here since get_device_name()
     //       return a NULL CFStringRef for a unknown devicie. Instead of
     //       replying on get_device_name(). We should check this in the
-    //       beginning of the audiounit_set_aggregate_sub_device_list().
+    //       beginning of the audiounit_set_aggregate_sub_device_list_sync().
 
     let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
 
     // Only output is unknown.
     if valid_id(input_id) {
         assert_eq!(
-            audiounit_set_aggregate_sub_device_list(
+            audiounit_set_aggregate_sub_device_list_sync(
                 aggregate_device_id,
                 input_id,
                 kAudioObjectUnknown
@@ -340,7 +274,8 @@ fn test_aggregate_set_aggregate_sub_device_list() {
 
     // Set sub devices for the created aggregate device.
     assert!(
-        audiounit_set_aggregate_sub_device_list(aggregate_device_id, input_id, output_id).is_ok()
+        audiounit_set_aggregate_sub_device_list_sync(aggregate_device_id, input_id, output_id)
+            .is_ok()
     );
     let sub_devices = audiounit_get_sub_devices(aggregate_device_id);
 
@@ -447,7 +382,8 @@ fn test_aggregate_set_master_aggregate_device() {
 
     // Set the sub devices into the created aggregate device.
     assert!(
-        audiounit_set_aggregate_sub_device_list(aggregate_device_id, input_id, output_id).is_ok()
+        audiounit_set_aggregate_sub_device_list_sync(aggregate_device_id, input_id, output_id)
+            .is_ok()
     );
 
     // Set the master device.
@@ -563,13 +499,14 @@ fn test_aggregate_activate_clock_drift_compensation_for_an_aggregate_device_with
 
     // Set the sub devices into the created aggregate device.
     assert!(
-        audiounit_set_aggregate_sub_device_list(aggregate_device_id, input_id, output_id).is_ok()
+        audiounit_set_aggregate_sub_device_list_sync(aggregate_device_id, input_id, output_id)
+            .is_ok()
     );
 
     // TODO: Is the master device the first output sub device by default if we
     //       don't set that ? Is it because we add the output sub device list
     //       before the input's one ? (See implementation of
-    //       audiounit_set_aggregate_sub_device_list).
+    //       audiounit_set_aggregate_sub_device_list_sync).
     // TODO: Does this check work if output_id is an aggregate device ?
     assert_eq!(
         get_master_device(aggregate_device_id),
@@ -621,7 +558,8 @@ fn test_aggregate_activate_clock_drift_compensation() {
 
     // Set the sub devices into the created aggregate device.
     assert!(
-        audiounit_set_aggregate_sub_device_list(aggregate_device_id, input_id, output_id).is_ok()
+        audiounit_set_aggregate_sub_device_list_sync(aggregate_device_id, input_id, output_id)
+            .is_ok()
     );
 
     // Set the master device.
