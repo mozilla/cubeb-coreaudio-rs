@@ -2,7 +2,7 @@ use super::utils::{
     test_audiounit_get_buffer_frame_size, test_audiounit_scope_is_enabled, test_create_audiounit,
     test_device_channels_in_scope, test_device_in_scope, test_get_all_devices,
     test_get_default_audiounit, test_get_default_device, test_get_default_raw_stream,
-    test_get_default_source_data, test_get_default_source_name, test_get_locked_raw_context,
+    test_get_default_source_data, test_get_default_source_name, test_get_raw_context,
     ComponentSubType, PropertyScope, Scope,
 };
 use super::*;
@@ -2456,7 +2456,7 @@ fn test_add_devices_changed_listener() {
     map.insert(DeviceType::OUTPUT, out_callback);
     map.insert(DeviceType::INPUT | DeviceType::OUTPUT, inout_callback);
 
-    test_get_locked_raw_context(|context| {
+    test_get_raw_context(|context| {
         for (devtype, callback) in map.iter() {
             assert!(get_devices_changed_callback(context, Scope::Input).is_none());
             assert!(get_devices_changed_callback(context, Scope::Output).is_none());
@@ -2500,7 +2500,7 @@ fn test_add_devices_changed_listener() {
 fn test_add_devices_changed_listener_in_unknown_scope() {
     extern "C" fn callback(_: *mut ffi::cubeb, _: *mut c_void) {}
 
-    test_get_locked_raw_context(|context| {
+    test_get_raw_context(|context| {
         let _ = context.add_devices_changed_listener(
             DeviceType::UNKNOWN,
             Some(callback),
@@ -2512,7 +2512,7 @@ fn test_add_devices_changed_listener_in_unknown_scope() {
 #[test]
 #[should_panic]
 fn test_add_devices_changed_listener_with_none_callback() {
-    test_get_locked_raw_context(|context| {
+    test_get_raw_context(|context| {
         for devtype in &[DeviceType::INPUT, DeviceType::OUTPUT] {
             assert!(context
                 .add_devices_changed_listener(*devtype, None, ptr::null_mut())
@@ -2534,7 +2534,7 @@ fn test_remove_devices_changed_listener() {
     map.insert(DeviceType::INPUT, in_callback);
     map.insert(DeviceType::OUTPUT, out_callback);
 
-    test_get_locked_raw_context(|context| {
+    test_get_raw_context(|context| {
         for (devtype, _callback) in map.iter() {
             assert!(get_devices_changed_callback(context, Scope::Input).is_none());
             assert!(get_devices_changed_callback(context, Scope::Output).is_none());
@@ -2590,7 +2590,7 @@ fn test_remove_devices_changed_listener() {
 
 #[test]
 fn test_remove_devices_changed_listener_without_adding_listeners() {
-    test_get_locked_raw_context(|context| {
+    test_get_raw_context(|context| {
         for devtype in &[
             DeviceType::INPUT,
             DeviceType::OUTPUT,
@@ -2614,7 +2614,7 @@ fn test_remove_devices_changed_listener_within_all_scopes() {
     map.insert(DeviceType::OUTPUT, out_callback);
     map.insert(DeviceType::INPUT | DeviceType::OUTPUT, inout_callback);
 
-    test_get_locked_raw_context(|context| {
+    test_get_raw_context(|context| {
         for (devtype, callback) in map.iter() {
             assert!(get_devices_changed_callback(context, Scope::Input).is_none());
             assert!(get_devices_changed_callback(context, Scope::Output).is_none());
