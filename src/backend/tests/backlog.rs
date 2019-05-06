@@ -21,7 +21,6 @@ fn test_stream_register_device_changed_callback() {
 }
 
 #[test]
-#[should_panic]
 fn test_stream_register_device_changed_callback_twice() {
     extern "C" fn callback1(_: *mut c_void) {}
     extern "C" fn callback2(_: *mut c_void) {}
