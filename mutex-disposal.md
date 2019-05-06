@@ -1,9 +1,8 @@
 # Defusing the *OwnedCriticalSection*
 
-The *OwnedCriticalSection*(or *ocs*) is a custom *mutex* around *pthread_mutex_t*
-
-## Aim
-Replace *OwnedCriticalSection* by standard *Rust mutex*
+The *OwnedCriticalSection*(or *ocs*) is a custom *mutex* around *pthread_mutex_t*.
+It's better to replace the *ocs* by standard *Rust mutex*.
+It can make debugging code easier.
 
 ## Lock Usage
 
@@ -23,7 +22,7 @@ the latency/buffer-frames of other streams will be overwritten
 to the same value of the *global* latency/buffer-frames.
 
 Specifically, the *ocs* is used to avoid the following potential race operations:
-- prvent *buffer-frame-size* from being writing in parallel
+- prevent *buffer-frame-size* from being writing in parallel
 - avoid counting streams in parallel
 - avoid setting *global* latency/buffer-frames in parallel
 
