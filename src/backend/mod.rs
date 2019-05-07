@@ -2119,7 +2119,11 @@ extern "C" fn audiounit_collection_changed_callback(
 
 pub const OPS: Ops = capi_new!(AudioUnitContext, AudioUnitStream);
 
-#[repr(C)] // Prevent any padding from being added in the beginning of the AudioUnitContext
+// The fisrt member of the Cubeb context must be a pointer to a Ops struct. The Ops struct is an
+// interface to link to all the Cubeb APIs, and the Cubeb interface use this assumption to operate
+// the Cubeb APIs on different implementation.
+// #[repr(C)] is used to prevent any padding from being added in the beginning of the AudioUnitContext.
+#[repr(C)]
 #[derive(Debug)]
 pub struct AudioUnitContext {
     _ops: *const Ops,
@@ -2609,6 +2613,10 @@ impl Drop for AudioUnitContext {
 unsafe impl Send for AudioUnitContext {}
 unsafe impl Sync for AudioUnitContext {}
 
+// The fisrt two members of the Cubeb stream must be a pointer to its Cubeb context and a void user
+// defined pointer. The Cubeb interface use this assumption to operate the Cubeb APIs.
+// #[repr(C)] is used to prevent any padding from being added in the beginning of the AudioUnitStream.
+#[repr(C)]
 #[derive(Debug)]
 struct AudioUnitStream<'ctx> {
     context: &'ctx mut AudioUnitContext,
