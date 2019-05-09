@@ -186,7 +186,6 @@ It's used to verify our callbacks for minitoring the system devices work.
 -->
 
 ## TODO
-- Maybe it's better to move all `fn some_func(stm: &AudioUnitStream, ...)` functions into `impl AudioUnitStream` to avoid useless references to `AudioUnitStream`.
 - Remove `#[allow(non_camel_case_types)]`, `#![allow(unused_assignments)]`, `#![allow(unused_must_use)]` and apply *rust* coding styles
 - Use `Atomic{I64, U32, U64}` instead of `Atomic<{i64, u32, u64}>`, once they are stable.
 - Tests
@@ -223,11 +222,10 @@ It's used to verify our callbacks for minitoring the system devices work.
     - [`async_dispatch`][async-dis] and [`sync_dispatch`][sync-dis] take [_Rust closures_][rs-closure], instead of [Apple's _block_][apple-block], as one of their parameters.
     - The [_Rust closure_][rs-closure] (it's actually a struct) will be `box`ed, which means the _closure_ will be moved into heap, so the _closure_ cannot be optimized as _inline_ code. (Need to find a way to optimize it?)
     - Since the _closure_ will be run on an asynchronous thread, we need to move the _closure_ to heap to make sure it's alive and then it will be destroyed after the task of the _closure_ is done.
-- Borrowing Issues
-  1. Pass `AudioUnitContext` across threads. In _C_ version, we [pass the pointer to `cubeb` context across threads][cubeb-au-ptr-across-threads], but it's forbidden in _Rust_. A workarounds are
-      1. Cast the pointer to a `usize` value so the value can be copied to another thread.
-      2. Or Unsafely implements `Send` and `Sync` traits so the compiler ignores the checks.
-  2. We have a [`mutex`][ocs-rust] in `AudioUnitContext`, and we have a _reference_ to `AudioUnitContext` in `AudioUnitStream`. To sync what we do in [_C version_][cubeb-au-init-stream], we need to _lock_ the `mutex` in `AudioUnitContext` then pass a _reference_ to `AudioUnitContext` to `AudioUnitStream::new(...)`. To _lock_ the `mutex` in `AudioUnitContext`, we call `AutoLock::new(&mut AudioUnitContext.mutex)`. That is, we will borrow a reference to `AudioUnitContext` as a mutable first then borrow it again. It's forbidden in _Rust_. Some workarounds are
+- Mutex Borrowing Issues
+  - We have a [`mutex`][ocs-rust] in `AudioUnitContext`, and we have a _reference_ to `AudioUnitContext` in `AudioUnitStream`. To sync what we do in [_C version_][cubeb-au-init-stream], we need to _lock_ the `mutex` in `AudioUnitContext` then pass a _reference_ to `AudioUnitContext` to `AudioUnitStream::new(...)`.
+  - To _lock_ the `mutex` in `AudioUnitContext`, we call `AutoLock::new(&mut AudioUnitContext.mutex)`. That is, we will borrow a reference to `AudioUnitContext` as a mutable first then borrow it again. It's forbidden in _Rust_.
+  - Some workarounds are
       1. Replace `AutoLock` by calling `mutex.lock()` and `mutex.unlock()` explicitly.
       2. Save the pointer to `mutex` first, then call `AutoLock::new(unsafe { &mut (*mutex_ptr) })`.
       3. Cast immutable reference to a `*const` then to a `*mut`: `pthread_mutex_lock(&self.mutex as *const pthread_mutex_t as *mut pthread_mutex_t)`
@@ -237,7 +235,7 @@ It's used to verify our callbacks for minitoring the system devices work.
     - We have lots of dependent APIs, so it's hard to test one API only, specially for those APIs using mutex(`OwnedCriticalSection` actually)
     - It's better to split them into several APIs so it's easier to test them
 - Fail to run `test_create_blank_aggregate_device` with `test_add_device_listeners_dont_affect_other_scopes_with_*` at the same time
-  - I guess `audiounit_create_blank_aggregate_device` will fire the callbacks in `test_add_device_listeners_dont_affect_other_scopes_with_*`
+  - `audiounit_create_blank_aggregate_device` will fire the callbacks in `test_add_device_listeners_dont_affect_other_scopes_with_*`
 - Fail to run `test_configure_{input, output}_with_zero_latency_frames` and `test_configure_{input, output}` at the same time.
   - The APIs depending on `audiounit_set_buffer_size` cannot be called in parallel
     - `kAudioDevicePropertyBufferFrameSize` cannot be set when another stream using the same device with smaller buffer size is active. See [here][chg-buf-sz] for reference.
