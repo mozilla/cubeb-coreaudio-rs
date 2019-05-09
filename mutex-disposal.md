@@ -70,8 +70,21 @@ The following global variables for tracking device-collection may be operated in
 so they should be protected by a mutex.
 
 ### *Cubeb* Stream
-All members in the *stream* should be protected by a mutex
-since the whole *stream* will be *reset* when the audio device it's using is changed.
+The mutex in cubeb stream is to prevent the stream re-initialization and stream destroy
+from being executed at the same time.
+
+The mutex is locked for stream-setup and stream-close.
+The stream-setup is called when creating/initializing a stream,
+and re-initializeing a stream when the device is switched.
+The stream-close is called when stream re-initializeing and stream destroy.
+
+While setting up the stream, we will do some device settings.
+Some stream variables will be bound to the devices.
+While closing the stream, we will tidy up device settings.
+Therefore, the variables related to device settings should be protected by a mutex.
+
+See more details on [cubeb pull 163][cubeb-pull-163].
 
 [chg-buf-sz]: https://cs.chromium.org/chromium/src/media/audio/mac/audio_manager_mac.cc?l=982-989&rcl=0207eefb445f9855c2ed46280cb835b6f08bdb30 "issue on changing buffer size"
 [audioipc]: https://github.com/djg/audioipc-2
+[cubeb-pull-163]: https://github.com/kinetiknz/cubeb/pull/163

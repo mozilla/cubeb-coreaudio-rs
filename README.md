@@ -14,15 +14,21 @@
 All the lines in [*cubeb_audiounit.cpp*][cubeb-au] are translated.
 
 By applying the [patch][integrate-with-cubeb] to integrate within [Cubeb][cubeb],
-it can pass all the tests under *cubeb/test*
-and it's able to switch devices when the stream is working
-(we are unable to test this automatically yet).
-
-Now the draft version can pass all the tests within *gecko* on mozilla try-server.
-The project can be tracked on [*bugzilla* 1530715][bugzilla-cars].
+it can pass all the tests under *cubeb/test*.
 
 The plain translation version from the C code
-is in [plain-translation-from-c][translation-from-c] branch.
+is on [plain-translation-from-c][translation-from-c] branch.
+The working draft version is on [trailblazer][blazer] branch.
+Both branches can pass all the tests on tryserver for firefox.
+However, we are replacing our custom mutex,
+which is translated from C version directly,
+by standard Rust mutex.
+The code is on [ocs-disposal][ocs-disposal] branch.
+
+The project can also be tracked on [*bugzilla* 1530715][bugzilla-cars].
+The [instructios][bugzilla-cars-instruction] to integrate this project into firefox gecko can be found there.
+You can also find the formal patches and the reviews there.
+The easiest way to integrate this project into firefox gecko is to apply all the patches.
 
 ## Test
 Please run `sh run_tests.sh`.
@@ -36,6 +42,17 @@ They will be run by `cargo test ... -- --ignored ...`
 after finishing normal tests.
 Most of the tests are executed in `run_tests.sh`.
 Only those tests commented with *FIXIT* are left.
+
+### Device Switching
+The system default device will be changed during our tests.
+All the available devices will take turns being the system default device.
+However, after finishing the tests, the default device will be set to the original one.
+The sounds in the tests should be able to continue whatever the system default device is.
+
+### Device Plugging/Unplugging
+We implement APIs simulating plugging or unplugging a device
+by adding or removing an aggregate device programmatically.
+It's used to verify our callbacks for minitoring the system devices work.
 
 ### Manual Test
 - Output devices switching
@@ -273,6 +290,7 @@ Only those tests commented with *FIXIT* are left.
 [chg-buf-sz]: https://cs.chromium.org/chromium/src/media/audio/mac/audio_manager_mac.cc?l=982-989&rcl=0207eefb445f9855c2ed46280cb835b6f08bdb30 "issue on changing buffer size"
 
 [bugzilla-cars]: https://bugzilla.mozilla.org/show_bug.cgi?id=1530715 "Bug 1530715 - Implement CoreAudio backend for Cubeb in Rust"
+[bugzilla-cars-instruction]: https://bugzilla.mozilla.org/show_bug.cgi?id=1530715#c4
 [build-within-gecko]: https://github.com/ChunMinChang/gecko-dev/commits/cubeb-coreaudio-rs
 
 [discussion]: https://docs.google.com/document/d/1ZP6R7d5S9I_8bXOXhplnO6qFM1X4VokWtE7w8ExgJEQ/edit?ts=5c6d5f09
@@ -282,3 +300,5 @@ Only those tests commented with *FIXIT* are left.
 [mutex-disposal]: mutex-disposal.md
 
 [translation-from-c]: https://github.com/ChunMinChang/cubeb-coreaudio-rs/tree/plain-translation-from-c
+[blazer]: https://github.com/ChunMinChang/cubeb-coreaudio-rs/tree/trailblazer
+[ocs-disposal]: https://github.com/ChunMinChang/cubeb-coreaudio-rs/tree/ocs-disposal
