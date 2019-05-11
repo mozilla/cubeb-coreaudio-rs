@@ -661,6 +661,8 @@ impl TestDevicePlugger {
     }
 
     fn create_aggregate_device(&self) -> std::result::Result<AudioObjectID, OSStatus> {
+        use std::time::{SystemTime, UNIX_EPOCH};
+
         const TEST_AGGREGATE_DEVICE_NAME: &str = "TestAggregateDevice";
 
         assert_ne!(self.plugin_id, kAudioObjectUnknown);

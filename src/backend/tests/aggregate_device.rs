@@ -1,11 +1,11 @@
 use super::*;
 
-// These tests that calling `audiounit_create_blank_aggregate_device` are marked `ignore` by
+// These tests that calling `AggregateDevice::create_blank_device` are marked `ignore` by
 // default since they cannot run with those tests calling `audiounit_add_device_listener`
 // directly or indirectly (via `register_device_collection_changed`) at the same time.
 //
 // The `audiounit_collection_changed_callback` will be fired upon
-// `audiounit_create_blank_aggregate_device` is called.
+// `AggregateDevice::create_blank_device` is called.
 // In `audiounit_collection_changed_callback`, it will register an asynchronous function to notify
 // the device-collection is changed.
 //
@@ -21,7 +21,7 @@ use super::*;
 //    One example is to run `test_context_register_device_collection_changed_twice` at the same
 //    time with other tests that initialize a stream for both input and output(this will create an
 //    aggregate device and fire `audiounit_collection_changed_callback` indirectly, see the comment
-//    in `audiounit_create_blank_aggregate_device` and `test_stream_set_panning`).
+//    in `AggregateDevice::create_blank_device` and `test_stream_set_panning`).
 //
 //    A simple way to verify this is to add a log at the beginning
 //    `audiounit_collection_changed_callback` and a log in `AudioUnitContext::drop`. You will get
@@ -50,13 +50,13 @@ use super::*;
 //    and the end of the tests calling `audiounit_add_device_listener`. You will find those tests
 //    fail when the tests are ended while those asynchronous functions are still running.
 //
-// The tests that call `audiounit_create_blank_aggregate_device` are ignored by default:
+// The tests that call `AggregateDevice::create_blank_device` are ignored by default:
 // - test_aggregate_get_sub_devices_for_blank_aggregate_devices
-// - test_create_blank_aggregate_device
-// - test_aggregate_set_aggregate_sub_device_list_for_unknown_input_output_devices
-// - test_aggregate_set_aggregate_sub_device_list
-// - test_aggregate_set_master_aggregate_device_for_a_blank_aggregate_device
-// - test_aggregate_set_master_aggregate_device
+// - test_create_blank_device
+// - test_aggregate_set_sub_devices_for_unknown_input_output_devices
+// - test_aggregate_set_sub_devices
+// - test_aggregate_set_master_device_for_a_blank_aggregate_device
+// - test_aggregate_set_master_device
 // - test_aggregate_activate_clock_drift_compensation_for_an_aggregate_device_without_master_device
 // - test_aggregate_activate_clock_drift_compensation
 //
@@ -70,33 +70,25 @@ use super::*;
 #[should_panic]
 fn test_aggregate_get_sub_devices_for_blank_aggregate_devices() {
     // TODO: Test this when there is no available devices.
-    let mut plugin_id = kAudioObjectUnknown;
-    let mut aggregate_device_id = kAudioObjectUnknown;
-    assert!(
-        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
-    );
+    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
     assert_ne!(plugin_id, kAudioObjectUnknown);
+    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
     // There is no sub devices for a blank aggregate device!
     let devices = audiounit_get_sub_devices(aggregate_device_id);
     assert!(devices.is_empty());
-
-    assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
+    assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
 }
 
-// create_blank_aggregate_device
+// create_blank_device
 // ------------------------------------
 #[test]
 #[ignore]
-fn test_aggregate_create_blank_aggregate_device() {
+fn test_aggregate_create_blank_device() {
     // TODO: Test this when there is no available devices.
-    let mut plugin_id = kAudioObjectUnknown;
-    let mut aggregate_device_id = kAudioObjectUnknown;
-    assert!(
-        audiounit_create_blank_aggregate_device_sync(&mut plugin_id, &mut aggregate_device_id)
-            .is_ok()
-    );
+    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
     assert_ne!(plugin_id, kAudioObjectUnknown);
+    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
 
     let all_devices = get_all_devices();
@@ -116,7 +108,7 @@ fn test_aggregate_create_blank_aggregate_device() {
     }
     assert!(aggregate_device_found);
 
-    assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
+    assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
 
     fn get_all_devices() -> Vec<AudioObjectID> {
         let mut size: usize = 0;
@@ -144,119 +136,84 @@ fn test_aggregate_create_blank_aggregate_device() {
     }
 }
 
-// set_aggregate_sub_device_list
+// set_sub_devices
 // ------------------------------------
 #[test]
 #[ignore]
 #[should_panic]
-fn test_aggregate_set_aggregate_sub_device_list_for_unknown_input_output_devices() {
-    let mut plugin_id = kAudioObjectUnknown;
-    let mut aggregate_device_id = kAudioObjectUnknown;
-    assert!(
-        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
-    );
+fn test_aggregate_set_sub_devices_for_unknown_input_output_devices() {
+    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
     assert_ne!(plugin_id, kAudioObjectUnknown);
+    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
 
-    // NOTE: We will get errors and pass the test here since get_device_name()
-    //       return a NULL CFStringRef for a unknown devicie. Instead of
-    //       replying on get_device_name(). We should check this in the
-    //       beginning of the audiounit_set_aggregate_sub_device_list_sync().
-
     // Both input and output are unknown.
-    assert_eq!(
-        audiounit_set_aggregate_sub_device_list_sync(
-            aggregate_device_id,
-            kAudioObjectUnknown,
-            kAudioObjectUnknown
-        )
-        .unwrap_err(),
-        Error::error()
-    );
+    assert!(AggregateDevice::set_sub_devices(
+        aggregate_device_id,
+        kAudioObjectUnknown,
+        kAudioObjectUnknown
+    )
+    .is_err());
 }
 
 #[test]
 #[ignore]
 #[should_panic]
-fn test_aggregate_set_aggregate_sub_device_list_for_unknown_input_devices() {
-    let mut plugin_id = kAudioObjectUnknown;
-    let mut aggregate_device_id = kAudioObjectUnknown;
-    assert!(
-        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
-    );
+fn test_aggregate_set_sub_devices_for_unknown_input_devices() {
+    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
     assert_ne!(plugin_id, kAudioObjectUnknown);
+    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
-
-    // NOTE: We will get errors and pass the test here since get_device_name()
-    //       return a NULL CFStringRef for a unknown devicie. Instead of
-    //       replying on get_device_name(). We should check this in the
-    //       beginning of the audiounit_set_aggregate_sub_device_list_sync().
 
     let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
 
     // Only input is unknown.
     if valid_id(output_id) {
-        assert_eq!(
-            audiounit_set_aggregate_sub_device_list_sync(
-                aggregate_device_id,
-                kAudioObjectUnknown,
-                output_id
-            )
-            .unwrap_err(),
-            Error::error()
-        );
+        assert!(AggregateDevice::set_sub_devices(
+            aggregate_device_id,
+            kAudioObjectUnknown,
+            output_id
+        )
+        .is_err());
     } else {
         panic!("Need a output device!");
     }
 
-    assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
+    assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
 }
 
 #[test]
 #[ignore]
 #[should_panic]
-fn test_aggregate_set_aggregate_sub_device_list_for_unknown_output_devices() {
-    let mut plugin_id = kAudioObjectUnknown;
-    let mut aggregate_device_id = kAudioObjectUnknown;
-    assert!(
-        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
-    );
+fn test_aggregate_set_sub_devices_for_unknown_output_devices() {
+    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
     assert_ne!(plugin_id, kAudioObjectUnknown);
+    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
-
-    // NOTE: We will get errors and pass the test here since get_device_name()
-    //       return a NULL CFStringRef for a unknown devicie. Instead of
-    //       replying on get_device_name(). We should check this in the
-    //       beginning of the audiounit_set_aggregate_sub_device_list_sync().
 
     let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
 
     // Only output is unknown.
     if valid_id(input_id) {
-        assert_eq!(
-            audiounit_set_aggregate_sub_device_list_sync(
-                aggregate_device_id,
-                input_id,
-                kAudioObjectUnknown
-            )
-            .unwrap_err(),
-            Error::error()
-        );
+        assert!(AggregateDevice::set_sub_devices(
+            aggregate_device_id,
+            input_id,
+            kAudioObjectUnknown
+        )
+        .is_err());
     } else {
         panic!("Need a input device!");
     }
 
-    assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
+    assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
 }
 
 #[test]
 #[ignore]
-fn test_aggregate_set_aggregate_sub_device_list() {
+fn test_aggregate_set_sub_devices() {
     let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
     let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-    if !valid_id(input_id) || !valid_id(output_id)
-    /* || input_id == output_id */
-    {
+    if !valid_id(input_id) || !valid_id(output_id) || input_id == output_id {
         return;
     }
 
@@ -264,19 +221,13 @@ fn test_aggregate_set_aggregate_sub_device_list() {
     let output_sub_devices = audiounit_get_sub_devices(output_id);
 
     // Create a blank aggregate device.
-    let mut plugin_id = kAudioObjectUnknown;
-    let mut aggregate_device_id = kAudioObjectUnknown;
-    assert!(
-        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
-    );
+    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
     assert_ne!(plugin_id, kAudioObjectUnknown);
+    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
 
     // Set sub devices for the created aggregate device.
-    assert!(
-        audiounit_set_aggregate_sub_device_list_sync(aggregate_device_id, input_id, output_id)
-            .is_ok()
-    );
+    assert!(AggregateDevice::set_sub_devices(aggregate_device_id, input_id, output_id).is_ok());
     let sub_devices = audiounit_get_sub_devices(aggregate_device_id);
 
     assert!(sub_devices.len() <= input_sub_devices.len() + output_sub_devices.len());
@@ -310,7 +261,7 @@ fn test_aggregate_set_aggregate_sub_device_list() {
         assert!(owned_devices_names.contains(name_opt));
     }
 
-    assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
+    assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
 
     fn show_devices_names(title: &'static str, names: &Vec<Option<String>>) {
         println!("\n{}\n-----------", title);
@@ -323,24 +274,21 @@ fn test_aggregate_set_aggregate_sub_device_list() {
     }
 }
 
-// set_master_aggregate_device
+// set_master_device
 // ------------------------------------
 #[test]
 #[ignore]
-fn test_aggregate_set_master_aggregate_device_for_a_blank_aggregate_device() {
-    let mut plugin_id = kAudioObjectUnknown;
-    let mut aggregate_device_id = kAudioObjectUnknown;
-    assert!(
-        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
-    );
-    assert_ne!(plugin_id, kAudioObjectUnknown);
-    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
-
+fn test_aggregate_set_master_device_for_a_blank_aggregate_device() {
     let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
     if !valid_id(output_id) {
         return;
     }
-    assert!(audiounit_set_master_aggregate_device(aggregate_device_id).is_ok());
+
+    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
+    assert_ne!(plugin_id, kAudioObjectUnknown);
+    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
+    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
+    assert!(AggregateDevice::set_master_device(aggregate_device_id).is_ok());
 
     // Make sure this blank aggregate device owns nothing.
     // TODO: it's really weird it actually own nothing but
@@ -352,17 +300,15 @@ fn test_aggregate_set_master_aggregate_device_for_a_blank_aggregate_device() {
     let master_device = get_master_device(aggregate_device_id);
     assert!(master_device.is_empty());
 
-    assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
+    assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
 }
 
 #[test]
 #[ignore]
-fn test_aggregate_set_master_aggregate_device() {
+fn test_aggregate_set_master_device() {
     let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
     let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-    if !valid_id(input_id) || !valid_id(output_id)
-    /* || input_id == output_id */
-    {
+    if !valid_id(input_id) || !valid_id(output_id) || input_id == output_id {
         return;
     }
 
@@ -372,22 +318,16 @@ fn test_aggregate_set_master_aggregate_device() {
     }
 
     // Create a blank aggregate device.
-    let mut plugin_id = kAudioObjectUnknown;
-    let mut aggregate_device_id = kAudioObjectUnknown;
-    assert!(
-        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
-    );
+    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
     assert_ne!(plugin_id, kAudioObjectUnknown);
+    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
 
     // Set the sub devices into the created aggregate device.
-    assert!(
-        audiounit_set_aggregate_sub_device_list_sync(aggregate_device_id, input_id, output_id)
-            .is_ok()
-    );
+    assert!(AggregateDevice::set_sub_devices(aggregate_device_id, input_id, output_id).is_ok());
 
     // Set the master device.
-    assert!(audiounit_set_master_aggregate_device(aggregate_device_id).is_ok());
+    assert!(AggregateDevice::set_master_device(aggregate_device_id).is_ok());
 
     // Check if master is set to default output device.
     let master_device = get_master_device(aggregate_device_id);
@@ -413,7 +353,7 @@ fn test_aggregate_set_master_aggregate_device() {
     // );
 
     // Destroy the aggregate device.
-    assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
+    assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
 }
 
 fn get_master_device(aggregate_device_id: AudioObjectID) -> String {
@@ -454,12 +394,9 @@ fn get_master_device(aggregate_device_id: AudioObjectID) -> String {
 #[ignore]
 fn test_aggregate_activate_clock_drift_compensation_for_a_blank_aggregate_device() {
     // Create a blank aggregate device.
-    let mut plugin_id = kAudioObjectUnknown;
-    let mut aggregate_device_id = kAudioObjectUnknown;
-    assert!(
-        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
-    );
+    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
     assert_ne!(plugin_id, kAudioObjectUnknown);
+    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
 
     // Get owned sub devices.
@@ -467,13 +404,10 @@ fn test_aggregate_activate_clock_drift_compensation_for_a_blank_aggregate_device
     assert!(devices.is_empty());
 
     // Get a panic since no sub devices to be set compensation.
-    assert_eq!(
-        audiounit_activate_clock_drift_compensation(aggregate_device_id).unwrap_err(),
-        Error::error()
-    );
+    assert!(AggregateDevice::activate_clock_drift_compensation(aggregate_device_id).is_err());
 
     // Destroy the aggregate device. (The program cannot reach here.)
-    assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
+    assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
 }
 
 #[test]
@@ -482,31 +416,23 @@ fn test_aggregate_activate_clock_drift_compensation_for_an_aggregate_device_with
 {
     let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
     let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-    if !valid_id(input_id) || !valid_id(output_id)
-    /* || input_id == output_id */
-    {
+    if !valid_id(input_id) || !valid_id(output_id) || input_id == output_id {
         return;
     }
 
     // Create a blank aggregate device.
-    let mut plugin_id = kAudioObjectUnknown;
-    let mut aggregate_device_id = kAudioObjectUnknown;
-    assert!(
-        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
-    );
+    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
     assert_ne!(plugin_id, kAudioObjectUnknown);
+    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
 
     // Set the sub devices into the created aggregate device.
-    assert!(
-        audiounit_set_aggregate_sub_device_list_sync(aggregate_device_id, input_id, output_id)
-            .is_ok()
-    );
+    assert!(AggregateDevice::set_sub_devices(aggregate_device_id, input_id, output_id).is_ok());
 
     // TODO: Is the master device the first output sub device by default if we
     //       don't set that ? Is it because we add the output sub device list
     //       before the input's one ? (See implementation of
-    //       audiounit_set_aggregate_sub_device_list_sync).
+    //       AggregateDevice::set_sub_devices).
     // TODO: Does this check work if output_id is an aggregate device ?
     assert_eq!(
         get_master_device(aggregate_device_id),
@@ -514,7 +440,7 @@ fn test_aggregate_activate_clock_drift_compensation_for_an_aggregate_device_with
     );
 
     // Set clock drift compensation.
-    assert!(audiounit_activate_clock_drift_compensation(aggregate_device_id).is_ok());
+    assert!(AggregateDevice::activate_clock_drift_compensation(aggregate_device_id).is_ok());
 
     // Check the compensations.
     let devices = get_onwed_devices(aggregate_device_id);
@@ -528,7 +454,7 @@ fn test_aggregate_activate_clock_drift_compensation_for_an_aggregate_device_with
     }
 
     // Destroy the aggregate device.
-    assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
+    assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
 }
 
 #[test]
@@ -536,9 +462,7 @@ fn test_aggregate_activate_clock_drift_compensation_for_an_aggregate_device_with
 fn test_aggregate_activate_clock_drift_compensation() {
     let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
     let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-    if !valid_id(input_id) || !valid_id(output_id)
-    /* || input_id == output_id */
-    {
+    if !valid_id(input_id) || !valid_id(output_id) || input_id == output_id {
         return;
     }
 
@@ -548,25 +472,19 @@ fn test_aggregate_activate_clock_drift_compensation() {
     }
 
     // Create a blank aggregate device.
-    let mut plugin_id = kAudioObjectUnknown;
-    let mut aggregate_device_id = kAudioObjectUnknown;
-    assert!(
-        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
-    );
+    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
     assert_ne!(plugin_id, kAudioObjectUnknown);
+    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
 
     // Set the sub devices into the created aggregate device.
-    assert!(
-        audiounit_set_aggregate_sub_device_list_sync(aggregate_device_id, input_id, output_id)
-            .is_ok()
-    );
+    assert!(AggregateDevice::set_sub_devices(aggregate_device_id, input_id, output_id).is_ok());
 
     // Set the master device.
-    assert!(audiounit_set_master_aggregate_device(aggregate_device_id).is_ok());
+    assert!(AggregateDevice::set_master_device(aggregate_device_id).is_ok());
 
     // Set clock drift compensation.
-    assert!(audiounit_activate_clock_drift_compensation(aggregate_device_id).is_ok());
+    assert!(AggregateDevice::activate_clock_drift_compensation(aggregate_device_id).is_ok());
 
     // Check the compensations.
     let devices = get_onwed_devices(aggregate_device_id);
@@ -580,7 +498,7 @@ fn test_aggregate_activate_clock_drift_compensation() {
     }
 
     // Destroy the aggregate device.
-    assert!(audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).is_ok());
+    assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
 }
 
 fn get_onwed_devices(aggregate_device_id: AudioDeviceID) -> Vec<AudioObjectID> {
@@ -670,19 +588,12 @@ fn get_drift_compensations(devices: &Vec<AudioObjectID>) -> Vec<u32> {
 #[should_panic]
 fn test_aggregate_destroy_aggregate_device_for_a_unknown_plugin_device() {
     // TODO: Test this when there is no available devices.
-    let mut plugin_id = kAudioObjectUnknown;
-    let mut aggregate_device_id = kAudioObjectUnknown;
-    assert!(
-        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
-    );
+    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
     assert_ne!(plugin_id, kAudioObjectUnknown);
+    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
 
-    assert_eq!(
-        audiounit_destroy_aggregate_device(kAudioObjectUnknown, &mut aggregate_device_id)
-            .unwrap_err(),
-        Error::error()
-    );
+    assert!(AggregateDevice::destroy_device(kAudioObjectUnknown, aggregate_device_id).is_err());
 }
 
 #[test]
@@ -690,20 +601,10 @@ fn test_aggregate_destroy_aggregate_device_for_a_unknown_plugin_device() {
 #[should_panic]
 fn test_aggregate_destroy_aggregate_device_for_a_unknown_aggregate_device() {
     // TODO: Test this when there is no available devices.
-    let mut plugin_id = kAudioObjectUnknown;
-    let mut aggregate_device_id = kAudioObjectUnknown;
-    assert!(
-        audiounit_create_blank_aggregate_device(&mut plugin_id, &mut aggregate_device_id).is_ok()
-    );
+    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
     assert_ne!(plugin_id, kAudioObjectUnknown);
-    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
-
-    aggregate_device_id = kAudioObjectUnknown;
-
-    assert_eq!(
-        audiounit_destroy_aggregate_device(plugin_id, &mut aggregate_device_id).unwrap_err(),
-        Error::error()
-    );
+    let aggregate_device_id = kAudioObjectUnknown;
+    assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_err());
 }
 
 // Utils

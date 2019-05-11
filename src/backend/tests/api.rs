@@ -1145,11 +1145,11 @@ fn test_get_device_name() {
     }
 }
 
-// set_aggregate_sub_device_list
+// AggregateDevice::set_sub_devices
 // ------------------------------------
 #[test]
 #[should_panic]
-fn test_set_aggregate_sub_device_list_for_an_unknown_aggregate_device() {
+fn test_aggregate_set_sub_devices_for_an_unknown_aggregate_device() {
     // If aggregate device id is kAudioObjectUnknown, we are unable to set device list.
     let default_input = test_get_default_device(Scope::Input);
     let default_output = test_get_default_device(Scope::Output);
@@ -1159,48 +1159,38 @@ fn test_set_aggregate_sub_device_list_for_an_unknown_aggregate_device() {
 
     let default_input = default_input.unwrap();
     let default_output = default_output.unwrap();
-    assert_eq!(
-        audiounit_set_aggregate_sub_device_list(kAudioObjectUnknown, default_input, default_output)
-            .unwrap_err(),
-        Error::error()
+    assert!(
+        AggregateDevice::set_sub_devices(kAudioObjectUnknown, default_input, default_output)
+            .is_err()
     );
 }
 
 #[test]
 #[should_panic]
-fn test_set_aggregate_sub_device_list_for_unknown_devices() {
+fn test_aggregate_set_sub_devices_for_unknown_devices() {
     // If aggregate device id is kAudioObjectUnknown, we are unable to set device list.
-    assert_eq!(
-        audiounit_set_aggregate_sub_device_list(
-            kAudioObjectUnknown,
-            kAudioObjectUnknown,
-            kAudioObjectUnknown
-        )
-        .unwrap_err(),
-        Error::error()
-    );
+    assert!(AggregateDevice::set_sub_devices(
+        kAudioObjectUnknown,
+        kAudioObjectUnknown,
+        kAudioObjectUnknown
+    )
+    .is_err());
 }
 
-// set_master_aggregate_device
+// AggregateDevice::set_master_device
 // ------------------------------------
 #[test]
 #[should_panic]
-fn test_set_master_aggregate_device_for_an_unknown_aggregate_device() {
-    assert_eq!(
-        audiounit_set_master_aggregate_device(kAudioObjectUnknown).unwrap_err(),
-        Error::error()
-    );
+fn test_aggregate_set_master_device_for_an_unknown_aggregate_device() {
+    assert!(AggregateDevice::set_master_device(kAudioObjectUnknown).is_err());
 }
 
-// activate_clock_drift_compensation
+// AggregateDevice::activate_clock_drift_compensation
 // ------------------------------------
 #[test]
 #[should_panic]
-fn test_activate_clock_drift_compensation_for_an_unknown_aggregate_device() {
-    assert_eq!(
-        audiounit_activate_clock_drift_compensation(kAudioObjectUnknown).unwrap_err(),
-        Error::error()
-    );
+fn test_aggregate_activate_clock_drift_compensation_for_an_unknown_aggregate_device() {
+    assert!(AggregateDevice::activate_clock_drift_compensation(kAudioObjectUnknown).is_err());
 }
 
 // workaround_for_airpod
@@ -1211,17 +1201,12 @@ fn test_activate_clock_drift_compensation_for_an_unknown_aggregate_device() {
 // ------------------------------------
 // TODO
 
-// destroy_aggregate_device
+// AggregateDevice::destroy_device
 // ------------------------------------
 #[test]
 #[should_panic]
-fn test_destroy_aggregate_device_for_unknown_plugin_and_aggregate_devices() {
-    let mut aggregate_device_id = kAudioObjectUnknown;
-    assert_eq!(
-        audiounit_destroy_aggregate_device(kAudioObjectUnknown, &mut aggregate_device_id)
-            .unwrap_err(),
-        Error::error()
-    )
+fn test_aggregate_destroy_device_for_unknown_plugin_and_aggregate_devices() {
+    assert!(AggregateDevice::destroy_device(kAudioObjectUnknown, kAudioObjectUnknown).is_err())
 }
 
 // create_default_audiounit
