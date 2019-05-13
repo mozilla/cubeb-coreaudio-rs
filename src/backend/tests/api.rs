@@ -282,10 +282,6 @@ fn test_make_silent() {
 // ------------------------------------
 // TODO
 
-// mix_output_buffer
-// ------------------------------------
-// TODO
-
 // minimum_resampling_input_frames
 // ------------------------------------
 #[test]
@@ -973,17 +969,6 @@ fn test_create_stream_description() {
         assert_eq!(description.mBytesPerPacket, bytes * raw.channels);
         assert_eq!(description.mReserved, 0);
     }
-}
-
-// init_mixer
-// ------------------------------------
-#[test]
-fn test_init_mixer() {
-    test_get_default_raw_stream(|stream| {
-        stream.init_mixer();
-        assert!(!stream.mixer.as_ptr().is_null());
-        // stream.mixer will be deallocated when stream is destroyed.
-    });
 }
 
 // set_channel_layout
