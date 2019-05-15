@@ -355,155 +355,68 @@ fn test_minimum_resampling_input_frames_set_stream_rates(
 // ------------------------------------
 // TODO
 
-// set_device_info
+// create_device_info
 // ------------------------------------
 #[test]
-fn test_set_device_info_to_unknown_input_device() {
-    test_get_default_raw_stream(|stream| {
-        // The input device info of the stream will be set to the system default if the predefined
-        // input device is unknown.
-        if let Ok(default_input) =
-            test_set_device_info_and_get_default_device(stream, Scope::Input, kAudioObjectUnknown)
-        {
-            assert_eq!(stream.input_device.id, default_input);
-            assert_eq!(
-                stream.input_device.flags,
-                device_flags::DEV_INPUT
-                    | device_flags::DEV_SELECTED_DEFAULT
-                    | device_flags::DEV_SYSTEM_DEFAULT
-            );
-        }
-    });
+fn test_create_device_info_from_unknown_input_device() {
+    if let Some(default_device_id) = test_get_default_device(Scope::Input) {
+        let default_device = create_device_info(kAudioObjectUnknown, DeviceType::INPUT).unwrap();
+        assert_eq!(default_device.id, default_device_id);
+        assert_eq!(
+            default_device.flags,
+            device_flags::DEV_INPUT
+                | device_flags::DEV_SELECTED_DEFAULT
+                | device_flags::DEV_SYSTEM_DEFAULT
+        );
+    } else {
+        println!("No input device to perform test.");
+    }
 }
 
 #[test]
-fn test_set_device_info_to_unknown_output_device() {
-    test_get_default_raw_stream(|stream| {
-        // The output device info of the stream will be set to the system default if the predefined
-        // output device is unknown.
-        if let Ok(default_output) =
-            test_set_device_info_and_get_default_device(stream, Scope::Output, kAudioObjectUnknown)
-        {
-            assert_eq!(stream.output_device.id, default_output);
-            assert_eq!(
-                stream.output_device.flags,
-                device_flags::DEV_OUTPUT
-                    | device_flags::DEV_SELECTED_DEFAULT
-                    | device_flags::DEV_SYSTEM_DEFAULT
-            );
-        }
-    });
+fn test_create_device_info_from_unknown_output_device() {
+    if let Some(default_device_id) = test_get_default_device(Scope::Output) {
+        let default_device = create_device_info(kAudioObjectUnknown, DeviceType::OUTPUT).unwrap();
+        assert_eq!(default_device.id, default_device_id);
+        assert_eq!(
+            default_device.flags,
+            device_flags::DEV_OUTPUT
+                | device_flags::DEV_SELECTED_DEFAULT
+                | device_flags::DEV_SYSTEM_DEFAULT
+        );
+    } else {
+        println!("No output device to perform test.");
+    }
 }
 
-// FIXIT: Is it ok to set input device to kAudioObjectSystemObject ?
-//        The flags will be DEV_INPUT if we do so,
-//        but shouldn't it be DEV_INPUT | DEV_SYSTEM_DEFAULT at least ?
-#[ignore]
 #[test]
+#[should_panic]
 fn test_set_device_info_to_system_input_device() {
-    test_get_default_raw_stream(|stream| {
-        // Will the input device info of the stream be set to the system default if the predefined
-        // input device is system device ?
-        if let Ok(default_input) = test_set_device_info_and_get_default_device(
-            stream,
-            Scope::Input,
-            kAudioObjectSystemObject,
-        ) {
-            assert_eq!(
-                stream.input_device.id,
-                default_input /* or kAudioObjectSystemObject ? */
-            );
-            assert_eq!(
-                stream.input_device.flags,
-                device_flags::DEV_INPUT | device_flags::DEV_SYSTEM_DEFAULT
-            );
-        }
-    });
+    let _device = create_device_info(kAudioObjectSystemObject, DeviceType::INPUT);
 }
 
-// FIXIT: Is it ok to set output device to kAudioObjectSystemObject ?
-//        The flags will be DEV_OUTPUT if we do so,
-//        but shouldn't it be DEV_OUTPUT | DEV_SYSTEM_DEFAULT at least ?
-#[ignore]
 #[test]
+#[should_panic]
 fn test_set_device_info_to_system_output_device() {
-    test_get_default_raw_stream(|stream| {
-        // Will the output device info of the stream be set to the system default if the predefined
-        // input device is system device ?
-        if let Ok(default_output) = test_set_device_info_and_get_default_device(
-            stream,
-            Scope::Output,
-            kAudioObjectSystemObject,
-        ) {
-            assert_eq!(
-                stream.output_device.id,
-                default_output /* or kAudioObjectSystemObject ? */
-            );
-            assert_eq!(
-                stream.output_device.flags,
-                device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT
-            );
-        }
-    });
+    let _device = create_device_info(kAudioObjectSystemObject, DeviceType::OUTPUT);
 }
 
 // FIXIT: Is it ok to set input device to a nonexistent device ?
 #[ignore]
 #[test]
+#[should_panic]
 fn test_set_device_info_to_nonexistent_input_device() {
-    test_get_default_raw_stream(|stream| {
-        if let Ok(_default_input) = test_set_device_info_and_get_default_device(
-            stream,
-            Scope::Input,
-            std::u32::MAX, // TODO: Create an API to get nonexistent device.
-        ) {
-            assert!(false);
-        }
-    });
+    let nonexistent_id = std::u32::MAX;
+    let _device = create_device_info(nonexistent_id, DeviceType::INPUT);
 }
 
 // FIXIT: Is it ok to set output device to a nonexistent device ?
 #[ignore]
 #[test]
+#[should_panic]
 fn test_set_device_info_to_nonexistent_output_device() {
-    test_get_default_raw_stream(|stream| {
-        if let Ok(_default_output) = test_set_device_info_and_get_default_device(
-            stream,
-            Scope::Output,
-            std::u32::MAX, // TODO: Create an API to get nonexistent device.
-        ) {
-            assert!(false);
-        }
-    });
-}
-
-fn test_set_device_info_and_get_default_device(
-    stream: &mut AudioUnitStream,
-    scope: Scope,
-    predefined_device: AudioObjectID,
-) -> std::result::Result<AudioObjectID, ()> {
-    assert_eq!(stream.input_device.id, kAudioObjectUnknown);
-    assert_eq!(stream.input_device.flags, device_flags::DEV_UNKNOWN);
-    assert_eq!(stream.output_device.id, kAudioObjectUnknown);
-    assert_eq!(stream.output_device.flags, device_flags::DEV_UNKNOWN);
-
-    let default_device = test_get_default_device(scope.clone().into());
-    // Fail to call set_device_info when there is no available device.
-    if default_device.is_none() {
-        assert_eq!(
-            stream
-                .set_device_info(predefined_device, scope.into())
-                .unwrap_err(),
-            Error::error()
-        );
-        return Err(());
-    }
-
-    // Set the device info to the predefined device
-    assert!(stream
-        .set_device_info(predefined_device, scope.into())
-        .is_ok());
-    Ok(default_device.unwrap())
+    let nonexistent_id = std::u32::MAX;
+    let _device = create_device_info(nonexistent_id, DeviceType::OUTPUT);
 }
 
 // reinit_stream
