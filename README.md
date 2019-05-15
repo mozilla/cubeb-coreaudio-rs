@@ -197,7 +197,11 @@ It's used to verify our callbacks for minitoring the system devices work.
   - Implement `to_owned` in [`StreamParamsRef`][cubeb-rs-stmparamsref]
   - Check the passed parameters like what [cubeb.c][cubeb] does!
     - Check the input `StreamParams` parameters properly, or we will set a invalid format into `AudioUnit`.
-    In fact, we should check **all** the parameters properly so we can make sure we don't mess up the streams/devices settings!
+    - For example, for a duplex stream, the format of the input stream and output stream should be same.
+      Using different stream formats will cause memory corruption
+      since our resampler assumes the types (_short_ or _float_) of input stream (buffer) and output stream (buffer) are same
+      (The resampler will use the format of the input stream if it exists, otherwise it uses the format of the output stream).
+    - In fact, we should check **all** the parameters properly so we can make sure we don't mess up the streams/devices settings!
 - Find a efficient way to catch memory leaks
   - *Instrument* on OSX
 
