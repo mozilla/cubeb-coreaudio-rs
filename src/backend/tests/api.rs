@@ -1459,65 +1459,56 @@ fn test_clamp_latency() {
     }
 }
 
-// set_buffer_size
+// set_buffer_size_sync
 // ------------------------------------
 #[test]
-fn test_set_buffer_size() {
+fn test_set_buffer_size_sync() {
     test_set_buffer_size_by_scope(Scope::Input);
     test_set_buffer_size_by_scope(Scope::Output);
-
     fn test_set_buffer_size_by_scope(scope: Scope) {
-        test_get_default_raw_stream(|stream| {
-            let default_unit = test_get_default_audiounit(scope.clone());
-            if default_unit.is_none() {
-                println!("No audiounit for {:?}.", scope);
-                return;
-            }
-            let default_unit = default_unit.unwrap();
-
-            let (unit, prop_scope) = match scope {
-                Scope::Input => {
-                    stream.input_unit = default_unit.get_inner();
-                    (stream.input_unit, PropertyScope::Output)
-                }
-                Scope::Output => {
-                    stream.output_unit = default_unit.get_inner();
-                    (stream.output_unit, PropertyScope::Input)
-                }
-            };
-            let mut buffer_frames =
-                test_audiounit_get_buffer_frame_size(unit, scope.clone(), prop_scope).unwrap();
-            assert_ne!(buffer_frames, 0);
-            buffer_frames *= 2;
-            assert!(stream.set_buffer_size(buffer_frames, scope.into()).is_ok());
-        });
+        let unit = test_get_default_audiounit(scope.clone());
+        if unit.is_none() {
+            println!("No audiounit for {:?}.", scope);
+            return;
+        }
+        let unit = unit.unwrap();
+        let prop_scope = match scope {
+            Scope::Input => PropertyScope::Output,
+            Scope::Output => PropertyScope::Input,
+        };
+        let mut buffer_frames = test_audiounit_get_buffer_frame_size(
+            unit.get_inner(),
+            scope.clone(),
+            prop_scope.clone(),
+        )
+        .unwrap();
+        assert_ne!(buffer_frames, 0);
+        buffer_frames *= 2;
+        assert!(
+            set_buffer_size_sync(unit.get_inner(), scope.clone().into(), buffer_frames).is_ok()
+        );
+        let new_buffer_frames =
+            test_audiounit_get_buffer_frame_size(unit.get_inner(), scope.clone(), prop_scope)
+                .unwrap();
+        assert_eq!(buffer_frames, new_buffer_frames);
     }
 }
 
 #[test]
 #[should_panic]
-fn test_set_buffer_size_for_input_with_null_input_unit() {
-    test_set_buffer_size_by_scope_with_null_unit(Scope::Input);
+fn test_set_buffer_size_sync_for_input_with_null_input_unit() {
+    test_set_buffer_size_sync_by_scope_with_null_unit(Scope::Input);
 }
 
 #[test]
 #[should_panic]
-fn test_set_buffer_size_for_output_with_null_output_unit() {
-    test_set_buffer_size_by_scope_with_null_unit(Scope::Output);
+fn test_set_buffer_size_sync_for_output_with_null_output_unit() {
+    test_set_buffer_size_sync_by_scope_with_null_unit(Scope::Output);
 }
 
-fn test_set_buffer_size_by_scope_with_null_unit(scope: Scope) {
-    test_get_default_raw_stream(|stream| {
-        let unit = match scope {
-            Scope::Input => stream.input_unit,
-            Scope::Output => stream.output_unit,
-        };
-        assert!(unit.is_null());
-        assert_eq!(
-            stream.set_buffer_size(2048, scope.into()).unwrap_err(),
-            Error::error()
-        );
-    });
+fn test_set_buffer_size_sync_by_scope_with_null_unit(scope: Scope) {
+    let unit: AudioUnit = ptr::null_mut();
+    assert!(set_buffer_size_sync(unit, scope.into(), 2048).is_err());
 }
 
 // configure_input
