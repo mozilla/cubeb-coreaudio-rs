@@ -1229,10 +1229,10 @@ fn test_destroy_aggregate_device_for_unknown_plugin_and_aggregate_devices() {
     )
 }
 
-// new_unit_instance
+// create_default_audiounit
 // ------------------------------------
 #[test]
-fn test_new_unit_instance() {
+fn test_create_default_audiounit() {
     let flags_list = [
         device_flags::DEV_UNKNOWN,
         device_flags::DEV_INPUT,
@@ -1244,12 +1244,7 @@ fn test_new_unit_instance() {
     ];
 
     for flags in flags_list.iter() {
-        let device = device_info {
-            id: kAudioObjectUnknown,
-            flags: *flags,
-        };
-        let mut unit: AudioUnit = ptr::null_mut();
-        assert!(audiounit_new_unit_instance(&mut unit, &device).is_ok());
+        let unit = create_default_audiounit(*flags).unwrap();
         assert!(!unit.is_null());
         // Destroy the AudioUnits
         unsafe {
@@ -1259,115 +1254,61 @@ fn test_new_unit_instance() {
     }
 }
 
-#[test]
-#[should_panic]
-fn test_new_unit_instance_twice() {
-    let device = device_info::default();
-    let mut unit: AudioUnit = ptr::null_mut();
-    assert!(audiounit_new_unit_instance(&mut unit, &device).is_ok());
-    assert!(!unit.is_null());
-
-    // audiounit_new_unit_instance will get a panic immediately
-    // when it's called, so the `assert_eq` and the code after
-    // that won't be executed.
-    assert_eq!(
-        audiounit_new_unit_instance(&mut unit, &device).unwrap_err(),
-        Error::error()
-    );
-
-    // Destroy the AudioUnits
-    unsafe {
-        AudioUnitUninitialize(unit);
-        AudioComponentInstanceDispose(unit);
-    }
-}
-
-// enable_unit_scope
+// enable_audiounit_scope
 // ------------------------------------
 #[test]
-fn test_enable_unit_scope() {
+fn test_enable_audiounit_scope() {
     // It's ok to enable and disable the scopes of input or output
     // for the unit whose subtype is kAudioUnitSubType_HALOutput
     // even when there is no available input or output devices.
     if let Some(unit) = test_create_audiounit(ComponentSubType::HALOutput) {
-        assert!(audiounit_enable_unit_scope(
-            &(unit.get_inner()),
-            io_side::OUTPUT,
-            enable_state::ENABLE
-        )
-        .is_ok());
-        assert!(audiounit_enable_unit_scope(
-            &(unit.get_inner()),
-            io_side::OUTPUT,
-            enable_state::DISABLE
-        )
-        .is_ok());
-        assert!(audiounit_enable_unit_scope(
-            &(unit.get_inner()),
-            io_side::INPUT,
-            enable_state::ENABLE
-        )
-        .is_ok());
-        assert!(audiounit_enable_unit_scope(
-            &(unit.get_inner()),
-            io_side::INPUT,
-            enable_state::DISABLE
-        )
-        .is_ok());
+        assert!(enable_audiounit_scope(unit.get_inner(), io_side::OUTPUT, true).is_ok());
+        assert!(enable_audiounit_scope(unit.get_inner(), io_side::OUTPUT, false).is_ok());
+        assert!(enable_audiounit_scope(unit.get_inner(), io_side::INPUT, true).is_ok());
+        assert!(enable_audiounit_scope(unit.get_inner(), io_side::INPUT, false).is_ok());
+    } else {
+        println!("No audiounit to perform test.");
     }
 }
 
 #[test]
-fn test_enable_unit_output_scope_for_default_output_unit() {
+fn test_enable_audiounit_scope_for_default_output_unit() {
     if let Some(unit) = test_create_audiounit(ComponentSubType::DefaultOutput) {
         assert_eq!(
-            audiounit_enable_unit_scope(&(unit.get_inner()), io_side::OUTPUT, enable_state::ENABLE)
-                .unwrap_err(),
-            Error::error()
+            enable_audiounit_scope(unit.get_inner(), io_side::OUTPUT, true).unwrap_err(),
+            kAudioUnitErr_InvalidProperty
         );
         assert_eq!(
-            audiounit_enable_unit_scope(
-                &(unit.get_inner()),
-                io_side::OUTPUT,
-                enable_state::DISABLE
-            )
-            .unwrap_err(),
-            Error::error()
+            enable_audiounit_scope(unit.get_inner(), io_side::OUTPUT, false).unwrap_err(),
+            kAudioUnitErr_InvalidProperty
         );
         assert_eq!(
-            audiounit_enable_unit_scope(&(unit.get_inner()), io_side::INPUT, enable_state::ENABLE)
-                .unwrap_err(),
-            Error::error()
+            enable_audiounit_scope(unit.get_inner(), io_side::INPUT, true).unwrap_err(),
+            kAudioUnitErr_InvalidProperty
         );
         assert_eq!(
-            audiounit_enable_unit_scope(&(unit.get_inner()), io_side::INPUT, enable_state::DISABLE)
-                .unwrap_err(),
-            Error::error()
+            enable_audiounit_scope(unit.get_inner(), io_side::INPUT, false).unwrap_err(),
+            kAudioUnitErr_InvalidProperty
         );
     }
 }
 
 #[test]
 #[should_panic]
-fn test_enable_unit_scope_with_null_unit() {
+fn test_enable_audiounit_scope_with_null_unit() {
     let unit: AudioUnit = ptr::null_mut();
-    assert_eq!(
-        audiounit_enable_unit_scope(&unit, io_side::INPUT, enable_state::DISABLE).unwrap_err(),
-        Error::error()
-    );
+    assert!(enable_audiounit_scope(unit, io_side::INPUT, false).is_err());
 }
 
-// create_unit
+// create_audiounit
 // ------------------------------------
 #[test]
-fn test_create_unit() {
+fn test_for_create_audiounit() {
     let flags_list = [
         device_flags::DEV_INPUT,
         device_flags::DEV_OUTPUT,
-        device_flags::DEV_INPUT | device_flags::DEV_OUTPUT,
         device_flags::DEV_INPUT | device_flags::DEV_SYSTEM_DEFAULT,
         device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT,
-        device_flags::DEV_INPUT | device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT,
     ];
 
     let default_input = test_get_default_device(Scope::Input);
@@ -1379,10 +1320,9 @@ fn test_create_unit() {
 
         // Check the output scope is enabled.
         if device.flags.contains(device_flags::DEV_OUTPUT) && default_output.is_some() {
-            let device_id = default_output.unwrap();
+            let device_id = default_output.clone().unwrap();
             device.id = device_id;
-            let mut unit: AudioUnit = ptr::null_mut();
-            assert!(audiounit_create_unit(&mut unit, &device).is_ok());
+            let unit = create_audiounit(&device).unwrap();
             assert!(!unit.is_null());
             assert!(test_audiounit_scope_is_enabled(unit, Scope::Output));
 
@@ -1414,10 +1354,9 @@ fn test_create_unit() {
 
         // Check the input scope is enabled.
         if device.flags.contains(device_flags::DEV_INPUT) && default_input.is_some() {
-            let device_id = default_input.unwrap();
+            let device_id = default_input.clone().unwrap();
             device.id = device_id;
-            let mut unit: AudioUnit = ptr::null_mut();
-            assert!(audiounit_create_unit(&mut unit, &device).is_ok());
+            let unit = create_audiounit(&device).unwrap();
             assert!(!unit.is_null());
             assert!(test_audiounit_scope_is_enabled(unit, Scope::Input));
             // Destroy the audioUnit.
@@ -1431,38 +1370,9 @@ fn test_create_unit() {
 
 #[test]
 #[should_panic]
-fn test_create_unit_with_unknown_scope() {
+fn test_create_audiounit_with_unknown_scope() {
     let device = device_info::default();
-    let mut unit: AudioUnit = ptr::null_mut();
-    assert!(audiounit_create_unit(&mut unit, &device).is_ok());
-    assert!(!unit.is_null());
-}
-
-#[test]
-#[should_panic]
-fn test_create_unit_twice() {
-    let flags_list = [
-        device_flags::DEV_INPUT,
-        device_flags::DEV_OUTPUT,
-        device_flags::DEV_INPUT | device_flags::DEV_OUTPUT,
-        device_flags::DEV_INPUT | device_flags::DEV_SYSTEM_DEFAULT,
-        device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT,
-        device_flags::DEV_INPUT | device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT,
-    ];
-
-    // The first audiounit_create_unit calling will get a panic immediately
-    // so the loop is executed once.
-    for flags in flags_list.iter() {
-        let mut device = device_info::default();
-        device.flags |= *flags;
-        let mut unit: AudioUnit = ptr::null_mut();
-        assert!(audiounit_create_unit(&mut unit, &device).is_ok());
-        assert!(!unit.is_null());
-        assert_eq!(
-            audiounit_create_unit(&mut unit, &device).unwrap_err(),
-            Error::error()
-        );
-    }
+    let _unit = create_audiounit(&device);
 }
 
 // init_input_linear_buffer
