@@ -1911,17 +1911,14 @@ fn check_frames_per_slice(stream: &mut AudioUnitStream, scope: Scope) {
 // ------------------------------------
 // TODO
 
-// get_volume
+// get_volume, set_volume
 // ------------------------------------
 #[test]
 fn test_stream_get_volume() {
     if let Some(unit) = test_get_default_audiounit(Scope::Output) {
-        test_get_default_raw_stream(|stream| {
-            stream.output_unit = unit.get_inner();
-            let expected_volume: f32 = 0.5;
-            stream.set_volume(expected_volume);
-            assert_eq!(expected_volume, stream.get_volume().unwrap());
-        });
+        let expected_volume: f32 = 0.5;
+        set_volume(unit.get_inner(), expected_volume);
+        assert_eq!(expected_volume, get_volume(unit.get_inner()).unwrap());
     } else {
         println!("No output audiounit.");
     }
