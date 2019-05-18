@@ -1370,35 +1370,35 @@ fn test_create_audiounit_with_unknown_scope() {
     let _unit = create_audiounit(&device);
 }
 
-// init_input_linear_buffer
+// create_auto_array
 // ------------------------------------
 #[test]
-fn test_init_input_linear_buffer() {
+fn test_create_auto_array() {
     let buffer_f32 = [3.1_f32, 4.1, 5.9, 2.6, 5.35];
     let buffer_i16 = [13_i16, 21, 34, 55, 89, 144];
 
     // Test if the stream latency frame is 4096
-    test_init_input_linear_buffer_impl(&buffer_f32, 4096);
-    test_init_input_linear_buffer_impl(&buffer_i16, 4096);
+    test_create_auto_array_impl(&buffer_f32, 4096);
+    test_create_auto_array_impl(&buffer_i16, 4096);
 }
 
 #[test]
 #[should_panic]
-fn test_init_input_linear_buffer_with_zero_latency_f32() {
+fn test_create_auto_array_with_zero_latency_f32() {
     let buffer_f32 = [3.1_f32, 4.1, 5.9, 2.6, 5.35];
-    test_init_input_linear_buffer_impl(&buffer_f32, 0);
+    test_create_auto_array_impl(&buffer_f32, 0);
 }
 
 #[test]
 #[should_panic]
-fn test_init_input_linear_buffer_with_zero_latency_i16() {
+fn test_create_auto_array_with_zero_latency_i16() {
     let buffer_i16 = [13_i16, 21, 34, 55, 89, 144];
-    test_init_input_linear_buffer_impl(&buffer_i16, 0);
+    test_create_auto_array_impl(&buffer_i16, 0);
 }
 
-fn test_init_input_linear_buffer_impl<T: Any + Debug + PartialEq>(array: &[T], latency: u32) {
+fn test_create_auto_array_impl<T: Any + Debug + PartialEq>(buffer: &[T], latency: u32) {
     const CHANNEL: u32 = 2;
-    const BUF_CAPACITY: u32 = 1;
+    const BUF_CAPACITY: usize = 1;
 
     let type_id = std::any::TypeId::of::<T>();
     let format = if type_id == std::any::TypeId::of::<f32>() {
@@ -1409,38 +1409,40 @@ fn test_init_input_linear_buffer_impl<T: Any + Debug + PartialEq>(array: &[T], l
         panic!("Unsupported type!");
     };
 
-    test_get_default_raw_stream(|stream| {
-        stream.latency_frames = latency;
-        stream.input_desc.mFormatFlags |= format;
-        stream.input_desc.mChannelsPerFrame = CHANNEL;
+    let mut desc = AudioStreamBasicDescription::default();
+    desc.mFormatFlags |= format;
+    desc.mChannelsPerFrame = CHANNEL;
 
-        assert!(stream.input_linear_buffer.is_none());
-        assert!(stream.init_input_linear_buffer(BUF_CAPACITY).is_ok());
-        assert!(stream.input_linear_buffer.is_some());
-
-        let buffer_ref = stream.input_linear_buffer.as_mut().unwrap();
-        buffer_ref.push(array.as_ptr() as *const c_void, array.len());
-
-        assert_eq!(buffer_ref.elements(), array.len());
-        let data = buffer_ref.as_ptr() as *const T;
-        for (idx, item) in array.iter().enumerate() {
-            unsafe {
-                assert_eq!(*data.add(idx), *item);
-            }
+    let mut array = create_auto_array(desc, latency, BUF_CAPACITY).unwrap();
+    array.push(buffer.as_ptr() as *const c_void, buffer.len());
+    assert_eq!(array.elements(), buffer.len());
+    let data = array.as_ptr() as *const T;
+    for (idx, item) in buffer.iter().enumerate() {
+        unsafe {
+            assert_eq!(*data.add(idx), *item);
         }
-    });
+    }
 }
 
-// FIXIT: We should get a panic! The type is unknown before the audio description is set!
-#[ignore]
 #[test]
 #[should_panic]
-fn test_init_input_linear_buffer_without_valid_audiodescription() {
-    test_get_default_raw_stream(|stream| {
-        stream.latency_frames = 4096;
-        assert!(stream.input_linear_buffer.is_none());
-        assert!(stream.init_input_linear_buffer(1).is_err());
-    });
+fn test_create_auto_array_with_empty_audiodescription() {
+    let desc = AudioStreamBasicDescription::default();
+    assert_eq!(
+        create_auto_array(desc, 256, 1).unwrap_err(),
+        Error::invalid_format()
+    );
+}
+
+#[test]
+fn test_create_auto_array_with_invalid_audiodescription() {
+    let mut desc = AudioStreamBasicDescription::default();
+    desc.mFormatFlags |= kAudioFormatFlagIsBigEndian;
+    desc.mChannelsPerFrame = 100;
+    assert_eq!(
+        create_auto_array(desc, 256, 1).unwrap_err(),
+        Error::invalid_format()
+    );
 }
 
 // clamp_latency
