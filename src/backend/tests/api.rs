@@ -925,10 +925,10 @@ fn test_get_current_channel_layout_output() {
 // fn test_get_current_channel_layout_input() {
 // }
 
-// audio_stream_desc_init
+// create_stream_description
 // ------------------------------------
 #[test]
-fn test_audio_stream_desc_init() {
+fn test_create_stream_description() {
     let mut channels = 0;
     for (bits, format, flags) in [
         (
@@ -959,24 +959,19 @@ fn test_audio_stream_desc_init() {
         raw.channels = channels;
         raw.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
         raw.prefs = ffi::CUBEB_STREAM_PREF_NONE;
-
         let params = StreamParams::from(raw);
-
-        let mut stream_description = AudioStreamBasicDescription::default();
-
-        assert!(audio_stream_desc_init(&mut stream_description, &params).is_ok());
-
-        assert_eq!(stream_description.mFormatID, kAudioFormatLinearPCM);
+        let description = create_stream_description(&params).unwrap();
+        assert_eq!(description.mFormatID, kAudioFormatLinearPCM);
         assert_eq!(
-            stream_description.mFormatFlags,
+            description.mFormatFlags,
             flags | kLinearPCMFormatFlagIsPacked
         );
-        assert_eq!(stream_description.mSampleRate as u32, raw.rate);
-        assert_eq!(stream_description.mChannelsPerFrame, raw.channels);
-        assert_eq!(stream_description.mBytesPerFrame, bytes * raw.channels);
-        assert_eq!(stream_description.mFramesPerPacket, 1);
-        assert_eq!(stream_description.mBytesPerPacket, bytes * raw.channels);
-        assert_eq!(stream_description.mReserved, 0);
+        assert_eq!(description.mSampleRate as u32, raw.rate);
+        assert_eq!(description.mChannelsPerFrame, raw.channels);
+        assert_eq!(description.mBytesPerFrame, bytes * raw.channels);
+        assert_eq!(description.mFramesPerPacket, 1);
+        assert_eq!(description.mBytesPerPacket, bytes * raw.channels);
+        assert_eq!(description.mReserved, 0);
     }
 }
 
