@@ -23,12 +23,19 @@ Both branches can pass all the tests on tryserver for firefox.
 However, we are replacing our custom mutex,
 which is translated from C version directly,
 by standard Rust mutex.
-The code is on [ocs-disposal][ocs-disposal] branch.
+The code is on [ocs-disposal][ocs-disposal] branch and [ocs-disposal-stm][ocs-disposal-stm] branch.
 
 The project can also be tracked on [*bugzilla* 1530715][bugzilla-cars].
 The [instructios][bugzilla-cars-instruction] to integrate this project into firefox gecko can be found there.
 You can also find the formal patches and the reviews there.
 The easiest way to integrate this project into firefox gecko is to apply all the patches.
+
+### Defusing the custom mutex
+Now all the custom mutexes in cubeb context is replaced.
+The code is on [ocs-disposal][ocs-disposal] branch.
+
+The replacement for the custom mutexes in cubeb stream is still a work in process.
+The code is in [ocs-disposal-stm][ocs-disposal-stm] branch.
 
 ## Test
 Please run `sh run_tests.sh`.
@@ -185,3 +192,4 @@ It's used to verify our callbacks for minitoring the system devices work.
 [translation-from-c]: https://github.com/ChunMinChang/cubeb-coreaudio-rs/tree/plain-translation-from-c
 [blazer]: https://github.com/ChunMinChang/cubeb-coreaudio-rs/tree/trailblazer
 [ocs-disposal]: https://github.com/ChunMinChang/cubeb-coreaudio-rs/tree/ocs-disposal
+[ocs-disposal-stm]: https://github.com/ChunMinChang/cubeb-coreaudio-rs/tree/ocs-disposal-stm
