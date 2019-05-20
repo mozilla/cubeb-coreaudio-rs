@@ -1535,79 +1535,6 @@ fn test_configure_input_with_zero_latency_frames() {
     );
 }
 
-// configure_output
-// ------------------------------------
-// Ignore the test by default to avoid overwritting the buffer frame size to the device that is
-// probably operating in other tests in parallel.
-#[ignore]
-#[test]
-fn test_configure_output() {
-    const SAMPLE_RATE: u32 = 48_000;
-    let mut params = ffi::cubeb_stream_params::default();
-    params.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
-    params.rate = SAMPLE_RATE;
-    params.channels = 2;
-    params.layout = ffi::CUBEB_LAYOUT_STEREO;
-    params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
-
-    test_configure_scope(Scope::Output, StreamParams::from(params), |stream| {
-        check_hw_rate(stream);
-        check_buffer_frame_size(stream, Scope::Output);
-        check_frames_per_slice(stream, Scope::Output);
-    });
-
-    fn check_hw_rate(stream: &mut AudioUnitStream) {
-        let rate = f64::from(SAMPLE_RATE);
-        assert_eq!(stream.output_desc.mSampleRate, rate);
-        assert_ne!(stream.output_hw_rate, 0_f64);
-        let mut description = AudioStreamBasicDescription::default();
-        let mut size = mem::size_of::<AudioStreamBasicDescription>();
-        assert_eq!(
-            audio_unit_get_property(
-                stream.output_unit,
-                kAudioUnitProperty_StreamFormat,
-                kAudioUnitScope_Input,
-                AU_OUT_BUS,
-                &mut description,
-                &mut size
-            ),
-            0
-        );
-        assert_eq!(description.mSampleRate, rate);
-    }
-}
-
-#[test]
-#[should_panic]
-fn test_configure_output_with_null_unit() {
-    test_get_default_raw_stream(|stream| {
-        assert!(stream.output_unit.is_null());
-        assert!(stream.configure_output().is_err());
-    });
-}
-
-// Ignore the test by default to avoid overwritting the buffer frame size for the input or output
-// device that is using in test_configure_input or test_configure_output.
-#[ignore]
-#[test]
-#[should_panic]
-fn test_configure_output_with_zero_latency_frames() {
-    let mut params = ffi::cubeb_stream_params::default();
-    params.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
-    params.rate = 48_000;
-    params.channels = 2;
-    params.layout = ffi::CUBEB_LAYOUT_STEREO;
-    params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
-    test_configure_scope_with_zero_latency_frames(
-        Scope::Output,
-        StreamParams::from(params),
-        |stream| {
-            check_buffer_frame_size(stream, Scope::Output);
-            check_frames_per_slice(stream, Scope::Output);
-        },
-    );
-}
-
 // Utils for configure_{input, output}
 // ------------------------------------
 fn test_configure_scope<F>(scope: Scope, params: StreamParams, callback: F)
@@ -1621,9 +1548,8 @@ where
                     stream.input_unit = unit.get_inner();
                     stream.input_stream_params = params;
                 }
-                Scope::Output => {
-                    stream.output_unit = unit.get_inner();
-                    stream.output_stream_params = params;
+                _ => {
+                    panic!("Unsupport type!");
                 }
             }
 
@@ -1633,7 +1559,7 @@ where
 
             let res = match scope {
                 Scope::Input => stream.configure_input(),
-                Scope::Output => stream.configure_output(),
+                _ => panic!("Unsupport type!"),
             };
             assert!(res.is_ok());
             callback(stream);
@@ -1654,15 +1580,14 @@ where
                     stream.input_unit = unit.get_inner();
                     stream.input_stream_params = params;
                 }
-                Scope::Output => {
-                    stream.output_unit = unit.get_inner();
-                    stream.output_stream_params = params;
+                _ => {
+                    panic!("Unsupport type!");
                 }
             }
             assert_eq!(stream.latency_frames, 0);
             let res = match scope {
                 Scope::Input => stream.configure_input(),
-                Scope::Output => stream.configure_output(),
+                _ => panic!("Unsupport type!"),
             };
             assert!(res.is_ok());
             callback(stream);
