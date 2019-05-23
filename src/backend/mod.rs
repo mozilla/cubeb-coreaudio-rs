@@ -494,13 +494,20 @@ extern "C" fn audiounit_output_callback(
 
     /* Post process output samples. */
     if *stm.draining.get_mut() {
-        let outbpf = cubeb_sample_size(stm.output_stream_params.format());
         /* Clear missing frames (silence) */
-        unsafe {
-            let dest =
-                (output_buffer as *mut u8).add(outframes as usize * outbpf) as *mut libc::c_void;
-            let len = (i64::from(output_frames) - outframes) as usize * outbpf;
-            libc::memset(dest, 0, len);
+        let count_bytes = |frames: usize| -> usize {
+            let sample_size = cubeb_sample_size(stm.output_stream_params.format());
+            frames * sample_size / mem::size_of::<u8>()
+        };
+        let out_bytes = unsafe {
+            slice::from_raw_parts_mut(
+                output_buffer as *mut u8,
+                count_bytes(output_frames as usize),
+            )
+        };
+        let start = count_bytes(outframes as usize);
+        for i in start..out_bytes.len() {
+            out_bytes[i] = 0;
         }
     }
 
