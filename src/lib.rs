@@ -15,4 +15,4 @@ extern crate cubeb_backend;
 mod backend;
 mod capi;
 
-pub use capi::audiounit_rust_init;
+pub use crate::capi::audiounit_rust_init;
