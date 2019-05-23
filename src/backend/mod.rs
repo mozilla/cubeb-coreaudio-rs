@@ -3705,11 +3705,13 @@ impl<'ctx> AudioUnitStream<'ctx> {
         let mut aurcbs_in = AURenderCallbackStruct::default();
 
         cubeb_log!(
-            "({:p}) Opening input side: rate {}, channels {}, format {:?}, latency in frames {}.",
+            "({:p}) Opening input side: rate {}, channels {}, format {:?}, layout {:?}, prefs {:?}, latency in frames {}.",
             self as *const AudioUnitStream,
             self.input_stream_params.rate(),
             self.input_stream_params.channels(),
             self.input_stream_params.format(),
+            self.input_stream_params.layout(),
+            self.input_stream_params.prefs(),
             self.latency_frames
         );
 
@@ -3733,9 +3735,9 @@ impl<'ctx> AudioUnitStream<'ctx> {
         }
         self.input_hw_rate = input_hw_desc.mSampleRate;
         cubeb_log!(
-            "({:p}) Input device sampling rate: {}",
+            "({:p}) Input hardware description: {:?}",
             self as *const AudioUnitStream,
-            self.input_hw_rate
+            input_hw_desc
         );
 
         /* Set format description according to the input params. */
@@ -3843,11 +3845,13 @@ impl<'ctx> AudioUnitStream<'ctx> {
         let mut size: usize = 0;
 
         cubeb_log!(
-            "({:p}) Opening output side: rate {}, channels {}, format {:?}, latency in frames {}.",
+            "({:p}) Opening output side: rate {}, channels {}, format {:?}, layout {:?}, prefs {:?}, latency in frames {}.",
             self as *const AudioUnitStream,
             self.output_stream_params.rate(),
             self.output_stream_params.channels(),
             self.output_stream_params.format(),
+            self.output_stream_params.layout(),
+            self.output_stream_params.prefs(),
             self.latency_frames
         );
 
@@ -3879,14 +3883,19 @@ impl<'ctx> AudioUnitStream<'ctx> {
         }
         self.output_hw_rate = output_hw_desc.mSampleRate;
         cubeb_log!(
-            "{:p} Output device sampling rate: {}",
+            "({:p}) Output hardware description: {:?}",
             self as *const AudioUnitStream,
-            output_hw_desc.mSampleRate
+            output_hw_desc
         );
         self.context.channels = output_hw_desc.mChannelsPerFrame;
 
         // Set the input layout to match the output device layout.
         self.layout_init(io_side::OUTPUT);
+        cubeb_log!(
+            "({:p}) Output hardware layout: {:?}",
+            self,
+            self.context.layout
+        );
         if self.context.channels != self.output_stream_params.channels()
             || self.context.layout.load(atomic::Ordering::SeqCst)
                 != self.output_stream_params.layout()
