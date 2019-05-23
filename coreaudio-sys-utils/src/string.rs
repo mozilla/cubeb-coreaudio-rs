@@ -56,6 +56,7 @@ mod test {
         // TODO: Find a way to check the string's inner pointer is different.
     }
 
+    #[derive(Debug)]
     struct StringRef(CFStringRef);
     impl StringRef {
         fn new(string_ref: CFStringRef) -> Self {
