@@ -1055,7 +1055,7 @@ fn test_audio_stream_desc_init() {
 fn test_init_mixer() {
     test_get_default_raw_stream(|stream| {
         stream.init_mixer();
-        assert!(!stream.mixer.as_mut_ptr().is_null());
+        assert!(!stream.mixer.as_ptr().is_null());
         // stream.mixer will be deallocated when stream is destroyed.
     });
 }

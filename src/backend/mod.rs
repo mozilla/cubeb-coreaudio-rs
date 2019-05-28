@@ -370,7 +370,7 @@ extern "C" fn audiounit_output_callback(
     }
 
     // Get output buffer
-    if stm.mixer.as_mut_ptr().is_null() {
+    if stm.mixer.as_ptr().is_null() {
         output_buffer = buffers[0].mData;
     } else {
         // If remixing needs to occur, we can't directly work in our final
@@ -501,7 +501,7 @@ extern "C" fn audiounit_output_callback(
     }
 
     // Mixing
-    if stm.mixer.as_mut_ptr().is_null() {
+    if stm.mixer.as_ptr().is_null() {
         // Pan stereo.
         if panning != 0.0 {
             unsafe {
@@ -3184,7 +3184,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 self.context.layout.load(atomic::Ordering::SeqCst).into(),
             )
         });
-        assert!(!self.mixer.as_mut_ptr().is_null());
+        assert!(!self.mixer.as_ptr().is_null());
     }
 
     fn layout_init(&mut self, side: io_side) {
@@ -4048,7 +4048,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             )
         });
 
-        if self.resampler.as_mut_ptr().is_null() {
+        if self.resampler.as_ptr().is_null() {
             cubeb_log!(
                 "({:p}) Could not create resampler.",
                 self as *const AudioUnitStream

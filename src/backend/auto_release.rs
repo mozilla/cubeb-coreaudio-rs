@@ -25,7 +25,7 @@ impl<T> AutoRelease<T> {
         unsafe { &mut *self.ptr }
     }
 
-    pub fn as_mut_ptr(&mut self) -> *mut T {
+    pub fn as_ptr(&self) -> *const T {
         self.ptr
     }
 
@@ -73,5 +73,5 @@ fn test_auto_release() {
     let mut auto_release = AutoRelease::new(ptr::null_mut(), deallocate);
     let ptr = unsafe { allocate() };
     auto_release.reset(ptr);
-    assert_eq!(auto_release.as_mut_ptr(), ptr);
+    assert_eq!(auto_release.as_ptr(), ptr);
 }
