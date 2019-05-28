@@ -81,22 +81,13 @@ See [TO-DOs][todo]
 - Mutex: Find a replacement for [`owned_critical_section`][ocs]
   - A dummy mutex like `Mutex<()>` should work (see [`test_dummy_mutex_multithread`][ocs-rust]) as what `owned_critical_section` does in [_C_ version][ocs], but it doens't has equivalent API for `assert_current_thread_owns`.
   - We implement a [`OwnedCriticalSection` around `pthread_mutex_t`][ocs-rust] like what we do in [_C_ version][ocs] for now.
-  - It's hard to debug with the variables using `OwnedCriticalSection`. Within a test with a variable using `OwnedCriticalSection`, if the `OwnedCriticalSection` used in the test isn't be dropped in a correct order, then the test will get a crash in `OwnedCriticalSection`. The examples are [`test_stream_drop_mutex_(in)correct`](src/backend/tests/test.rs). The tests must be created very carefully.
+  - It's hard to debug with the variables using `OwnedCriticalSection`. Within a test with a variable using `OwnedCriticalSection`, if the `OwnedCriticalSection` used in the test isn't be dropped in a correct order, then the test will get a crash in `OwnedCriticalSection`.
 - Atomic:
-  - The stable atomic types only support `bool`, `usize`, `isize`, and `ptr`, but we need `u64`, `i64`, and `f32`.
-  - Using [atomic-rs](https://github.com/Amanieu/atomic-rs) instead.
-  - *Rust-Nightly* supports `AtomicU32` and `AtomicU64` so we use that.
+  - We need atomic type around `f32` but there is no this type in the stardard Rust
+  - Using [atomic-rs](https://github.com/Amanieu/atomic-rs) to do this.
 - Unworkable API: [`dispatch_async`][dis-async] and [`dispatch_sync`][dis-sync]
-  - The second parameter of [`dispatch_async`][dis-async] and [`dispatch_sync`][dis-sync] is [`dispatch_block_t`][dis-block], which is defined by `typedef void (^dispatch_block_t)(void)`.
-  - The caret symbol `^` defines a [block][c-ext-block].
-  - The _block_ is a lambda expression-like syntax to create closures. (See Apple's document: [Working with Blocks][apple-block])
-  - Not sure if _Rust_ can work with it. _Rust_ has its own [_closure_][rs-closure].
-  - For now, we implement an API [`async_dispatch`][async-dis] and [`sync_dispatch`][sync-dis] to replace [`dispatch_async`][dis-async] and [`dispatch_sync`][dis-sync] (prototype on [gist][osx-dis-gist].)
-    - [`async_dispatch`][async-dis] is based on [`dispatch_async_f`][dis-async-f].
-    - [`sync_dispatch`][sync-dis] is based on [`dispatch_sync_f`][dis-sync-f].
-    - [`async_dispatch`][async-dis] and [`sync_dispatch`][sync-dis] take [_Rust closures_][rs-closure], instead of [Apple's _block_][apple-block], as one of their parameters.
-    - The [_Rust closure_][rs-closure] (it's actually a struct) will be `box`ed, which means the _closure_ will be moved into heap, so the _closure_ cannot be optimized as _inline_ code. (Need to find a way to optimize it?)
-    - Since the _closure_ will be run on an asynchronous thread, we need to move the _closure_ to heap to make sure it's alive and then it will be destroyed after the task of the _closure_ is done.
+  - Replace [`dispatch_async`][dis-async] by [`async_dispatch`][async-dis], which is based on [`dispatch_async_f`][dis-async-f].
+  - Replace [`dispatch_sync`][dis-sync] by [`sync_dispatch`][sync-dis], which is based on [`dispatch_sync_f`][dis-sync-f].
 - Mutex Borrowing Issues
   - We have a [`mutex`][ocs-rust] in `AudioUnitContext`, and we have a _reference_ to `AudioUnitContext` in `AudioUnitStream`. To sync what we do in [_C version_][cubeb-au-init-stream], we need to _lock_ the `mutex` in `AudioUnitContext` then pass a _reference_ to `AudioUnitContext` to `AudioUnitStream::new(...)`.
   - To _lock_ the `mutex` in `AudioUnitContext`, we call `AutoLock::new(&mut AudioUnitContext.mutex)`. That is, we will borrow a reference to `AudioUnitContext` as a mutable first then borrow it again. It's forbidden in _Rust_.
@@ -149,13 +140,8 @@ See [TO-DOs][todo]
 [dis-async]: https://developer.apple.com/documentation/dispatch/1453057-dispatch_async "dispatch_async"
 [dis-async-f]: https://developer.apple.com/documentation/dispatch/1452834-dispatch_async_f "dispatch_async_f"
 [dis-sync-f]: https://developer.apple.com/documentation/dispatch/1453123-dispatch_sync_f "dispatch_sync_f"
-[dis-block]: https://developer.apple.com/documentation/dispatch/dispatch_block_t?language=objc "dispatch_block_t"
-[c-ext-block]: https://en.wikipedia.org/wiki/Blocks_(C_language_extension) "Blocks: C language extension"
-[apple-block]: https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ProgrammingWithObjectiveC/WorkingwithBlocks/WorkingwithBlocks.html "Working with Blocks"
-[rs-closure]: https://doc.rust-lang.org/book/second-edition/ch13-01-closures.html "Closures"
-[sync-dis]: src/backend/dispatch_utils.rs
-[async-dis]: src/backend/dispatch_utils.rs
-[osx-dis-gist]: https://gist.github.com/ChunMinChang/8d13946ebc6c95b2622466c89a0c9bcc "gist"
+[sync-dis]: coreaudio-sys-utils/src/dispatch.rs
+[async-dis]: coreaudio-sys-utils/src/dispatch.rs
 
 [cubeb-au-init-stream]: https://github.com/kinetiknz/cubeb/blob/9a7a55153e7f9b9e0036ab023909c7bc4a41688b/src/cubeb_audiounit.cpp#L2745-L2748 "Init stream"
 
@@ -166,8 +152,6 @@ See [TO-DOs][todo]
 [build-within-gecko]: https://github.com/ChunMinChang/gecko-dev/commits/cubeb-coreaudio-rs
 
 [discussion]: https://docs.google.com/document/d/1ZP6R7d5S9I_8bXOXhplnO6qFM1X4VokWtE7w8ExgJEQ/edit?ts=5c6d5f09
-
-[rust-58881]: https://github.com/rust-lang/rust/issues/58881
 
 [mutex-disposal]: mutex-disposal.md
 
