@@ -388,7 +388,7 @@ extern "C" fn audiounit_output_callback(
     }
 
     stm.frames_written
-        .fetch_add(i64::from(output_frames), atomic::Ordering::SeqCst);
+        .fetch_add(i64::from(output_frames), Ordering::SeqCst);
 
     // If Full duplex get also input buffer
     if !stm.input_unit.is_null() {
@@ -397,7 +397,7 @@ extern "C" fn audiounit_output_callback(
         // Otherwise, if we had more than expected callbacks in a row, or we're
         // currently switching, we add some silence as well to compensate for the
         // fact that we're lacking some input data.
-        let frames_written = stm.frames_written.load(atomic::Ordering::SeqCst);
+        let frames_written = stm.frames_written.load(Ordering::SeqCst);
         let input_frames_needed = stm.minimum_resampling_input_frames(frames_written);
         let missing_frames = input_frames_needed - stm.frames_read.load(Ordering::SeqCst);
         if missing_frames > 0 {
@@ -2566,7 +2566,7 @@ struct AudioUnitStream<'ctx> {
     // padded silence)
     frames_read: AtomicI64,
     // How many frames got written to the output device since the stream started
-    frames_written: atomic::Atomic<i64>,
+    frames_written: AtomicI64,
     shutdown: AtomicBool,
     draining: AtomicBool,
     reinit_pending: AtomicBool,
@@ -2638,7 +2638,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             frames_played: AtomicU64::new(0),
             frames_queued: 0,
             frames_read: AtomicI64::new(0),
-            frames_written: atomic::Atomic::new(0),
+            frames_written: AtomicI64::new(0),
             shutdown: AtomicBool::new(true),
             draining: AtomicBool::new(false),
             reinit_pending: AtomicBool::new(false),
@@ -3874,7 +3874,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             return Err(Error::error());
         }
 
-        self.frames_written.store(0, atomic::Ordering::SeqCst);
+        self.frames_written.store(0, Ordering::SeqCst);
 
         cubeb_log!(
             "({:p}) Output audiounit init successfully.",
