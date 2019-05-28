@@ -41,6 +41,7 @@ use std::ptr;
 use std::slice;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 const NO_ERR: OSStatus = 0;
 
@@ -1031,27 +1032,22 @@ fn audiounit_create_blank_aggregate_device(
     }
     assert_ne!(size, 0);
 
+    let sys_time = SystemTime::now();
+    let time_id = sys_time.duration_since(UNIX_EPOCH).unwrap().as_nanos();
+    let device_name = format!("{}_{}", PRIVATE_AGGREGATE_DEVICE_NAME, time_id);
+    let device_uid = format!("org.mozilla.{}", device_name);
+
     unsafe {
         let aggregate_device_dict = CFMutableDictRef::default();
 
-        let mut timestamp = libc::timeval {
-            tv_sec: 0,
-            tv_usec: 0,
-        };
-        libc::gettimeofday(&mut timestamp, ptr::null_mut());
-        let time_id = timestamp.tv_sec as i64 * 1_000_000 + i64::from(timestamp.tv_usec);
-
-        let device_name_string = format!("{}_{}", PRIVATE_AGGREGATE_DEVICE_NAME, time_id);
-        let aggregate_device_name = cfstringref_from_string(&device_name_string);
+        let aggregate_device_name = cfstringref_from_string(&device_name);
         aggregate_device_dict.add_value(
             cfstringref_from_static_string(AGGREGATE_DEVICE_NAME_KEY),
             aggregate_device_name,
         );
         CFRelease(aggregate_device_name as *const c_void);
 
-        let device_uid_string =
-            format!("org.mozilla.{}_{}", PRIVATE_AGGREGATE_DEVICE_NAME, time_id);
-        let aggregate_device_uid = cfstringref_from_string(&device_uid_string);
+        let aggregate_device_uid = cfstringref_from_string(&device_uid);
         aggregate_device_dict.add_value(
             cfstringref_from_static_string(AGGREGATE_DEVICE_UID_KEY),
             aggregate_device_uid,
