@@ -2197,7 +2197,7 @@ impl AudioUnitContext {
 
     fn remove_devices_changed_listener(&mut self, devtype: DeviceType) -> OSStatus {
         self.mutex.assert_current_thread_owns();
-        // assert!(devtype.intersects(DeviceType::INPUT | DeviceType::OUTPUT));
+        assert!(devtype.intersects(DeviceType::INPUT | DeviceType::OUTPUT));
         if devtype.contains(DeviceType::INPUT) {
             self.input_collection_changed_callback = None;
             self.input_collection_changed_user_ptr = ptr::null_mut();

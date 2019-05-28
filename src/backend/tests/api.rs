@@ -2542,12 +2542,6 @@ fn test_add_devices_changed_listener() {
                 NO_ERR
             );
 
-            // TODO: It doesn't work, but the return value is ok.
-            assert_eq!(
-                context.remove_devices_changed_listener(DeviceType::UNKNOWN),
-                NO_ERR
-            );
-
             if devtype.contains(DeviceType::INPUT) {
                 assert!(context.input_collection_changed_callback.is_some());
                 assert_eq!(
@@ -2680,7 +2674,6 @@ fn test_remove_devices_changed_listener() {
 fn test_remove_devices_changed_listener_without_adding_listeners() {
     test_get_locked_raw_context(|context| {
         for devtype in &[
-            DeviceType::UNKNOWN,
             DeviceType::INPUT,
             DeviceType::OUTPUT,
             DeviceType::INPUT | DeviceType::OUTPUT,
