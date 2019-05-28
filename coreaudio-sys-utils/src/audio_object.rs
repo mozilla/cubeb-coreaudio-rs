@@ -86,8 +86,12 @@ impl fmt::Display for PropertySelector {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use coreaudio_sys as sys;
         let s = match self.0 {
-            sys::kAudioHardwarePropertyDefaultOutputDevice => "kAudioHardwarePropertyDefaultOutputDevice",
-            sys::kAudioHardwarePropertyDefaultInputDevice => "kAudioHardwarePropertyDefaultInputDevice",
+            sys::kAudioHardwarePropertyDefaultOutputDevice => {
+                "kAudioHardwarePropertyDefaultOutputDevice"
+            }
+            sys::kAudioHardwarePropertyDefaultInputDevice => {
+                "kAudioHardwarePropertyDefaultInputDevice"
+            }
             sys::kAudioDevicePropertyDeviceIsAlive => "kAudioDevicePropertyDeviceIsAlive",
             sys::kAudioDevicePropertyDataSource => "kAudioDevicePropertyDataSource",
             _ => "Unknown",
