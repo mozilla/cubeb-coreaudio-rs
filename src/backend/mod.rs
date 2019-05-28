@@ -1090,13 +1090,13 @@ fn audiounit_create_blank_aggregate_device(
         CFRelease(aggregate_device_stacked_key as *const c_void);
 
         // This call will fire `audiounit_collection_changed_callback` indirectly!
-        r = AudioObjectGetPropertyData(
+        r = audio_object_get_property_data_with_qualifier(
             *plugin_id,
             &create_aggregate_device_address,
-            mem::size_of_val(&aggregate_device_dict) as u32,
-            &aggregate_device_dict as *const CFMutableDictionaryRef as *const c_void,
-            &mut size as *mut usize as *mut u32,
-            aggregate_device_id as *mut AudioDeviceID as *mut c_void,
+            mem::size_of_val(&aggregate_device_dict),
+            &aggregate_device_dict,
+            &mut size,
+            aggregate_device_id,
         );
         CFRelease(aggregate_device_dict as *const c_void);
         if r != NO_ERR {
@@ -1248,15 +1248,13 @@ fn audiounit_activate_clock_drift_compensation(aggregate_device_id: AudioDeviceI
     let qualifier_data = &class_id;
     let mut size: usize = 0;
 
-    let mut rv = unsafe {
-        AudioObjectGetPropertyDataSize(
-            aggregate_device_id,
-            &address_owned,
-            qualifier_data_size as u32,
-            qualifier_data as *const u32 as *const c_void,
-            &mut size as *mut usize as *mut u32,
-        )
-    };
+    let mut rv = audio_object_get_property_data_size_with_qualifier(
+        aggregate_device_id,
+        &address_owned,
+        qualifier_data_size,
+        qualifier_data,
+        &mut size,
+    );
 
     if rv != NO_ERR {
         cubeb_log!(
@@ -1274,16 +1272,14 @@ fn audiounit_activate_clock_drift_compensation(aggregate_device_id: AudioDeviceI
     let subdevices_num = size / mem::size_of::<AudioObjectID>();
     let mut sub_devices: Vec<AudioObjectID> = allocate_array(subdevices_num);
 
-    rv = unsafe {
-        AudioObjectGetPropertyData(
-            aggregate_device_id,
-            &address_owned,
-            qualifier_data_size as u32,
-            qualifier_data as *const u32 as *const c_void,
-            &mut size as *mut usize as *mut u32,
-            sub_devices.as_mut_ptr() as *mut c_void,
-        )
-    };
+    rv = audio_object_get_property_data_with_qualifier(
+        aggregate_device_id,
+        &address_owned,
+        qualifier_data_size,
+        qualifier_data,
+        &mut size,
+        sub_devices.as_mut_ptr(),
+    );
 
     if rv != NO_ERR {
         cubeb_log!(

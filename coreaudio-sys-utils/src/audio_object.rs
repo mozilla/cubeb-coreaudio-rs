@@ -25,12 +25,50 @@ pub fn audio_object_get_property_data<T>(
     }
 }
 
+pub fn audio_object_get_property_data_with_qualifier<T, Q>(
+    id: AudioObjectID,
+    address: &AudioObjectPropertyAddress,
+    qualifier_size: usize,
+    qualifier_data: *const Q,
+    size: *mut usize,
+    data: *mut T,
+) -> OSStatus {
+    unsafe {
+        AudioObjectGetPropertyData(
+            id,
+            address,
+            qualifier_size as UInt32,
+            qualifier_data as *const c_void,
+            size as *mut UInt32,
+            data as *mut c_void,
+        )
+    }
+}
+
 pub fn audio_object_get_property_data_size(
     id: AudioObjectID,
     address: &AudioObjectPropertyAddress,
     size: *mut usize,
 ) -> OSStatus {
     unsafe { AudioObjectGetPropertyDataSize(id, address, 0, ptr::null(), size as *mut UInt32) }
+}
+
+pub fn audio_object_get_property_data_size_with_qualifier<Q>(
+    id: AudioObjectID,
+    address: &AudioObjectPropertyAddress,
+    qualifier_size: usize,
+    qualifier_data: *const Q,
+    size: *mut usize,
+) -> OSStatus {
+    unsafe {
+        AudioObjectGetPropertyDataSize(
+            id,
+            address,
+            qualifier_size as UInt32,
+            qualifier_data as *const c_void,
+            size as *mut UInt32,
+        )
+    }
 }
 
 pub fn audio_object_set_property_data<T>(
