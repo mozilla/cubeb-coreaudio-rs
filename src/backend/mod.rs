@@ -249,7 +249,7 @@ extern "C" fn audiounit_input_callback(
     assert!(!stm.input_unit.is_null());
     assert_eq!(bus, AU_IN_BUS);
 
-    if *stm.shutdown.get_mut() {
+    if stm.shutdown.load(Ordering::SeqCst) {
         cubeb_log!("({:p}) input shutdown", stm as *const AudioUnitStream);
         return NO_ERR;
     }
@@ -345,13 +345,13 @@ extern "C" fn audiounit_output_callback(
     let mut output_buffer = ptr::null_mut::<c_void>();
     let mut input_buffer = ptr::null_mut::<c_void>();
 
-    if *stm.shutdown.get_mut() {
+    if stm.shutdown.load(Ordering::SeqCst) {
         cubeb_log!("({:p}) output shutdown.", stm as *const AudioUnitStream);
         audiounit_make_silent(&mut buffers[0]);
         return NO_ERR;
     }
 
-    if *stm.draining.get_mut() {
+    if stm.draining.load(Ordering::SeqCst) {
         assert_eq!(audio_output_unit_stop(stm.output_unit), NO_ERR);
         if !stm.input_unit.is_null() {
             assert_eq!(audio_output_unit_stop(stm.input_unit), NO_ERR);
@@ -410,7 +410,7 @@ extern "C" fn audiounit_output_callback(
                 stm_ptr,
                 if stm.frames_read.load(atomic::Ordering::SeqCst) == 0 {
                     "Input hasn't started,"
-                } else if *stm.switching_device.get_mut() {
+                } else if stm.switching_device.load(Ordering::SeqCst) {
                     "Device switching,"
                 } else {
                     "Drop out,"
@@ -482,7 +482,7 @@ extern "C" fn audiounit_output_callback(
     };
 
     // Post process output samples.
-    if *stm.draining.get_mut() {
+    if stm.draining.load(Ordering::SeqCst) {
         // Clear missing frames (silence)
         let count_bytes = |frames: usize| -> usize {
             let sample_size = cubeb_sample_size(stm.output_stream_params.format());
@@ -551,7 +551,7 @@ extern "C" fn audiounit_property_listener_callback(
     let stm = unsafe { &mut *(user as *mut AudioUnitStream) };
     let addrs = unsafe { slice::from_raw_parts(addresses, address_count as usize) };
     let property_selector = PropertySelector::new(addrs[0].mSelector);
-    if *stm.switching_device.get_mut() {
+    if stm.switching_device.load(Ordering::SeqCst) {
         cubeb_log!(
             "Switching is already taking place. Skip Event {} for id={}",
             property_selector,
@@ -2880,7 +2880,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             (self.input_unit.is_null() || flags.contains(device_flags::DEV_INPUT))
                 && (self.output_unit.is_null() || flags.contains(device_flags::DEV_OUTPUT))
         );
-        if !*self.shutdown.get_mut() {
+        if !self.shutdown.load(Ordering::SeqCst) {
             self.stop_internal();
         }
 
@@ -2960,7 +2960,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             }
 
             // If the stream was running, start it again.
-            if !*self.shutdown.get_mut() {
+            if !self.shutdown.load(Ordering::SeqCst) {
                 self.start_internal()?;
             }
         }
@@ -2986,7 +2986,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
         async_dispatch(queue, move || {
             let mut stm_guard = also_mutexed_stm.lock().unwrap();
             let stm_ptr = *stm_guard as *const AudioUnitStream;
-            if *stm_guard.destroy_pending.get_mut() {
+            if stm_guard.destroy_pending.load(Ordering::SeqCst) {
                 cubeb_log!(
                     "({:p}) stream pending destroy, cancelling reinit task",
                     stm_ptr
@@ -3578,7 +3578,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
         let mut count: u32 = 0;
         let duration = time::Duration::from_millis(100); // 0.1 sec
 
-        while !*self.buffer_size_change_state.get_mut() && count < 30 {
+        while !self.buffer_size_change_state.load(Ordering::SeqCst) && count < 30 {
             count += 1;
             thread::sleep(duration);
             cubeb_log!(
@@ -3603,7 +3603,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             return Err(Error::error());
         }
 
-        if !*self.buffer_size_change_state.get_mut() && count >= 30 {
+        if !self.buffer_size_change_state.load(Ordering::SeqCst) && count >= 30 {
             cubeb_log!(
                 "({:p}) Error, did not get buffer size change callback ...",
                 self as *const AudioUnitStream
