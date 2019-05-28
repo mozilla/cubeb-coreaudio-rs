@@ -4271,13 +4271,13 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         Err(Error::not_supported())
     }
     fn position(&mut self) -> Result<u64> {
-        let position = if u64::from(self.current_latency_frames.load(atomic::Ordering::SeqCst))
-            > self.frames_played.load(atomic::Ordering::SeqCst)
-        {
+        let current_latency_frames =
+            u64::from(self.current_latency_frames.load(atomic::Ordering::SeqCst));
+        let frames_played = self.frames_played.load(atomic::Ordering::SeqCst);
+        let position = if current_latency_frames > frames_played {
             0
         } else {
-            self.frames_played.load(atomic::Ordering::SeqCst)
-                - u64::from(self.current_latency_frames.load(atomic::Ordering::SeqCst))
+            frames_played - current_latency_frames
         };
         Ok(position)
     }
