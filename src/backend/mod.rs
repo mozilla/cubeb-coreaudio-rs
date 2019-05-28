@@ -19,6 +19,7 @@ use self::auto_release::*;
 use self::coreaudio_sys_utils::aggregate_device::*;
 use self::coreaudio_sys_utils::audio_object::*;
 use self::coreaudio_sys_utils::audio_unit::*;
+use self::coreaudio_sys_utils::cf_mutable_dict::*;
 use self::coreaudio_sys_utils::dispatch::*;
 use self::coreaudio_sys_utils::string::*;
 use self::coreaudio_sys_utils::sys::*;
@@ -1031,12 +1032,8 @@ fn audiounit_create_blank_aggregate_device(
     assert_ne!(size, 0);
 
     unsafe {
-        let aggregate_device_dict = CFDictionaryCreateMutable(
-            kCFAllocatorDefault,
-            0,
-            &kCFTypeDictionaryKeyCallBacks,
-            &kCFTypeDictionaryValueCallBacks,
-        );
+        let aggregate_device_dict = CFMutableDictRef::default();
+
         let mut timestamp = libc::timeval {
             tv_sec: 0,
             tv_usec: 0,
@@ -1046,20 +1043,18 @@ fn audiounit_create_blank_aggregate_device(
 
         let device_name_string = format!("{}_{}", PRIVATE_AGGREGATE_DEVICE_NAME, time_id);
         let aggregate_device_name = cfstringref_from_string(&device_name_string);
-        CFDictionaryAddValue(
-            aggregate_device_dict,
-            cfstringref_from_static_string(AGGREGATE_DEVICE_NAME_KEY) as *const c_void,
-            aggregate_device_name as *const c_void,
+        aggregate_device_dict.add_value(
+            cfstringref_from_static_string(AGGREGATE_DEVICE_NAME_KEY),
+            aggregate_device_name,
         );
         CFRelease(aggregate_device_name as *const c_void);
 
         let device_uid_string =
             format!("org.mozilla.{}_{}", PRIVATE_AGGREGATE_DEVICE_NAME, time_id);
         let aggregate_device_uid = cfstringref_from_string(&device_uid_string);
-        CFDictionaryAddValue(
-            aggregate_device_dict,
-            cfstringref_from_static_string(AGGREGATE_DEVICE_UID_KEY) as *const c_void,
-            aggregate_device_uid as *const c_void,
+        aggregate_device_dict.add_value(
+            cfstringref_from_static_string(AGGREGATE_DEVICE_UID_KEY),
+            aggregate_device_uid,
         );
         CFRelease(aggregate_device_uid as *const c_void);
 
@@ -1069,10 +1064,9 @@ fn audiounit_create_blank_aggregate_device(
             i64::from(kCFNumberIntType),
             &private_value as *const i32 as *const c_void,
         );
-        CFDictionaryAddValue(
-            aggregate_device_dict,
-            cfstringref_from_static_string(AGGREGATE_DEVICE_PRIVATE_KEY) as *const c_void,
-            aggregate_device_private_key as *const c_void,
+        aggregate_device_dict.add_value(
+            cfstringref_from_static_string(AGGREGATE_DEVICE_PRIVATE_KEY),
+            aggregate_device_private_key,
         );
         CFRelease(aggregate_device_private_key as *const c_void);
 
@@ -1082,10 +1076,9 @@ fn audiounit_create_blank_aggregate_device(
             i64::from(kCFNumberIntType),
             &stacked_value as *const i32 as *const c_void,
         );
-        CFDictionaryAddValue(
-            aggregate_device_dict,
-            cfstringref_from_static_string(AGGREGATE_DEVICE_STACKED_KEY) as *const c_void,
-            aggregate_device_stacked_key as *const c_void,
+        aggregate_device_dict.add_value(
+            cfstringref_from_static_string(AGGREGATE_DEVICE_STACKED_KEY),
+            aggregate_device_stacked_key,
         );
         CFRelease(aggregate_device_stacked_key as *const c_void);
 
@@ -1098,7 +1091,6 @@ fn audiounit_create_blank_aggregate_device(
             &mut size,
             aggregate_device_id,
         );
-        CFRelease(aggregate_device_dict as *const c_void);
         if r != NO_ERR {
             cubeb_log!(
                 "AudioObjectGetPropertyData/kAudioPlugInCreateAggregateDevice, rv={}",
