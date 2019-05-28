@@ -35,7 +35,11 @@
 - Check if we need `AudioDeviceID` and `AudioObjectID` at the same time
 - Create wrapper for `AudioObjectGetPropertyData(Size)` with _qualifier_ info
 - Create wrapper for `CF` related types
-- Create wrapper for `CF` related APIs like `CFDictionnaryAddValue`
+- Create wrapper struct for `AudioObjectId`
+    - Add `get_data`, `get_data_size`, `set_data`
+- Create wrapper struct for `AudioUnit`
+    - Implement `get_data`, `set_data`
+
 
 ## Interface to other module
 - Create a binding layer for the `resampler`
