@@ -39,7 +39,7 @@ use std::mem;
 use std::os::raw::{c_char, c_void};
 use std::ptr;
 use std::slice;
-use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -2573,7 +2573,7 @@ struct AudioUnitStream<'ctx> {
     destroy_pending: AtomicBool,
     // Latency requested by the user.
     latency_frames: u32,
-    current_latency_frames: atomic::Atomic<u32>,
+    current_latency_frames: AtomicU32,
     panning: atomic::Atomic<f32>,
     resampler: AutoRelease<ffi::cubeb_resampler>,
     // This is true if a device change callback is currently running.
@@ -2644,7 +2644,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             reinit_pending: AtomicBool::new(false),
             destroy_pending: AtomicBool::new(false),
             latency_frames,
-            current_latency_frames: atomic::Atomic::new(0),
+            current_latency_frames: AtomicU32::new(0),
             panning: atomic::Atomic::new(0.0_f32),
             resampler: AutoRelease::new(ptr::null_mut(), ffi::cubeb_resampler_destroy),
             switching_device: AtomicBool::new(false),
@@ -4051,7 +4051,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
                     self.output_device.id,
                     kAudioDevicePropertyScopeOutput,
                 ),
-                atomic::Ordering::SeqCst,
+                Ordering::SeqCst,
             );
 
             let mut unit_s: f64 = 0.0;
@@ -4067,7 +4067,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             {
                 self.current_latency_frames.fetch_add(
                     (unit_s * self.output_desc.mSampleRate) as u32,
-                    atomic::Ordering::SeqCst,
+                    Ordering::SeqCst,
                 );
             }
         }
@@ -4270,8 +4270,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         Err(Error::not_supported())
     }
     fn position(&mut self) -> Result<u64> {
-        let current_latency_frames =
-            u64::from(self.current_latency_frames.load(atomic::Ordering::SeqCst));
+        let current_latency_frames = u64::from(self.current_latency_frames.load(Ordering::SeqCst));
         let frames_played = self.frames_played.load(Ordering::SeqCst);
         let position = if current_latency_frames > frames_played {
             0
@@ -4286,7 +4285,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     }
     #[cfg(not(target_os = "ios"))]
     fn latency(&mut self) -> Result<u32> {
-        Ok(self.current_latency_frames.load(atomic::Ordering::SeqCst))
+        Ok(self.current_latency_frames.load(Ordering::SeqCst))
     }
     fn set_volume(&mut self, volume: f32) -> Result<()> {
         assert!(!self.output_unit.is_null());
