@@ -38,45 +38,34 @@ use std::mem;
 use std::os::raw::{c_char, c_void};
 use std::ptr;
 use std::slice;
-// Replace Atomic{I64, U32, U64} by Atomic<{i64, u32, u64}> for now so
-// this can be compiled with the stable rustc.
-use std::sync::atomic::{AtomicBool, /*AtomicI64, AtomicU32, AtomicU64,*/ Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-
-// TODO:
-// 1. We use AudioDeviceID and AudioObjectID at the same time.
-//    They are actually same. Maybe it's better to use only one
-//    of them so code reader don't get confused about their types.
-// 2. Maybe we can merge `io_side` and `DeviceType`.
 
 const NO_ERR: OSStatus = 0;
 
 const AU_OUT_BUS: AudioUnitElement = 0;
 const AU_IN_BUS: AudioUnitElement = 1;
 
-// Constants have by default a `'static` lifetime
 const DISPATCH_QUEUE_LABEL: &str = "org.mozilla.cubeb";
 const PRIVATE_AGGREGATE_DEVICE_NAME: &str = "CubebAggregateDevice";
 
-/* Testing empirically, some headsets report a minimal latency that is very
- * low, but this does not work in practice. Lie and say the minimum is 256
- * frames. */
+// Testing empirically, some headsets report a minimal latency that is very low,
+// but this does not work in practice. Lie and say the minimum is 256 frames.
 const SAFE_MIN_LATENCY_FRAMES: u32 = 256;
 const SAFE_MAX_LATENCY_FRAMES: u32 = 512;
 
 bitflags! {
     #[allow(non_camel_case_types)]
     struct device_flags: u32 {
-        const DEV_UNKNOWN           = 0b0000_0000; /* Unknown */
-        const DEV_INPUT             = 0b0000_0001; /* Record device like mic */
-        const DEV_OUTPUT            = 0b0000_0010; /* Playback device like speakers */
-        const DEV_SYSTEM_DEFAULT    = 0b0000_0100; /* System default device */
-        const DEV_SELECTED_DEFAULT  = 0b0000_1000; /* User selected to use the system default device */
+        const DEV_UNKNOWN           = 0b0000_0000; // Unknown
+        const DEV_INPUT             = 0b0000_0001; // Record device like mic
+        const DEV_OUTPUT            = 0b0000_0010; // Playback device like speakers
+        const DEV_SYSTEM_DEFAULT    = 0b0000_0100; // System default device
+        const DEV_SELECTED_DEFAULT  = 0b0000_1000; // User selected to use the system default device
     }
 }
 
 #[allow(non_camel_case_types)]
-// TODO: Consider replacing it by DeviceType.
 #[derive(Debug, PartialEq)]
 enum io_side {
     INPUT,
@@ -275,8 +264,8 @@ extern "C" fn audiounit_input_callback(
         return NO_ERR;
     }
 
-    /* Input only. Call the user callback through resampler.
-     * Resampler will deliver input buffer in the correct rate. */
+    // Input only. Call the user callback through resampler.
+    // Resampler will deliver input buffer in the correct rate.
     assert!(
         input_frames as usize
             <= stm.input_linear_buffer.as_ref().unwrap().elements()
@@ -380,7 +369,7 @@ extern "C" fn audiounit_output_callback(
         return NO_ERR;
     }
 
-    /* Get output buffer. */
+    // Get output buffer
     if stm.mixer.as_mut_ptr().is_null() {
         output_buffer = buffers[0].mData;
     } else {
@@ -399,13 +388,13 @@ extern "C" fn audiounit_output_callback(
     stm.frames_written
         .fetch_add(i64::from(output_frames), atomic::Ordering::SeqCst);
 
-    /* If Full duplex get also input buffer */
+    // If Full duplex get also input buffer
     if !stm.input_unit.is_null() {
-        /* If the output callback came first and this is a duplex stream, we need to
-         * fill in some additional silence in the resampler.
-         * Otherwise, if we had more than expected callbacks in a row, or we're
-         * currently switching, we add some silence as well to compensate for the
-         * fact that we're lacking some input data. */
+        // If the output callback came first and this is a duplex stream, we need to
+        // fill in some additional silence in the resampler.
+        // Otherwise, if we had more than expected callbacks in a row, or we're
+        // currently switching, we add some silence as well to compensate for the
+        // fact that we're lacking some input data.
         let frames_written = stm.frames_written.load(atomic::Ordering::SeqCst);
         let input_frames_needed = stm.minimum_resampling_input_frames(frames_written);
         let missing_frames = input_frames_needed - stm.frames_read.load(atomic::Ordering::SeqCst);
@@ -437,7 +426,7 @@ extern "C" fn audiounit_output_callback(
             / stm.input_desc.mChannelsPerFrame as usize) as i64;
     }
 
-    /* Call user callback through resampler. */
+    // Call user callback through resampler.
     assert!(!output_buffer.is_null());
     let outframes = unsafe {
         ffi::cubeb_resampler_fill(
@@ -492,9 +481,9 @@ extern "C" fn audiounit_output_callback(
         0.0
     };
 
-    /* Post process output samples. */
+    // Post process output samples.
     if *stm.draining.get_mut() {
-        /* Clear missing frames (silence) */
+        // Clear missing frames (silence)
         let count_bytes = |frames: usize| -> usize {
             let sample_size = cubeb_sample_size(stm.output_stream_params.format());
             frames * sample_size / mem::size_of::<u8>()
@@ -511,9 +500,9 @@ extern "C" fn audiounit_output_callback(
         }
     }
 
-    /* Mixing */
+    // Mixing
     if stm.mixer.as_mut_ptr().is_null() {
-        /* Pan stereo. */
+        // Pan stereo.
         if panning != 0.0 {
             unsafe {
                 if outaff & kAudioFormatFlagIsFloat != 0 {
@@ -666,7 +655,7 @@ fn audiounit_get_acceptable_latency_range() -> Result<AudioValueRange> {
         return Err(Error::error());
     }
 
-    /* Get the buffer size range this device supports */
+    // Get the buffer size range this device supports
     let mut range = AudioValueRange::default();
     let mut size = mem::size_of::<AudioValueRange>();
     let r = audio_object_get_property_data(
@@ -827,9 +816,6 @@ fn audio_stream_desc_init(
     ss: &mut AudioStreamBasicDescription,
     stream_params: &StreamParams,
 ) -> Result<()> {
-    // TODO:
-    //   1. Apply more strict checkings. e.g., min rate should be 44100.
-    //   2. C version doesn't check anything. Update it!
     assert!(stream_params.rate() > 0);
     assert!(stream_params.channels() > 0);
 
@@ -1175,13 +1161,8 @@ fn audiounit_set_aggregate_sub_device_list(
     unsafe {
         let aggregate_sub_devices_array =
             CFArrayCreateMutable(ptr::null(), 0, &kCFTypeArrayCallBacks);
-        /* The order of the items in the array is significant and is used to determine the order of the streams
-         * of the AudioAggregateDevice. */
-        // TODO: We will add duplicate devices into the array if there are
-        //       common devices in output_sub_devices and input_sub_devices!
-        //       (if they are same device or
-        //        if either one of them or both of them are aggregate devices)
-        //       Should we remove the duplicate devices ?
+        // The order of the items in the array is significant and is used to determine the order of the streams
+        // of the AudioAggregateDevice.
         for device in output_sub_devices {
             let strref = get_device_name(device);
             if strref.is_null() {
@@ -1242,13 +1223,6 @@ fn audiounit_set_master_aggregate_device(aggregate_device_id: AudioDeviceID) -> 
     let output_sub_devices = audiounit_get_sub_devices(output_device_id);
     assert!(!output_sub_devices.is_empty());
     let master_sub_device = get_device_name(output_sub_devices[0]);
-    // TODO: Check if output_sub_devices[0] is in the sub devices list of
-    //       the aggregate device ?
-    // TODO: Check if this is a NULL CFStringRef ?
-    // assert!(!master_sub_device.is_null());
-
-    // NOTE: It's ok if this device is not in the sub devices list,
-    //       even if the CFStringRef is a NULL CFStringRef!
     let size = mem::size_of::<CFStringRef>();
     let rv = audio_object_set_property_data(
         aggregate_device_id,
@@ -1566,14 +1540,12 @@ fn audiounit_create_unit(unit: &mut AudioUnit, device: &device_info) -> Result<(
     Ok(())
 }
 
-/*
- * Change buffer size is prone to deadlock thus we change it
- * following the steps:
- * - register a listener for the buffer size property
- * - change the property
- * - wait until the listener is executed
- * - property has changed, remove the listener
- * */
+// Change buffer size is prone to deadlock thus we change it
+// following the steps:
+// - register a listener for the buffer size property
+// - change the property
+// - wait until the listener is executed
+// - property has changed, remove the listener
 extern "C" fn buffer_size_changed_callback(
     in_client_data: *mut c_void,
     in_unit: AudioUnit,
@@ -1655,7 +1627,7 @@ fn audiounit_get_default_datasource(side: io_side) -> Result<(u32)> {
 
     let mut data: u32 = 0;
     let mut size = mem::size_of::<u32>();
-    /* This fails with some USB headsets (e.g., Plantronic .Audio 628). */
+    // This fails with some USB headsets (e.g., Plantronic .Audio 628).
     let r = audio_object_get_property_data(id, &address, &mut size, &mut data);
     if r != NO_ERR {
         data = 0;
@@ -1962,8 +1934,8 @@ fn audiounit_create_device_from_hwdev(
         dev_info.latency_lo = latency + range.mMinimum as u32;
         dev_info.latency_hi = latency + range.mMaximum as u32;
     } else {
-        dev_info.latency_lo = 10 * dev_info.default_rate / 1000; /* Default to 10ms */
-        dev_info.latency_hi = 100 * dev_info.default_rate / 1000; /* Default to 10ms */
+        dev_info.latency_lo = 10 * dev_info.default_rate / 1000; // Default to 10ms
+        dev_info.latency_hi = 100 * dev_info.default_rate / 1000; // Default to 10ms
     }
 
     Ok(())
@@ -2020,7 +1992,7 @@ fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID> {
     if ret != NO_ERR {
         return Vec::new();
     }
-    /* Total number of input and output devices. */
+    // Total number of input and output devices.
     let mut devices: Vec<AudioObjectID> = allocate_array_by_size(size);
     ret = audio_object_get_property_data(
         kAudioObjectSystemObject,
@@ -2047,7 +2019,7 @@ fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID> {
         }
     });
 
-    /* Expected sorted but did not find anything in the docs. */
+    // Expected sorted but did not find anything in the docs.
     devices.sort();
     if devtype.contains(DeviceType::INPUT | DeviceType::OUTPUT) {
         return devices;
@@ -2095,7 +2067,7 @@ extern "C" fn audiounit_collection_changed_callback(
         }
         if ctx_guard.input_collection_changed_callback.is_some() {
             let devices = audiounit_get_devices_of_type(DeviceType::INPUT);
-            /* Elements in the vector expected sorted. */
+            // Elements in the vector expected sorted.
             if ctx_guard.input_device_array != devices {
                 ctx_guard.input_device_array = devices;
                 unsafe {
@@ -2108,7 +2080,7 @@ extern "C" fn audiounit_collection_changed_callback(
         }
         if ctx_guard.output_collection_changed_callback.is_some() {
             let devices = audiounit_get_devices_of_type(DeviceType::OUTPUT);
-            /* Elements in the vector expected sorted. */
+            // Elements in the vector expected sorted.
             if ctx_guard.output_device_array != devices {
                 ctx_guard.output_device_array = devices;
                 unsafe {
@@ -2135,7 +2107,7 @@ pub const OPS: Ops = capi_new!(AudioUnitContext, AudioUnitStream);
 pub struct AudioUnitContext {
     _ops: *const Ops,
     mutex: OwnedCriticalSection,
-    active_streams: i32, // TODO: Shouldn't it be u32?
+    active_streams: i32,
     global_latency_frames: u32,
     input_collection_changed_callback: ffi::cubeb_device_collection_changed_callback,
     input_collection_changed_user_ptr: *mut c_void,
@@ -2206,8 +2178,8 @@ impl AudioUnitContext {
         assert!(devtype.intersects(DeviceType::INPUT | DeviceType::OUTPUT));
         assert!(collection_changed_callback.is_some());
 
-        /* Note: second register without unregister first causes 'nope' error.
-         * Current implementation requires unregister before register a new cb. */
+        // Note: second register without unregister first causes 'nope' error.
+        // Current implementation requires unregister before register a new cb.
         assert!(
             devtype.contains(DeviceType::INPUT) && self.input_collection_changed_callback.is_none()
                 || devtype.contains(DeviceType::OUTPUT)
@@ -2229,7 +2201,7 @@ impl AudioUnitContext {
         }
 
         if devtype.contains(DeviceType::INPUT) {
-            /* Expected empty after unregister. */
+            // Expected empty after unregister.
             assert!(self.input_device_array.is_empty());
             self.input_device_array = audiounit_get_devices_of_type(DeviceType::INPUT);
             self.input_collection_changed_callback = collection_changed_callback;
@@ -2237,7 +2209,7 @@ impl AudioUnitContext {
         }
 
         if devtype.contains(DeviceType::OUTPUT) {
-            /* Expected empty after unregister. */
+            // Expected empty after unregister.
             assert!(self.output_device_array.is_empty());
             self.output_device_array = audiounit_get_devices_of_type(DeviceType::OUTPUT);
             self.output_collection_changed_callback = collection_changed_callback;
@@ -2249,7 +2221,6 @@ impl AudioUnitContext {
 
     fn remove_devices_changed_listener(&mut self, devtype: DeviceType) -> OSStatus {
         self.mutex.assert_current_thread_owns();
-        // TODO: We should add an assertion here! (Sync with C verstion.)
         // assert!(devtype.intersects(DeviceType::INPUT | DeviceType::OUTPUT));
         if devtype.contains(DeviceType::INPUT) {
             self.input_collection_changed_callback = None;
@@ -2269,7 +2240,7 @@ impl AudioUnitContext {
             return NO_ERR;
         }
 
-        /* Note: unregister a non registered cb is not a problem, not checking. */
+        // Note: unregister a non registered cb is not a problem, not checking.
         audio_object_remove_property_listener(
             kAudioObjectSystemObject,
             &DEVICES_PROPERTY_ADDRESS,
@@ -2605,7 +2576,7 @@ impl Drop for AudioUnitContext {
             );
         }
 
-        /* Unregister the callback if necessary. */
+        // Unregister the callback if necessary.
         if self.input_collection_changed_callback.is_some() {
             self.remove_devices_changed_listener(DeviceType::INPUT);
         }
@@ -2633,28 +2604,27 @@ struct AudioUnitStream<'ctx> {
     state_callback: ffi::cubeb_state_callback,
     device_changed_callback: ffi::cubeb_device_changed_callback,
     device_changed_callback_lock: OwnedCriticalSection,
-    /* Stream creation parameters */
+    // Stream creation parameters
     input_stream_params: StreamParams,
     output_stream_params: StreamParams,
     input_device: device_info,
     output_device: device_info,
-    /* Format descriptions */
+    // Format descriptions
     input_desc: AudioStreamBasicDescription,
     output_desc: AudioStreamBasicDescription,
-    /* I/O AudioUnits */
+    // I/O AudioUnits
     input_unit: AudioUnit,
     output_unit: AudioUnit,
-    /* I/O device sample rate */
+    // I/O device sample rate
     input_hw_rate: f64,
     output_hw_rate: f64,
-    /* Expected I/O thread interleave,
-     * calculated from I/O hw rate. */
+    // Expected I/O thread interleave, calculated from I/O hw rate.
     expected_output_callbacks_in_a_row: i32,
     mutex: OwnedCriticalSection,
     // Hold the input samples in every input callback iteration.
     // Only accessed on input/output callback thread and during initial configure.
     input_linear_buffer: Option<Box<AutoArrayWrapper>>,
-    /* Frame counters */
+    // Frame counters
     frames_played: atomic::Atomic<u64>,
     frames_queued: u64,
     // How many frames got read from the input since the stream started (includes
@@ -2666,23 +2636,23 @@ struct AudioUnitStream<'ctx> {
     draining: AtomicBool,
     reinit_pending: AtomicBool,
     destroy_pending: AtomicBool,
-    /* Latency requested by the user. */
+    // Latency requested by the user.
     latency_frames: u32,
     current_latency_frames: atomic::Atomic<u32>,
     panning: atomic::Atomic<f32>,
     resampler: AutoRelease<ffi::cubeb_resampler>,
-    /* This is true if a device change callback is currently running.  */
+    // This is true if a device change callback is currently running.
     switching_device: AtomicBool,
     buffer_size_change_state: AtomicBool,
     aggregate_device_id: AudioDeviceID, // the aggregate device id
     plugin_id: AudioObjectID,           // used to create aggregate device
-    /* Mixer interface */
+    // Mixer interface
     mixer: AutoRelease<ffi::cubeb_mixer>,
-    /* Buffer where remixing/resampling will occur when upmixing is required */
-    /* Only accessed from callback thread */
+    // Buffer where remixing/resampling will occur when upmixing is required
+    // Only accessed from callback thread
     temp_buffer: Vec<u8>,
     temp_buffer_size: usize,
-    /* Listeners indicating what system events are monitored. */
+    // Listeners indicating what system events are monitored.
     default_input_listener: Option<device_property_listener>,
     default_output_listener: Option<device_property_listener>,
     input_alive_listener: Option<device_property_listener>,
@@ -2795,7 +2765,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
         bus: u32,
         input_frames: u32,
     ) -> OSStatus {
-        /* Create the AudioBufferList to store input. */
+        // Create the AudioBufferList to store input.
         let mut input_buffer_list = AudioBufferList::default();
         input_buffer_list.mBuffers[0].mDataByteSize = self.input_desc.mBytesPerFrame * input_frames;
         input_buffer_list.mBuffers[0].mData = ptr::null_mut();
@@ -2834,14 +2804,14 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 .unwrap()
                 .push_zeros((input_frames * self.input_desc.mChannelsPerFrame) as usize);
         } else {
-            /* Copy input data in linear buffer. */
+            // Copy input data in linear buffer.
             self.input_linear_buffer.as_mut().unwrap().push(
                 input_buffer_list.mBuffers[0].mData,
                 (input_frames * self.input_desc.mChannelsPerFrame) as usize,
             );
         }
 
-        /* Advance input frame counter. */
+        // Advance input frame counter.
         assert!(input_frames > 0);
         self.frames_read
             .fetch_add(i64::from(input_frames), atomic::Ordering::SeqCst);
@@ -2972,12 +2942,12 @@ impl<'ctx> AudioUnitStream<'ctx> {
 
             self.close();
 
-            /* Reinit occurs in one of the following case:
-             * - When the device is not alive any more
-             * - When the default system device change.
-             * - The bluetooth device changed from A2DP to/from HFP/HSP profile
-             * We first attempt to re-use the same device id, should that fail we will
-             * default to the (potentially new) default device. */
+            // Reinit occurs in one of the following case:
+            // - When the device is not alive any more
+            // - When the default system device change.
+            // - The bluetooth device changed from A2DP to/from HFP/HSP profile
+            // We first attempt to re-use the same device id, should that fail we will
+            // default to the (potentially new) default device.
             let input_device = if flags.contains(device_flags::DEV_INPUT) {
                 self.input_device.id
             } else {
@@ -2991,9 +2961,9 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 return Err(Error::error());
             }
 
-            /* Always use the default output on reinit. This is not correct in every
-             * case but it is sufficient for Firefox and prevent reinit from reporting
-             * failures. It will change soon when reinit mechanism will be updated. */
+            // Always use the default output on reinit. This is not correct in every
+            // case but it is sufficient for Firefox and prevent reinit from reporting
+            // failures. It will change soon when reinit mechanism will be updated.
             if self
                 .set_device_info(kAudioObjectUnknown, io_side::OUTPUT)
                 .is_err()
@@ -3095,9 +3065,9 @@ impl<'ctx> AudioUnitStream<'ctx> {
         let mut r = Ok(());
 
         if !self.output_unit.is_null() {
-            /* This event will notify us when the data source on the same device changes,
-             * for example when the user plugs in a normal (non-usb) headset in the
-             * headphone jack. */
+            // This event will notify us when the data source on the same device changes,
+            // for example when the user plugs in a normal (non-usb) headset in the
+            // headphone jack.
             assert_ne!(self.output_device.id, kAudioObjectUnknown);
             assert_ne!(self.output_device.id, kAudioObjectSystemObject);
 
@@ -3115,7 +3085,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
         }
 
         if !self.input_unit.is_null() {
-            /* This event will notify us when the data source on the input device changes. */
+            // This event will notify us when the data source on the input device changes.
             assert_ne!(self.input_device.id, kAudioObjectUnknown);
             assert_ne!(self.input_device.id, kAudioObjectSystemObject);
 
@@ -3131,7 +3101,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 r = Err(Error::error());
             }
 
-            /* Event to notify when the input is going away. */
+            // Event to notify when the input is going away.
             self.input_alive_listener = Some(device_property_listener::new(
                 self.input_device.id,
                 &DEVICE_IS_ALIVE_PROPERTY_ADDRESS,
@@ -3152,10 +3122,10 @@ impl<'ctx> AudioUnitStream<'ctx> {
         let mut r = NO_ERR;
 
         if !self.output_unit.is_null() {
-            /* This event will notify us when the default audio device changes,
-             * for example when the user plugs in a USB headset and the system chooses it
-             * automatically as the default, or when another device is chosen in the
-             * dropdown list. */
+            // This event will notify us when the default audio device changes,
+            // for example when the user plugs in a USB headset and the system chooses it
+            // automatically as the default, or when another device is chosen in the
+            // dropdown list.
             self.default_output_listener = Some(device_property_listener::new(
                 kAudioObjectSystemObject,
                 &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
@@ -3170,7 +3140,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
         }
 
         if !self.input_unit.is_null() {
-            /* This event will notify us when the default input device changes. */
+            // This event will notify us when the default input device changes.
             self.default_input_listener = Some(device_property_listener::new(
                 kAudioObjectSystemObject,
                 &DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS,
@@ -3381,25 +3351,23 @@ impl<'ctx> AudioUnitStream<'ctx> {
         audiounit_device_destroy(&mut output_device_info);
     }
 
-    /*
-     * Aggregate Device is a virtual audio interface which utilizes inputs and outputs
-     * of one or more physical audio interfaces. It is possible to use the clock of
-     * one of the devices as a master clock for all the combined devices and enable
-     * drift compensation for the devices that are not designated clock master.
-     *
-     * Creating a new aggregate device programmatically requires [0][1]:
-     * 1. Locate the base plug-in ("com.apple.audio.CoreAudio")
-     * 2. Create a dictionary that describes the aggregate device
-     *    (don't add sub-devices in that step, prone to fail [0])
-     * 3. Ask the base plug-in to create the aggregate device (blank)
-     * 4. Add the array of sub-devices.
-     * 5. Set the master device (1st output device in our case)
-     * 6. Enable drift compensation for the non-master devices
-     *
-     * [0] https://lists.apple.com/archives/coreaudio-api/2006/Apr/msg00092.html
-     * [1] https://lists.apple.com/archives/coreaudio-api/2005/Jul/msg00150.html
-     * [2] CoreAudio.framework/Headers/AudioHardware.h
-     * */
+    // Aggregate Device is a virtual audio interface which utilizes inputs and outputs
+    // of one or more physical audio interfaces. It is possible to use the clock of
+    // one of the devices as a master clock for all the combined devices and enable
+    // drift compensation for the devices that are not designated clock master.
+    //
+    // Creating a new aggregate device programmatically requires [0][1]:
+    // 1. Locate the base plug-in ("com.apple.audio.CoreAudio")
+    // 2. Create a dictionary that describes the aggregate device
+    //    (don't add sub-devices in that step, prone to fail [0])
+    // 3. Ask the base plug-in to create the aggregate device (blank)
+    // 4. Add the array of sub-devices.
+    // 5. Set the master device (1st output device in our case)
+    // 6. Enable drift compensation for the non-master devices
+    //
+    // [0] https://lists.apple.com/archives/coreaudio-api/2006/Apr/msg00092.html
+    // [1] https://lists.apple.com/archives/coreaudio-api/2005/Jul/msg00150.html
+    // [2] CoreAudio.framework/Headers/AudioHardware.h
     fn create_aggregate_device(&mut self) -> Result<()> {
         if let Err(r) = audiounit_create_blank_aggregate_device(
             &mut self.plugin_id,
@@ -3715,7 +3683,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             self.latency_frames
         );
 
-        /* Get input device sample rate. */
+        // Get input device sample rate.
         let mut input_hw_desc = AudioStreamBasicDescription::default();
         size = mem::size_of::<AudioStreamBasicDescription>();
         r = audio_unit_get_property(
@@ -3740,7 +3708,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             input_hw_desc
         );
 
-        /* Set format description according to the input params. */
+        // Set format description according to the input params.
         if let Err(r) = audio_stream_desc_init(&mut self.input_desc, &self.input_stream_params) {
             cubeb_log!(
                 "({:p}) Setting format description for input failed.",
@@ -3761,8 +3729,8 @@ impl<'ctx> AudioUnitStream<'ctx> {
         }
 
         let mut src_desc = self.input_desc;
-        /* Input AudioUnit must be configured with device's sample rate.
-         * we will resample inside input callback. */
+        // Input AudioUnit must be configured with device's sample rate.
+        // we will resample inside input callback.
         src_desc.mSampleRate = self.input_hw_rate;
 
         r = audio_unit_set_property(
@@ -3781,7 +3749,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             return Err(Error::error());
         }
 
-        /* Frames per buffer in the input callback. */
+        // Frames per buffer in the input callback.
         r = audio_unit_set_property(
             self.input_unit,
             kAudioUnitProperty_MaximumFramesPerSlice,
@@ -3863,7 +3831,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             return Err(r);
         }
 
-        /* Get output device sample rate. */
+        // Get output device sample rate.
         let mut output_hw_desc = AudioStreamBasicDescription::default();
         size = mem::size_of::<AudioStreamBasicDescription>();
         r = audio_unit_get_property(
@@ -3941,7 +3909,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             return Err(r);
         }
 
-        /* Frames per buffer in the input callback. */
+        // Frames per buffer in the input callback.
         r = audio_unit_set_property(
             self.output_unit,
             kAudioUnitProperty_MaximumFramesPerSlice,
@@ -4049,8 +4017,8 @@ impl<'ctx> AudioUnitStream<'ctx> {
             }
         }
 
-        /* Latency cannot change if another stream is operating in parallel. In this case
-         * latency is set to the other stream value. */
+        // Latency cannot change if another stream is operating in parallel. In this case
+        // latency is set to the other stream value.
         if self.context.active_streams() > 1 {
             cubeb_log!(
                 "({:p}) More than one active stream, use global latency.",
@@ -4058,16 +4026,15 @@ impl<'ctx> AudioUnitStream<'ctx> {
             );
             self.latency_frames = self.context.global_latency_frames;
         } else {
-            /* Silently clamp the latency down to the platform default, because we
-             * synthetize the clock from the callbacks, and we want the clock to update
-             * often. */
+            // Silently clamp the latency down to the platform default, because we
+            // synthetize the clock from the callbacks, and we want the clock to update often.
             let latency_frames = self.latency_frames;
             self.latency_frames = self.clamp_latency(latency_frames);
             assert!(self.latency_frames > 0); // Ugly error check
             self.context.set_global_latency(self.latency_frames);
         }
 
-        /* Configure I/O stream */
+        // Configure I/O stream
         if self.has_input() {
             if let Err(r) = self.configure_input() {
                 cubeb_log!(
@@ -4088,10 +4055,10 @@ impl<'ctx> AudioUnitStream<'ctx> {
             }
         }
 
-        /* We use a resampler because input AudioUnit operates
-         * reliable only in the capture device sample rate.
-         * Resampler will convert it to the user sample rate
-         * and deliver it to the callback. */
+        // We use a resampler because input AudioUnit operates
+        // reliable only in the capture device sample rate.
+        // Resampler will convert it to the user sample rate
+        // and deliver it to the callback.
         let target_sample_rate = if self.has_input() {
             self.input_stream_params.rate()
         } else {
@@ -4463,8 +4430,8 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         device_changed_callback: ffi::cubeb_device_changed_callback,
     ) -> Result<()> {
         let _dev_cb_lock = AutoLock::new(&mut self.device_changed_callback_lock);
-        /* Note: second register without unregister first causes 'nope' error.
-         * Current implementation requires unregister before register a new cb. */
+        // Note: second register without unregister first causes 'nope' error.
+        // Current implementation requires unregister before register a new cb.
         assert!(device_changed_callback.is_none() || self.device_changed_callback.is_none());
         self.device_changed_callback = device_changed_callback;
         Ok(())
