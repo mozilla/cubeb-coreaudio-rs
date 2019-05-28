@@ -2362,7 +2362,7 @@ impl ContextOps for AudioUnitContext {
 
         let coll = unsafe { &mut *collection.as_ptr() };
         if count > 0 {
-            let (ptr, len) = leak_vec(devices);
+            let (ptr, len) = forget_vec(devices);
             coll.device = ptr;
             coll.count = len;
         } else {
@@ -2380,7 +2380,7 @@ impl ContextOps for AudioUnitContext {
         }
 
         // Retake the ownership of the previous leaked memory from the external code.
-        let mut devices = retake_leaked_vec(coll.device, coll.count);
+        let mut devices = retake_forgotten_vec(coll.device, coll.count);
         for device in &mut devices {
             // This should be mapped to the memory allocation in audiounit_create_device_from_hwdev.
             audiounit_device_destroy(device);

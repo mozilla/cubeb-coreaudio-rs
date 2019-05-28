@@ -19,7 +19,7 @@ pub fn allocate_array<T>(elements: usize) -> Vec<T> {
     array
 }
 
-pub fn leak_vec<T>(v: Vec<T>) -> (*mut T, usize) {
+pub fn forget_vec<T>(v: Vec<T>) -> (*mut T, usize) {
     // Drop any excess capacity by into_boxed_slice.
     let mut slice = v.into_boxed_slice();
     let ptr_and_len = (slice.as_mut_ptr(), slice.len());
@@ -28,7 +28,7 @@ pub fn leak_vec<T>(v: Vec<T>) -> (*mut T, usize) {
 }
 
 #[inline]
-pub fn retake_leaked_vec<T>(ptr: *mut T, len: usize) -> Vec<T> {
+pub fn retake_forgotten_vec<T>(ptr: *mut T, len: usize) -> Vec<T> {
     unsafe { Vec::from_raw_parts(ptr, len, len) }
 }
 
@@ -40,11 +40,11 @@ pub fn cubeb_sample_size(format: fmt) -> usize {
 }
 
 #[test]
-fn test_leak_vec_and_retake_it() {
+fn test_forget_vec_and_retake_it() {
     let expected: Vec<u32> = (10..20).collect();
     let leaked = expected.clone();
-    let (ptr, len) = leak_vec(leaked);
-    let retaken = retake_leaked_vec(ptr, len);
+    let (ptr, len) = forget_vec(leaked);
+    let retaken = retake_forgotten_vec(ptr, len);
     for (idx, data) in retaken.iter().enumerate() {
         assert_eq!(*data, expected[idx]);
     }
