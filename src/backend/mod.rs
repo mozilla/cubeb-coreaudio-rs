@@ -39,7 +39,7 @@ use std::mem;
 use std::os::raw::{c_char, c_void};
 use std::ptr;
 use std::slice;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -2561,7 +2561,7 @@ struct AudioUnitStream<'ctx> {
     // Only accessed on input/output callback thread and during initial configure.
     input_linear_buffer: Option<Box<AutoArrayWrapper>>,
     // Frame counters
-    frames_played: atomic::Atomic<u64>,
+    frames_played: AtomicU64,
     frames_queued: u64,
     // How many frames got read from the input since the stream started (includes
     // padded silence)
@@ -2636,7 +2636,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             expected_output_callbacks_in_a_row: 0,
             mutex: OwnedCriticalSection::new(),
             input_linear_buffer: None,
-            frames_played: atomic::Atomic::new(0),
+            frames_played: AtomicU64::new(0),
             frames_queued: 0,
             frames_read: atomic::Atomic::new(0),
             frames_written: atomic::Atomic::new(0),
@@ -4273,7 +4273,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     fn position(&mut self) -> Result<u64> {
         let current_latency_frames =
             u64::from(self.current_latency_frames.load(atomic::Ordering::SeqCst));
-        let frames_played = self.frames_played.load(atomic::Ordering::SeqCst);
+        let frames_played = self.frames_played.load(Ordering::SeqCst);
         let position = if current_latency_frames > frames_played {
             0
         } else {
