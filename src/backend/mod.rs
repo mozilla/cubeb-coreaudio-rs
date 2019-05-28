@@ -1794,7 +1794,6 @@ fn audiounit_create_device_from_hwdev(
     let mut ret = audio_object_get_property_data(devid, &adr, &mut size, &mut device_id_str);
     if ret == NO_ERR && !device_id_str.is_null() {
         let c_string = audiounit_strref_to_cstr_utf8(device_id_str);
-        // Leak the memory to the external code.
         dev_info.device_id = c_string.into_raw();
 
         assert!(
@@ -1842,7 +1841,6 @@ fn audiounit_create_device_from_hwdev(
         dev_info.friendly_name = c_string.into_raw();
     } else {
         let c_string = audiounit_strref_to_cstr_utf8(friendly_name_str);
-        // Leak the memory to the external code.
         dev_info.friendly_name = c_string.into_raw();
         unsafe {
             CFRelease(friendly_name_str as *const c_void);
@@ -1855,7 +1853,6 @@ fn audiounit_create_device_from_hwdev(
     ret = audio_object_get_property_data(devid, &adr, &mut size, &mut vendor_name_str);
     if ret == NO_ERR && !vendor_name_str.is_null() {
         let c_string = audiounit_strref_to_cstr_utf8(vendor_name_str);
-        // Leak the memory to the external code.
         dev_info.vendor_name = c_string.into_raw();
         unsafe {
             CFRelease(vendor_name_str as *const c_void);
@@ -1914,12 +1911,9 @@ fn is_aggregate_device(device_info: &ffi::cubeb_device_info) -> bool {
     }
 }
 
-// Retake the memory of these strings from the external code.
 fn audiounit_device_destroy(device: &mut ffi::cubeb_device_info) {
-    // This should be mapped to the memory allocation in
-    // audiounit_create_device_from_hwdev.
-    // Set the pointers to null in case it points to some released
-    // memory.
+    // This should be mapped to the memory allocation in audiounit_create_device_from_hwdev.
+    // Set the pointers to null in case it points to some released memory.
     unsafe {
         if !device.device_id.is_null() {
             // group_id is a mirror to device_id, so we could skip it.
@@ -2379,10 +2373,8 @@ impl ContextOps for AudioUnitContext {
             return Ok(());
         }
 
-        // Retake the ownership of the previous leaked memory from the external code.
         let mut devices = retake_forgotten_vec(coll.device, coll.count);
         for device in &mut devices {
-            // This should be mapped to the memory allocation in audiounit_create_device_from_hwdev.
             audiounit_device_destroy(device);
         }
         drop(devices); // Release the memory.
@@ -4328,7 +4320,6 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     }
     #[cfg(not(target_os = "ios"))]
     fn current_device(&mut self) -> Result<&DeviceRef> {
-        // Leak the memory to the external code. Retrieve them in device_destroy.
         let mut device: Box<ffi::cubeb_device> = Box::new(ffi::cubeb_device::default());
         let input_source = audiounit_get_default_datasource_string(io_side::INPUT)?;
         device.input_name = input_source.into_raw();
