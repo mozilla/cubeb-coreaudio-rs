@@ -39,7 +39,7 @@ use std::mem;
 use std::os::raw::{c_char, c_void};
 use std::ptr;
 use std::slice;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -399,18 +399,17 @@ extern "C" fn audiounit_output_callback(
         // fact that we're lacking some input data.
         let frames_written = stm.frames_written.load(atomic::Ordering::SeqCst);
         let input_frames_needed = stm.minimum_resampling_input_frames(frames_written);
-        let missing_frames = input_frames_needed - stm.frames_read.load(atomic::Ordering::SeqCst);
+        let missing_frames = input_frames_needed - stm.frames_read.load(Ordering::SeqCst);
         if missing_frames > 0 {
             stm.input_linear_buffer.as_mut().unwrap().push_zeros(
                 (missing_frames * i64::from(stm.input_desc.mChannelsPerFrame)) as usize,
             );
-            stm.frames_read
-                .store(input_frames_needed, atomic::Ordering::SeqCst);
+            stm.frames_read.store(input_frames_needed, Ordering::SeqCst);
             let stm_ptr = stm as *const AudioUnitStream;
             cubeb_log!(
                 "({:p}) {} pushed {} frames of input silence.",
                 stm_ptr,
-                if stm.frames_read.load(atomic::Ordering::SeqCst) == 0 {
+                if stm.frames_read.load(Ordering::SeqCst) == 0 {
                     "Input hasn't started,"
                 } else if stm.switching_device.load(Ordering::SeqCst) {
                     "Device switching,"
@@ -2565,7 +2564,7 @@ struct AudioUnitStream<'ctx> {
     frames_queued: u64,
     // How many frames got read from the input since the stream started (includes
     // padded silence)
-    frames_read: atomic::Atomic<i64>,
+    frames_read: AtomicI64,
     // How many frames got written to the output device since the stream started
     frames_written: atomic::Atomic<i64>,
     shutdown: AtomicBool,
@@ -2638,7 +2637,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             input_linear_buffer: None,
             frames_played: AtomicU64::new(0),
             frames_queued: 0,
-            frames_read: atomic::Atomic::new(0),
+            frames_read: AtomicI64::new(0),
             frames_written: atomic::Atomic::new(0),
             shutdown: AtomicBool::new(true),
             draining: AtomicBool::new(false),
@@ -2750,7 +2749,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
         // Advance input frame counter.
         assert!(input_frames > 0);
         self.frames_read
-            .fetch_add(i64::from(input_frames), atomic::Ordering::SeqCst);
+            .fetch_add(i64::from(input_frames), Ordering::SeqCst);
 
         cubeb_logv!(
             "({:p}) input: buffers {}, size {}, channels {}, rendered frames {}, total frames {}.",
@@ -3726,7 +3725,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             return Err(Error::error());
         }
 
-        self.frames_read.store(0, atomic::Ordering::SeqCst);
+        self.frames_read.store(0, Ordering::SeqCst);
 
         cubeb_log!(
             "({:p}) Input audiounit init successfully.",
