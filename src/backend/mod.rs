@@ -905,15 +905,6 @@ fn audiounit_set_channel_layout(
         channel_map >>= 1;
     }
 
-    // TODO: This call doesn't work all the times, and r is NO_ERR doesn't
-    // guarantee the layout is set to the one we want. The layouts on some
-    // devices don't be changed even no errors are returned,
-    // e.g., r returns NO_ERR when we set stereo layout to a 4-channels aggregate
-    // device with QUAD layout (created by Audio MIDI Setup). However, the layout
-    // of this 4-channels aggregate device is still QUAD. Another weird thing is
-    // that we will get a kAudioUnitErr_InvalidPropertyValue error if we set the
-    // layout to QUAD. It's the same layout as its original one but it cannot be
-    // set!
     r = audio_unit_set_property(
         unit,
         kAudioUnitProperty_AudioChannelLayout,
@@ -946,7 +937,6 @@ fn audiounit_get_sub_devices(device_id: AudioDeviceID) -> Vec<AudioObjectID> {
     let mut size: usize = 0;
     let rv = audio_object_get_property_data_size(device_id, &property_address, &mut size);
 
-    // NOTE: Hit this if `device_id` is not an aggregate device!
     if rv != NO_ERR {
         sub_devices.push(device_id);
         return sub_devices;
@@ -1540,8 +1530,7 @@ fn audiounit_create_unit(unit: &mut AudioUnit, device: &device_info) -> Result<(
     Ok(())
 }
 
-// Change buffer size is prone to deadlock thus we change it
-// following the steps:
+// Change buffer size is prone to deadlock thus we change it following the steps:
 // - register a listener for the buffer size property
 // - change the property
 // - wait until the listener is executed
@@ -1707,7 +1696,6 @@ fn audiounit_get_channel_count(devid: AudioObjectID, scope: AudioObjectPropertyS
     count
 }
 
-// TODO: It seems that it works no matter what scope is(see test.rs). Is it ok?
 fn audiounit_get_available_samplerate(
     devid: AudioObjectID,
     scope: AudioObjectPropertyScope,
@@ -1737,8 +1725,8 @@ fn audiounit_get_available_samplerate(
         && audio_object_get_property_data_size(devid, &adr, &mut size) == NO_ERR
     {
         let mut ranges: Vec<AudioValueRange> = allocate_array_by_size(size);
-        range.mMinimum = 9_999_999_999.0; // TODO: why not f64::MAX?
-        range.mMaximum = 0.0; // TODO: why not f64::MIN?
+        range.mMinimum = std::f64::MAX;
+        range.mMaximum = std::f64::MIN;
         if audio_object_get_property_data(devid, &adr, &mut size, ranges.as_mut_ptr()) == NO_ERR {
             for rng in &ranges {
                 if rng.mMaximum > range.mMaximum {
@@ -1789,9 +1777,6 @@ fn audiounit_get_device_presentation_latency(
     dev + stream
 }
 
-// TODO:
-// 1. Put dev_info in Ok.
-// 2. What if the device is a in-out device
 fn audiounit_create_device_from_hwdev(
     dev_info: &mut ffi::cubeb_device_info,
     devid: AudioObjectID,
@@ -1828,7 +1813,6 @@ fn audiounit_create_device_from_hwdev(
         // Leak the memory to the external code.
         dev_info.device_id = c_string.into_raw();
 
-        // TODO: Why we set devid here? Does it has relationship with device_id_str?
         assert!(
             mem::size_of::<ffi::cubeb_devid>() >= mem::size_of_val(&devid),
             "cubeb_devid can't represent devid"
@@ -1840,8 +1824,6 @@ fn audiounit_create_device_from_hwdev(
         unsafe {
             CFRelease(device_id_str as *const c_void);
         }
-        // TODO: device_id_str is a danlging pointer now.
-        //       Find a way to prevent it from being used.
     }
 
     let mut friendly_name_str: CFStringRef = ptr::null();
@@ -1881,8 +1863,6 @@ fn audiounit_create_device_from_hwdev(
         unsafe {
             CFRelease(friendly_name_str as *const c_void);
         }
-        // TODO: friendly_name_str is a danlging pointer now.
-        //       Find a way to prevent it from being used.
     };
 
     let mut vendor_name_str: CFStringRef = ptr::null();
@@ -1896,12 +1876,8 @@ fn audiounit_create_device_from_hwdev(
         unsafe {
             CFRelease(vendor_name_str as *const c_void);
         }
-        // TODO: vendor_name_str is a danlging pointer now.
-        //       Find a way to prevent it from being used.
     }
 
-    // TODO: Implement From trait for enum cubeb_device_type so we can use
-    // `devtype.into()` to get `ffi::CUBEB_DEVICE_TYPE_*`.
     dev_info.device_type = if devtype == DeviceType::OUTPUT {
         ffi::CUBEB_DEVICE_TYPE_OUTPUT
     } else {
@@ -2305,16 +2281,11 @@ impl ContextOps for AudioUnitContext {
     }
     #[cfg(not(target_os = "ios"))]
     fn min_latency(&mut self, _params: StreamParams) -> Result<u32> {
-        let range = audiounit_get_acceptable_latency_range();
-        if range.is_err() {
+        let range = audiounit_get_acceptable_latency_range().map_err(|e| {
             cubeb_log!("Could not get acceptable latency range.");
-            return Err(Error::error()); // TODO: return the error we get instead?
-        }
-
-        Ok(cmp::max(
-            range.unwrap().mMinimum as u32,
-            SAFE_MIN_LATENCY_FRAMES,
-        ))
+            e
+        })?;
+        Ok(cmp::max(range.mMinimum as u32, SAFE_MIN_LATENCY_FRAMES))
     }
     #[cfg(target_os = "ios")]
     fn preferred_sample_rate(&mut self) -> Result<u32> {
@@ -2369,10 +2340,9 @@ impl ContextOps for AudioUnitContext {
             Vec::<AudioObjectID>::new()
         };
 
-        // Count number of input and output devices.  This is not
-        // necessarily the same as the count of raw devices supported by the
-        // system since, for example, with Soundflower installed, some
-        // devices may report as being both input *and* output and cubeb
+        // Count number of input and output devices.  This is not necessarily the same as
+        // the count of raw devices supported by the system since, for example, with Soundflower
+        // installed, some devices may report as being both input *and* output and cubeb
         // separates those into two different devices.
 
         let mut devices: Vec<ffi::cubeb_device_info> =
@@ -2455,16 +2425,6 @@ impl ContextOps for AudioUnitContext {
         {
             return Err(Error::invalid_parameter());
         }
-
-        // TODO: Check stm.input_stream_params and stm.output_stream_params are valid and matched ?
-        // The code can easily fail if {input, output}_stream_params is
-        // ffi::cubeb_stream_params::default(). To prevent the stream from being initialized with
-        // wrong values, some easy checks in `audio_stream_desc_init` are added.
-        // I believe we can do more. For example,
-        // 1. the resampler will be initialized in `AudioUnitStream::setup` and it only accepts
-        //    the formats with FLOAT32NE or S16NE.
-        // 2. If channels is 0, then size of input buffer is zero!
-        // 3. What if the channels is different from the channels for the layout ?
 
         let mutex_ptr = &mut self.mutex as *mut OwnedCriticalSection;
         let _context_lock = AutoLock::new(unsafe { &mut (*mutex_ptr) });
@@ -3227,7 +3187,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
         assert!(!self.mixer.as_mut_ptr().is_null());
     }
 
-    // TODO: Rename to init_layout ?
     fn layout_init(&mut self, side: io_side) {
         // We currently don't support the input layout setting.
         if side == io_side::INPUT {
@@ -3265,10 +3224,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
             DeviceType::OUTPUT,
         );
 
-        // NOTE: Retake the leaked friendly_name strings.
-        //       It's better to extract the part of getting name of the data source
-        //       into a function, so we don't need to call
-        //       `audiounit_create_device_from_hwdev` to get this info.
         let input_name_str = unsafe {
             CString::from_raw(input_device_info.friendly_name as *mut c_char)
                 .into_string()
@@ -3954,9 +3909,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
     }
 
     fn setup(&mut self) -> Result<()> {
-        // TODO: Add self.context.mutex.assert_current_thread_owns() ?
-        //       audiounit_active_streams will require to own the mutex in
-        //       self.context.
         self.mutex.assert_current_thread_owns();
 
         if self
@@ -4149,7 +4101,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
             // According to the I/O hardware rate it is expected a specific pattern of callbacks
             // for example is input is 44100 and output is 48000 we expected no more than 2
             // out callback in a row.
-            // TODO: Make sure `input_hw_rate` is larger than 0 ?
             self.expected_output_callbacks_in_a_row =
                 (self.output_hw_rate / self.input_hw_rate).ceil() as i32
         }

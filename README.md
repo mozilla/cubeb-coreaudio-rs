@@ -74,24 +74,7 @@ It's used to verify our callbacks for minitoring the system devices work.
   - Plug/Unplug devices to see events log.
 
 ## TODO
-- Remove `#[allow(non_camel_case_types)]`, `#![allow(unused_assignments)]`, `#![allow(unused_must_use)]` and apply *rust* coding styles
-- Use `Atomic{I64, U32, U64}` instead of `Atomic<{i64, u32, u64}>`, once they are stable.
-- Tests
-  - Rewrite some tests under _cubeb/test/*_ in _Rust_ as part of the integration tests
-    - Add tests for capturing/recording, output, duplex streams
-  - Tests cleaned up: Only tests under *aggregate_device.rs* left now.
-- Some of bugs are found when adding tests. Search *FIXIT* to find them.
-- [cubeb-rs][cubeb-rs]
-  - Implement `to_owned` in [`StreamParamsRef`][cubeb-rs-stmparamsref]
-  - Check the passed parameters like what [cubeb.c][cubeb] does!
-    - Check the input `StreamParams` parameters properly, or we will set a invalid format into `AudioUnit`.
-    - For example, for a duplex stream, the format of the input stream and output stream should be same.
-      Using different stream formats will cause memory corruption
-      since our resampler assumes the types (_short_ or _float_) of input stream (buffer) and output stream (buffer) are same
-      (The resampler will use the format of the input stream if it exists, otherwise it uses the format of the output stream).
-    - In fact, we should check **all** the parameters properly so we can make sure we don't mess up the streams/devices settings!
-- Find a efficient way to catch memory leaks
-  - *Instrument* on OSX
+See [TO-DOs][todo]
 
 ## Issues
 - See discussion [here][discussion]
@@ -121,6 +104,15 @@ It's used to verify our callbacks for minitoring the system devices work.
       1. Replace `AutoLock` by calling `mutex.lock()` and `mutex.unlock()` explicitly.
       2. Save the pointer to `mutex` first, then call `AutoLock::new(unsafe { &mut (*mutex_ptr) })`.
       3. Cast immutable reference to a `*const` then to a `*mut`: `pthread_mutex_lock(&self.mutex as *const pthread_mutex_t as *mut pthread_mutex_t)`
+- No guarantee on `audiounit_set_channel_layout`
+  - This call doesn't work all the times
+  - Returned `NO_ERR` doesn't guarantee the layout is set to the one we want
+  - The layouts on some devices won't be changed even no errors are returned,
+    e.g., we can set _stereo_ layout to a _4-channels aggregate device_ with _QUAD_ layout
+    (created by Audio MIDI Setup) without any error. However, the layout
+    of this 4-channels aggregate device is still QUAD after setting it without error
+  - Another weird thing is that we will get a `kAudioUnitErr_InvalidPropertyValue`
+    if we set the layout to _QUAD_. It's the same layout as its original one but it cannot be set!
 
 ### Test issues
 - Complexity of creating unit tests
@@ -165,17 +157,7 @@ It's used to verify our callbacks for minitoring the system devices work.
 [async-dis]: src/backend/dispatch_utils.rs
 [osx-dis-gist]: https://gist.github.com/ChunMinChang/8d13946ebc6c95b2622466c89a0c9bcc "gist"
 
-[cubeb-au-ptr-across-threads]: https://github.com/kinetiknz/cubeb/blob/9a7a55153e7f9b9e0036ab023909c7bc4a41688b/src/cubeb_audiounit.cpp#L3454-L3480 "Pass pointers across threads"
 [cubeb-au-init-stream]: https://github.com/kinetiknz/cubeb/blob/9a7a55153e7f9b9e0036ab023909c7bc4a41688b/src/cubeb_audiounit.cpp#L2745-L2748 "Init stream"
-
-[cubeb-rs]: https://github.com/djg/cubeb-rs "cubeb-rs"
-[cubeb-rs-stmparamsref]: https://github.com/djg/cubeb-rs/blob/78ed9459b8ac2ca50ea37bb72f8a06847eb8d379/cubeb-core/src/stream.rs#L61 "StreamParamsRef"
-[cubeb-rs-capi-stm-reg-dev-chg-callback]: https://github.com/djg/cubeb-rs/blob/78ed9459b8ac2ca50ea37bb72f8a06847eb8d379/cubeb-backend/src/capi.rs#L56 "stream_register_device_changed_callback"
-[cubeb-backend]: https://github.com/djg/cubeb-rs/tree/master/cubeb-backend "cubeb-backend"
-[cubeb-pulse-rs]: https://github.com/djg/cubeb-pulse-rs "cubeb-pulse-rs"
-
-[cubeb-backend-stm-reg-dev-chg-cb]: cubeb-backend-stream_register_device_changed_callback.diff "Implementation of stream_register_device_changed_callback"
-[cubeb-pulse-rs-reg-dev-chg-cb]: cubeb-pulse-rs-register_device_changed_callback.diff "Impelement of register_device_changed_callback"
 
 [chg-buf-sz]: https://cs.chromium.org/chromium/src/media/audio/mac/audio_manager_mac.cc?l=982-989&rcl=0207eefb445f9855c2ed46280cb835b6f08bdb30 "issue on changing buffer size"
 
@@ -193,3 +175,5 @@ It's used to verify our callbacks for minitoring the system devices work.
 [blazer]: https://github.com/ChunMinChang/cubeb-coreaudio-rs/tree/trailblazer
 [ocs-disposal]: https://github.com/ChunMinChang/cubeb-coreaudio-rs/tree/ocs-disposal
 [ocs-disposal-stm]: https://github.com/ChunMinChang/cubeb-coreaudio-rs/tree/ocs-disposal-stm
+
+[todo]: todo.md
