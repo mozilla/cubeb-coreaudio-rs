@@ -106,18 +106,12 @@ struct device_info {
     flags: device_flags,
 }
 
-impl device_info {
-    fn new() -> Self {
-        device_info {
+impl Default for device_info {
+    fn default() -> Self {
+        Self {
             id: kAudioObjectUnknown,
             flags: device_flags::DEV_UNKNOWN,
         }
-    }
-}
-
-impl Default for device_info {
-    fn default() -> Self {
-        unsafe { mem::zeroed() }
     }
 }
 
@@ -2624,8 +2618,8 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 layout: ffi::CUBEB_LAYOUT_UNDEFINED,
                 prefs: ffi::CUBEB_STREAM_PREF_NONE,
             }),
-            input_device: device_info::new(),
-            output_device: device_info::new(),
+            input_device: device_info::default(),
+            output_device: device_info::default(),
             input_desc: AudioStreamBasicDescription::default(),
             output_desc: AudioStreamBasicDescription::default(),
             input_unit: ptr::null_mut(),

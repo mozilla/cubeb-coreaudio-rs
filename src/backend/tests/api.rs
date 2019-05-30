@@ -1331,7 +1331,7 @@ fn test_new_unit_instance() {
 #[test]
 #[should_panic]
 fn test_new_unit_instance_twice() {
-    let device = device_info::new();
+    let device = device_info::default();
     let mut unit: AudioUnit = ptr::null_mut();
     assert!(audiounit_new_unit_instance(&mut unit, &device).is_ok());
     assert!(!unit.is_null());
@@ -1443,7 +1443,7 @@ fn test_create_unit() {
     let default_output = test_get_default_device(Scope::Output);
 
     for flags in flags_list.iter() {
-        let mut device = device_info::new();
+        let mut device = device_info::default();
         device.flags |= *flags;
 
         // Check the output scope is enabled.
@@ -1501,7 +1501,7 @@ fn test_create_unit() {
 #[test]
 #[should_panic]
 fn test_create_unit_with_unknown_scope() {
-    let device = device_info::new();
+    let device = device_info::default();
     let mut unit: AudioUnit = ptr::null_mut();
     assert!(audiounit_create_unit(&mut unit, &device).is_ok());
     assert!(!unit.is_null());
@@ -1522,7 +1522,7 @@ fn test_create_unit_twice() {
     // The first audiounit_create_unit calling will get a panic immediately
     // so the loop is executed once.
     for flags in flags_list.iter() {
-        let mut device = device_info::new();
+        let mut device = device_info::default();
         device.flags |= *flags;
         let mut unit: AudioUnit = ptr::null_mut();
         assert!(audiounit_create_unit(&mut unit, &device).is_ok());
