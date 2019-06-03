@@ -23,16 +23,20 @@ fn test_parallel_ops_init_streams_in_parallel_input() {
             for stream in streams {
                 latency_frames.push(stream.latency_frames);
 
-                assert!(!stream.input_unit.is_null());
+                let (input_unit, output_unit) = {
+                    let core_stream_data = stream.core_stream_data.lock().unwrap();
+                    (core_stream_data.input_unit, core_stream_data.output_unit)
+                };
+                assert!(!input_unit.is_null());
                 let in_buffer_frame_size = test_audiounit_get_buffer_frame_size(
-                    stream.input_unit,
+                    input_unit,
                     Scope::Input,
                     PropertyScope::Output,
                 )
                 .unwrap();
                 in_buffer_frame_sizes.push(in_buffer_frame_size);
 
-                assert!(stream.output_unit.is_null());
+                assert!(output_unit.is_null());
             }
 
             // Make sure all the latency frames are same as the first stream's one.
@@ -67,11 +71,16 @@ fn test_parallel_ops_init_streams_in_parallel_output() {
             for stream in streams {
                 latency_frames.push(stream.latency_frames);
 
-                assert!(stream.input_unit.is_null());
+                let (input_unit, output_unit) = {
+                    let core_stream_data = stream.core_stream_data.lock().unwrap();
+                    (core_stream_data.input_unit, core_stream_data.output_unit)
+                };
 
-                assert!(!stream.output_unit.is_null());
+                assert!(input_unit.is_null());
+
+                assert!(!output_unit.is_null());
                 let out_buffer_frame_size = test_audiounit_get_buffer_frame_size(
-                    stream.output_unit,
+                    output_unit,
                     Scope::Output,
                     PropertyScope::Input,
                 )
@@ -112,18 +121,23 @@ fn test_parallel_ops_init_streams_in_parallel_duplex() {
             for stream in streams {
                 latency_frames.push(stream.latency_frames);
 
-                assert!(!stream.input_unit.is_null());
+                let (input_unit, output_unit) = {
+                    let core_stream_data = stream.core_stream_data.lock().unwrap();
+                    (core_stream_data.input_unit, core_stream_data.output_unit)
+                };
+
+                assert!(!input_unit.is_null());
                 let in_buffer_frame_size = test_audiounit_get_buffer_frame_size(
-                    stream.input_unit,
+                    input_unit,
                     Scope::Input,
                     PropertyScope::Output,
                 )
                 .unwrap();
                 in_buffer_frame_sizes.push(in_buffer_frame_size);
 
-                assert!(!stream.output_unit.is_null());
+                assert!(!output_unit.is_null());
                 let out_buffer_frame_size = test_audiounit_get_buffer_frame_size(
-                    stream.output_unit,
+                    output_unit,
                     Scope::Output,
                     PropertyScope::Input,
                 )
@@ -274,16 +288,21 @@ fn test_parallel_init_streams_in_parallel_input() {
         for stream in streams {
             latency_frames.push(stream.latency_frames);
 
-            assert!(!stream.input_unit.is_null());
+            let (input_unit, output_unit) = {
+                let core_stream_data = stream.core_stream_data.lock().unwrap();
+                (core_stream_data.input_unit, core_stream_data.output_unit)
+            };
+
+            assert!(!input_unit.is_null());
             let in_buffer_frame_size = test_audiounit_get_buffer_frame_size(
-                stream.input_unit,
+                input_unit,
                 Scope::Input,
                 PropertyScope::Output,
             )
             .unwrap();
             in_buffer_frame_sizes.push(in_buffer_frame_size);
 
-            assert!(stream.output_unit.is_null());
+            assert!(output_unit.is_null());
         }
 
         // Make sure all the latency frames are same as the first stream's one.
@@ -314,11 +333,16 @@ fn test_parallel_init_streams_in_parallel_output() {
         for stream in streams {
             latency_frames.push(stream.latency_frames);
 
-            assert!(stream.input_unit.is_null());
+            let (input_unit, output_unit) = {
+                let core_stream_data = stream.core_stream_data.lock().unwrap();
+                (core_stream_data.input_unit, core_stream_data.output_unit)
+            };
 
-            assert!(!stream.output_unit.is_null());
+            assert!(input_unit.is_null());
+
+            assert!(!output_unit.is_null());
             let out_buffer_frame_size = test_audiounit_get_buffer_frame_size(
-                stream.output_unit,
+                output_unit,
                 Scope::Output,
                 PropertyScope::Input,
             )
@@ -355,18 +379,23 @@ fn test_parallel_init_streams_in_parallel_duplex() {
         for stream in streams {
             latency_frames.push(stream.latency_frames);
 
-            assert!(!stream.input_unit.is_null());
+            let (input_unit, output_unit) = {
+                let core_stream_data = stream.core_stream_data.lock().unwrap();
+                (core_stream_data.input_unit, core_stream_data.output_unit)
+            };
+
+            assert!(!input_unit.is_null());
             let in_buffer_frame_size = test_audiounit_get_buffer_frame_size(
-                stream.input_unit,
+                input_unit,
                 Scope::Input,
                 PropertyScope::Output,
             )
             .unwrap();
             in_buffer_frame_sizes.push(in_buffer_frame_size);
 
-            assert!(!stream.output_unit.is_null());
+            assert!(!output_unit.is_null());
             let out_buffer_frame_size = test_audiounit_get_buffer_frame_size(
-                stream.output_unit,
+                output_unit,
                 Scope::Output,
                 PropertyScope::Input,
             )
