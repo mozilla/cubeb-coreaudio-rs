@@ -1056,30 +1056,6 @@ fn test_set_channel_layout_with_null_unit() {
     .is_err());
 }
 
-// layout_init
-// ------------------------------------
-#[test]
-fn test_layout_init() {
-    if let Some(unit) = test_get_default_audiounit(Scope::Output) {
-        test_get_default_raw_stream(move |stream| {
-            stream.output_unit = unit.get_inner();
-
-            assert_eq!(
-                stream.context.layout.load(atomic::Ordering::SeqCst),
-                ChannelLayout::UNDEFINED
-            );
-
-            let layout = audiounit_get_current_channel_layout(stream.output_unit);
-
-            stream.layout_init(io_side::OUTPUT);
-
-            assert_eq!(stream.context.layout.load(atomic::Ordering::SeqCst), layout);
-        });
-    } else {
-        println!("No output audiounit.");
-    }
-}
-
 // get_sub_devices
 // ------------------------------------
 // You can check this by creating an aggregate device in `Audio MIDI Setup`
