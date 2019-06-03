@@ -990,6 +990,7 @@ fn test_get_raw_stream<F>(
         state_callback,
         global_latency_frames.unwrap(),
     );
+    stream.stream_device = Mutex::new(StreamDevice::new(&stream));
     // Initialize the the mutex (whose type is OwnedCriticalSection) within AudioUnitStream
     // to make the mutex work.
     stream.init_mutex();
