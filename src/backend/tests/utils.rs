@@ -990,7 +990,7 @@ fn test_get_raw_stream<F>(
         state_callback,
         global_latency_frames.unwrap(),
     );
-    stream.core_stream_data = Mutex::new(CoreStreamData::new(&stream, None, None));
+    stream.core_stream_data = CoreStreamData::new(&stream, None, None);
 
     operation(&mut stream);
 }
