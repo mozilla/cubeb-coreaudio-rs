@@ -991,9 +991,6 @@ fn test_get_raw_stream<F>(
         global_latency_frames.unwrap(),
     );
     stream.core_stream_data = Mutex::new(CoreStreamData::new(&stream, None, None));
-    // Initialize the the mutex (whose type is OwnedCriticalSection) within AudioUnitStream
-    // to make the mutex work.
-    stream.init_mutex();
 
     operation(&mut stream);
 }
