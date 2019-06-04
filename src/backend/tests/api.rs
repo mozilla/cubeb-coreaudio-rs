@@ -286,65 +286,38 @@ fn test_make_silent() {
 // ------------------------------------
 #[test]
 fn test_minimum_resampling_input_frames() {
-    test_get_default_raw_stream(|stream| {
-        // Set input and output rates to 48000 and 44100 respectively.
-        test_minimum_resampling_input_frames_set_stream_rates(stream, (48000_f64, 44100_f64));
-        let frames: i64 = 100;
-        let times = stream.input_hw_rate / f64::from(stream.output_stream_params.rate());
-        let expected = (frames as f64 * times).ceil() as i64;
-        assert_eq!(stream.minimum_resampling_input_frames(frames), expected);
-    });
+    let input_rate = 48000_f64;
+    let output_rate = 44100_f64;
+
+    let frames = 100;
+    let times = input_rate / output_rate;
+    let expected = (frames as f64 * times).ceil() as i64;
+
+    assert_eq!(
+        minimum_resampling_input_frames(input_rate, output_rate, frames),
+        expected
+    );
 }
 
 #[test]
 #[should_panic]
 fn test_minimum_resampling_input_frames_zero_input_rate() {
-    test_get_default_raw_stream(|stream| {
-        // Set input and output rates to 0 and 44100 respectively.
-        test_minimum_resampling_input_frames_set_stream_rates(stream, (0_f64, 44100_f64));
-        let frames: i64 = 100;
-        assert_eq!(stream.minimum_resampling_input_frames(frames), 0);
-    });
+    minimum_resampling_input_frames(0_f64, 44100_f64, 1);
 }
 
 #[test]
 #[should_panic]
 fn test_minimum_resampling_input_frames_zero_output_rate() {
-    test_get_default_raw_stream(|stream| {
-        // Set input and output rates to 48000 and 0 respectively.
-        test_minimum_resampling_input_frames_set_stream_rates(stream, (48000_f64, 0_f64));
-        let frames: i64 = 100;
-        assert_eq!(stream.minimum_resampling_input_frames(frames), 0);
-    });
+    minimum_resampling_input_frames(48000_f64, 0_f64, 1);
 }
 
 #[test]
 fn test_minimum_resampling_input_frames_equal_input_output_rate() {
-    test_get_default_raw_stream(|stream| {
-        // Set both input and output rates to 44100.
-        test_minimum_resampling_input_frames_set_stream_rates(stream, (44100_f64, 44100_f64));
-        let frames: i64 = 100;
-        assert_eq!(stream.minimum_resampling_input_frames(frames), frames);
-    });
-}
-
-fn test_minimum_resampling_input_frames_set_stream_rates(
-    stream: &mut AudioUnitStream,
-    rates: (f64, f64),
-) {
-    let (input_rate, output_rate) = rates;
-
-    // Set stream output rate
-    let mut raw = ffi::cubeb_stream_params::default();
-    raw.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
-    raw.rate = output_rate as u32;
-    raw.channels = 2;
-    raw.layout = ffi::CUBEB_LAYOUT_STEREO;
-    raw.prefs = ffi::CUBEB_STREAM_PREF_NONE;
-    stream.output_stream_params = StreamParams::from(raw);
-
-    // Set stream input rate
-    stream.input_hw_rate = input_rate;
+    let frames = 100;
+    assert_eq!(
+        minimum_resampling_input_frames(44100_f64, 44100_f64, frames),
+        frames
+    );
 }
 
 // output_callback
