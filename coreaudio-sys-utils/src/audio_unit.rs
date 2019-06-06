@@ -100,10 +100,6 @@ pub fn audio_unit_initialize(unit: AudioUnit) -> OSStatus {
     unsafe { AudioUnitInitialize(unit) }
 }
 
-// TODO: Maybe we can merge the following two functions into something like
-//       `destroy_audio_unit(unit: AudioUnit)` and call
-//        `AudioUnitUninitialize`, `AudioComponentInstanceDispose` in this
-//        function.
 pub fn audio_unit_uninitialize(unit: AudioUnit) -> OSStatus {
     assert!(!unit.is_null());
     unsafe { AudioUnitUninitialize(unit) }

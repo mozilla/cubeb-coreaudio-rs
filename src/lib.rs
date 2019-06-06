@@ -3,9 +3,6 @@
 // This program is made available under an ISC-style license.  See the
 // accompanying file LICENSE for details.
 
-// Use Atomic{I64, U32, U64} once they are stable.
-// #![feature(integer_atomics)]
-
 extern crate atomic;
 #[macro_use]
 extern crate bitflags;
