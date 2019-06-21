@@ -39,6 +39,8 @@
     - Add `get_data`, `get_data_size`, `set_data`
 - Create wrapper struct for `AudioUnit`
     - Implement `get_data`, `set_data`
+- Create wrapper for `audio_unit_{add, remove}_property_listener`, `audio_object_{add, remove}_property_listener` and their callbacks
+    - Add/Remove listener with generic `*mut T` data, fire their callback with generic `*mut T` data
 
 
 ## Interface to other module
