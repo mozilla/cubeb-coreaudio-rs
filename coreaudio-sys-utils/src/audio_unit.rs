@@ -144,22 +144,22 @@ pub fn audio_unit_render(
 pub type audio_unit_property_listener_proc =
     extern "C" fn(*mut c_void, AudioUnit, AudioUnitPropertyID, AudioUnitScope, AudioUnitElement);
 
-pub fn audio_unit_add_property_listener(
+pub fn audio_unit_add_property_listener<T>(
     unit: AudioUnit,
     id: AudioUnitPropertyID,
     listener: audio_unit_property_listener_proc,
-    data: *mut c_void,
+    data: *mut T,
 ) -> OSStatus {
     assert!(!unit.is_null());
-    unsafe { AudioUnitAddPropertyListener(unit, id, Some(listener), data) }
+    unsafe { AudioUnitAddPropertyListener(unit, id, Some(listener), data as *mut c_void) }
 }
 
-pub fn audio_unit_remove_property_listener_with_user_data(
+pub fn audio_unit_remove_property_listener_with_user_data<T>(
     unit: AudioUnit,
     id: AudioUnitPropertyID,
     listener: audio_unit_property_listener_proc,
-    data: *mut c_void,
+    data: *mut T,
 ) -> OSStatus {
     assert!(!unit.is_null());
-    unsafe { AudioUnitRemovePropertyListenerWithUserData(unit, id, Some(listener), data) }
+    unsafe { AudioUnitRemovePropertyListenerWithUserData(unit, id, Some(listener), data as *mut c_void) }
 }
