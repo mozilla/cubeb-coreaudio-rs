@@ -661,8 +661,6 @@ impl TestDevicePlugger {
     }
 
     fn create_aggregate_device(&self) -> std::result::Result<AudioObjectID, OSStatus> {
-        use std::time::{SystemTime, UNIX_EPOCH};
-
         const TEST_AGGREGATE_DEVICE_NAME: &str = "TestAggregateDevice";
 
         assert_ne!(self.plugin_id, kAudioObjectUnknown);
@@ -884,7 +882,6 @@ pub fn test_ops_context_operation<F>(name: &'static str, operation: F)
 where
     F: FnOnce(*mut ffi::cubeb),
 {
-    use std::ffi::CString;
     let name_c_string = CString::new(name).expect("Failed to create context name");
     let mut context = ptr::null_mut::<ffi::cubeb>();
     assert_eq!(

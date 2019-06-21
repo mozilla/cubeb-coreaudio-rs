@@ -15,7 +15,6 @@ fn test_switch_device() {
 
 fn test_switch_device_in_scope(scope: Scope) {
     use std::thread;
-    use std::time::Duration;
 
     // Do nothing if there is no 2 available devices at least.
     let devices = test_get_devices_in_scope(scope.clone());
