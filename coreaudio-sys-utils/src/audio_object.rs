@@ -93,22 +93,22 @@ pub fn audio_object_set_property_data<T>(
 pub type audio_object_property_listener_proc =
     extern "C" fn(AudioObjectID, u32, *const AudioObjectPropertyAddress, *mut c_void) -> OSStatus;
 
-pub fn audio_object_add_property_listener(
+pub fn audio_object_add_property_listener<T>(
     id: AudioObjectID,
     address: &AudioObjectPropertyAddress,
     listener: audio_object_property_listener_proc,
-    data: *mut c_void,
+    data: *mut T,
 ) -> OSStatus {
-    unsafe { AudioObjectAddPropertyListener(id, address, Some(listener), data) }
+    unsafe { AudioObjectAddPropertyListener(id, address, Some(listener), data as *mut c_void) }
 }
 
-pub fn audio_object_remove_property_listener(
+pub fn audio_object_remove_property_listener<T>(
     id: AudioObjectID,
     address: &AudioObjectPropertyAddress,
     listener: audio_object_property_listener_proc,
-    data: *mut c_void,
+    data: *mut T,
 ) -> OSStatus {
-    unsafe { AudioObjectRemovePropertyListener(id, address, Some(listener), data) }
+    unsafe { AudioObjectRemovePropertyListener(id, address, Some(listener), data as *mut c_void) }
 }
 
 #[derive(Debug)]
