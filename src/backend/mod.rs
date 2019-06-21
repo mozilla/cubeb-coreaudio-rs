@@ -2140,7 +2140,7 @@ impl AudioUnitContext {
                 kAudioObjectSystemObject,
                 &DEVICES_PROPERTY_ADDRESS,
                 audiounit_collection_changed_callback,
-                self as *mut AudioUnitContext as *mut c_void,
+                self,
             );
             if ret != NO_ERR {
                 return ret;
@@ -2192,7 +2192,7 @@ impl AudioUnitContext {
             kAudioObjectSystemObject,
             &DEVICES_PROPERTY_ADDRESS,
             audiounit_collection_changed_callback,
-            self as *mut AudioUnitContext as *mut c_void,
+            self,
         )
     }
 }
@@ -2666,7 +2666,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             listener.device,
             listener.property,
             listener.listener,
-            self as *const Self as *mut c_void,
+            self as *const Self as *mut Self,
         )
     }
 
@@ -2675,7 +2675,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             listener.device,
             listener.property,
             listener.listener,
-            self as *const Self as *mut c_void,
+            self as *const Self as *mut Self,
         )
     }
 
