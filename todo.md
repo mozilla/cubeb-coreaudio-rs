@@ -3,7 +3,6 @@
 ## General
 - Some of bugs are found when adding tests. Search *FIXIT* to find them.
 - Remove `#[allow(non_camel_case_types)]`, `#![allow(unused_assignments)]`, `#![allow(unused_must_use)]`
-- Replace `Atomic<{i64, u32, u64}>` by `Atomic{I64, U32, U64}`
 - Merge `io_side` and `DeviceType`
 - Use `ErrorChain`
 - Centralize the error log in one place
