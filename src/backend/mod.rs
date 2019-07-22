@@ -11,6 +11,7 @@ extern crate libc;
 mod aggregate_device;
 mod auto_array;
 mod auto_release;
+mod device_property;
 mod mixer;
 mod property_address;
 mod resampler;
@@ -26,6 +27,7 @@ use self::coreaudio_sys_utils::cf_mutable_dict::*;
 use self::coreaudio_sys_utils::dispatch::*;
 use self::coreaudio_sys_utils::string::*;
 use self::coreaudio_sys_utils::sys::*;
+use self::device_property::*;
 use self::mixer::*;
 use self::property_address::*;
 use self::resampler::*;
@@ -1168,22 +1170,6 @@ fn audiounit_set_channel_layout(
     Ok(())
 }
 
-fn get_device_name(id: AudioDeviceID) -> CFStringRef {
-    let mut size = mem::size_of::<CFStringRef>();
-    let mut uiname: CFStringRef = ptr::null();
-    let address_uuid = AudioObjectPropertyAddress {
-        mSelector: kAudioDevicePropertyDeviceUID,
-        mScope: kAudioObjectPropertyScopeGlobal,
-        mElement: kAudioObjectPropertyElementMaster,
-    };
-    let err = audio_object_get_property_data(id, &address_uuid, &mut size, &mut uiname);
-    if err == NO_ERR {
-        uiname
-    } else {
-        ptr::null()
-    }
-}
-
 fn start_audiounit(unit: AudioUnit) -> Result<()> {
     let status = audio_output_unit_start(unit);
     if status == NO_ERR {
@@ -1911,16 +1897,17 @@ fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID> {
 
     // Remove the aggregate device from the list of devices (if any).
     devices.retain(|&device| {
-        let name = get_device_name(device);
-        if name.is_null() {
-            return true;
-        }
-        let private_device = cfstringref_from_static_string(PRIVATE_AGGREGATE_DEVICE_NAME);
-        unsafe {
-            let found = CFStringFind(name, private_device, 0).location;
-            CFRelease(private_device as *const c_void);
-            CFRelease(name as *const c_void);
-            found == kCFNotFound
+        if let Ok(name) = get_device_uid(device) {
+            let private_device = cfstringref_from_static_string(PRIVATE_AGGREGATE_DEVICE_NAME);
+            unsafe {
+                let found = CFStringFind(name, private_device, 0).location;
+                CFRelease(private_device as *const c_void);
+                CFRelease(name as *const c_void);
+                found == kCFNotFound
+            }
+        } else {
+            // Fail to get device uid.
+            true
         }
     });
 

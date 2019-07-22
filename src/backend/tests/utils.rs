@@ -845,10 +845,11 @@ impl TestDevicePlugger {
             return None;
         }
         let device = device.unwrap();
-        let uid = get_device_name(device);
-        if uid.is_null() {
+        let uid = get_device_uid(device);
+        if uid.is_err() {
             return None;
         }
+        let uid = uid.unwrap();
         unsafe {
             let list = CFArrayCreateMutable(ptr::null(), 0, &kCFTypeArrayCallBacks);
             let sub_device_dict = CFDictionaryCreateMutable(

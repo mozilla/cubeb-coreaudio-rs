@@ -1029,30 +1029,32 @@ fn test_set_channel_layout_with_null_unit() {
     .is_err());
 }
 
-// get_device_name
+// get_device_uid
 // ------------------------------------
 #[test]
-fn test_get_device_name() {
-    // Unknown device.
-    assert!(get_device_name(kAudioObjectUnknown).is_null());
-
+fn test_get_device_uid() {
     // Input device.
     if let Some(input) = test_get_default_device(Scope::Input) {
-        let name = get_device_name(input);
-        assert!(!name.is_null());
+        let uid = get_device_uid(input).unwrap();
         unsafe {
-            CFRelease(name as *const c_void);
+            CFRelease(uid as *const c_void);
         }
     }
 
     // Output device.
     if let Some(output) = test_get_default_device(Scope::Output) {
-        let name = get_device_name(output);
-        assert!(!name.is_null());
+        let uid = get_device_uid(output).unwrap();
         unsafe {
-            CFRelease(name as *const c_void);
+            CFRelease(uid as *const c_void);
         }
     }
+}
+
+#[test]
+#[should_panic]
+fn test_get_device_uid_by_unknwon_device() {
+    // Unknown device.
+    assert!(get_device_uid(kAudioObjectUnknown).is_err());
 }
 
 // AggregateDevice::set_sub_devices

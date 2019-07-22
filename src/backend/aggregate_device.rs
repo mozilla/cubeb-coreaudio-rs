@@ -349,15 +349,13 @@ impl AggregateDevice {
             // The order of the items in the array is significant and is used to determine the order of the streams
             // of the AudioAggregateDevice.
             for device in output_sub_devices {
-                let uid = get_device_name(device);
-                assert!(!uid.is_null());
+                let uid = get_device_uid(device).unwrap();
                 CFArrayAppendValue(sub_devices, uid as *const c_void);
                 CFRelease(uid as *const c_void);
             }
 
             for device in input_sub_devices {
-                let uid = get_device_name(device);
-                assert!(!uid.is_null());
+                let uid = get_device_uid(device).unwrap();
                 CFArrayAppendValue(sub_devices, uid as *const c_void);
                 CFRelease(uid as *const c_void);
             }
@@ -432,7 +430,7 @@ impl AggregateDevice {
         assert_ne!(output_device_id, kAudioObjectUnknown);
         let output_sub_devices = Self::get_sub_devices(output_device_id)?;
         assert!(!output_sub_devices.is_empty());
-        let master_sub_device = get_device_name(output_sub_devices[0]);
+        let master_sub_device = get_device_uid(output_sub_devices[0]).unwrap();
         let size = mem::size_of::<CFStringRef>();
         let status = audio_object_set_property_data(device_id, &address, size, &master_sub_device);
         if !master_sub_device.is_null() {
