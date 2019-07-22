@@ -1,6 +1,5 @@
 # Regular Tests
 cargo test --verbose
-cargo test test_configure_input -- --ignored
 cargo test test_configure_output -- --ignored
 cargo test test_aggregate -- --ignored --test-threads=1
 
