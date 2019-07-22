@@ -1714,10 +1714,10 @@ fn test_get_device_presentation_latency() {
     }
 }
 
-// create_device_from_hwdev
+// create_cubeb_device_info
 // ------------------------------------
 #[test]
-fn test_create_device_from_hwdev() {
+fn test_create_cubeb_device_info() {
     use std::collections::VecDeque;
 
     test_create_device_from_hwdev_in_scope(Scope::Input);
@@ -1727,7 +1727,7 @@ fn test_create_device_from_hwdev() {
         if let Some(device) = test_get_default_device(scope.clone()) {
             let is_input = test_device_in_scope(device, Scope::Input);
             let is_output = test_device_in_scope(device, Scope::Output);
-            let mut results = test_create_device_from_hwdev_by_device(device);
+            let mut results = test_create_device_infos_by_device(device);
             assert_eq!(results.len(), 2);
             // Input device type:
             if is_input {
@@ -1754,19 +1754,13 @@ fn test_create_device_from_hwdev() {
         }
     }
 
-    fn test_create_device_from_hwdev_by_device(
+    fn test_create_device_infos_by_device(
         id: AudioObjectID,
     ) -> VecDeque<std::result::Result<ffi::cubeb_device_info, Error>> {
         let dev_types = [DeviceType::INPUT, DeviceType::OUTPUT];
         let mut results = VecDeque::new();
         for dev_type in dev_types.iter() {
-            let mut info = ffi::cubeb_device_info::default();
-            let result = audiounit_create_device_from_hwdev(&mut info, id, *dev_type);
-            results.push_back(if result.is_ok() {
-                Ok(info)
-            } else {
-                Err(result.unwrap_err())
-            });
+            results.push_back(create_cubeb_device_info(id, *dev_type));
         }
         results
     }
@@ -1814,26 +1808,19 @@ fn test_create_device_from_hwdev() {
 
 #[test]
 #[should_panic]
-fn test_create_device_from_hwdev_unknown_device() {
-    let mut info = ffi::cubeb_device_info::default();
-    assert!(
-        audiounit_create_device_from_hwdev(&mut info, kAudioObjectUnknown, DeviceType::OUTPUT)
-            .is_err()
-    );
+fn test_create_device_info_by_unknown_device() {
+    assert!(create_cubeb_device_info(kAudioObjectUnknown, DeviceType::OUTPUT).is_err());
 }
 
 #[test]
 #[should_panic]
-fn test_create_device_from_hwdev_with_unknown_type() {
-    test_create_device_from_hwdev_with_unknown_type_by_scope(Scope::Input);
-    test_create_device_from_hwdev_with_unknown_type_by_scope(Scope::Output);
+fn test_create_device_info_with_unknown_type() {
+    test_create_device_info_with_unknown_type_by_scope(Scope::Input);
+    test_create_device_info_with_unknown_type_by_scope(Scope::Output);
 
-    fn test_create_device_from_hwdev_with_unknown_type_by_scope(scope: Scope) {
+    fn test_create_device_info_with_unknown_type_by_scope(scope: Scope) {
         if let Some(device) = test_get_default_device(scope.clone()) {
-            let mut info = ffi::cubeb_device_info::default();
-            assert!(
-                audiounit_create_device_from_hwdev(&mut info, device, DeviceType::UNKNOWN).is_err()
-            );
+            assert!(create_cubeb_device_info(device, DeviceType::UNKNOWN).is_err());
         } else {
             panic!("Panic by default: No device for {:?}.", scope);
         }
@@ -1848,13 +1835,9 @@ fn test_create_device_from_hwdev_with_inout_type() {
 
     fn test_create_device_from_hwdev_with_inout_type_by_scope(scope: Scope) {
         if let Some(device) = test_get_default_device(scope.clone()) {
-            let mut info = ffi::cubeb_device_info::default();
-            assert!(audiounit_create_device_from_hwdev(
-                &mut info,
-                device,
-                DeviceType::INPUT | DeviceType::OUTPUT
-            )
-            .is_err());
+            assert!(
+                create_cubeb_device_info(device, DeviceType::INPUT | DeviceType::OUTPUT).is_err()
+            );
         } else {
             panic!("Panic by default: No device for {:?}.", scope);
         }

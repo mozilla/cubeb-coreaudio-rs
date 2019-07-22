@@ -1706,16 +1706,17 @@ fn audiounit_get_device_presentation_latency(
     dev + stream
 }
 
-fn audiounit_create_device_from_hwdev(
-    dev_info: &mut ffi::cubeb_device_info,
+fn create_cubeb_device_info(
     devid: AudioObjectID,
     devtype: DeviceType,
-) -> Result<()> {
-    assert!(devtype == DeviceType::INPUT || devtype == DeviceType::OUTPUT);
-
+) -> Result<ffi::cubeb_device_info> {
     let mut adr = AudioObjectPropertyAddress {
         mSelector: 0,
-        mScope: 0,
+        mScope: match devtype {
+            DeviceType::INPUT => kAudioDevicePropertyScopeInput,
+            DeviceType::OUTPUT => kAudioDevicePropertyScopeOutput,
+            _ => panic!("Invalid type"),
+        },
         mElement: kAudioObjectPropertyElementMaster,
     };
     let mut size: usize = 0;
@@ -1731,7 +1732,7 @@ fn audiounit_create_device_from_hwdev(
         return Err(Error::error());
     }
 
-    *dev_info = ffi::cubeb_device_info::default();
+    let mut dev_info = ffi::cubeb_device_info::default();
 
     assert!(
         mem::size_of::<ffi::cubeb_devid>() >= mem::size_of_val(&devid),
@@ -1840,7 +1841,7 @@ fn audiounit_create_device_from_hwdev(
         dev_info.latency_hi = 100 * dev_info.default_rate / 1000; // Default to 10ms
     }
 
-    Ok(())
+    Ok(dev_info)
 }
 
 fn is_aggregate_device(device_info: &ffi::cubeb_device_info) -> bool {
@@ -2336,64 +2337,29 @@ impl ContextOps for AudioUnitContext {
         devtype: DeviceType,
         collection: &DeviceCollectionRef,
     ) -> Result<()> {
-        let input_devs = if devtype.contains(DeviceType::INPUT) {
-            audiounit_get_devices_of_type(DeviceType::INPUT)
-        } else {
-            Vec::<AudioObjectID>::new()
-        };
-
-        let output_devs = if devtype.contains(DeviceType::OUTPUT) {
-            audiounit_get_devices_of_type(DeviceType::OUTPUT)
-        } else {
-            Vec::<AudioObjectID>::new()
-        };
-
-        // Count number of input and output devices.  This is not necessarily the same as
-        // the count of raw devices supported by the system since, for example, with Soundflower
-        // installed, some devices may report as being both input *and* output and cubeb
-        // separates those into two different devices.
-
-        let mut devices: Vec<ffi::cubeb_device_info> =
-            allocate_array(output_devs.len() + input_devs.len());
-
-        let mut count = 0;
-        if devtype.contains(DeviceType::OUTPUT) {
-            for dev in output_devs {
-                let device = &mut devices[count];
-                if audiounit_create_device_from_hwdev(device, dev, DeviceType::OUTPUT).is_err()
-                    || is_aggregate_device(device)
-                {
-                    continue;
+        let mut device_infos = Vec::new();
+        let dev_types = [DeviceType::INPUT, DeviceType::OUTPUT];
+        for dev_type in dev_types.iter() {
+            if !devtype.contains(*dev_type) {
+                continue;
+            }
+            let devices = audiounit_get_devices_of_type(*dev_type);
+            for device in devices {
+                if let Ok(info) = create_cubeb_device_info(device, *dev_type) {
+                    if !is_aggregate_device(&info) {
+                        device_infos.push(info);
+                    }
                 }
-                count += 1;
             }
         }
-
-        if devtype.contains(DeviceType::INPUT) {
-            for dev in input_devs {
-                let device = &mut devices[count];
-                if audiounit_create_device_from_hwdev(device, dev, DeviceType::INPUT).is_err()
-                    || is_aggregate_device(device)
-                {
-                    continue;
-                }
-                count += 1;
-            }
-        }
-
-        // Remove the redundant space, set len to count.
-        devices.truncate(count);
-
+        let (ptr, len) = if device_infos.is_empty() {
+            (ptr::null_mut(), 0)
+        } else {
+            forget_vec(device_infos)
+        };
         let coll = unsafe { &mut *collection.as_ptr() };
-        if count > 0 {
-            let (ptr, len) = forget_vec(devices);
-            coll.device = ptr;
-            coll.count = len;
-        } else {
-            coll.device = ptr::null_mut();
-            coll.count = 0;
-        }
-
+        coll.device = ptr;
+        coll.count = len;
         Ok(())
     }
     fn device_collection_destroy(&mut self, collection: &mut DeviceCollectionRef) -> Result<()> {

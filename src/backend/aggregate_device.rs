@@ -555,34 +555,31 @@ impl AggregateDevice {
         assert_ne!(output_id, kAudioObjectUnknown);
         assert_ne!(input_id, output_id);
 
-        let mut input_device_info = ffi::cubeb_device_info::default();
-        audiounit_create_device_from_hwdev(&mut input_device_info, input_id, DeviceType::INPUT);
-
-        let mut output_device_info = ffi::cubeb_device_info::default();
-        audiounit_create_device_from_hwdev(&mut output_device_info, output_id, DeviceType::OUTPUT);
+        let mut input_info = create_cubeb_device_info(input_id, DeviceType::INPUT).unwrap();
+        let mut output_info = create_cubeb_device_info(output_id, DeviceType::OUTPUT).unwrap();
 
         let input_name_str = unsafe {
-            CString::from_raw(input_device_info.friendly_name as *mut c_char)
+            CString::from_raw(input_info.friendly_name as *mut c_char)
                 .into_string()
                 .expect("Fail to convert input name from CString into String")
         };
-        input_device_info.friendly_name = ptr::null();
+        input_info.friendly_name = ptr::null();
 
         let output_name_str = unsafe {
-            CString::from_raw(output_device_info.friendly_name as *mut c_char)
+            CString::from_raw(output_info.friendly_name as *mut c_char)
                 .into_string()
                 .expect("Fail to convert output name from CString into String")
         };
-        output_device_info.friendly_name = ptr::null();
+        output_info.friendly_name = ptr::null();
 
         let _teardown = finally(|| {
             // Retrieve the rest lost memory.
             // No need to retrieve the memory of {input,output}_device_info.friendly_name
             // since they are already retrieved/retaken above.
-            assert!(input_device_info.friendly_name.is_null());
-            audiounit_device_destroy(&mut input_device_info);
-            assert!(output_device_info.friendly_name.is_null());
-            audiounit_device_destroy(&mut output_device_info);
+            assert!(input_info.friendly_name.is_null());
+            audiounit_device_destroy(&mut input_info);
+            assert!(output_info.friendly_name.is_null());
+            audiounit_device_destroy(&mut output_info);
         });
 
         if input_name_str.contains("AirPods") && output_name_str.contains("AirPods") {
