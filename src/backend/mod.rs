@@ -1723,6 +1723,12 @@ fn audiounit_create_device_from_hwdev(
 
     *dev_info = ffi::cubeb_device_info::default();
 
+    assert!(
+        mem::size_of::<ffi::cubeb_devid>() >= mem::size_of_val(&devid),
+        "cubeb_devid can't represent devid"
+    );
+    dev_info.devid = devid as ffi::cubeb_devid;
+
     let mut device_id_str: CFStringRef = ptr::null();
     size = mem::size_of::<CFStringRef>();
     adr.mSelector = kAudioDevicePropertyDeviceUID;
@@ -1730,12 +1736,6 @@ fn audiounit_create_device_from_hwdev(
     if ret == NO_ERR && !device_id_str.is_null() {
         let c_string = audiounit_strref_to_cstr_utf8(device_id_str);
         dev_info.device_id = c_string.into_raw();
-
-        assert!(
-            mem::size_of::<ffi::cubeb_devid>() >= mem::size_of_val(&devid),
-            "cubeb_devid can't represent devid"
-        );
-        dev_info.devid = devid as ffi::cubeb_devid;
 
         dev_info.group_id = dev_info.device_id;
 
