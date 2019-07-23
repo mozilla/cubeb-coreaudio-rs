@@ -7,7 +7,6 @@
 - Use `ErrorChain`
 - Centralize the error log in one place
 - Check scope for `audiounit_get_available_samplerate`
-- Return `Result` from `audiounit_get_channel_count`
 - Refacotr the whole `audiounit_create_device_from_hwdev`
     - Return `cubeb_device_info` in `Result` from `audiounit_create_device_from_hwdev`
     - Decouple the settings of `devid` and `device_id`

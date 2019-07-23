@@ -2,8 +2,8 @@ use super::utils::{
     test_audiounit_get_buffer_frame_size, test_audiounit_scope_is_enabled, test_create_audiounit,
     test_device_channels_in_scope, test_device_in_scope, test_get_all_devices,
     test_get_default_audiounit, test_get_default_device, test_get_default_raw_stream,
-    test_get_default_source_data, test_get_default_source_name, test_get_raw_context,
-    ComponentSubType, PropertyScope, Scope,
+    test_get_default_source_data, test_get_default_source_name, test_get_devices_in_scope,
+    test_get_raw_context, ComponentSubType, PropertyScope, Scope,
 };
 use super::*;
 use std::any::Any;
@@ -1530,12 +1530,8 @@ fn test_get_channel_count() {
     test_channel_count(Scope::Output);
 
     fn test_channel_count(scope: Scope) {
-        let property_scope = match scope {
-            Scope::Input => kAudioDevicePropertyScopeInput,
-            Scope::Output => kAudioDevicePropertyScopeOutput,
-        };
         if let Some(device) = test_get_default_device(scope.clone()) {
-            let channels = audiounit_get_channel_count(device, property_scope);
+            let channels = get_channel_count(device, DeviceType::from(scope.clone())).unwrap();
             assert!(channels > 0);
             assert_eq!(
                 channels,
@@ -1543,6 +1539,77 @@ fn test_get_channel_count() {
             );
         } else {
             println!("No device for {:?}.", scope);
+        }
+    }
+}
+
+#[test]
+fn test_get_channel_count_of_input_for_a_output_only_deivce() {
+    let devices = test_get_devices_in_scope(Scope::Output);
+    for device in devices {
+        // Skip in-out devices.
+        if test_device_in_scope(device, Scope::Input) {
+            continue;
+        }
+        let count = get_channel_count(device, DeviceType::INPUT).unwrap();
+        assert_eq!(count, 0);
+    }
+}
+
+#[test]
+fn test_get_channel_count_of_output_for_a_input_only_deivce() {
+    let devices = test_get_devices_in_scope(Scope::Input);
+    for device in devices {
+        // Skip in-out devices.
+        if test_device_in_scope(device, Scope::Output) {
+            continue;
+        }
+        let count = get_channel_count(device, DeviceType::OUTPUT).unwrap();
+        assert_eq!(count, 0);
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_get_channel_count_of_unknown_device() {
+    assert_eq!(
+        get_channel_count(kAudioObjectUnknown, DeviceType::OUTPUT).unwrap_err(),
+        Error::error()
+    );
+}
+
+#[test]
+#[should_panic]
+fn test_get_channel_count_of_inout_type() {
+    test_channel_count(Scope::Input);
+    test_channel_count(Scope::Output);
+
+    fn test_channel_count(scope: Scope) {
+        if let Some(device) = test_get_default_device(scope.clone()) {
+            assert_eq!(
+                get_channel_count(device, DeviceType::INPUT | DeviceType::OUTPUT).unwrap_err(),
+                Error::error()
+            );
+        } else {
+            panic!("Panic by default: No device for {:?}.", scope);
+        }
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_get_channel_count_of_unknwon_type() {
+    test_channel_count(Scope::Input);
+    test_channel_count(Scope::Output);
+
+    fn test_channel_count(scope: Scope) {
+        if let Some(device) = test_get_default_device(scope.clone()) {
+            assert_eq!(
+                get_channel_count(device, DeviceType::UNKNOWN).unwrap_err(),
+                Error::error()
+            );
+        } else {
+            panic!("Panic by default: No device for {:?}.", scope);
         }
     }
 }
@@ -1653,12 +1720,6 @@ fn test_get_device_presentation_latency() {
 fn test_create_device_from_hwdev() {
     use std::collections::VecDeque;
 
-    let results = test_create_device_from_hwdev_by_device(kAudioObjectUnknown);
-    for result in results {
-        // Hit the kAudioHardwareBadObjectError actually.
-        assert_eq!(result.unwrap_err(), Error::error());
-    }
-
     test_create_device_from_hwdev_in_scope(Scope::Input);
     test_create_device_from_hwdev_in_scope(Scope::Output);
 
@@ -1753,26 +1814,51 @@ fn test_create_device_from_hwdev() {
 
 #[test]
 #[should_panic]
-fn test_create_device_from_hwdev_unknown_type() {
+fn test_create_device_from_hwdev_unknown_device() {
     let mut info = ffi::cubeb_device_info::default();
-    assert!(audiounit_create_device_from_hwdev(
-        &mut info,
-        kAudioObjectUnknown,
-        DeviceType::UNKNOWN
-    )
-    .is_err());
+    assert!(
+        audiounit_create_device_from_hwdev(&mut info, kAudioObjectUnknown, DeviceType::OUTPUT)
+            .is_err()
+    );
 }
 
 #[test]
 #[should_panic]
-fn test_create_device_from_hwdev_inout_type() {
-    let mut info = ffi::cubeb_device_info::default();
-    assert!(audiounit_create_device_from_hwdev(
-        &mut info,
-        kAudioObjectUnknown,
-        DeviceType::INPUT | DeviceType::OUTPUT
-    )
-    .is_err());
+fn test_create_device_from_hwdev_with_unknown_type() {
+    test_create_device_from_hwdev_with_unknown_type_by_scope(Scope::Input);
+    test_create_device_from_hwdev_with_unknown_type_by_scope(Scope::Output);
+
+    fn test_create_device_from_hwdev_with_unknown_type_by_scope(scope: Scope) {
+        if let Some(device) = test_get_default_device(scope.clone()) {
+            let mut info = ffi::cubeb_device_info::default();
+            assert!(
+                audiounit_create_device_from_hwdev(&mut info, device, DeviceType::UNKNOWN).is_err()
+            );
+        } else {
+            panic!("Panic by default: No device for {:?}.", scope);
+        }
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_create_device_from_hwdev_with_inout_type() {
+    test_create_device_from_hwdev_with_inout_type_by_scope(Scope::Input);
+    test_create_device_from_hwdev_with_inout_type_by_scope(Scope::Output);
+
+    fn test_create_device_from_hwdev_with_inout_type_by_scope(scope: Scope) {
+        if let Some(device) = test_get_default_device(scope.clone()) {
+            let mut info = ffi::cubeb_device_info::default();
+            assert!(audiounit_create_device_from_hwdev(
+                &mut info,
+                device,
+                DeviceType::INPUT | DeviceType::OUTPUT
+            )
+            .is_err());
+        } else {
+            panic!("Panic by default: No device for {:?}.", scope);
+        }
+    }
 }
 
 // is_aggregate_device

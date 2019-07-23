@@ -1586,33 +1586,43 @@ fn audiounit_strref_to_cstr_utf8(strref: CFStringRef) -> CString {
     CString::new(buffer).unwrap_or(empty)
 }
 
-fn audiounit_get_channel_count(devid: AudioObjectID, scope: AudioObjectPropertyScope) -> u32 {
-    let mut count: u32 = 0;
-    let mut size: usize = 0;
+fn get_channel_count(devid: AudioObjectID, devtype: DeviceType) -> Result<u32> {
+    assert_ne!(devid, kAudioObjectUnknown);
 
     let adr = AudioObjectPropertyAddress {
         mSelector: kAudioDevicePropertyStreamConfiguration,
-        mScope: scope,
+        mScope: match devtype {
+            DeviceType::INPUT => kAudioDevicePropertyScopeInput,
+            DeviceType::OUTPUT => kAudioDevicePropertyScopeOutput,
+            _ => panic!("Invalid type"),
+        },
         mElement: kAudioObjectPropertyElementMaster,
     };
 
-    if audio_object_get_property_data_size(devid, &adr, &mut size) == NO_ERR && size > 0 {
-        let mut data: Vec<u8> = allocate_array_by_size(size);
-        let ptr = data.as_mut_ptr() as *mut AudioBufferList;
-        if audio_object_get_property_data(devid, &adr, &mut size, ptr) == NO_ERR {
-            let list: &AudioBufferList = unsafe { &(*ptr) };
-            let ptr = list.mBuffers.as_ptr() as *const AudioBuffer;
-            let len = list.mNumberBuffers as usize;
-            if len == 0 {
-                return 0;
-            }
-            let buffers = unsafe { slice::from_raw_parts(ptr, len) };
-            for buffer in buffers {
-                count += buffer.mNumberChannels;
-            }
-        }
+    let mut size: usize = 0;
+    let r = audio_object_get_property_data_size(devid, &adr, &mut size);
+    if r != NO_ERR {
+        return Err(Error::error());
     }
-    count
+    assert_ne!(size, 0);
+
+    let mut data: Vec<u8> = allocate_array_by_size(size);
+    let ptr = data.as_mut_ptr() as *mut AudioBufferList;
+    let r = audio_object_get_property_data(devid, &adr, &mut size, ptr);
+    if r != NO_ERR {
+        return Err(Error::error());
+    }
+
+    let list = unsafe { &(*ptr) };
+    let ptr = list.mBuffers.as_ptr() as *const AudioBuffer;
+    let len = list.mNumberBuffers as usize;
+
+    let mut count = 0;
+    let buffers = unsafe { slice::from_raw_parts(ptr, len) };
+    for buffer in buffers {
+        count += buffer.mNumberChannels;
+    }
+    Ok(count)
 }
 
 fn audiounit_get_available_samplerate(
@@ -1716,7 +1726,7 @@ fn audiounit_create_device_from_hwdev(
         kAudioDevicePropertyScopeInput
     };
 
-    let ch = audiounit_get_channel_count(devid, adr.mScope);
+    let ch = get_channel_count(devid, devtype)?;
     if ch == 0 {
         return Err(Error::error());
     }
@@ -1919,14 +1929,9 @@ fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID> {
         return devices;
     }
 
-    let scope = if devtype == DeviceType::INPUT {
-        kAudioDevicePropertyScopeInput
-    } else {
-        kAudioDevicePropertyScopeOutput
-    };
     let mut devices_in_scope = Vec::new();
     for device in devices {
-        if audiounit_get_channel_count(device, scope) > 0 {
+        if get_channel_count(device, devtype).unwrap() > 0 {
             devices_in_scope.push(device);
         }
     }
