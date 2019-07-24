@@ -1726,16 +1726,10 @@ fn create_cubeb_device_info(
     );
     dev_info.devid = devid as ffi::cubeb_devid;
 
-    let mut device_id_str: CFStringRef = ptr::null();
-    size = mem::size_of::<CFStringRef>();
-    adr.mSelector = kAudioDevicePropertyDeviceUID;
-    let mut ret = audio_object_get_property_data(devid, &adr, &mut size, &mut device_id_str);
-    if ret == NO_ERR && !device_id_str.is_null() {
+    if let Ok(device_id_str) = get_device_uid(devid, devtype) {
         let c_string = audiounit_strref_to_cstr_utf8(device_id_str);
         dev_info.device_id = c_string.into_raw();
-
         dev_info.group_id = dev_info.device_id;
-
         unsafe {
             CFRelease(device_id_str as *const c_void);
         }
@@ -1745,7 +1739,7 @@ fn create_cubeb_device_info(
     let mut ds: u32 = 0;
     size = mem::size_of::<u32>();
     adr.mSelector = kAudioDevicePropertyDataSource;
-    ret = audio_object_get_property_data(devid, &adr, &mut size, &mut ds);
+    let mut ret = audio_object_get_property_data(devid, &adr, &mut size, &mut ds);
     if ret == NO_ERR {
         let mut trl = AudioValueTranslation {
             mInputData: &mut ds as *mut u32 as *mut c_void,
@@ -1897,7 +1891,7 @@ fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID> {
 
     // Remove the aggregate device from the list of devices (if any).
     devices.retain(|&device| {
-        if let Ok(name) = get_device_uid(device) {
+        if let Ok(name) = get_device_global_uid(device) {
             let private_device = cfstringref_from_static_string(PRIVATE_AGGREGATE_DEVICE_NAME);
             unsafe {
                 let found = CFStringFind(name, private_device, 0).location;

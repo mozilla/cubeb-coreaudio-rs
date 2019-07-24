@@ -845,7 +845,7 @@ impl TestDevicePlugger {
             return None;
         }
         let device = device.unwrap();
-        let uid = get_device_uid(device);
+        let uid = get_device_global_uid(device);
         if uid.is_err() {
             return None;
         }
