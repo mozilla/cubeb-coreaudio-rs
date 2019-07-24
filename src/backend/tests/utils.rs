@@ -861,11 +861,10 @@ impl TestDevicePlugger {
             CFDictionaryAddValue(
                 sub_device_dict,
                 cfstringref_from_static_string(SUB_DEVICE_UID_KEY) as *const c_void,
-                uid as *const c_void,
+                uid.get_raw() as *const c_void,
             );
             CFArrayAppendValue(list, sub_device_dict as *const c_void);
             CFRelease(sub_device_dict as *const c_void);
-            CFRelease(uid as *const c_void);
             Some(list)
         }
     }

@@ -1,10 +1,10 @@
 use super::*;
 
-pub fn get_device_global_uid(id: AudioDeviceID) -> Result<CFStringRef> {
+pub fn get_device_global_uid(id: AudioDeviceID) -> Result<StringRef> {
     get_device_uid(id, DeviceType::INPUT | DeviceType::OUTPUT)
 }
 
-pub fn get_device_uid(id: AudioDeviceID, devtype: DeviceType) -> Result<CFStringRef> {
+pub fn get_device_uid(id: AudioDeviceID, devtype: DeviceType) -> Result<StringRef> {
     assert_ne!(id, kAudioObjectUnknown);
 
     let address = get_property_address(Property::DeviceUID, devtype);
@@ -12,7 +12,7 @@ pub fn get_device_uid(id: AudioDeviceID, devtype: DeviceType) -> Result<CFString
     let mut uid: CFStringRef = ptr::null();
     let err = audio_object_get_property_data(id, &address, &mut size, &mut uid);
     if err == NO_ERR {
-        Ok(uid)
+        Ok(StringRef::new(uid as _))
     } else {
         Err(Error::error())
     }
@@ -32,7 +32,7 @@ pub fn get_device_source(id: AudioDeviceID, devtype: DeviceType) -> Result<u32> 
     }
 }
 
-pub fn get_device_source_name(id: AudioDeviceID, devtype: DeviceType) -> Result<CFStringRef> {
+pub fn get_device_source_name(id: AudioDeviceID, devtype: DeviceType) -> Result<StringRef> {
     assert_ne!(id, kAudioObjectUnknown);
 
     let mut source: u32 = get_device_source(id, devtype)?;
@@ -47,13 +47,13 @@ pub fn get_device_source_name(id: AudioDeviceID, devtype: DeviceType) -> Result<
     };
     let err = audio_object_get_property_data(id, &address, &mut size, &mut trl);
     if err == NO_ERR {
-        Ok(name)
+        Ok(StringRef::new(name as _))
     } else {
         Err(Error::error())
     }
 }
 
-pub fn get_device_name(id: AudioDeviceID, devtype: DeviceType) -> Result<CFStringRef> {
+pub fn get_device_name(id: AudioDeviceID, devtype: DeviceType) -> Result<StringRef> {
     assert_ne!(id, kAudioObjectUnknown);
 
     let address = get_property_address(Property::DeviceName, devtype);
@@ -61,13 +61,13 @@ pub fn get_device_name(id: AudioDeviceID, devtype: DeviceType) -> Result<CFStrin
     let mut name: CFStringRef = ptr::null();
     let err = audio_object_get_property_data(id, &address, &mut size, &mut name);
     if err == NO_ERR {
-        Ok(name)
+        Ok(StringRef::new(name as _))
     } else {
         Err(Error::error())
     }
 }
 
-pub fn get_device_label(id: AudioDeviceID, devtype: DeviceType) -> Result<CFStringRef> {
+pub fn get_device_label(id: AudioDeviceID, devtype: DeviceType) -> Result<StringRef> {
     get_device_source_name(id, devtype).or(get_device_name(id, devtype))
 }
 

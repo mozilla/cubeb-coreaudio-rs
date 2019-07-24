@@ -1726,25 +1726,16 @@ fn create_cubeb_device_info(
     );
     dev_info.devid = devid as ffi::cubeb_devid;
 
-    if let Ok(device_id_str) = get_device_uid(devid, devtype) {
-        let c_string = audiounit_strref_to_cstr_utf8(device_id_str);
+    if let Ok(uid) = get_device_uid(devid, devtype) {
+        let c_string = uid.into_cstring();
         dev_info.device_id = c_string.into_raw();
         dev_info.group_id = dev_info.device_id;
-        unsafe {
-            CFRelease(device_id_str as *const c_void);
-        }
     }
 
-    if let Ok(label) = get_device_label(devid, devtype) {
-        let c_string = audiounit_strref_to_cstr_utf8(label);
-        dev_info.friendly_name = c_string.into_raw();
-        unsafe {
-            CFRelease(label as *const c_void);
-        }
-    } else {
-        let c_string = CString::default();
-        dev_info.friendly_name = c_string.into_raw();
-    }
+    let label = get_device_label(devid, devtype)
+        .map(|str_ref| str_ref.into_cstring())
+        .unwrap_or(CString::default());
+    dev_info.friendly_name = label.into_raw();
 
     let mut vendor_name_str: CFStringRef = ptr::null();
     size = mem::size_of::<CFStringRef>();
@@ -1864,14 +1855,9 @@ fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID> {
 
     // Remove the aggregate device from the list of devices (if any).
     devices.retain(|&device| {
-        if let Ok(name) = get_device_global_uid(device) {
-            let private_device = cfstringref_from_static_string(PRIVATE_AGGREGATE_DEVICE_NAME);
-            unsafe {
-                let found = CFStringFind(name, private_device, 0).location;
-                CFRelease(private_device as *const c_void);
-                CFRelease(name as *const c_void);
-                found == kCFNotFound
-            }
+        if let Ok(uid) = get_device_global_uid(device) {
+            let uid = uid.into_string();
+            uid != PRIVATE_AGGREGATE_DEVICE_NAME
         } else {
             // Fail to get device uid.
             true

@@ -350,14 +350,12 @@ impl AggregateDevice {
             // of the AudioAggregateDevice.
             for device in output_sub_devices {
                 let uid = get_device_global_uid(device).unwrap();
-                CFArrayAppendValue(sub_devices, uid as *const c_void);
-                CFRelease(uid as *const c_void);
+                CFArrayAppendValue(sub_devices, uid.get_raw() as *const c_void);
             }
 
             for device in input_sub_devices {
                 let uid = get_device_global_uid(device).unwrap();
-                CFArrayAppendValue(sub_devices, uid as *const c_void);
-                CFRelease(uid as *const c_void);
+                CFArrayAppendValue(sub_devices, uid.get_raw() as *const c_void);
             }
 
             let address = AudioObjectPropertyAddress {
@@ -430,14 +428,10 @@ impl AggregateDevice {
         assert_ne!(output_device_id, kAudioObjectUnknown);
         let output_sub_devices = Self::get_sub_devices(output_device_id)?;
         assert!(!output_sub_devices.is_empty());
-        let master_sub_device = get_device_global_uid(output_sub_devices[0]).unwrap();
+        let master_sub_device_uid = get_device_global_uid(output_sub_devices[0]).unwrap();
+        let master_sub_device = master_sub_device_uid.get_raw();
         let size = mem::size_of::<CFStringRef>();
         let status = audio_object_set_property_data(device_id, &address, size, &master_sub_device);
-        if !master_sub_device.is_null() {
-            unsafe {
-                CFRelease(master_sub_device as *const c_void);
-            }
-        }
         if status == NO_ERR {
             Ok(())
         } else {
@@ -553,21 +547,11 @@ impl AggregateDevice {
         assert_ne!(output_id, kAudioObjectUnknown);
         assert_ne!(input_id, output_id);
 
-        let label_str = get_device_label(input_id, DeviceType::INPUT).unwrap();
-        let input_label = audiounit_strref_to_cstr_utf8(label_str)
-            .into_string()
-            .unwrap();
-        unsafe {
-            CFRelease(label_str as *const c_void);
-        }
+        let label = get_device_label(input_id, DeviceType::INPUT).unwrap();
+        let input_label = label.into_string();
 
-        let label_str = get_device_label(output_id, DeviceType::OUTPUT).unwrap();
-        let output_label = audiounit_strref_to_cstr_utf8(label_str)
-            .into_string()
-            .unwrap();
-        unsafe {
-            CFRelease(label_str as *const c_void);
-        }
+        let label = get_device_label(output_id, DeviceType::OUTPUT).unwrap();
+        let output_label = label.into_string();
 
         if input_label.contains("AirPods") && output_label.contains("AirPods") {
             let mut input_min_rate = 0;

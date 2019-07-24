@@ -626,12 +626,8 @@ fn to_devices_names(devices: &Vec<AudioObjectID>) -> Vec<Option<String>> {
 }
 
 fn to_device_name(id: AudioObjectID) -> Option<String> {
-    let name_ref = get_device_global_uid(id).unwrap();
-    let name = strref_to_string(name_ref);
-    unsafe {
-        CFRelease(name_ref as *const c_void);
-    }
-    Some(name)
+    let uid = get_device_global_uid(id).unwrap();
+    Some(uid.into_string())
 }
 
 fn strref_to_string(strref: CFStringRef) -> String {

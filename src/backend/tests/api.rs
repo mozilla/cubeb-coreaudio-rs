@@ -1036,17 +1036,15 @@ fn test_get_device_global_uid() {
     // Input device.
     if let Some(input) = test_get_default_device(Scope::Input) {
         let uid = get_device_global_uid(input).unwrap();
-        unsafe {
-            CFRelease(uid as *const c_void);
-        }
+        let uid = uid.into_string();
+        assert!(!uid.is_empty());
     }
 
     // Output device.
     if let Some(output) = test_get_default_device(Scope::Output) {
         let uid = get_device_global_uid(output).unwrap();
-        unsafe {
-            CFRelease(uid as *const c_void);
-        }
+        let uid = uid.into_string();
+        assert!(!uid.is_empty());
     }
 }
 
@@ -1064,17 +1062,15 @@ fn test_get_device_uid() {
     // Input device.
     if let Some(input) = test_get_default_device(Scope::Input) {
         let uid = get_device_uid(input, DeviceType::INPUT).unwrap();
-        unsafe {
-            CFRelease(uid as *const c_void);
-        }
+        let uid = uid.into_string();
+        assert!(!uid.is_empty());
     }
 
     // Output device.
     if let Some(output) = test_get_default_device(Scope::Output) {
         let uid = get_device_uid(output, DeviceType::OUTPUT).unwrap();
-        unsafe {
-            CFRelease(uid as *const c_void);
-        }
+        let uid = uid.into_string();
+        assert!(!uid.is_empty());
     }
 }
 
