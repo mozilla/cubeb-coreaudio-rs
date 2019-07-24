@@ -53,7 +53,22 @@ pub fn get_device_source_name(id: AudioDeviceID, devtype: DeviceType) -> Result<
     }
 }
 
+pub fn get_device_name(id: AudioDeviceID, devtype: DeviceType) -> Result<CFStringRef> {
+    assert_ne!(id, kAudioObjectUnknown);
+
+    let address = get_property_address(Property::DeviceName, devtype);
+    let mut size = mem::size_of::<CFStringRef>();
+    let mut name: CFStringRef = ptr::null();
+    let err = audio_object_get_property_data(id, &address, &mut size, &mut name);
+    if err == NO_ERR {
+        Ok(name)
+    } else {
+        Err(Error::error())
+    }
+}
+
 enum Property {
+    DeviceName,
     DeviceSource,
     DeviceSourceName,
     DeviceUID,
@@ -62,6 +77,7 @@ enum Property {
 impl From<Property> for AudioObjectPropertySelector {
     fn from(p: Property) -> Self {
         match p {
+            Property::DeviceName => kAudioObjectPropertyName,
             Property::DeviceSource => kAudioDevicePropertyDataSource,
             Property::DeviceSourceName => kAudioDevicePropertyDataSourceNameForIDCFString,
             Property::DeviceUID => kAudioDevicePropertyDeviceUID,

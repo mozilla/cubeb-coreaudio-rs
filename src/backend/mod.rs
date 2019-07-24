@@ -1735,16 +1735,11 @@ fn create_cubeb_device_info(
         }
     }
 
-    let mut friendly_name_str: CFStringRef =
-        get_device_source_name(devid, devtype).unwrap_or(ptr::null());
-
     // If there is no datasource for this device, fall back to the
     // device name.
-    if friendly_name_str.is_null() {
-        size = mem::size_of::<CFStringRef>();
-        adr.mSelector = kAudioObjectPropertyName;
-        audio_object_get_property_data(devid, &adr, &mut size, &mut friendly_name_str);
-    }
+    let friendly_name_str: CFStringRef = get_device_source_name(devid, devtype)
+        .or(get_device_name(devid, devtype))
+        .unwrap_or(ptr::null());
 
     if friendly_name_str.is_null() {
         // Couldn't get a datasource name nor a device name, return a
