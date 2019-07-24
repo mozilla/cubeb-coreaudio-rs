@@ -1736,14 +1736,10 @@ fn create_cubeb_device_info(
     }
 
     let mut friendly_name_str: CFStringRef = ptr::null();
-    let mut ds: u32 = 0;
-    size = mem::size_of::<u32>();
-    adr.mSelector = kAudioDevicePropertyDataSource;
-    let mut ret = audio_object_get_property_data(devid, &adr, &mut size, &mut ds);
-    if ret == NO_ERR {
+    if let Ok(mut source) = get_device_source(devid, devtype) {
         let mut trl = AudioValueTranslation {
-            mInputData: &mut ds as *mut u32 as *mut c_void,
-            mInputDataSize: mem::size_of_val(&ds) as u32,
+            mInputData: &mut source as *mut u32 as *mut c_void,
+            mInputDataSize: mem::size_of_val(&source) as u32,
             mOutputData: &mut friendly_name_str as *mut CFStringRef as *mut c_void,
             mOutputDataSize: mem::size_of::<CFStringRef>() as u32,
         };
@@ -1776,7 +1772,7 @@ fn create_cubeb_device_info(
     let mut vendor_name_str: CFStringRef = ptr::null();
     size = mem::size_of::<CFStringRef>();
     adr.mSelector = kAudioObjectPropertyManufacturer;
-    ret = audio_object_get_property_data(devid, &adr, &mut size, &mut vendor_name_str);
+    let mut ret = audio_object_get_property_data(devid, &adr, &mut size, &mut vendor_name_str);
     if ret == NO_ERR && !vendor_name_str.is_null() {
         let c_string = audiounit_strref_to_cstr_utf8(vendor_name_str);
         dev_info.vendor_name = c_string.into_raw();
