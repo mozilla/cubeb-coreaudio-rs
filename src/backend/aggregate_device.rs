@@ -553,34 +553,23 @@ impl AggregateDevice {
         assert_ne!(output_id, kAudioObjectUnknown);
         assert_ne!(input_id, output_id);
 
-        let mut input_info = create_cubeb_device_info(input_id, DeviceType::INPUT).unwrap();
-        let mut output_info = create_cubeb_device_info(output_id, DeviceType::OUTPUT).unwrap();
+        let label_str = get_device_label(input_id, DeviceType::INPUT).unwrap();
+        let input_label = audiounit_strref_to_cstr_utf8(label_str)
+            .into_string()
+            .unwrap();
+        unsafe {
+            CFRelease(label_str as *const c_void);
+        }
 
-        let input_name_str = unsafe {
-            CString::from_raw(input_info.friendly_name as *mut c_char)
-                .into_string()
-                .expect("Fail to convert input name from CString into String")
-        };
-        input_info.friendly_name = ptr::null();
+        let label_str = get_device_label(output_id, DeviceType::OUTPUT).unwrap();
+        let output_label = audiounit_strref_to_cstr_utf8(label_str)
+            .into_string()
+            .unwrap();
+        unsafe {
+            CFRelease(label_str as *const c_void);
+        }
 
-        let output_name_str = unsafe {
-            CString::from_raw(output_info.friendly_name as *mut c_char)
-                .into_string()
-                .expect("Fail to convert output name from CString into String")
-        };
-        output_info.friendly_name = ptr::null();
-
-        let _teardown = finally(|| {
-            // Retrieve the rest lost memory.
-            // No need to retrieve the memory of {input,output}_device_info.friendly_name
-            // since they are already retrieved/retaken above.
-            assert!(input_info.friendly_name.is_null());
-            audiounit_device_destroy(&mut input_info);
-            assert!(output_info.friendly_name.is_null());
-            audiounit_device_destroy(&mut output_info);
-        });
-
-        if input_name_str.contains("AirPods") && output_name_str.contains("AirPods") {
+        if input_label.contains("AirPods") && output_label.contains("AirPods") {
             let mut input_min_rate = 0;
             let mut input_max_rate = 0;
             let mut input_nominal_rate = 0;
@@ -594,7 +583,7 @@ impl AggregateDevice {
             cubeb_log!(
                 "Input device {}, name: {}, min: {}, max: {}, nominal rate: {}",
                 input_id,
-                input_name_str,
+                input_label,
                 input_min_rate,
                 input_max_rate,
                 input_nominal_rate
@@ -613,7 +602,7 @@ impl AggregateDevice {
             cubeb_log!(
                 "Output device {}, name: {}, min: {}, max: {}, nominal rate: {}",
                 output_id,
-                output_name_str,
+                output_label,
                 output_min_rate,
                 output_max_rate,
                 output_nominal_rate

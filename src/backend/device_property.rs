@@ -67,6 +67,10 @@ pub fn get_device_name(id: AudioDeviceID, devtype: DeviceType) -> Result<CFStrin
     }
 }
 
+pub fn get_device_label(id: AudioDeviceID, devtype: DeviceType) -> Result<CFStringRef> {
+    get_device_source_name(id, devtype).or(get_device_name(id, devtype))
+}
+
 enum Property {
     DeviceName,
     DeviceSource,

@@ -1735,24 +1735,16 @@ fn create_cubeb_device_info(
         }
     }
 
-    // If there is no datasource for this device, fall back to the
-    // device name.
-    let friendly_name_str: CFStringRef = get_device_source_name(devid, devtype)
-        .or(get_device_name(devid, devtype))
-        .unwrap_or(ptr::null());
-
-    if friendly_name_str.is_null() {
-        // Couldn't get a datasource name nor a device name, return a
-        // valid string of length 0.
-        let c_string = CString::default();
-        dev_info.friendly_name = c_string.into_raw();
-    } else {
-        let c_string = audiounit_strref_to_cstr_utf8(friendly_name_str);
+    if let Ok(label) = get_device_label(devid, devtype) {
+        let c_string = audiounit_strref_to_cstr_utf8(label);
         dev_info.friendly_name = c_string.into_raw();
         unsafe {
-            CFRelease(friendly_name_str as *const c_void);
+            CFRelease(label as *const c_void);
         }
-    };
+    } else {
+        let c_string = CString::default();
+        dev_info.friendly_name = c_string.into_raw();
+    }
 
     let mut vendor_name_str: CFStringRef = ptr::null();
     size = mem::size_of::<CFStringRef>();
