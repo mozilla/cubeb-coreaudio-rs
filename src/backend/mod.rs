@@ -1705,11 +1705,12 @@ fn create_cubeb_device_info(
         dev_info.vendor_name = vendor_name.into_raw();
     }
 
-    dev_info.device_type = if devtype == DeviceType::OUTPUT {
-        ffi::CUBEB_DEVICE_TYPE_OUTPUT
-    } else {
-        ffi::CUBEB_DEVICE_TYPE_INPUT
+    dev_info.device_type = match devtype {
+        DeviceType::INPUT => ffi::CUBEB_DEVICE_TYPE_INPUT,
+        DeviceType::OUTPUT => ffi::CUBEB_DEVICE_TYPE_OUTPUT,
+        _ => panic!("invalid type"),
     };
+
     dev_info.state = ffi::CUBEB_DEVICE_STATE_ENABLED;
     dev_info.preferred = if devid == audiounit_get_default_device_id(devtype) {
         ffi::CUBEB_DEVICE_PREF_ALL
