@@ -1676,12 +1676,14 @@ fn create_cubeb_device_info(
         kAudioDevicePropertyScopeInput
     };
 
-    let ch = get_channel_count(devid, devtype)?;
-    if ch == 0 {
+    let channels = get_channel_count(devid, devtype)?;
+    if channels == 0 {
+        // Invalid type for this device.
         return Err(Error::error());
     }
 
     let mut dev_info = ffi::cubeb_device_info::default();
+    dev_info.max_channels = channels;
 
     assert!(
         mem::size_of::<ffi::cubeb_devid>() >= mem::size_of_val(&devid),
@@ -1718,7 +1720,6 @@ fn create_cubeb_device_info(
         ffi::CUBEB_DEVICE_PREF_NONE
     };
 
-    dev_info.max_channels = ch;
     dev_info.format = ffi::CUBEB_DEVICE_FMT_ALL;
     dev_info.default_format = ffi::CUBEB_DEVICE_FMT_F32NE;
     audiounit_get_available_samplerate(
