@@ -71,7 +71,22 @@ pub fn get_device_label(id: AudioDeviceID, devtype: DeviceType) -> Result<String
     get_device_source_name(id, devtype).or(get_device_name(id, devtype))
 }
 
+pub fn get_device_manufacturer(id: AudioDeviceID, devtype: DeviceType) -> Result<StringRef> {
+    assert_ne!(id, kAudioObjectUnknown);
+
+    let address = get_property_address(Property::DeviceManufacturer, devtype);
+    let mut size = mem::size_of::<CFStringRef>();
+    let mut manufacturer: CFStringRef = ptr::null();
+    let err = audio_object_get_property_data(id, &address, &mut size, &mut manufacturer);
+    if err == NO_ERR {
+        Ok(StringRef::new(manufacturer as _))
+    } else {
+        Err(Error::error())
+    }
+}
+
 enum Property {
+    DeviceManufacturer,
     DeviceName,
     DeviceSource,
     DeviceSourceName,
@@ -81,6 +96,7 @@ enum Property {
 impl From<Property> for AudioObjectPropertySelector {
     fn from(p: Property) -> Self {
         match p {
+            Property::DeviceManufacturer => kAudioObjectPropertyManufacturer,
             Property::DeviceName => kAudioObjectPropertyName,
             Property::DeviceSource => kAudioDevicePropertyDataSource,
             Property::DeviceSourceName => kAudioDevicePropertyDataSourceNameForIDCFString,

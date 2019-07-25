@@ -1737,16 +1737,9 @@ fn create_cubeb_device_info(
         .unwrap_or(CString::default());
     dev_info.friendly_name = label.into_raw();
 
-    let mut vendor_name_str: CFStringRef = ptr::null();
-    size = mem::size_of::<CFStringRef>();
-    adr.mSelector = kAudioObjectPropertyManufacturer;
-    let mut ret = audio_object_get_property_data(devid, &adr, &mut size, &mut vendor_name_str);
-    if ret == NO_ERR && !vendor_name_str.is_null() {
-        let c_string = audiounit_strref_to_cstr_utf8(vendor_name_str);
-        dev_info.vendor_name = c_string.into_raw();
-        unsafe {
-            CFRelease(vendor_name_str as *const c_void);
-        }
+    if let Ok(vendor_name) = get_device_manufacturer(devid, devtype) {
+        let vendor_name = vendor_name.into_cstring();
+        dev_info.vendor_name = vendor_name.into_raw();
     }
 
     dev_info.device_type = if devtype == DeviceType::OUTPUT {
@@ -1776,7 +1769,7 @@ fn create_cubeb_device_info(
     let mut range = AudioValueRange::default();
     adr.mSelector = kAudioDevicePropertyBufferFrameSizeRange;
     size = mem::size_of::<AudioValueRange>();
-    ret = audio_object_get_property_data(devid, &adr, &mut size, &mut range);
+    let ret = audio_object_get_property_data(devid, &adr, &mut size, &mut range);
     if ret == NO_ERR {
         dev_info.latency_lo = latency + range.mMinimum as u32;
         dev_info.latency_hi = latency + range.mMaximum as u32;
