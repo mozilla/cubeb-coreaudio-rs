@@ -1728,9 +1728,9 @@ fn test_get_device_presentation_latency() {
 
     fn test_get_device_presentation_latencies_of_device(id: AudioObjectID) -> Vec<u32> {
         let scopes = [
-            kAudioObjectPropertyScopeGlobal,
-            kAudioDevicePropertyScopeInput,
-            kAudioDevicePropertyScopeOutput,
+            DeviceType::INPUT,
+            DeviceType::OUTPUT,
+            DeviceType::INPUT | DeviceType::OUTPUT,
         ];
         let mut latencies = Vec::new();
         for scope in scopes.iter() {
