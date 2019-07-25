@@ -1670,23 +1670,6 @@ fn create_cubeb_device_info(
     devid: AudioObjectID,
     devtype: DeviceType,
 ) -> Result<ffi::cubeb_device_info> {
-    let mut adr = AudioObjectPropertyAddress {
-        mSelector: 0,
-        mScope: match devtype {
-            DeviceType::INPUT => kAudioDevicePropertyScopeInput,
-            DeviceType::OUTPUT => kAudioDevicePropertyScopeOutput,
-            _ => panic!("Invalid type"),
-        },
-        mElement: kAudioObjectPropertyElementMaster,
-    };
-    let mut size: usize = 0;
-
-    adr.mScope = if devtype == DeviceType::OUTPUT {
-        kAudioDevicePropertyScopeOutput
-    } else {
-        kAudioDevicePropertyScopeInput
-    };
-
     let channels = get_channel_count(devid, devtype)?;
     if channels == 0 {
         // Invalid type for this device.
