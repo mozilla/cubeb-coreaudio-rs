@@ -1731,17 +1731,18 @@ fn create_cubeb_device_info(
     );
 
     let latency = audiounit_get_device_presentation_latency(devid, adr.mScope);
-    let mut range = AudioValueRange::default();
-    adr.mSelector = kAudioDevicePropertyBufferFrameSizeRange;
-    size = mem::size_of::<AudioValueRange>();
-    let ret = audio_object_get_property_data(devid, &adr, &mut size, &mut range);
-    if ret == NO_ERR {
-        dev_info.latency_lo = latency + range.mMinimum as u32;
-        dev_info.latency_hi = latency + range.mMaximum as u32;
-    } else {
-        dev_info.latency_lo = 10 * dev_info.default_rate / 1000; // Default to 10ms
-        dev_info.latency_hi = 100 * dev_info.default_rate / 1000; // Default to 10ms
-    }
+
+    let (latency_low, latency_high) =
+        if let Ok((min, max)) = get_device_buffer_frame_size_range(devid, devtype) {
+            (latency + min as u32, latency + max as u32)
+        } else {
+            (
+                10 * dev_info.default_rate / 1000,
+                100 * dev_info.default_rate / 1000,
+            )
+        };
+    dev_info.latency_lo = latency_low;
+    dev_info.latency_hi = latency_high;
 
     Ok(dev_info)
 }

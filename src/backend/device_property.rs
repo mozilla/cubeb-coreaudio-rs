@@ -85,7 +85,25 @@ pub fn get_device_manufacturer(id: AudioDeviceID, devtype: DeviceType) -> Result
     }
 }
 
+pub fn get_device_buffer_frame_size_range(
+    id: AudioDeviceID,
+    devtype: DeviceType,
+) -> Result<(f64, f64)> {
+    assert_ne!(id, kAudioObjectUnknown);
+
+    let address = get_property_address(Property::DeviceBufferFrameSizeRange, devtype);
+    let mut size = mem::size_of::<AudioValueRange>();
+    let mut range = AudioValueRange::default();
+    let err = audio_object_get_property_data(id, &address, &mut size, &mut range);
+    if err == NO_ERR {
+        Ok((range.mMinimum, range.mMaximum))
+    } else {
+        Err(Error::error())
+    }
+}
+
 enum Property {
+    DeviceBufferFrameSizeRange,
     DeviceManufacturer,
     DeviceName,
     DeviceSource,
@@ -96,6 +114,7 @@ enum Property {
 impl From<Property> for AudioObjectPropertySelector {
     fn from(p: Property) -> Self {
         match p {
+            Property::DeviceBufferFrameSizeRange => kAudioDevicePropertyBufferFrameSizeRange,
             Property::DeviceManufacturer => kAudioObjectPropertyManufacturer,
             Property::DeviceName => kAudioObjectPropertyName,
             Property::DeviceSource => kAudioDevicePropertyDataSource,
