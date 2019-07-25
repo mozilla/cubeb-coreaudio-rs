@@ -1666,9 +1666,9 @@ fn test_get_available_samplerate() {
 
     fn test_get_available_samplerate_of_device(id: AudioObjectID) -> Vec<(u32, u32, u32)> {
         let scopes = [
-            kAudioObjectPropertyScopeGlobal,
-            kAudioDevicePropertyScopeInput,
-            kAudioDevicePropertyScopeOutput,
+            DeviceType::INPUT,
+            DeviceType::OUTPUT,
+            DeviceType::INPUT | DeviceType::OUTPUT,
         ];
         let mut samplerates = Vec::new();
         for scope in scopes.iter() {
@@ -1679,12 +1679,12 @@ fn test_get_available_samplerate() {
 
     fn test_get_available_samplerate_of_device_in_scope(
         id: AudioObjectID,
-        scope: AudioObjectPropertyScope,
+        devtype: DeviceType,
     ) -> (u32, u32, u32) {
         let mut default = 0;
         let mut min = 0;
         let mut max = 0;
-        audiounit_get_available_samplerate(id, scope, &mut min, &mut max, &mut default);
+        audiounit_get_available_samplerate(id, devtype, &mut min, &mut max, &mut default);
         (min, max, default)
     }
 

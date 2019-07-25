@@ -1576,14 +1576,21 @@ fn get_channel_count(devid: AudioObjectID, devtype: DeviceType) -> Result<u32> {
 
 fn audiounit_get_available_samplerate(
     devid: AudioObjectID,
-    scope: AudioObjectPropertyScope,
+    devtype: DeviceType,
     min: &mut u32,
     max: &mut u32,
     def: &mut u32,
 ) {
+    const GLOBAL: ffi::cubeb_device_type =
+        ffi::CUBEB_DEVICE_TYPE_INPUT | ffi::CUBEB_DEVICE_TYPE_OUTPUT;
     let mut adr = AudioObjectPropertyAddress {
         mSelector: 0,
-        mScope: scope,
+        mScope: match devtype.bits() {
+            ffi::CUBEB_DEVICE_TYPE_INPUT => kAudioDevicePropertyScopeInput,
+            ffi::CUBEB_DEVICE_TYPE_OUTPUT => kAudioDevicePropertyScopeOutput,
+            GLOBAL => kAudioObjectPropertyScopeGlobal,
+            _ => panic!("Invalid type"),
+        },
         mElement: kAudioObjectPropertyElementMaster,
     };
 
@@ -1724,7 +1731,7 @@ fn create_cubeb_device_info(
     dev_info.default_format = ffi::CUBEB_DEVICE_FMT_F32NE;
     audiounit_get_available_samplerate(
         devid,
-        adr.mScope,
+        devtype,
         &mut dev_info.min_rate,
         &mut dev_info.max_rate,
         &mut dev_info.default_rate,
