@@ -43,7 +43,7 @@ use std::cmp;
 use std::ffi::{CStr, CString};
 use std::fmt;
 use std::mem;
-use std::os::raw::{c_char, c_void};
+use std::os::raw::c_void;
 use std::ptr;
 use std::slice;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU32, AtomicU64, Ordering};
@@ -1533,43 +1533,6 @@ fn audiounit_get_default_datasource(side: io_side) -> Result<u32> {
 fn audiounit_get_default_datasource_string(side: io_side) -> Result<CString> {
     let data = audiounit_get_default_datasource(side)?;
     Ok(convert_uint32_into_string(data))
-}
-
-fn audiounit_strref_to_cstr_utf8(strref: CFStringRef) -> CString {
-    let empty = CString::default();
-    if strref.is_null() {
-        return empty;
-    }
-
-    let len = unsafe { CFStringGetLength(strref) };
-    // Add 1 to size to allow for '\0' termination character.
-    let size = unsafe { CFStringGetMaximumSizeForEncoding(len, kCFStringEncodingUTF8) + 1 };
-    let mut buffer = vec![b'\x00'; size as usize];
-
-    let success = unsafe {
-        CFStringGetCString(
-            strref,
-            buffer.as_mut_ptr() as *mut c_char,
-            size,
-            kCFStringEncodingUTF8,
-        ) != 0
-    };
-    if !success {
-        buffer.clear();
-        return empty;
-    }
-
-    // CString::new() will consume the input bytes vec and add a '\0' at the
-    // end of the bytes. We need to remove the '\0' from the bytes data
-    // returned from CFStringGetCString by ourselves to avoid memory leaks.
-    // The size returned from CFStringGetMaximumSizeForEncoding is always
-    // greater than or equal to the string length, where the string length
-    // is the number of characters from the beginning to nul-terminator('\0'),
-    // so we should shrink the string vector to fit that size.
-    let str_len = unsafe { libc::strlen(buffer.as_ptr() as *mut c_char) };
-    buffer.truncate(str_len); // Drop the elements from '\0'(including '\0').
-
-    CString::new(buffer).unwrap_or(empty)
 }
 
 fn get_channel_count(devid: AudioObjectID, devtype: DeviceType) -> Result<u32> {
