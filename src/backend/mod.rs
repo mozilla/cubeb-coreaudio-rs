@@ -3390,6 +3390,13 @@ impl<'ctx> AudioUnitStream<'ctx> {
             get_volume(self.core_stream_data.output_unit)
         };
 
+        let has_input = !self.core_stream_data.input_unit.is_null();
+        let input_device = if has_input {
+            self.core_stream_data.input_device.id
+        } else {
+            kAudioObjectUnknown
+        };
+
         self.core_stream_data.close();
 
         // Reinit occurs in one of the following case:
@@ -3398,13 +3405,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
         // - The bluetooth device changed from A2DP to/from HFP/HSP profile
         // We first attempt to re-use the same device id, should that fail we will
         // default to the (potentially new) default device.
-        let has_input = !self.core_stream_data.input_unit.is_null();
-        let input_device = if has_input {
-            self.core_stream_data.input_device.id
-        } else {
-            kAudioObjectUnknown
-        };
-
         if has_input {
             self.core_stream_data.input_device = create_device_info(input_device, DeviceType::INPUT).map_err(|e| {
                 cubeb_log!(
