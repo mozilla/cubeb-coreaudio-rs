@@ -2816,7 +2816,11 @@ impl<'ctx> CoreStreamData<'ctx> {
 
             stream.frames_read.store(0, Ordering::SeqCst);
 
-            cubeb_log!("({:p}) Input audiounit init successfully.", self.stm_ptr);
+            cubeb_log!(
+                "({:p}) Input audiounit init with device {} successfully.",
+                self.stm_ptr,
+                in_dev_info.id
+            );
         }
 
         if self.has_output() {
@@ -2967,7 +2971,11 @@ impl<'ctx> CoreStreamData<'ctx> {
 
             stream.frames_written.store(0, Ordering::SeqCst);
 
-            cubeb_log!("({:p}) Output audiounit init successfully.", self.stm_ptr);
+            cubeb_log!(
+                "({:p}) Output audiounit init with device {} successfully.",
+                self.stm_ptr,
+                out_dev_info.id
+            );
         }
 
         // We use a resampler because input AudioUnit operates
