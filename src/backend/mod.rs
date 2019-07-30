@@ -638,15 +638,6 @@ extern "C" fn audiounit_output_callback(
         // Also get the input buffer if the stream is duplex
         let (input_buffer, mut input_frames) = if !stm.core_stream_data.input_unit.is_null() {
             assert!(stm.core_stream_data.input_linear_buffer.is_some());
-            let input_frames = stm
-                .core_stream_data
-                .input_linear_buffer
-                .as_ref()
-                .unwrap()
-                .elements()
-                / stm.core_stream_data.input_desc.mChannelsPerFrame as usize;
-            cubeb_logv!("Total input frames: {}", input_frames);
-
             assert_ne!(stm.core_stream_data.input_desc.mChannelsPerFrame, 0);
             // If the output callback came first and this is a duplex stream, we need to
             // fill in some additional silence in the resampler.
@@ -683,6 +674,14 @@ extern "C" fn audiounit_output_callback(
                     missing_frames
                 );
             }
+            let input_frames = stm
+                .core_stream_data
+                .input_linear_buffer
+                .as_ref()
+                .unwrap()
+                .elements()
+                / stm.core_stream_data.input_desc.mChannelsPerFrame as usize;
+            cubeb_logv!("Total input frames: {}", input_frames);
             (
                 stm.core_stream_data
                     .input_linear_buffer
