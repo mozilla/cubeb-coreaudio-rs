@@ -75,7 +75,7 @@ fn test_aggregate_get_sub_devices_for_blank_aggregate_devices() {
     let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
     assert_ne!(aggregate_device_id, kAudioObjectUnknown);
     // There is no sub devices for a blank aggregate device!
-    let devices = audiounit_get_sub_devices(aggregate_device_id);
+    let devices = AggregateDevice::get_sub_devices(aggregate_device_id);
     assert!(devices.is_empty());
     assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
 }
@@ -217,8 +217,8 @@ fn test_aggregate_set_sub_devices() {
         return;
     }
 
-    let input_sub_devices = audiounit_get_sub_devices(input_id);
-    let output_sub_devices = audiounit_get_sub_devices(output_id);
+    let input_sub_devices = AggregateDevice::get_sub_devices(input_id);
+    let output_sub_devices = AggregateDevice::get_sub_devices(output_id);
 
     // Create a blank aggregate device.
     let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
@@ -228,7 +228,7 @@ fn test_aggregate_set_sub_devices() {
 
     // Set sub devices for the created aggregate device.
     assert!(AggregateDevice::set_sub_devices(aggregate_device_id, input_id, output_id).is_ok());
-    let sub_devices = audiounit_get_sub_devices(aggregate_device_id);
+    let sub_devices = AggregateDevice::get_sub_devices(aggregate_device_id);
 
     assert!(sub_devices.len() <= input_sub_devices.len() + output_sub_devices.len());
 
@@ -312,7 +312,7 @@ fn test_aggregate_set_master_device() {
         return;
     }
 
-    let output_sub_devices = audiounit_get_sub_devices(output_id);
+    let output_sub_devices = AggregateDevice::get_sub_devices(output_id);
     if output_sub_devices.is_empty() {
         return;
     }
@@ -466,7 +466,7 @@ fn test_aggregate_activate_clock_drift_compensation() {
         return;
     }
 
-    let output_sub_devices = audiounit_get_sub_devices(output_id);
+    let output_sub_devices = AggregateDevice::get_sub_devices(output_id);
     if output_sub_devices.is_empty() {
         return;
     }
