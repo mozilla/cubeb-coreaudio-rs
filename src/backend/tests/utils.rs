@@ -838,7 +838,7 @@ impl TestDevicePlugger {
     // TODO: This doesn't work as what we expect when the default deivce in the scope is an
     //       aggregate device. We should get the list of all the active sub devices and put
     //       them into the array, if the device is an aggregate device. See the code in
-    //       audiounit_get_sub_devices and audiounit_set_aggregate_sub_device_list.
+    //       AggregateDevice::get_sub_devices and audiounit_set_aggregate_sub_device_list.
     fn get_sub_devices(scope: Scope) -> Option<CFArrayRef> {
         let device = test_get_default_device(scope);
         if device.is_none() {

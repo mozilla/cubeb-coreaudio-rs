@@ -1029,30 +1029,6 @@ fn test_set_channel_layout_with_null_unit() {
     .is_err());
 }
 
-// get_sub_devices
-// ------------------------------------
-// You can check this by creating an aggregate device in `Audio MIDI Setup`
-// application and print out the sub devices of them!
-#[test]
-fn test_get_sub_devices() {
-    let devices = test_get_all_devices();
-    for device in devices {
-        assert_ne!(device, kAudioObjectUnknown);
-        // `audiounit_get_sub_devices(device)` will return a single-element vector
-        //  containing `device` itself if it's not an aggregate device.
-        let sub_devices = audiounit_get_sub_devices(device);
-        // TODO: If the device is a blank aggregate device, then the assertion fails!
-        assert!(!sub_devices.is_empty());
-    }
-}
-
-#[test]
-#[should_panic]
-fn test_get_sub_devices_for_a_unknown_device() {
-    let devices = audiounit_get_sub_devices(kAudioObjectUnknown);
-    assert!(devices.is_empty());
-}
-
 // get_device_name
 // ------------------------------------
 #[test]
@@ -1109,6 +1085,30 @@ fn test_aggregate_set_sub_devices_for_unknown_devices() {
         kAudioObjectUnknown
     )
     .is_err());
+}
+
+// AggregateDevice::get_sub_devices
+// ------------------------------------
+// You can check this by creating an aggregate device in `Audio MIDI Setup`
+// application and print out the sub devices of them!
+#[test]
+fn test_get_sub_devices() {
+    let devices = test_get_all_devices();
+    for device in devices {
+        assert_ne!(device, kAudioObjectUnknown);
+        // `AggregateDevice::get_sub_devices(device)` will return a single-element vector
+        //  containing `device` itself if it's not an aggregate device.
+        let sub_devices = AggregateDevice::get_sub_devices(device);
+        // TODO: If the device is a blank aggregate device, then the assertion fails!
+        assert!(!sub_devices.is_empty());
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_get_sub_devices_for_a_unknown_device() {
+    let devices = AggregateDevice::get_sub_devices(kAudioObjectUnknown);
+    assert!(devices.is_empty());
 }
 
 // AggregateDevice::set_master_device

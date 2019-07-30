@@ -1132,43 +1132,6 @@ fn audiounit_set_channel_layout(
     Ok(())
 }
 
-fn audiounit_get_sub_devices(device_id: AudioDeviceID) -> Vec<AudioObjectID> {
-    assert_ne!(device_id, kAudioObjectUnknown);
-
-    let mut sub_devices = Vec::new();
-    let property_address = AudioObjectPropertyAddress {
-        mSelector: kAudioAggregateDevicePropertyActiveSubDeviceList,
-        mScope: kAudioObjectPropertyScopeGlobal,
-        mElement: kAudioObjectPropertyElementMaster,
-    };
-    let mut size: usize = 0;
-    let rv = audio_object_get_property_data_size(device_id, &property_address, &mut size);
-
-    if rv != NO_ERR {
-        sub_devices.push(device_id);
-        return sub_devices;
-    }
-
-    assert_ne!(size, 0);
-
-    let count = size / mem::size_of::<AudioObjectID>();
-    sub_devices = allocate_array(count);
-    let rv = audio_object_get_property_data(
-        device_id,
-        &property_address,
-        &mut size,
-        sub_devices.as_mut_ptr(),
-    );
-
-    if rv != NO_ERR {
-        sub_devices.clear();
-        sub_devices.push(device_id);
-    } else {
-        cubeb_log!("Found {} sub-devices", count);
-    }
-    sub_devices
-}
-
 fn get_device_name(id: AudioDeviceID) -> CFStringRef {
     let mut size = mem::size_of::<CFStringRef>();
     let mut uiname: CFStringRef = ptr::null();
