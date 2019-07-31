@@ -58,7 +58,7 @@ const PRIVATE_AGGREGATE_DEVICE_NAME: &str = "CubebAggregateDevice";
 
 // Testing empirically, some headsets report a minimal latency that is very low,
 // but this does not work in practice. Lie and say the minimum is 256 frames.
-const SAFE_MIN_LATENCY_FRAMES: u32 = 256;
+const SAFE_MIN_LATENCY_FRAMES: u32 = 128;
 const SAFE_MAX_LATENCY_FRAMES: u32 = 512;
 
 bitflags! {
@@ -627,8 +627,6 @@ extern "C" fn audiounit_output_callback(
     let out_hw_rate = stm.core_stream_data.output_hw_rate as u64;
     let out_latency: u32 = (output_latency_ns * out_hw_rate / NS2S + stm.current_latency_frames.load(Ordering::SeqCst) as u64) as u32;
     stm.total_output_latency_frames.store(out_latency, Ordering::SeqCst);
-
-    println!("latency {}", out_latency);
 
     cubeb_logv!(
         "({:p}) output: buffers {}, size {}, channels {}, frames {}.",
