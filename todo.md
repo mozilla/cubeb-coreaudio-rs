@@ -20,8 +20,7 @@
 
 ## Aggregate device
 ### Get sub devices
-- Return the device itself if the device has no `kAudioAggregateDevicePropertyActiveSubDeviceList` property
-  or hit a `InvalidProperty_Error`
+- A better pattern for `AggregateDevice::get_sub_devices`
 ### Set sub devices
 - We will add duplicate devices into the array if there are common devices in
   `output_sub_devices` and `input_sub_devices`
