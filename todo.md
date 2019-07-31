@@ -65,5 +65,7 @@
     - Add tests for capturing/recording, output, duplex streams
 - Tests cleaned up: Only tests under *aggregate_device.rs* left now.
 -  Create a test for [BMO 1570077][b1570077]
+-  Create a test for [BMO 1570080][b1570080]
 
 [b1570077]: https://bugzilla.mozilla.org/show_bug.cgi?id=1570077
+[b1570080]: https://bugzilla.mozilla.org/show_bug.cgi?id=1570080
