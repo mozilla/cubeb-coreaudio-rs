@@ -36,6 +36,7 @@ use cubeb_backend::{
     Error, Ops, Result, SampleFormat, State, Stream, StreamOps, StreamParams, StreamParamsRef,
     StreamPrefs,
 };
+use mach::mach_time::{mach_absolute_time, mach_timebase_info};
 use std::cmp;
 use std::ffi::{CStr, CString};
 use std::fmt;
@@ -57,7 +58,7 @@ const PRIVATE_AGGREGATE_DEVICE_NAME: &str = "CubebAggregateDevice";
 
 // Testing empirically, some headsets report a minimal latency that is very low,
 // but this does not work in practice. Lie and say the minimum is 256 frames.
-const SAFE_MIN_LATENCY_FRAMES: u32 = 256;
+const SAFE_MIN_LATENCY_FRAMES: u32 = 128;
 const SAFE_MAX_LATENCY_FRAMES: u32 = 512;
 
 bitflags! {
@@ -69,6 +70,16 @@ bitflags! {
         const DEV_SYSTEM_DEFAULT    = 0b0000_0100; // System default device
         const DEV_SELECTED_DEFAULT  = 0b0000_1000; // User selected to use the system default device
     }
+}
+
+lazy_static! {
+    static ref HOST_TIME_TO_NS_RATIO: (u32, u32) = {
+        let mut timebase_info = mach_timebase_info { numer: 0, denom: 0 };
+        unsafe {
+            mach_timebase_info(&mut timebase_info);
+        }
+        (timebase_info.numer, timebase_info.denom)
+    };
 }
 
 #[allow(non_camel_case_types)]
@@ -573,10 +584,30 @@ extern "C" fn audiounit_input_callback(
     status
 }
 
+fn host_time_to_ns(host_time: u64) -> u64 {
+    let mut rv: f64 = host_time as f64;
+    rv *= HOST_TIME_TO_NS_RATIO.0 as f64;
+    rv /= HOST_TIME_TO_NS_RATIO.1 as f64;
+    return rv as u64;
+}
+
+fn compute_output_latency(stm: &AudioUnitStream, host_time: u64) -> u32 {
+    let now = host_time_to_ns(unsafe { mach_absolute_time() });
+    let audio_output_time = host_time_to_ns(host_time);
+    let output_latency_ns = (audio_output_time - now) as u64;
+
+    const NS2S: u64 = 1_000_000_000;
+    // The total output latency is the timestamp difference + the stream latency +
+    // the hardware latency.
+    let out_hw_rate = stm.core_stream_data.output_hw_rate as u64;
+    (output_latency_ns * out_hw_rate / NS2S
+        + stm.current_latency_frames.load(Ordering::SeqCst) as u64) as u32
+}
+
 extern "C" fn audiounit_output_callback(
     user_ptr: *mut c_void,
     _: *mut AudioUnitRenderActionFlags,
-    _tstamp: *const AudioTimeStamp,
+    tstamp: *const AudioTimeStamp,
     bus: u32,
     output_frames: u32,
     out_buffer_list: *mut AudioBufferList,
@@ -594,6 +625,11 @@ extern "C" fn audiounit_output_callback(
         let len = out_buffer_list_ref.mNumberBuffers as usize;
         slice::from_raw_parts_mut(ptr, len)
     };
+
+    let output_latency_frames = compute_output_latency(&stm, unsafe { (*tstamp).mHostTime });
+
+    stm.total_output_latency_frames
+        .store(output_latency_frames, Ordering::SeqCst);
 
     cubeb_logv!(
         "({:p}) output: buffers {}, size {}, channels {}, frames {}.",
@@ -3311,6 +3347,7 @@ struct AudioUnitStream<'ctx> {
     // Latency requested by the user.
     latency_frames: u32,
     current_latency_frames: AtomicU32,
+    total_output_latency_frames: AtomicU32,
     panning: atomic::Atomic<f32>,
     // This is true if a device change callback is currently running.
     switching_device: AtomicBool,
@@ -3341,6 +3378,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             destroy_pending: AtomicBool::new(false),
             latency_frames,
             current_latency_frames: AtomicU32::new(0),
+            total_output_latency_frames: AtomicU32::new(0),
             panning: atomic::Atomic::new(0.0_f32),
             switching_device: AtomicBool::new(false),
             core_stream_data: CoreStreamData::default(),
@@ -3607,7 +3645,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     }
     #[cfg(not(target_os = "ios"))]
     fn latency(&mut self) -> Result<u32> {
-        Ok(self.current_latency_frames.load(Ordering::SeqCst))
+        Ok(self.total_output_latency_frames.load(Ordering::SeqCst))
     }
     fn set_volume(&mut self, volume: f32) -> Result<()> {
         set_volume(self.core_stream_data.output_unit, volume)
