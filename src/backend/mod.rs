@@ -36,6 +36,7 @@ use cubeb_backend::{
     Error, Ops, Result, SampleFormat, State, Stream, StreamOps, StreamParams, StreamParamsRef,
     StreamPrefs,
 };
+use mach::mach_time::{mach_absolute_time, mach_timebase_info};
 use std::cmp;
 use std::ffi::{CStr, CString};
 use std::fmt;
@@ -46,7 +47,6 @@ use std::slice;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
-use mach::mach_time::{mach_timebase_info, mach_absolute_time};
 
 const NO_ERR: OSStatus = 0;
 
@@ -74,10 +74,7 @@ bitflags! {
 
 lazy_static! {
     static ref HOST_TIME_TO_NS_RATIO: (u32, u32) = {
-        let mut timebase_info = mach_timebase_info {
-            numer: 0,
-            denom: 0
-        };
+        let mut timebase_info = mach_timebase_info { numer: 0, denom: 0 };
         unsafe {
             mach_timebase_info(&mut timebase_info);
         }
@@ -587,8 +584,7 @@ extern "C" fn audiounit_input_callback(
     status
 }
 
-fn host_time_to_ns(host_time: u64) -> u64
-{
+fn host_time_to_ns(host_time: u64) -> u64 {
     let mut rv: f64 = host_time as f64;
     rv *= HOST_TIME_TO_NS_RATIO.0 as f64;
     rv /= HOST_TIME_TO_NS_RATIO.1 as f64;
@@ -604,7 +600,8 @@ fn compute_output_latency(stm: &AudioUnitStream, host_time: u64) -> u32 {
     // The total output latency is the timestamp difference + the stream latency +
     // the hardware latency.
     let out_hw_rate = stm.core_stream_data.output_hw_rate as u64;
-    (output_latency_ns * out_hw_rate / NS2S + stm.current_latency_frames.load(Ordering::SeqCst) as u64) as u32
+    (output_latency_ns * out_hw_rate / NS2S
+        + stm.current_latency_frames.load(Ordering::SeqCst) as u64) as u32
 }
 
 extern "C" fn audiounit_output_callback(
@@ -629,9 +626,10 @@ extern "C" fn audiounit_output_callback(
         slice::from_raw_parts_mut(ptr, len)
     };
 
-    let output_latency_frames = compute_output_latency(&stm, unsafe {(*tstamp).mHostTime});
+    let output_latency_frames = compute_output_latency(&stm, unsafe { (*tstamp).mHostTime });
 
-    stm.total_output_latency_frames.store(output_latency_frames, Ordering::SeqCst);
+    stm.total_output_latency_frames
+        .store(output_latency_frames, Ordering::SeqCst);
 
     cubeb_logv!(
         "({:p}) output: buffers {}, size {}, channels {}, frames {}.",
