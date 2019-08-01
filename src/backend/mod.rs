@@ -595,6 +595,18 @@ fn host_time_to_ns(host_time: u64) -> u64
     return rv as u64;
 }
 
+fn compute_output_latency(stm: &AudioUnitStream, host_time: u64) -> u32 {
+    let now = host_time_to_ns(unsafe { mach_absolute_time() });
+    let audio_output_time = host_time_to_ns(host_time);
+    let output_latency_ns = (audio_output_time - now) as u64;
+
+    const NS2S: u64 = 1_000_000_000;
+    // The total output latency is the timestamp difference + the stream latency +
+    // the hardware latency.
+    let out_hw_rate = stm.core_stream_data.output_hw_rate as u64;
+    (output_latency_ns * out_hw_rate / NS2S + stm.current_latency_frames.load(Ordering::SeqCst) as u64) as u32
+}
+
 extern "C" fn audiounit_output_callback(
     user_ptr: *mut c_void,
     _: *mut AudioUnitRenderActionFlags,
@@ -617,16 +629,9 @@ extern "C" fn audiounit_output_callback(
         slice::from_raw_parts_mut(ptr, len)
     };
 
-    let now = host_time_to_ns(unsafe { mach_absolute_time() });
-    let audio_output_time = host_time_to_ns(unsafe {(*tstamp).mHostTime});
-    let output_latency_ns = (audio_output_time - now) as u64;
+    let output_latency_frames = compute_output_latency(&stm, unsafe {(*tstamp).mHostTime});
 
-    const NS2S: u64 = 1_000_000_000;
-    // The total output latency is the timestamp difference + the stream latency +
-    // the hardware latency.
-    let out_hw_rate = stm.core_stream_data.output_hw_rate as u64;
-    let out_latency: u32 = (output_latency_ns * out_hw_rate / NS2S + stm.current_latency_frames.load(Ordering::SeqCst) as u64) as u32;
-    stm.total_output_latency_frames.store(out_latency, Ordering::SeqCst);
+    stm.total_output_latency_frames.store(output_latency_frames, Ordering::SeqCst);
 
     cubeb_logv!(
         "({:p}) output: buffers {}, size {}, channels {}, frames {}.",
