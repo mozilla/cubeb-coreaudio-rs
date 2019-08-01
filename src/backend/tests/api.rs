@@ -1092,7 +1092,7 @@ fn test_aggregate_set_sub_devices_for_unknown_devices() {
 // You can check this by creating an aggregate device in `Audio MIDI Setup`
 // application and print out the sub devices of them!
 #[test]
-fn test_get_sub_devices() {
+fn test_aggregate_get_sub_devices() {
     let devices = test_get_all_devices();
     for device in devices {
         assert_ne!(device, kAudioObjectUnknown);
@@ -1106,7 +1106,7 @@ fn test_get_sub_devices() {
 
 #[test]
 #[should_panic]
-fn test_get_sub_devices_for_a_unknown_device() {
+fn test_aggregate_get_sub_devices_for_a_unknown_device() {
     let devices = AggregateDevice::get_sub_devices(kAudioObjectUnknown).unwrap();
     assert!(devices.is_empty());
 }
