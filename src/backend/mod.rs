@@ -1523,7 +1523,7 @@ fn convert_uint32_into_string(data: u32) -> CString {
     CString::new(buffer).unwrap_or(empty)
 }
 
-fn audiounit_get_default_datasource(side: io_side) -> Result<(u32)> {
+fn audiounit_get_default_datasource(side: io_side) -> Result<u32> {
     let (devtype, address) = match side {
         io_side::INPUT => (DeviceType::INPUT, INPUT_DATA_SOURCE_PROPERTY_ADDRESS),
         io_side::OUTPUT => (DeviceType::OUTPUT, OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS),
