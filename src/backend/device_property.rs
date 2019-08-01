@@ -1,10 +1,13 @@
 use super::*;
 
-pub fn get_device_global_uid(id: AudioDeviceID) -> Result<StringRef> {
+pub fn get_device_global_uid(id: AudioDeviceID) -> std::result::Result<StringRef, OSStatus> {
     get_device_uid(id, DeviceType::INPUT | DeviceType::OUTPUT)
 }
 
-pub fn get_device_uid(id: AudioDeviceID, devtype: DeviceType) -> Result<StringRef> {
+pub fn get_device_uid(
+    id: AudioDeviceID,
+    devtype: DeviceType,
+) -> std::result::Result<StringRef, OSStatus> {
     assert_ne!(id, kAudioObjectUnknown);
 
     let address = get_property_address(Property::DeviceUID, devtype);
@@ -14,11 +17,14 @@ pub fn get_device_uid(id: AudioDeviceID, devtype: DeviceType) -> Result<StringRe
     if err == NO_ERR {
         Ok(StringRef::new(uid as _))
     } else {
-        Err(Error::error())
+        Err(err)
     }
 }
 
-pub fn get_device_source(id: AudioDeviceID, devtype: DeviceType) -> Result<u32> {
+pub fn get_device_source(
+    id: AudioDeviceID,
+    devtype: DeviceType,
+) -> std::result::Result<u32, OSStatus> {
     assert_ne!(id, kAudioObjectUnknown);
 
     let address = get_property_address(Property::DeviceSource, devtype);
@@ -28,11 +34,14 @@ pub fn get_device_source(id: AudioDeviceID, devtype: DeviceType) -> Result<u32> 
     if err == NO_ERR {
         Ok(source)
     } else {
-        Err(Error::error())
+        Err(err)
     }
 }
 
-pub fn get_device_source_name(id: AudioDeviceID, devtype: DeviceType) -> Result<StringRef> {
+pub fn get_device_source_name(
+    id: AudioDeviceID,
+    devtype: DeviceType,
+) -> std::result::Result<StringRef, OSStatus> {
     assert_ne!(id, kAudioObjectUnknown);
 
     let mut source: u32 = get_device_source(id, devtype)?;
@@ -49,11 +58,14 @@ pub fn get_device_source_name(id: AudioDeviceID, devtype: DeviceType) -> Result<
     if err == NO_ERR {
         Ok(StringRef::new(name as _))
     } else {
-        Err(Error::error())
+        Err(err)
     }
 }
 
-pub fn get_device_name(id: AudioDeviceID, devtype: DeviceType) -> Result<StringRef> {
+pub fn get_device_name(
+    id: AudioDeviceID,
+    devtype: DeviceType,
+) -> std::result::Result<StringRef, OSStatus> {
     assert_ne!(id, kAudioObjectUnknown);
 
     let address = get_property_address(Property::DeviceName, devtype);
@@ -63,15 +75,21 @@ pub fn get_device_name(id: AudioDeviceID, devtype: DeviceType) -> Result<StringR
     if err == NO_ERR {
         Ok(StringRef::new(name as _))
     } else {
-        Err(Error::error())
+        Err(err)
     }
 }
 
-pub fn get_device_label(id: AudioDeviceID, devtype: DeviceType) -> Result<StringRef> {
+pub fn get_device_label(
+    id: AudioDeviceID,
+    devtype: DeviceType,
+) -> std::result::Result<StringRef, OSStatus> {
     get_device_source_name(id, devtype).or(get_device_name(id, devtype))
 }
 
-pub fn get_device_manufacturer(id: AudioDeviceID, devtype: DeviceType) -> Result<StringRef> {
+pub fn get_device_manufacturer(
+    id: AudioDeviceID,
+    devtype: DeviceType,
+) -> std::result::Result<StringRef, OSStatus> {
     assert_ne!(id, kAudioObjectUnknown);
 
     let address = get_property_address(Property::DeviceManufacturer, devtype);
@@ -81,14 +99,14 @@ pub fn get_device_manufacturer(id: AudioDeviceID, devtype: DeviceType) -> Result
     if err == NO_ERR {
         Ok(StringRef::new(manufacturer as _))
     } else {
-        Err(Error::error())
+        Err(err)
     }
 }
 
 pub fn get_device_buffer_frame_size_range(
     id: AudioDeviceID,
     devtype: DeviceType,
-) -> Result<(f64, f64)> {
+) -> std::result::Result<(f64, f64), OSStatus> {
     assert_ne!(id, kAudioObjectUnknown);
 
     let address = get_property_address(Property::DeviceBufferFrameSizeRange, devtype);
@@ -98,7 +116,7 @@ pub fn get_device_buffer_frame_size_range(
     if err == NO_ERR {
         Ok((range.mMinimum, range.mMaximum))
     } else {
-        Err(Error::error())
+        Err(err)
     }
 }
 

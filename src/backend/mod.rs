@@ -1685,20 +1685,49 @@ fn create_cubeb_device_info(
     );
     dev_info.devid = devid as ffi::cubeb_devid;
 
-    if let Ok(uid) = get_device_uid(devid, devtype) {
-        let c_string = uid.into_cstring();
-        dev_info.device_id = c_string.into_raw();
-        dev_info.group_id = dev_info.device_id;
+    match get_device_uid(devid, devtype) {
+        Ok(uid) => {
+            let c_string = uid.into_cstring();
+            dev_info.device_id = c_string.into_raw();
+            dev_info.group_id = dev_info.device_id;
+        }
+        Err(e) => {
+            cubeb_log!(
+                "Cannot get the uid for device {} in {:?} scope. Error: {}",
+                devid,
+                devtype,
+                e
+            );
+        }
     }
 
-    let label = get_device_label(devid, devtype)
-        .map(|str_ref| str_ref.into_cstring())
-        .unwrap_or(CString::default());
+    let label = match get_device_label(devid, devtype) {
+        Ok(label) => label.into_cstring(),
+        Err(e) => {
+            cubeb_log!(
+                "Cannot get the label for device {} in {:?} scope. Error: {}",
+                devid,
+                devtype,
+                e
+            );
+            CString::default()
+        }
+    };
     dev_info.friendly_name = label.into_raw();
 
-    if let Ok(vendor_name) = get_device_manufacturer(devid, devtype) {
-        let vendor_name = vendor_name.into_cstring();
-        dev_info.vendor_name = vendor_name.into_raw();
+    match get_device_manufacturer(devid, devtype) {
+        Ok(vendor) => {
+            let vendor = vendor.into_cstring();
+            dev_info.vendor_name = vendor.into_raw();
+        }
+        Err(e) => {
+            cubeb_log!(
+                "Cannot get the manufacturer for device {} in {:?} scope. Error: {}",
+                devid,
+                devtype,
+                e
+            );
+        }
     }
 
     dev_info.device_type = match devtype {
@@ -1726,15 +1755,16 @@ fn create_cubeb_device_info(
 
     let latency = audiounit_get_device_presentation_latency(devid, devtype);
 
-    let (latency_low, latency_high) =
-        if let Ok((min, max)) = get_device_buffer_frame_size_range(devid, devtype) {
-            (latency + min as u32, latency + max as u32)
-        } else {
+    let (latency_low, latency_high) = match get_device_buffer_frame_size_range(devid, devtype) {
+        Ok((min, max)) => (latency + min as u32, latency + max as u32),
+        Err(e) => {
+            cubeb_log!("Cannot get the buffer frame size for device {} in {:?} scope. Use default value instead. Error: {}", devid, devtype, e);
             (
                 10 * dev_info.default_rate / 1000,
                 100 * dev_info.default_rate / 1000,
             )
-        };
+        }
+    };
     dev_info.latency_lo = latency_low;
     dev_info.latency_hi = latency_high;
 

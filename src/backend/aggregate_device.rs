@@ -349,12 +349,12 @@ impl AggregateDevice {
             // The order of the items in the array is significant and is used to determine the order of the streams
             // of the AudioAggregateDevice.
             for device in output_sub_devices {
-                let uid = get_device_global_uid(device).unwrap();
+                let uid = get_device_global_uid(device)?;
                 CFArrayAppendValue(sub_devices, uid.get_raw() as *const c_void);
             }
 
             for device in input_sub_devices {
-                let uid = get_device_global_uid(device).unwrap();
+                let uid = get_device_global_uid(device)?;
                 CFArrayAppendValue(sub_devices, uid.get_raw() as *const c_void);
             }
 
@@ -547,10 +547,10 @@ impl AggregateDevice {
         assert_ne!(output_id, kAudioObjectUnknown);
         assert_ne!(input_id, output_id);
 
-        let label = get_device_label(input_id, DeviceType::INPUT).unwrap();
+        let label = get_device_label(input_id, DeviceType::INPUT)?;
         let input_label = label.into_string();
 
-        let label = get_device_label(output_id, DeviceType::OUTPUT).unwrap();
+        let label = get_device_label(output_id, DeviceType::OUTPUT)?;
         let output_label = label.into_string();
 
         if input_label.contains("AirPods") && output_label.contains("AirPods") {
