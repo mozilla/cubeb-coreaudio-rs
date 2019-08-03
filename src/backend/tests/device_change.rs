@@ -554,7 +554,7 @@ fn test_get_stream_with_device_changed_callback<F>(
         ptr::null_mut()
     };
 
-    test_ops_empty_callback_stream_operation(
+    test_ops_default_callbacks_stream_operation(
         name,
         in_device,
         in_params,
@@ -570,7 +570,7 @@ fn test_get_stream_with_device_changed_callback<F>(
     );
 }
 
-fn test_ops_empty_callback_stream_operation<F>(
+fn test_ops_default_callbacks_stream_operation<F>(
     name: &'static str,
     input_device: ffi::cubeb_devid,
     input_stream_params: *mut ffi::cubeb_stream_params,
@@ -588,12 +588,47 @@ fn test_ops_empty_callback_stream_operation<F>(
         output_device,
         output_stream_params,
         4096, // TODO: Get latency by get_min_latency instead ?
-        None, // No data callback.
-        None, // No state callback.
+        Some(data_callback),
+        Some(state_callback),
         data,
         operation,
     );
+
+    extern "C" fn state_callback(
+        stream: *mut ffi::cubeb_stream,
+        _user_ptr: *mut c_void,
+        state: ffi::cubeb_state,
+    ) {
+        assert!(!stream.is_null());
+        assert_ne!(state, ffi::CUBEB_STATE_ERROR);
+    }
+
+    extern "C" fn data_callback(
+        stream: *mut ffi::cubeb_stream,
+        _user_ptr: *mut c_void,
+        _input_buffer: *const c_void,
+        output_buffer: *mut c_void,
+        nframes: i64,
+    ) -> i64 {
+        assert!(!stream.is_null());
+
+        // Feed silence data to output buffer
+        if !output_buffer.is_null() {
+            let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+            let channels = stm.core_stream_data.output_stream_params.channels();
+            let samples = nframes as usize * channels as usize;
+            let sample_size = cubeb_sample_size(stm.core_stream_data.output_stream_params.format());
+            unsafe {
+                ptr::write_bytes(output_buffer, 0, samples * sample_size);
+            }
+        }
+
+        nframes
+    }
 }
+
+// The stream format for input and output must be same.
+const STREAM_FORMAT: u32 = ffi::CUBEB_SAMPLE_FLOAT32NE;
 
 fn get_dummy_stream_params(scope: Scope) -> ffi::cubeb_stream_params {
     // Make sure the parameters meet the requirements of AudioUnitContext::stream_init
@@ -601,13 +636,8 @@ fn get_dummy_stream_params(scope: Scope) -> ffi::cubeb_stream_params {
     let mut stream_params = ffi::cubeb_stream_params::default();
     stream_params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
     let (format, rate, channels, layout) = match scope {
-        Scope::Input => (ffi::CUBEB_SAMPLE_S16NE, 48000, 1, ffi::CUBEB_LAYOUT_MONO),
-        Scope::Output => (
-            ffi::CUBEB_SAMPLE_FLOAT32NE,
-            44100,
-            2,
-            ffi::CUBEB_LAYOUT_STEREO,
-        ),
+        Scope::Input => (STREAM_FORMAT, 48000, 1, ffi::CUBEB_LAYOUT_MONO),
+        Scope::Output => (STREAM_FORMAT, 44100, 2, ffi::CUBEB_LAYOUT_STEREO),
     };
     stream_params.format = format;
     stream_params.rate = rate;
