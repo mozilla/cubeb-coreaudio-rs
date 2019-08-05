@@ -404,59 +404,6 @@ fn test_register_device_changed_callback_to_check_default_device_changed(stm_typ
 
 #[ignore]
 #[test]
-fn test_register_device_changed_callback_to_check_input_alive_changed_input() {
-    test_register_device_changed_callback_to_check_input_alive_changed(StreamType::INPUT);
-}
-
-#[ignore]
-#[test]
-fn test_register_device_changed_callback_to_check_input_alive_changed_duplex() {
-    test_register_device_changed_callback_to_check_input_alive_changed(StreamType::DUPLEX);
-}
-
-fn test_register_device_changed_callback_to_check_input_alive_changed(stm_type: StreamType) {
-    let has_input = test_get_default_device(Scope::Input).is_some();
-    if !has_input {
-        println!("Need one input device at least.");
-        return;
-    }
-
-    let changed_count = Arc::new(Mutex::new(0u32));
-    let also_changed_count = Arc::clone(&changed_count);
-    let mtx_ptr = also_changed_count.as_ref() as *const Mutex<u32>;
-
-    let mut input_plugger = TestDevicePlugger::new(Scope::Input).unwrap();
-
-    assert!(input_plugger.plug().is_ok());
-    assert_ne!(input_plugger.get_device_id(), kAudioObjectUnknown);
-
-    test_get_stream_with_device_changed_callback(
-        "stream: test callback for input alive changed",
-        stm_type,
-        Some(input_plugger.get_device_id()),
-        None, // Use default output device.
-        mtx_ptr as *mut c_void,
-        callback,
-        |_stream| {
-            let mut changed_watcher = Watcher::new(&changed_count);
-            changed_watcher.prepare();
-            assert!(input_plugger.unplug().is_ok());
-            changed_watcher.wait_for_change();
-        },
-    );
-
-    extern "C" fn callback(data: *mut c_void) {
-        println!("Device change callback. data @ {:p}", data);
-        let count = unsafe { &*(data as *const Mutex<u32>) };
-        {
-            let mut guard = count.lock().unwrap();
-            *guard += 1;
-        }
-    }
-}
-
-#[ignore]
-#[test]
 fn test_destroy_input_stream_after_unplugging_a_nondefault_input_device() {
     test_unplug_a_device_on_an_active_stream(StreamType::INPUT, Scope::Input, false, 0);
 }
