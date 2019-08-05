@@ -1,10 +1,11 @@
 use super::utils::{
     test_create_device_change_listener, test_device_in_scope, test_get_default_device,
-    test_get_devices_in_scope, test_ops_stream_operation, Scope, TestDevicePlugger,
-    TestDeviceSwitcher,
+    test_get_devices_in_scope, test_ops_stream_operation, test_set_default_device, Scope,
+    TestDevicePlugger, TestDeviceSwitcher,
 };
 use super::*;
 use std::fmt::Debug;
+use std::thread;
 
 #[ignore]
 #[test]
@@ -14,8 +15,6 @@ fn test_switch_device() {
 }
 
 fn test_switch_device_in_scope(scope: Scope) {
-    use std::thread;
-
     // Do nothing if there is no 2 available devices at least.
     let devices = test_get_devices_in_scope(scope.clone());
     if devices.len() < 2 {
@@ -319,7 +318,6 @@ fn test_register_device_changed_callback_to_check_default_device_changed_output(
 // However, when {input, output}_device_switcher.next() is called, that aggrgate device
 // is already removed so {input, output}_device_switcher.next() fails. That's why we cannot run
 // `cargo test test_register_device_changed_callback -- --ignored --nocapture --test-threads=1`.
-
 #[ignore]
 #[test]
 fn test_register_device_changed_callback_to_check_default_device_changed_duplex() {
@@ -467,6 +465,173 @@ fn test_register_device_changed_callback_to_check_input_alive_changed(stm_type: 
             changed_watcher.prepare();
             assert!(input_plugger.unplug().is_ok());
             changed_watcher.wait_for_change();
+        },
+    );
+
+    extern "C" fn callback(data: *mut c_void) {
+        println!("Device change callback. data @ {:p}", data);
+        let count = unsafe { &*(data as *const Mutex<u32>) };
+        {
+            let mut guard = count.lock().unwrap();
+            *guard += 1;
+        }
+    }
+}
+
+#[ignore]
+#[test]
+fn test_destroy_input_stream_after_unplugging_a_nondefault_input_device() {
+    test_unplug_a_device_on_an_active_stream(StreamType::INPUT, Scope::Input, false, 0);
+}
+
+#[ignore]
+#[test]
+fn test_destroy_input_stream_after_unplugging_a_default_input_device() {
+    test_unplug_a_device_on_an_active_stream(StreamType::INPUT, Scope::Input, true, 0);
+}
+
+// FIXIT: The following test will hang since we don't monitor the alive status of the output device
+#[ignore]
+#[test]
+fn test_destroy_output_stream_after_unplugging_a_nondefault_output_device() {
+    test_unplug_a_device_on_an_active_stream(StreamType::OUTPUT, Scope::Output, false, 0);
+}
+
+#[ignore]
+#[test]
+fn test_destroy_output_stream_after_unplugging_a_default_output_device() {
+    test_unplug_a_device_on_an_active_stream(StreamType::OUTPUT, Scope::Output, true, 0);
+}
+
+#[ignore]
+#[test]
+fn test_destroy_duplex_stream_after_unplugging_a_nondefault_input_device() {
+    test_unplug_a_device_on_an_active_stream(StreamType::DUPLEX, Scope::Input, false, 0);
+}
+
+#[ignore]
+#[test]
+fn test_destroy_duplex_stream_after_unplugging_a_default_input_device() {
+    test_unplug_a_device_on_an_active_stream(StreamType::DUPLEX, Scope::Input, true, 0);
+}
+
+// FIXIT: The following test will hang since we don't monitor the alive status of the output device
+#[ignore]
+#[test]
+fn test_destroy_duplex_stream_after_unplugging_a_nondefault_output_device() {
+    test_unplug_a_device_on_an_active_stream(StreamType::DUPLEX, Scope::Output, false, 0);
+}
+
+#[ignore]
+#[test]
+fn test_destroy_duplex_stream_after_unplugging_a_default_output_device() {
+    test_unplug_a_device_on_an_active_stream(StreamType::DUPLEX, Scope::Output, true, 0);
+}
+
+#[ignore]
+#[test]
+fn test_reinit_input_stream_by_unplugging_a_nondefault_input_device() {
+    test_unplug_a_device_on_an_active_stream(StreamType::INPUT, Scope::Input, false, 500);
+}
+
+#[ignore]
+#[test]
+fn test_reinit_input_stream_by_unplugging_a_default_input_device() {
+    test_unplug_a_device_on_an_active_stream(StreamType::INPUT, Scope::Input, true, 500);
+}
+
+// FIXIT: The following test will hang since we don't monitor the alive status of the output device
+#[ignore]
+#[test]
+fn test_reinit_output_stream_by_unplugging_a_nondefault_output_device() {
+    test_unplug_a_device_on_an_active_stream(StreamType::OUTPUT, Scope::Output, false, 500);
+}
+
+#[ignore]
+#[test]
+fn test_reinit_output_stream_by_unplugging_a_default_output_device() {
+    test_unplug_a_device_on_an_active_stream(StreamType::OUTPUT, Scope::Output, true, 500);
+}
+
+#[ignore]
+#[test]
+fn test_reinit_duplex_stream_by_unplugging_a_nondefault_input_device() {
+    test_unplug_a_device_on_an_active_stream(StreamType::DUPLEX, Scope::Input, false, 500);
+}
+
+#[ignore]
+#[test]
+fn test_reinit_duplex_stream_by_unplugging_a_default_input_device() {
+    test_unplug_a_device_on_an_active_stream(StreamType::DUPLEX, Scope::Input, true, 500);
+}
+
+// FIXIT: The following test will hang since we don't monitor the alive status of the output device
+#[ignore]
+#[test]
+fn test_reinit_duplex_stream_by_unplugging_a_nondefault_output_device() {
+    test_unplug_a_device_on_an_active_stream(StreamType::DUPLEX, Scope::Output, false, 500);
+}
+
+#[ignore]
+#[test]
+fn test_reinit_duplex_stream_by_unplugging_a_default_output_device() {
+    test_unplug_a_device_on_an_active_stream(StreamType::DUPLEX, Scope::Output, true, 500);
+}
+
+fn test_unplug_a_device_on_an_active_stream(
+    stream_type: StreamType,
+    device_scope: Scope,
+    set_device_to_default: bool,
+    wait_for_reinit_millis: u64,
+) {
+    let has_input = test_get_default_device(Scope::Input).is_some();
+    let has_output = test_get_default_device(Scope::Output).is_some();
+
+    if stream_type.contains(StreamType::INPUT) && !has_input {
+        println!("No input device for input or duplex stream.");
+        return;
+    }
+
+    if stream_type.contains(StreamType::OUTPUT) && !has_output {
+        println!("No output device for ouput or duplex stream.");
+        return;
+    }
+
+    let mut plugger = TestDevicePlugger::new(device_scope.clone()).unwrap();
+    assert!(plugger.plug().is_ok());
+    assert_ne!(plugger.get_device_id(), kAudioObjectUnknown);
+    if set_device_to_default {
+        assert!(test_set_default_device(plugger.get_device_id(), device_scope.clone()).unwrap());
+    }
+
+    let (input_device, output_device) = match device_scope {
+        Scope::Input => (Some(plugger.get_device_id()), None),
+        Scope::Output => (None, Some(plugger.get_device_id())),
+    };
+
+    let changed_count = Arc::new(Mutex::new(0u32));
+    let also_changed_count = Arc::clone(&changed_count);
+    let mtx_ptr = also_changed_count.as_ref() as *const Mutex<u32>;
+
+    test_get_stream_with_device_changed_callback(
+        "stream: test stream reinit/destroy after unplugging a device",
+        stream_type,
+        input_device,
+        output_device,
+        mtx_ptr as *mut c_void,
+        callback,
+        |stream| {
+            let mut changed_watcher = Watcher::new(&changed_count);
+            changed_watcher.prepare();
+            stream.start();
+            // Wait for stream data callback.
+            thread::sleep(Duration::from_millis(200));
+            assert!(plugger.unplug().is_ok());
+            changed_watcher.wait_for_change();
+            // Wait for stream re-initialization or destroy stream directly.
+            if wait_for_reinit_millis > 0 {
+                thread::sleep(Duration::from_millis(wait_for_reinit_millis));
+            }
         },
     );
 
