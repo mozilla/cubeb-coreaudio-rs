@@ -364,6 +364,54 @@ pub fn test_device_in_scope(id: AudioObjectID, scope: Scope) -> bool {
     channels.is_ok() && channels.unwrap() > 0
 }
 
+pub fn test_get_all_onwed_devices(id: AudioDeviceID) -> Vec<AudioObjectID> {
+    assert_ne!(id, kAudioObjectUnknown);
+
+    let address = AudioObjectPropertyAddress {
+        mSelector: kAudioObjectPropertyOwnedObjects,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMaster,
+    };
+
+    let qualifier_data_size = mem::size_of::<AudioObjectID>();
+    let class_id: AudioClassID = kAudioSubDeviceClassID;
+    let qualifier_data = &class_id;
+    let mut size: usize = 0;
+
+    unsafe {
+        assert_eq!(
+            AudioObjectGetPropertyDataSize(
+                id,
+                &address,
+                qualifier_data_size as u32,
+                qualifier_data as *const u32 as *const c_void,
+                &mut size as *mut usize as *mut u32
+            ),
+            NO_ERR
+        );
+    }
+    assert_ne!(size, 0);
+
+    let elements = size / mem::size_of::<AudioObjectID>();
+    let mut devices: Vec<AudioObjectID> = allocate_array(elements);
+
+    unsafe {
+        assert_eq!(
+            AudioObjectGetPropertyData(
+                id,
+                &address,
+                qualifier_data_size as u32,
+                qualifier_data as *const u32 as *const c_void,
+                &mut size as *mut usize as *mut u32,
+                devices.as_mut_ptr() as *mut c_void
+            ),
+            NO_ERR
+        );
+    }
+
+    devices
+}
+
 pub fn test_audiounit_scope_is_enabled(unit: AudioUnit, scope: Scope) -> bool {
     assert!(!unit.is_null());
     let mut has_io: UInt32 = 0;

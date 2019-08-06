@@ -1,4 +1,6 @@
-use super::utils::test_get_all_devices;
+use super::utils::{
+    test_get_all_devices, test_get_all_onwed_devices, test_get_default_device, Scope,
+};
 use super::*;
 
 // These tests that calling `AggregateDevice::create_blank_device` are marked `ignore` by
@@ -95,142 +97,97 @@ fn test_aggregate_get_sub_devices_for_blank_aggregate_devices() {
     assert!(AggregateDevice::destroy_device(plugin, device).is_ok());
 }
 
-// set_sub_devices
+// AggregateDevice::set_sub_devices_sync
 // ------------------------------------
 #[test]
 #[ignore]
-#[should_panic]
-fn test_aggregate_set_sub_devices_for_unknown_input_output_devices() {
-    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
-    assert_ne!(plugin_id, kAudioObjectUnknown);
-    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
-    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
+fn test_aggregate_set_sub_devices() {
+    let input_device = test_get_default_device(Scope::Input);
+    let output_device = test_get_default_device(Scope::Output);
+    if input_device.is_none() || output_device.is_none() || input_device == output_device {
+        println!("No input or output device to create an aggregate device.");
+        return;
+    }
 
-    // Both input and output are unknown.
-    assert!(AggregateDevice::set_sub_devices(
-        aggregate_device_id,
-        kAudioObjectUnknown,
-        kAudioObjectUnknown
-    )
-    .is_err());
+    let input_device = input_device.unwrap();
+    let output_device = output_device.unwrap();
+
+    let plugin = AggregateDevice::get_system_plugin_id().unwrap();
+    let device = AggregateDevice::create_blank_device_sync(plugin).unwrap();
+    assert!(AggregateDevice::set_sub_devices_sync(device, input_device, output_device).is_ok());
+
+    let sub_devices = AggregateDevice::get_sub_devices(device).unwrap();
+    let input_sub_devices = AggregateDevice::get_sub_devices(input_device).unwrap();
+    let output_sub_devices = AggregateDevice::get_sub_devices(output_device).unwrap();
+
+    // TODO: There may be overlapping devices between input_sub_devices and output_sub_devices,
+    //       but now AggregateDevice::set_sub_devices will add them directly.
+    assert_eq!(
+        sub_devices.len(),
+        input_sub_devices.len() + output_sub_devices.len()
+    );
+    for dev in &input_sub_devices {
+        assert!(sub_devices.contains(dev));
+    }
+    for dev in &output_sub_devices {
+        assert!(sub_devices.contains(dev));
+    }
+
+    let onwed_devices = test_get_all_onwed_devices(device);
+    let onwed_device_uids = get_device_uids(&onwed_devices);
+    let input_sub_device_uids = get_device_uids(&input_sub_devices);
+    let output_sub_device_uids = get_device_uids(&output_sub_devices);
+    for uid in &input_sub_device_uids {
+        assert!(onwed_device_uids.contains(uid));
+    }
+    for uid in &output_sub_device_uids {
+        assert!(onwed_device_uids.contains(uid));
+    }
+
+    assert!(AggregateDevice::destroy_device(plugin, device).is_ok());
 }
 
 #[test]
 #[ignore]
 #[should_panic]
 fn test_aggregate_set_sub_devices_for_unknown_input_devices() {
-    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
-    assert_ne!(plugin_id, kAudioObjectUnknown);
-    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
-    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
-
-    let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-
-    // Only input is unknown.
-    if valid_id(output_id) {
-        assert!(AggregateDevice::set_sub_devices(
-            aggregate_device_id,
-            kAudioObjectUnknown,
-            output_id
-        )
-        .is_err());
-    } else {
-        panic!("Need a output device!");
+    let output_device = test_get_default_device(Scope::Output);
+    if output_device.is_none() {
+        panic!("Need a output device for the test!");
     }
+    let output_device = output_device.unwrap();
 
-    assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
+    let plugin = AggregateDevice::get_system_plugin_id().unwrap();
+    let device = AggregateDevice::create_blank_device_sync(plugin).unwrap();
+
+    assert!(AggregateDevice::set_sub_devices(device, kAudioObjectUnknown, output_device).is_err());
+
+    assert!(AggregateDevice::destroy_device(plugin, device).is_ok());
 }
 
 #[test]
 #[ignore]
 #[should_panic]
 fn test_aggregate_set_sub_devices_for_unknown_output_devices() {
-    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
-    assert_ne!(plugin_id, kAudioObjectUnknown);
-    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
-    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
-
-    let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
-
-    // Only output is unknown.
-    if valid_id(input_id) {
-        assert!(AggregateDevice::set_sub_devices(
-            aggregate_device_id,
-            input_id,
-            kAudioObjectUnknown
-        )
-        .is_err());
-    } else {
-        panic!("Need a input device!");
+    let input_device = test_get_default_device(Scope::Input);
+    if input_device.is_none() {
+        panic!("Need a input device for the test!");
     }
+    let input_device = input_device.unwrap();
 
-    assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
+    let plugin = AggregateDevice::get_system_plugin_id().unwrap();
+    let device = AggregateDevice::create_blank_device_sync(plugin).unwrap();
+
+    assert!(AggregateDevice::set_sub_devices(device, input_device, kAudioObjectUnknown).is_err());
+
+    assert!(AggregateDevice::destroy_device(plugin, device).is_ok());
 }
 
-#[test]
-#[ignore]
-fn test_aggregate_set_sub_devices() {
-    let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
-    let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-    if !valid_id(input_id) || !valid_id(output_id) || input_id == output_id {
-        return;
-    }
-
-    let input_sub_devices = AggregateDevice::get_sub_devices(input_id).unwrap();
-    let output_sub_devices = AggregateDevice::get_sub_devices(output_id).unwrap();
-
-    // Create a blank aggregate device.
-    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
-    assert_ne!(plugin_id, kAudioObjectUnknown);
-    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
-    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
-
-    // Set sub devices for the created aggregate device.
-    assert!(AggregateDevice::set_sub_devices(aggregate_device_id, input_id, output_id).is_ok());
-    let sub_devices = AggregateDevice::get_sub_devices(aggregate_device_id).unwrap();
-
-    assert!(sub_devices.len() <= input_sub_devices.len() + output_sub_devices.len());
-
-    // Make sure all the sub devices of the default input and output devices
-    // are also the sub devices of the aggregate device.
-    for device in &input_sub_devices {
-        assert!(sub_devices.contains(device));
-    }
-
-    for device in &output_sub_devices {
-        assert!(sub_devices.contains(device));
-    }
-
-    let onwed_devices = get_onwed_devices(aggregate_device_id);
-    assert!(!onwed_devices.is_empty());
-    let owned_devices_names = to_devices_names(&onwed_devices);
-    show_devices_names("aggregate owning devices", &owned_devices_names);
-
-    let input_sub_devices_names = to_devices_names(&input_sub_devices);
-    show_devices_names("input sub devices", &owned_devices_names);
-
-    let output_sub_devices_names = to_devices_names(&output_sub_devices);
-    show_devices_names("output sub devices", &owned_devices_names);
-
-    for name_opt in &input_sub_devices_names {
-        assert!(owned_devices_names.contains(name_opt));
-    }
-
-    for name_opt in &output_sub_devices_names {
-        assert!(owned_devices_names.contains(name_opt));
-    }
-
-    assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
-
-    fn show_devices_names(title: &'static str, names: &Vec<Option<String>>) {
-        println!("\n{}\n-----------", title);
-        for name_opt in names {
-            if let Some(name) = name_opt {
-                println!("{}", name);
-            }
-        }
-        println!();
-    }
+fn get_device_uids(devices: &Vec<AudioObjectID>) -> Vec<String> {
+    devices
+        .iter()
+        .map(|device| get_device_global_uid(*device).unwrap().into_string())
+        .collect()
 }
 
 // set_master_device
@@ -570,18 +527,6 @@ fn test_aggregate_destroy_aggregate_device_for_a_unknown_aggregate_device() {
 // ------------------------------------
 fn valid_id(id: AudioObjectID) -> bool {
     id != kAudioObjectUnknown
-}
-
-// fn is_output(id: AudioObjectID) -> bool {
-//     audiounit_get_channel_count(id, kAudioDevicePropertyScopeOutput) > 0
-// }
-
-fn to_devices_names(devices: &Vec<AudioObjectID>) -> Vec<Option<String>> {
-    let mut names = Vec::new();
-    for device in devices {
-        names.push(to_device_name(*device));
-    }
-    names
 }
 
 fn to_device_name(id: AudioObjectID) -> Option<String> {

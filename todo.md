@@ -24,10 +24,9 @@
 ### Get sub devices
 - A better pattern for `AggregateDevice::get_sub_devices`
 ### Set sub devices
-- We will add duplicate devices into the array if there are common devices in
-  `output_sub_devices` and `input_sub_devices`
+- We will add overlapping devices between `input_sub_devices` and `output_sub_devices`.
   - if they are same device
-  - if either one of them or both of them are aggregate devices)
+  - if either one of them or both of them are aggregate devices
 ### Setting master device
 - Check if the first subdevice of the default output device is in the list of
   sub devices list of the aggregate device
