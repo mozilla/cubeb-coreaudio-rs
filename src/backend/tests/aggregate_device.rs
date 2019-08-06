@@ -64,6 +64,20 @@ use super::*;
 // The above tests are added a prefix `test_aggregate` so we can run these ignored tests easily on
 // an indivisual test command, rather than run these tests with others together.
 
+// AggregateDevice::create_blank_device_sync
+// ------------------------------------
+#[test]
+#[ignore]
+fn test_aggregate_create_blank_device() {
+    // TODO: Test this when there is no available devices.
+    let plugin = AggregateDevice::get_system_plugin_id().unwrap();
+    let device = AggregateDevice::create_blank_device_sync(plugin).unwrap();
+    let devices = test_get_all_devices();
+    let device = devices.into_iter().find(|dev| dev == &device).unwrap();
+    let uid = get_device_global_uid(device).unwrap().into_string();
+    assert!(uid.contains(PRIVATE_AGGREGATE_DEVICE_NAME));
+}
+
 // get_sub_devices
 // ------------------------------------
 #[test]
@@ -79,20 +93,6 @@ fn test_aggregate_get_sub_devices_for_blank_aggregate_devices() {
     let devices = AggregateDevice::get_sub_devices(aggregate_device_id).unwrap();
     assert!(devices.is_empty());
     assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
-}
-
-// AggregateDevice::create_blank_device_sync
-// ------------------------------------
-#[test]
-#[ignore]
-fn test_aggregate_create_blank_device() {
-    // TODO: Test this when there is no available devices.
-    let plugin = AggregateDevice::get_system_plugin_id().unwrap();
-    let device = AggregateDevice::create_blank_device_sync(plugin).unwrap();
-    let devices = test_get_all_devices();
-    let device = devices.into_iter().find(|dev| dev == &device).unwrap();
-    let uid = get_device_global_uid(device).unwrap().into_string();
-    assert!(uid.contains(PRIVATE_AGGREGATE_DEVICE_NAME));
 }
 
 // set_sub_devices
