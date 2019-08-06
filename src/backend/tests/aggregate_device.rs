@@ -78,21 +78,21 @@ fn test_aggregate_create_blank_device() {
     assert!(uid.contains(PRIVATE_AGGREGATE_DEVICE_NAME));
 }
 
-// get_sub_devices
+// AggregateDevice::get_sub_devices
 // ------------------------------------
 #[test]
 #[ignore]
 #[should_panic]
 fn test_aggregate_get_sub_devices_for_blank_aggregate_devices() {
     // TODO: Test this when there is no available devices.
-    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
-    assert_ne!(plugin_id, kAudioObjectUnknown);
-    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
-    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
-    // There is no sub devices for a blank aggregate device!
-    let devices = AggregateDevice::get_sub_devices(aggregate_device_id).unwrap();
-    assert!(devices.is_empty());
-    assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
+    let plugin = AggregateDevice::get_system_plugin_id().unwrap();
+    let device = AggregateDevice::create_blank_device_sync(plugin).unwrap();
+    // There is no sub device in a blank aggregate device!
+    // AggregateDevice::get_sub_devices guarantees returning a non-empty devices vector, so
+    // the following call will panic!
+    let sub_devices = AggregateDevice::get_sub_devices(device).unwrap();
+    assert!(sub_devices.is_empty());
+    assert!(AggregateDevice::destroy_device(plugin, device).is_ok());
 }
 
 // set_sub_devices

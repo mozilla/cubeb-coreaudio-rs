@@ -1291,9 +1291,10 @@ fn test_aggregate_set_sub_devices_for_unknown_devices() {
 fn test_aggregate_get_sub_devices() {
     let devices = test_get_all_devices();
     for device in devices {
-        assert_ne!(device, kAudioObjectUnknown);
         // `AggregateDevice::get_sub_devices(device)` will return a single-element vector
-        //  containing `device` itself if it's not an aggregate device.
+        // containing `device` itself if it's not an aggregate device. This test assumes devices
+        // is not an empty aggregate device (Test will panic when calling get_sub_devices with
+        // an empty aggregate device).
         let sub_devices = AggregateDevice::get_sub_devices(device).unwrap();
         // TODO: If the device is a blank aggregate device, then the assertion fails!
         assert!(!sub_devices.is_empty());
