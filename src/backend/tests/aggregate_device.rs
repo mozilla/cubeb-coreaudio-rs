@@ -1,3 +1,4 @@
+use super::utils::test_get_all_devices;
 use super::*;
 
 // These tests that calling `AggregateDevice::create_blank_device` are marked `ignore` by
@@ -80,60 +81,18 @@ fn test_aggregate_get_sub_devices_for_blank_aggregate_devices() {
     assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
 }
 
-// create_blank_device
+// AggregateDevice::create_blank_device_sync
 // ------------------------------------
 #[test]
 #[ignore]
 fn test_aggregate_create_blank_device() {
     // TODO: Test this when there is no available devices.
-    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
-    assert_ne!(plugin_id, kAudioObjectUnknown);
-    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
-    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
-
-    let all_devices = get_all_devices();
-    assert!(!all_devices.is_empty());
-    assert!(all_devices.contains(&aggregate_device_id));
-
-    let all_devices_names = to_devices_names(&all_devices);
-    assert!(!all_devices_names.is_empty());
-    let mut aggregate_device_found = false;
-    for name_opt in all_devices_names {
-        if let Some(name) = name_opt {
-            if name.contains(PRIVATE_AGGREGATE_DEVICE_NAME) {
-                aggregate_device_found = true;
-                break;
-            }
-        }
-    }
-    assert!(aggregate_device_found);
-
-    assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
-
-    fn get_all_devices() -> Vec<AudioObjectID> {
-        let mut size: usize = 0;
-        let mut ret = audio_object_get_property_data_size(
-            kAudioObjectSystemObject,
-            &DEVICES_PROPERTY_ADDRESS,
-            &mut size,
-        );
-        if ret != NO_ERR {
-            return Vec::new();
-        }
-        /* Total number of input and output devices. */
-        let mut devices: Vec<AudioObjectID> = allocate_array_by_size(size);
-        ret = audio_object_get_property_data(
-            kAudioObjectSystemObject,
-            &DEVICES_PROPERTY_ADDRESS,
-            &mut size,
-            devices.as_mut_ptr(),
-        );
-        if ret != NO_ERR {
-            return Vec::new();
-        }
-        devices.sort();
-        devices
-    }
+    let plugin = AggregateDevice::get_system_plugin_id().unwrap();
+    let device = AggregateDevice::create_blank_device_sync(plugin).unwrap();
+    let devices = test_get_all_devices();
+    let device = devices.into_iter().find(|dev| dev == &device).unwrap();
+    let uid = get_device_global_uid(device).unwrap().into_string();
+    assert!(uid.contains(PRIVATE_AGGREGATE_DEVICE_NAME));
 }
 
 // set_sub_devices
