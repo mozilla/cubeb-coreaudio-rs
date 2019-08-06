@@ -1198,15 +1198,23 @@ fn test_get_device_label_by_unknown_device() {
 #[test]
 fn test_get_device_manufacturer() {
     if let Some(device) = test_get_default_device(Scope::Input) {
-        let name = get_device_manufacturer(device, DeviceType::INPUT).unwrap();
-        println!("input device vendor: {}", name.into_string());
+        // Some devices like AirPods cannot get the vendor info so we print the error directly.
+        // TODO: Replace `map` and `unwrap_or_else` by `map_or_else`
+        let name = get_device_manufacturer(device, DeviceType::INPUT)
+            .map(|name| name.into_string())
+            .unwrap_or_else(|e| format!("Error: {}", e));
+        println!("input device vendor: {}", name);
     } else {
         println!("No input device.");
     }
 
     if let Some(device) = test_get_default_device(Scope::Output) {
-        let name = get_device_manufacturer(device, DeviceType::OUTPUT).unwrap();
-        println!("output device vendor: {}", name.into_string());
+        // Some devices like AirPods cannot get the vendor info so we print the error directly.
+        // TODO: Replace `map` and `unwrap_or_else` by `map_or_else`
+        let name = get_device_manufacturer(device, DeviceType::OUTPUT)
+            .map(|name| name.into_string())
+            .unwrap_or_else(|e| format!("Error: {}", e));
+        println!("output device vendor: {}", name);
     } else {
         println!("No output device.");
     }
