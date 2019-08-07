@@ -353,30 +353,23 @@ fn get_drift_compensations(devices: &Vec<AudioObjectID>) -> Vec<u32> {
     compensations
 }
 
-// destroy_aggregate_device
+// AggregateDevice::destroy_device
 // ------------------------------------
 #[test]
 #[ignore]
 #[should_panic]
 fn test_aggregate_destroy_aggregate_device_for_a_unknown_plugin_device() {
-    // TODO: Test this when there is no available devices.
-    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
-    assert_ne!(plugin_id, kAudioObjectUnknown);
-    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
-    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
-
-    assert!(AggregateDevice::destroy_device(kAudioObjectUnknown, aggregate_device_id).is_err());
+    let plugin = AggregateDevice::get_system_plugin_id().unwrap();
+    let device = AggregateDevice::create_blank_device_sync(plugin).unwrap();
+    assert!(AggregateDevice::destroy_device(kAudioObjectUnknown, device).is_err());
 }
 
 #[test]
 #[ignore]
 #[should_panic]
 fn test_aggregate_destroy_aggregate_device_for_a_unknown_aggregate_device() {
-    // TODO: Test this when there is no available devices.
-    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
-    assert_ne!(plugin_id, kAudioObjectUnknown);
-    let aggregate_device_id = kAudioObjectUnknown;
-    assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_err());
+    let plugin = AggregateDevice::get_system_plugin_id().unwrap();
+    assert!(AggregateDevice::destroy_device(plugin, kAudioObjectUnknown).is_err());
 }
 
 // Utils
