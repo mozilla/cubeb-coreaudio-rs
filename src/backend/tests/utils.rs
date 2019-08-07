@@ -433,6 +433,31 @@ pub fn test_get_master_device(id: AudioObjectID) -> String {
     master.into_string()
 }
 
+pub fn test_get_drift_compensations(id: AudioObjectID) -> std::result::Result<u32, OSStatus> {
+    let address = AudioObjectPropertyAddress {
+        mSelector: kAudioSubDevicePropertyDriftCompensation,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMaster,
+    };
+    let mut size = mem::size_of::<u32>();
+    let mut compensation = u32::max_value();
+    let status = unsafe {
+        AudioObjectGetPropertyData(
+            id,
+            &address,
+            0,
+            ptr::null(),
+            &mut size as *mut usize as *mut u32,
+            &mut compensation as *mut u32 as *mut c_void,
+        )
+    };
+    if status == NO_ERR {
+        Ok(compensation)
+    } else {
+        Err(status)
+    }
+}
+
 pub fn test_audiounit_scope_is_enabled(unit: AudioUnit, scope: Scope) -> bool {
     assert!(!unit.is_null());
     let mut has_io: UInt32 = 0;

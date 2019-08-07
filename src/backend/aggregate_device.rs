@@ -2,6 +2,7 @@ use super::*;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const APPLE_EVENT_TIMEOUT: OSStatus = -1712;
+pub const DRIFT_COMPENSATION: u32 = 1;
 
 #[derive(Debug)]
 pub struct AggregateDevice {
@@ -491,12 +492,11 @@ impl AggregateDevice {
 
         // Start from the second device since the first is the master clock
         for device in &sub_devices[1..] {
-            let drift_compensation_value: u32 = 1;
             let status = audio_object_set_property_data(
                 *device,
                 &address,
                 mem::size_of::<u32>(),
-                &drift_compensation_value,
+                &DRIFT_COMPENSATION,
             );
             if status != NO_ERR {
                 cubeb_log!(

@@ -1,6 +1,6 @@
 use super::utils::{
     test_get_all_devices, test_get_all_onwed_devices, test_get_default_device,
-    test_get_master_device, Scope,
+    test_get_drift_compensations, test_get_master_device, Scope,
 };
 use super::*;
 
@@ -247,225 +247,106 @@ fn get_device_uid(id: AudioObjectID) -> String {
     get_device_global_uid(id).unwrap().into_string()
 }
 
-// activate_clock_drift_compensation
+// AggregateDevice::activate_clock_drift_compensation
 // ------------------------------------
 #[test]
-#[should_panic]
 #[ignore]
-fn test_aggregate_activate_clock_drift_compensation_for_a_blank_aggregate_device() {
-    // Create a blank aggregate device.
-    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
-    assert_ne!(plugin_id, kAudioObjectUnknown);
-    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
-    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
+fn test_aggregate_activate_clock_drift_compensation() {
+    let input_device = test_get_default_device(Scope::Input);
+    let output_device = test_get_default_device(Scope::Output);
+    if input_device.is_none() || output_device.is_none() || input_device == output_device {
+        println!("No input or output device to create an aggregate device.");
+        return;
+    }
 
-    // Get owned sub devices.
-    let devices = get_onwed_devices(aggregate_device_id);
-    assert!(devices.is_empty());
+    let input_device = input_device.unwrap();
+    let output_device = output_device.unwrap();
 
-    // Get a panic since no sub devices to be set compensation.
-    assert!(AggregateDevice::activate_clock_drift_compensation(aggregate_device_id).is_err());
+    let plugin = AggregateDevice::get_system_plugin_id().unwrap();
+    let device = AggregateDevice::create_blank_device_sync(plugin).unwrap();
+    assert!(AggregateDevice::set_sub_devices_sync(device, input_device, output_device).is_ok());
+    assert!(AggregateDevice::set_master_device(device).is_ok());
+    assert!(AggregateDevice::activate_clock_drift_compensation(device).is_ok());
 
-    // Destroy the aggregate device. (The program cannot reach here.)
-    assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
+    // Check the compensations.
+    let devices = test_get_all_onwed_devices(device);
+    let compensations = get_drift_compensations(&devices);
+    assert!(!compensations.is_empty());
+    assert_eq!(devices.len(), compensations.len());
+
+    for (i, compensation) in compensations.iter().enumerate() {
+        assert_eq!(*compensation, if i == 0 { 0 } else { DRIFT_COMPENSATION });
+    }
+
+    assert!(AggregateDevice::destroy_device(plugin, device).is_ok());
 }
 
 #[test]
 #[ignore]
 fn test_aggregate_activate_clock_drift_compensation_for_an_aggregate_device_without_master_device()
 {
-    let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
-    let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-    if !valid_id(input_id) || !valid_id(output_id) || input_id == output_id {
+    let input_device = test_get_default_device(Scope::Input);
+    let output_device = test_get_default_device(Scope::Output);
+    if input_device.is_none() || output_device.is_none() || input_device == output_device {
+        println!("No input or output device to create an aggregate device.");
         return;
     }
 
-    // Create a blank aggregate device.
-    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
-    assert_ne!(plugin_id, kAudioObjectUnknown);
-    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
-    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
+    let input_device = input_device.unwrap();
+    let output_device = output_device.unwrap();
 
-    // Set the sub devices into the created aggregate device.
-    assert!(AggregateDevice::set_sub_devices(aggregate_device_id, input_id, output_id).is_ok());
+    let plugin = AggregateDevice::get_system_plugin_id().unwrap();
+    let device = AggregateDevice::create_blank_device_sync(plugin).unwrap();
+    assert!(AggregateDevice::set_sub_devices_sync(device, input_device, output_device).is_ok());
 
     // TODO: Is the master device the first output sub device by default if we
     //       don't set that ? Is it because we add the output sub device list
     //       before the input's one ? (See implementation of
     //       AggregateDevice::set_sub_devices).
-    // TODO: Does this check work if output_id is an aggregate device ?
-    assert_eq!(
-        get_master_device(aggregate_device_id),
-        to_device_name(output_id).unwrap()
-    );
+    let first_output_sub_device_uid =
+        get_device_uid(AggregateDevice::get_sub_devices(output_device).unwrap()[0]);
+    let master_device_uid = test_get_master_device(device);
+    assert_eq!(first_output_sub_device_uid, master_device_uid);
 
-    // Set clock drift compensation.
-    assert!(AggregateDevice::activate_clock_drift_compensation(aggregate_device_id).is_ok());
+    // Compensate the drift directly without setting master device.
+    assert!(AggregateDevice::activate_clock_drift_compensation(device).is_ok());
 
     // Check the compensations.
-    let devices = get_onwed_devices(aggregate_device_id);
-    assert!(!devices.is_empty());
+    let devices = test_get_all_onwed_devices(device);
     let compensations = get_drift_compensations(&devices);
     assert!(!compensations.is_empty());
     assert_eq!(devices.len(), compensations.len());
 
     for (i, compensation) in compensations.iter().enumerate() {
-        assert_eq!(*compensation, if i == 0 { 0 } else { 1 });
+        assert_eq!(*compensation, if i == 0 { 0 } else { DRIFT_COMPENSATION });
     }
 
-    // Destroy the aggregate device.
-    assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
+    assert!(AggregateDevice::destroy_device(plugin, device).is_ok());
 }
 
 #[test]
+#[should_panic]
 #[ignore]
-fn test_aggregate_activate_clock_drift_compensation() {
-    let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
-    let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-    if !valid_id(input_id) || !valid_id(output_id) || input_id == output_id {
-        return;
-    }
+fn test_aggregate_activate_clock_drift_compensation_for_a_blank_aggregate_device() {
+    let plugin = AggregateDevice::get_system_plugin_id().unwrap();
+    let device = AggregateDevice::create_blank_device_sync(plugin).unwrap();
 
-    let output_sub_devices = AggregateDevice::get_sub_devices(output_id).unwrap();
-    if output_sub_devices.is_empty() {
-        return;
-    }
+    let sub_devices = AggregateDevice::get_sub_devices(device).unwrap();
+    assert!(sub_devices.is_empty());
+    let onwed_devices = test_get_all_onwed_devices(device);
+    assert!(onwed_devices.is_empty());
 
-    // Create a blank aggregate device.
-    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
-    assert_ne!(plugin_id, kAudioObjectUnknown);
-    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
-    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
+    // Get a panic since no sub devices to be set compensation.
+    assert!(AggregateDevice::activate_clock_drift_compensation(device).is_err());
 
-    // Set the sub devices into the created aggregate device.
-    assert!(AggregateDevice::set_sub_devices(aggregate_device_id, input_id, output_id).is_ok());
-
-    // Set the master device.
-    assert!(AggregateDevice::set_master_device(aggregate_device_id).is_ok());
-
-    // Set clock drift compensation.
-    assert!(AggregateDevice::activate_clock_drift_compensation(aggregate_device_id).is_ok());
-
-    // Check the compensations.
-    let devices = get_onwed_devices(aggregate_device_id);
-    assert!(!devices.is_empty());
-    let compensations = get_drift_compensations(&devices);
-    assert!(!compensations.is_empty());
-    assert_eq!(devices.len(), compensations.len());
-
-    for (i, compensation) in compensations.iter().enumerate() {
-        assert_eq!(*compensation, if i == 0 { 0 } else { 1 });
-    }
-
-    // Destroy the aggregate device.
-    assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
-}
-
-fn get_master_device(aggregate_device_id: AudioObjectID) -> String {
-    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
-
-    let master_aggregate_sub_device = AudioObjectPropertyAddress {
-        mSelector: kAudioAggregateDevicePropertyMasterSubDevice,
-        mScope: kAudioObjectPropertyScopeGlobal,
-        mElement: kAudioObjectPropertyElementMaster,
-    };
-
-    let mut master_sub_device: CFStringRef = ptr::null_mut();
-    let mut size = mem::size_of::<CFStringRef>();
-    assert_eq!(
-        audio_object_get_property_data(
-            aggregate_device_id,
-            &master_aggregate_sub_device,
-            &mut size,
-            &mut master_sub_device
-        ),
-        NO_ERR
-    );
-    assert!(!master_sub_device.is_null());
-
-    let master_device = strref_to_string(master_sub_device);
-
-    unsafe {
-        CFRelease(master_sub_device as *const c_void);
-    }
-
-    master_device
-}
-
-fn get_onwed_devices(aggregate_device_id: AudioDeviceID) -> Vec<AudioObjectID> {
-    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
-
-    let address_owned = AudioObjectPropertyAddress {
-        mSelector: kAudioObjectPropertyOwnedObjects,
-        mScope: kAudioObjectPropertyScopeGlobal,
-        mElement: kAudioObjectPropertyElementMaster,
-    };
-
-    let qualifier_data_size = mem::size_of::<AudioObjectID>();
-    let class_id: AudioClassID = kAudioSubDeviceClassID;
-    let qualifier_data = &class_id;
-    let mut size: usize = 0;
-
-    unsafe {
-        assert_eq!(
-            AudioObjectGetPropertyDataSize(
-                aggregate_device_id,
-                &address_owned,
-                qualifier_data_size as u32,
-                qualifier_data as *const u32 as *const c_void,
-                &mut size as *mut usize as *mut u32
-            ),
-            NO_ERR
-        );
-    }
-
-    // assert_ne!(size, 0);
-    if size == 0 {
-        return Vec::new();
-    }
-
-    let elements = size / mem::size_of::<AudioObjectID>();
-    let mut devices: Vec<AudioObjectID> = allocate_array(elements);
-
-    unsafe {
-        assert_eq!(
-            AudioObjectGetPropertyData(
-                aggregate_device_id,
-                &address_owned,
-                qualifier_data_size as u32,
-                qualifier_data as *const u32 as *const c_void,
-                &mut size as *mut usize as *mut u32,
-                devices.as_mut_ptr() as *mut c_void
-            ),
-            NO_ERR
-        );
-    }
-
-    devices
+    assert!(AggregateDevice::destroy_device(plugin, device).is_ok());
 }
 
 fn get_drift_compensations(devices: &Vec<AudioObjectID>) -> Vec<u32> {
     assert!(!devices.is_empty());
-
-    let address_drift = AudioObjectPropertyAddress {
-        mSelector: kAudioSubDevicePropertyDriftCompensation,
-        mScope: kAudioObjectPropertyScopeGlobal,
-        mElement: kAudioObjectPropertyElementMaster,
-    };
-
     let mut compensations = Vec::new();
-
     for device in devices {
-        assert_ne!(*device, kAudioObjectUnknown);
-
-        let mut size = mem::size_of::<u32>();
-        let mut compensation = u32::max_value();
-
-        assert_eq!(
-            audio_object_get_property_data(*device, &address_drift, &mut size, &mut compensation),
-            NO_ERR
-        );
-
+        let compensation = test_get_drift_compensations(*device).unwrap();
         compensations.push(compensation);
     }
 
