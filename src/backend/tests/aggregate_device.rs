@@ -79,6 +79,7 @@ fn test_aggregate_create_blank_device() {
     let device = devices.into_iter().find(|dev| dev == &device).unwrap();
     let uid = get_device_global_uid(device).unwrap().into_string();
     assert!(uid.contains(PRIVATE_AGGREGATE_DEVICE_NAME));
+    assert!(AggregateDevice::destroy_device(plugin, device).is_ok());
 }
 
 // AggregateDevice::get_sub_devices
@@ -217,6 +218,8 @@ fn test_aggregate_set_master_device() {
         get_device_uid(AggregateDevice::get_sub_devices(device).unwrap()[0]);
     let master_device_uid = test_get_master_device(device);
     assert_eq!(first_output_sub_device_uid, master_device_uid);
+
+    assert!(AggregateDevice::destroy_device(plugin, device).is_ok());
 }
 
 #[test]
