@@ -4,6 +4,96 @@ use super::utils::{
 };
 use super::*;
 
+// AggregateDevice::set_sub_devices
+// ------------------------------------
+#[test]
+#[should_panic]
+fn test_aggregate_set_sub_devices_for_an_unknown_aggregate_device() {
+    // If aggregate device id is kAudioObjectUnknown, we are unable to set device list.
+    let default_input = test_get_default_device(Scope::Input);
+    let default_output = test_get_default_device(Scope::Output);
+    if default_input.is_none() || default_output.is_none() {
+        panic!("No input or output device.");
+    }
+
+    let default_input = default_input.unwrap();
+    let default_output = default_output.unwrap();
+    assert!(
+        AggregateDevice::set_sub_devices(kAudioObjectUnknown, default_input, default_output)
+            .is_err()
+    );
+}
+
+#[test]
+#[should_panic]
+fn test_aggregate_set_sub_devices_for_unknown_devices() {
+    // If aggregate device id is kAudioObjectUnknown, we are unable to set device list.
+    assert!(AggregateDevice::set_sub_devices(
+        kAudioObjectUnknown,
+        kAudioObjectUnknown,
+        kAudioObjectUnknown
+    )
+    .is_err());
+}
+
+// AggregateDevice::get_sub_devices
+// ------------------------------------
+// You can check this by creating an aggregate device in `Audio MIDI Setup`
+// application and print out the sub devices of them!
+#[test]
+fn test_aggregate_get_sub_devices() {
+    let devices = test_get_all_devices();
+    for device in devices {
+        // `AggregateDevice::get_sub_devices(device)` will return a single-element vector
+        // containing `device` itself if it's not an aggregate device. This test assumes devices
+        // is not an empty aggregate device (Test will panic when calling get_sub_devices with
+        // an empty aggregate device).
+        let sub_devices = AggregateDevice::get_sub_devices(device).unwrap();
+        // TODO: If the device is a blank aggregate device, then the assertion fails!
+        assert!(!sub_devices.is_empty());
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_aggregate_get_sub_devices_for_a_unknown_device() {
+    let devices = AggregateDevice::get_sub_devices(kAudioObjectUnknown).unwrap();
+    assert!(devices.is_empty());
+}
+
+// AggregateDevice::set_master_device
+// ------------------------------------
+#[test]
+#[should_panic]
+fn test_aggregate_set_master_device_for_an_unknown_aggregate_device() {
+    assert!(AggregateDevice::set_master_device(kAudioObjectUnknown).is_err());
+}
+
+// AggregateDevice::activate_clock_drift_compensation
+// ------------------------------------
+#[test]
+#[should_panic]
+fn test_aggregate_activate_clock_drift_compensation_for_an_unknown_aggregate_device() {
+    assert!(AggregateDevice::activate_clock_drift_compensation(kAudioObjectUnknown).is_err());
+}
+
+// AggregateDevice::destroy_device
+// ------------------------------------
+#[test]
+#[should_panic]
+fn test_aggregate_destroy_device_for_unknown_plugin_and_aggregate_devices() {
+    assert!(AggregateDevice::destroy_device(kAudioObjectUnknown, kAudioObjectUnknown).is_err())
+}
+
+#[test]
+#[should_panic]
+fn test_aggregate_destroy_aggregate_device_for_a_unknown_aggregate_device() {
+    let plugin = AggregateDevice::get_system_plugin_id().unwrap();
+    assert!(AggregateDevice::destroy_device(plugin, kAudioObjectUnknown).is_err());
+}
+
+// Default Ignored Tests
+// ================================================================================================
 // The following tests that calls `AggregateDevice::create_blank_device` are marked `ignore` by
 // default since the device-collection-changed callbacks will be fired upon
 // `AggregateDevice::create_blank_device` is called (it will plug a new device in system!).
@@ -308,12 +398,4 @@ fn test_aggregate_destroy_aggregate_device_for_a_unknown_plugin_device() {
     let plugin = AggregateDevice::get_system_plugin_id().unwrap();
     let device = AggregateDevice::create_blank_device_sync(plugin).unwrap();
     assert!(AggregateDevice::destroy_device(kAudioObjectUnknown, device).is_err());
-}
-
-#[test]
-#[ignore]
-#[should_panic]
-fn test_aggregate_destroy_aggregate_device_for_a_unknown_aggregate_device() {
-    let plugin = AggregateDevice::get_system_plugin_id().unwrap();
-    assert!(AggregateDevice::destroy_device(plugin, kAudioObjectUnknown).is_err());
 }
