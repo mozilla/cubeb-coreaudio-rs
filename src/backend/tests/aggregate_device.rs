@@ -1,5 +1,6 @@
 use super::utils::{
-    test_get_all_devices, test_get_all_onwed_devices, test_get_default_device, Scope,
+    test_get_all_devices, test_get_all_onwed_devices, test_get_default_device,
+    test_get_master_device, Scope,
 };
 use super::*;
 
@@ -190,117 +191,60 @@ fn get_device_uids(devices: &Vec<AudioObjectID>) -> Vec<String> {
         .collect()
 }
 
-// set_master_device
+// AggregateDevice::set_master_device
 // ------------------------------------
 #[test]
 #[ignore]
-fn test_aggregate_set_master_device_for_a_blank_aggregate_device() {
-    let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-    if !valid_id(output_id) {
+fn test_aggregate_set_master_device() {
+    let input_device = test_get_default_device(Scope::Input);
+    let output_device = test_get_default_device(Scope::Output);
+    if input_device.is_none() || output_device.is_none() || input_device == output_device {
+        println!("No input or output device to create an aggregate device.");
         return;
     }
 
-    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
-    assert_ne!(plugin_id, kAudioObjectUnknown);
-    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
-    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
-    assert!(AggregateDevice::set_master_device(aggregate_device_id).is_ok());
+    let input_device = input_device.unwrap();
+    let output_device = output_device.unwrap();
 
-    // Make sure this blank aggregate device owns nothing.
-    // TODO: it's really weird it actually own nothing but
-    //       it can set master device successfully!
-    let owned_sub_devices = get_onwed_devices(aggregate_device_id);
-    assert!(owned_sub_devices.is_empty());
+    let plugin = AggregateDevice::get_system_plugin_id().unwrap();
+    let device = AggregateDevice::create_blank_device_sync(plugin).unwrap();
+    assert!(AggregateDevice::set_sub_devices_sync(device, input_device, output_device).is_ok());
+    assert!(AggregateDevice::set_master_device(device).is_ok());
 
-    // Check if master is nothing.
-    let master_device = get_master_device(aggregate_device_id);
-    assert!(master_device.is_empty());
-
-    assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
+    // Check if master is set to the first sub device of the default output device.
+    // TODO: What if the output device in the aggregate device is not the default output device?
+    let first_output_sub_device_uid =
+        get_device_uid(AggregateDevice::get_sub_devices(device).unwrap()[0]);
+    let master_device_uid = test_get_master_device(device);
+    assert_eq!(first_output_sub_device_uid, master_device_uid);
 }
 
 #[test]
 #[ignore]
-fn test_aggregate_set_master_device() {
-    let input_id = audiounit_get_default_device_id(DeviceType::INPUT);
-    let output_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-    if !valid_id(input_id) || !valid_id(output_id) || input_id == output_id {
+fn test_aggregate_set_master_device_for_a_blank_aggregate_device() {
+    let output_device = test_get_default_device(Scope::Output);
+    if output_device.is_none() {
+        println!("No output device to test.");
         return;
     }
 
-    let output_sub_devices = AggregateDevice::get_sub_devices(output_id).unwrap();
-    if output_sub_devices.is_empty() {
-        return;
-    }
+    let plugin = AggregateDevice::get_system_plugin_id().unwrap();
+    let device = AggregateDevice::create_blank_device_sync(plugin).unwrap();
+    assert!(AggregateDevice::set_master_device(device).is_ok());
 
-    // Create a blank aggregate device.
-    let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
-    assert_ne!(plugin_id, kAudioObjectUnknown);
-    let aggregate_device_id = AggregateDevice::create_blank_device_sync(plugin_id).unwrap();
-    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
+    // TODO: it's really weird the aggregate device actually own nothing
+    //       but its master device can be set successfully!
+    // The sub devices of this blank aggregate device (by `AggregateDevice::get_sub_devices`)
+    // and the own devices (by `test_get_all_onwed_devices`) is empty since the size returned
+    // from `audio_object_get_property_data_size` is 0.
+    // The CFStringRef of the master device returned from `test_get_master_device` is actually
+    // non-null.
 
-    // Set the sub devices into the created aggregate device.
-    assert!(AggregateDevice::set_sub_devices(aggregate_device_id, input_id, output_id).is_ok());
-
-    // Set the master device.
-    assert!(AggregateDevice::set_master_device(aggregate_device_id).is_ok());
-
-    // Check if master is set to default output device.
-    let master_device = get_master_device(aggregate_device_id);
-    let default_output_device = to_device_name(output_id).unwrap();
-    assert_eq!(master_device, default_output_device);
-
-    // The owned devices may be different. Comment it for now.
-    // This fails if the default input device is Soundflower or Plantronics .Audio 628 USB.
-    // Check the first owning device is the default output device.
-    // let onwed_devices = get_onwed_devices(aggregate_device_id);
-    // assert!(!onwed_devices.is_empty());
-    // let mut first_output_device = None;
-    // for device in &onwed_devices {
-    //     if is_output(*device) {
-    //         first_output_device = Some(*device);
-    //     }
-    // }
-    // assert!(first_output_device.is_some());
-    // // TODO: Does this check work if output_id is an aggregate device ?
-    // assert_eq!(
-    //     to_device_name(first_output_device.unwrap()),
-    //     to_device_name(output_id)
-    // );
-
-    // Destroy the aggregate device.
-    assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
+    assert!(AggregateDevice::destroy_device(plugin, device).is_ok());
 }
 
-fn get_master_device(aggregate_device_id: AudioObjectID) -> String {
-    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
-
-    let master_aggregate_sub_device = AudioObjectPropertyAddress {
-        mSelector: kAudioAggregateDevicePropertyMasterSubDevice,
-        mScope: kAudioObjectPropertyScopeGlobal,
-        mElement: kAudioObjectPropertyElementMaster,
-    };
-
-    let mut master_sub_device: CFStringRef = ptr::null_mut();
-    let mut size = mem::size_of::<CFStringRef>();
-    assert_eq!(
-        audio_object_get_property_data(
-            aggregate_device_id,
-            &master_aggregate_sub_device,
-            &mut size,
-            &mut master_sub_device
-        ),
-        NO_ERR
-    );
-    assert!(!master_sub_device.is_null());
-
-    let master_device = strref_to_string(master_sub_device);
-
-    unsafe {
-        CFRelease(master_sub_device as *const c_void);
-    }
-
-    master_device
+fn get_device_uid(id: AudioObjectID) -> String {
+    get_device_global_uid(id).unwrap().into_string()
 }
 
 // activate_clock_drift_compensation
@@ -415,6 +359,37 @@ fn test_aggregate_activate_clock_drift_compensation() {
 
     // Destroy the aggregate device.
     assert!(AggregateDevice::destroy_device(plugin_id, aggregate_device_id).is_ok());
+}
+
+fn get_master_device(aggregate_device_id: AudioObjectID) -> String {
+    assert_ne!(aggregate_device_id, kAudioObjectUnknown);
+
+    let master_aggregate_sub_device = AudioObjectPropertyAddress {
+        mSelector: kAudioAggregateDevicePropertyMasterSubDevice,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMaster,
+    };
+
+    let mut master_sub_device: CFStringRef = ptr::null_mut();
+    let mut size = mem::size_of::<CFStringRef>();
+    assert_eq!(
+        audio_object_get_property_data(
+            aggregate_device_id,
+            &master_aggregate_sub_device,
+            &mut size,
+            &mut master_sub_device
+        ),
+        NO_ERR
+    );
+    assert!(!master_sub_device.is_null());
+
+    let master_device = strref_to_string(master_sub_device);
+
+    unsafe {
+        CFRelease(master_sub_device as *const c_void);
+    }
+
+    master_device
 }
 
 fn get_onwed_devices(aggregate_device_id: AudioDeviceID) -> Vec<AudioObjectID> {

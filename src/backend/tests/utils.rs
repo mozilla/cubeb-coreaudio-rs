@@ -412,6 +412,27 @@ pub fn test_get_all_onwed_devices(id: AudioDeviceID) -> Vec<AudioObjectID> {
     devices
 }
 
+pub fn test_get_master_device(id: AudioObjectID) -> String {
+    assert_ne!(id, kAudioObjectUnknown);
+
+    let address = AudioObjectPropertyAddress {
+        mSelector: kAudioAggregateDevicePropertyMasterSubDevice,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMaster,
+    };
+
+    let mut master: CFStringRef = ptr::null_mut();
+    let mut size = mem::size_of::<CFStringRef>();
+    assert_eq!(
+        audio_object_get_property_data(id, &address, &mut size, &mut master),
+        NO_ERR
+    );
+    assert!(!master.is_null());
+
+    let master = StringRef::new(master as _);
+    master.into_string()
+}
+
 pub fn test_audiounit_scope_is_enabled(unit: AudioUnit, scope: Scope) -> bool {
     assert!(!unit.is_null());
     let mut has_io: UInt32 = 0;
