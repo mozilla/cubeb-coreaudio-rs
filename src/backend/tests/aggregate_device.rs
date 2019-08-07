@@ -4,68 +4,11 @@ use super::utils::{
 };
 use super::*;
 
-// These tests that calling `AggregateDevice::create_blank_device` are marked `ignore` by
-// default since they cannot run with those tests calling `audiounit_add_device_listener`
-// directly or indirectly (via `register_device_collection_changed`) at the same time.
-//
-// The `audiounit_collection_changed_callback` will be fired upon
-// `AggregateDevice::create_blank_device` is called.
-// In `audiounit_collection_changed_callback`, it will register an asynchronous function to notify
-// the device-collection is changed.
-//
-// In current implementation, those asynchronous functions might cause the following errors:
-//
-// 1. If those tests calling `audiounit_add_device_listener` is finished before those
-//    asynchronous functions fired by `audiounit_collection_changed_callback` start executing,
-//    without unregistering the callback by `audiounit_remove_device_listener`, when those
-//    asynchronous functions are executed, their pointers to those contexts declared in the tests
-//    are already destroyed. So we will get a EXC_BAD_ACCESS error when we try dereferencing the
-//    pointers pointing to a destroyed context.
-//
-//    One example is to run `test_context_register_device_collection_changed_twice` at the same
-//    time with other tests that initialize a stream for both input and output(this will create an
-//    aggregate device and fire `audiounit_collection_changed_callback` indirectly, see the comment
-//    in `AggregateDevice::create_blank_device` and `test_stream_set_panning`).
-//
-//    A simple way to verify this is to add a log at the beginning
-//    `audiounit_collection_changed_callback` and a log in `AudioUnitContext::drop`. You will get
-//    this error when `audiounit_collection_changed_callback` is called after the AudioUnitContext
-//    is dropped.
-//
-// 2. If those tests calling `audiounit_add_device_listener` is finished between the time after
-//    those asynchronous functions are executed but before those asynchronous functions are
-//    finished, those tests will try destroying the contexts that are currently locked by those
-//    asynchronous functions. Thus, we will get panics in `OwnedCriticalSection::drop/destroy`
-//    since `pthread_mutex_destroy` returns `EBUSY(16)` rather than 0.
-//
-//    Theoretically, this could happen when the operations are executed in the following order:
-//    1. Create an AudioUnitContext `ctx`
-//    2. Register device-collection changed for `ctx`
-//    3. Initialize an AudioUnitStream `stm` within `ctx` for both input and output. It will
-//       create an aggregate device and fire the `audiounit_collection_changed_callback`
-//       indirectly. In the `audiounit_collection_changed_callback`, it will dispatch an
-//       asynchronous task that will lock the `ctx`
-//    4. The asynchronous task starts runnning and lock the `ctx`
-//    5. `ctx` is destroyed while the asynchronous task is running, before the asynchronous task
-//       is finished, we will get a fail for destroying a locked `ctx`
-//
-//    A simple way to verify this is to add two logs at the beginning and the end of
-//    `async_dispatch` in `audiounit_collection_changed_callback` and two logs at the beginning
-//    and the end of the tests calling `audiounit_add_device_listener`. You will find those tests
-//    fail when the tests are ended while those asynchronous functions are still running.
-//
-// The tests that call `AggregateDevice::create_blank_device` are ignored by default:
-// - test_aggregate_get_sub_devices_for_blank_aggregate_devices
-// - test_create_blank_device
-// - test_aggregate_set_sub_devices_for_unknown_input_output_devices
-// - test_aggregate_set_sub_devices
-// - test_aggregate_set_master_device_for_a_blank_aggregate_device
-// - test_aggregate_set_master_device
-// - test_aggregate_activate_clock_drift_compensation_for_an_aggregate_device_without_master_device
-// - test_aggregate_activate_clock_drift_compensation
-//
-// The above tests are added a prefix `test_aggregate` so we can run these ignored tests easily on
-// an indivisual test command, rather than run these tests with others together.
+// The following tests that calls `AggregateDevice::create_blank_device` are marked `ignore` by
+// default since the device-collection-changed callbacks will be fired upon
+// `AggregateDevice::create_blank_device` is called (it will plug a new device in system!).
+// Some tests rely on the device-collection-changed callbacks in a certain way. The callbacks
+// fired from a unexpected `AggregateDevice::create_blank_device` will break those tests.
 
 // AggregateDevice::create_blank_device_sync
 // ------------------------------------
