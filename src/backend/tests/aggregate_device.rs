@@ -626,19 +626,50 @@ fn to_devices_names(devices: &Vec<AudioObjectID>) -> Vec<Option<String>> {
 }
 
 fn to_device_name(id: AudioObjectID) -> Option<String> {
-    let name_ref = get_device_name(id);
-    if name_ref.is_null() {
-        return None;
-    }
-
-    let name = strref_to_string(name_ref);
-    unsafe {
-        CFRelease(name_ref as *const c_void);
-    }
-    Some(name)
+    let uid = get_device_global_uid(id).unwrap();
+    Some(uid.into_string())
 }
 
 fn strref_to_string(strref: CFStringRef) -> String {
-    let cstring = audiounit_strref_to_cstr_utf8(strref);
+    let cstring = cfstringref_to_cstring(strref);
     cstring.into_string().unwrap()
+}
+
+fn cfstringref_to_cstring(strref: CFStringRef) -> CString {
+    use std::os::raw::c_char;
+
+    let empty = CString::default();
+    if strref.is_null() {
+        return empty;
+    }
+
+    let len = unsafe { CFStringGetLength(strref) };
+    // Add 1 to size to allow for '\0' termination character.
+    let size = unsafe { CFStringGetMaximumSizeForEncoding(len, kCFStringEncodingUTF8) + 1 };
+    let mut buffer = vec![b'\x00'; size as usize];
+
+    let success = unsafe {
+        CFStringGetCString(
+            strref,
+            buffer.as_mut_ptr() as *mut c_char,
+            size,
+            kCFStringEncodingUTF8,
+        ) != 0
+    };
+    if !success {
+        buffer.clear();
+        return empty;
+    }
+
+    // CString::new() will consume the input bytes vec and add a '\0' at the
+    // end of the bytes. We need to remove the '\0' from the bytes data
+    // returned from CFStringGetCString by ourselves to avoid memory leaks.
+    // The size returned from CFStringGetMaximumSizeForEncoding is always
+    // greater than or equal to the string length, where the string length
+    // is the number of characters from the beginning to nul-terminator('\0'),
+    // so we should shrink the string vector to fit that size.
+    let str_len = unsafe { libc::strlen(buffer.as_ptr() as *mut c_char) };
+    buffer.truncate(str_len); // Drop the elements from '\0'(including '\0').
+
+    CString::new(buffer).unwrap_or(empty)
 }

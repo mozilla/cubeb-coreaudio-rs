@@ -845,10 +845,11 @@ impl TestDevicePlugger {
             return None;
         }
         let device = device.unwrap();
-        let uid = get_device_name(device);
-        if uid.is_null() {
+        let uid = get_device_global_uid(device);
+        if uid.is_err() {
             return None;
         }
+        let uid = uid.unwrap();
         unsafe {
             let list = CFArrayCreateMutable(ptr::null(), 0, &kCFTypeArrayCallBacks);
             let sub_device_dict = CFDictionaryCreateMutable(
@@ -860,11 +861,10 @@ impl TestDevicePlugger {
             CFDictionaryAddValue(
                 sub_device_dict,
                 cfstringref_from_static_string(SUB_DEVICE_UID_KEY) as *const c_void,
-                uid as *const c_void,
+                uid.get_raw() as *const c_void,
             );
             CFArrayAppendValue(list, sub_device_dict as *const c_void);
             CFRelease(sub_device_dict as *const c_void);
-            CFRelease(uid as *const c_void);
             Some(list)
         }
     }
