@@ -1509,29 +1509,12 @@ fn convert_uint32_into_string(data: u32) -> CString {
     CString::new(buffer).unwrap_or(empty)
 }
 
-fn audiounit_get_default_datasource(side: io_side) -> Result<u32> {
-    let (devtype, address) = match side {
-        io_side::INPUT => (DeviceType::INPUT, INPUT_DATA_SOURCE_PROPERTY_ADDRESS),
-        io_side::OUTPUT => (DeviceType::OUTPUT, OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS),
-    };
+fn audiounit_get_default_datasource_string(devtype: DeviceType) -> Result<CString> {
     let id = audiounit_get_default_device_id(devtype);
     if id == kAudioObjectUnknown {
         return Err(Error::error());
     }
-
-    let mut data: u32 = 0;
-    let mut size = mem::size_of::<u32>();
-    // This fails with some USB headsets (e.g., Plantronic .Audio 628).
-    let r = audio_object_get_property_data(id, &address, &mut size, &mut data);
-    if r != NO_ERR {
-        data = 0;
-    }
-
-    Ok(data)
-}
-
-fn audiounit_get_default_datasource_string(side: io_side) -> Result<CString> {
-    let data = audiounit_get_default_datasource(side)?;
+    let data = get_device_source(id, devtype).unwrap_or(0);
     Ok(convert_uint32_into_string(data))
 }
 
@@ -3558,9 +3541,9 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     #[cfg(not(target_os = "ios"))]
     fn current_device(&mut self) -> Result<&DeviceRef> {
         let mut device: Box<ffi::cubeb_device> = Box::new(ffi::cubeb_device::default());
-        let input_source = audiounit_get_default_datasource_string(io_side::INPUT)?;
+        let input_source = audiounit_get_default_datasource_string(DeviceType::INPUT)?;
         device.input_name = input_source.into_raw();
-        let output_source = audiounit_get_default_datasource_string(io_side::OUTPUT)?;
+        let output_source = audiounit_get_default_datasource_string(DeviceType::OUTPUT)?;
         device.output_name = output_source.into_raw();
         Ok(unsafe { DeviceRef::from_ptr(Box::into_raw(device)) })
     }

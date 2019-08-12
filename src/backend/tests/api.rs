@@ -2,8 +2,8 @@ use super::utils::{
     test_audiounit_get_buffer_frame_size, test_audiounit_scope_is_enabled, test_create_audiounit,
     test_device_channels_in_scope, test_device_in_scope, test_get_all_devices,
     test_get_default_audiounit, test_get_default_device, test_get_default_raw_stream,
-    test_get_default_source_data, test_get_default_source_name, test_get_devices_in_scope,
-    test_get_raw_context, ComponentSubType, PropertyScope, Scope,
+    test_get_default_source_name, test_get_devices_in_scope, test_get_raw_context,
+    ComponentSubType, PropertyScope, Scope,
 };
 use super::*;
 use std::any::Any;
@@ -1363,25 +1363,6 @@ fn test_convert_uint32_into_string() {
     let data: u32 = ('R' as u32) << 24 | ('U' as u32) << 16 | ('S' as u32) << 8 | 'T' as u32;
     let data_string = convert_uint32_into_string(data);
     assert_eq!(data_string, CString::new("RUST").unwrap());
-}
-
-// get_default_datasource
-// ------------------------------------
-#[test]
-fn test_get_default_device_datasource() {
-    test_get_default_datasource_in_scope(Scope::Input);
-    test_get_default_datasource_in_scope(Scope::Output);
-
-    fn test_get_default_datasource_in_scope(scope: Scope) {
-        if let Some(source) = test_get_default_source_data(scope.clone()) {
-            assert_eq!(
-                audiounit_get_default_datasource(scope.into()).unwrap(),
-                source
-            );
-        } else {
-            println!("No source data for {:?}.", scope);
-        }
-    }
 }
 
 // get_default_datasource_string
