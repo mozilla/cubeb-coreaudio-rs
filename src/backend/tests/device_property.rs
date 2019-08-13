@@ -237,3 +237,28 @@ fn test_get_device_buffer_frame_size_range() {
 fn test_get_device_buffer_frame_size_range_by_unknown_device() {
     assert!(get_device_buffer_frame_size_range(kAudioObjectUnknown, DeviceType::INPUT).is_err());
 }
+
+// get_device_latency
+// ------------------------------------
+#[test]
+fn test_get_device_latency() {
+    if let Some(device) = test_get_default_device(Scope::Input) {
+        let latency = get_device_latency(device, DeviceType::INPUT).unwrap();
+        println!("latency of input device: {}", latency);
+    } else {
+        println!("No input device.");
+    }
+
+    if let Some(device) = test_get_default_device(Scope::Output) {
+        let latency = get_device_latency(device, DeviceType::OUTPUT).unwrap();
+        println!("latency of output device: {}", latency);
+    } else {
+        println!("No output device.");
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_get_device_latency_by_unknown_device() {
+    assert!(get_device_latency(kAudioObjectUnknown, DeviceType::INPUT).is_err());
+}

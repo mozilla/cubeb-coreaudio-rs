@@ -1597,15 +1597,10 @@ fn audiounit_get_device_presentation_latency(devid: AudioObjectID, devtype: Devi
         mElement: kAudioObjectPropertyElementMaster,
     };
     let mut size: usize = 0;
-    let mut dev: u32 = 0;
+    let dev = get_device_latency(devid, devtype).unwrap_or(0);
+
     let mut stream: u32 = 0;
     let mut sid: [AudioStreamID; 1] = [kAudioObjectUnknown];
-
-    adr.mSelector = kAudioDevicePropertyLatency;
-    size = mem::size_of::<u32>();
-    if audio_object_get_property_data(devid, &adr, &mut size, &mut dev) != NO_ERR {
-        dev = 0;
-    }
 
     adr.mSelector = kAudioDevicePropertyStreams;
     size = mem::size_of_val(&sid);

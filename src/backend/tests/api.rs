@@ -1531,12 +1531,6 @@ fn test_get_available_samplerate() {
 // ------------------------------------
 #[test]
 fn test_get_device_presentation_latency() {
-    let latencies = test_get_device_presentation_latencies_of_device(kAudioObjectUnknown);
-    for latency in latencies {
-        // Hit the kAudioHardwareBadObjectError actually.
-        assert_eq!(latency, 0);
-    }
-
     test_get_device_presentation_latencies_in_scope(Scope::Input);
     test_get_device_presentation_latencies_in_scope(Scope::Output);
 

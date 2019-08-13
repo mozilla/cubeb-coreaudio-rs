@@ -120,8 +120,26 @@ pub fn get_device_buffer_frame_size_range(
     }
 }
 
+pub fn get_device_latency(
+    id: AudioDeviceID,
+    devtype: DeviceType,
+) -> std::result::Result<u32, OSStatus> {
+    assert_ne!(id, kAudioObjectUnknown);
+
+    let address = get_property_address(Property::DeviceLatency, devtype);
+    let mut size = mem::size_of::<u32>();
+    let mut latency: u32 = 0;
+    let err = audio_object_get_property_data(id, &address, &mut size, &mut latency);
+    if err == NO_ERR {
+        Ok(latency)
+    } else {
+        Err(err)
+    }
+}
+
 enum Property {
     DeviceBufferFrameSizeRange,
+    DeviceLatency,
     DeviceManufacturer,
     DeviceName,
     DeviceSource,
@@ -133,6 +151,7 @@ impl From<Property> for AudioObjectPropertySelector {
     fn from(p: Property) -> Self {
         match p {
             Property::DeviceBufferFrameSizeRange => kAudioDevicePropertyBufferFrameSizeRange,
+            Property::DeviceLatency => kAudioDevicePropertyLatency,
             Property::DeviceManufacturer => kAudioObjectPropertyManufacturer,
             Property::DeviceName => kAudioObjectPropertyName,
             Property::DeviceSource => kAudioDevicePropertyDataSource,
