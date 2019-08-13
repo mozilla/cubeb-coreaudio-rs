@@ -1463,62 +1463,42 @@ fn test_get_channel_count_of_unknwon_type() {
     }
 }
 
-// get_available_samplerate
+// get_range_of_sample_rates
 // ------------------------------------
 #[test]
-fn test_get_available_samplerate() {
-    let samplerates = test_get_available_samplerate_of_device(kAudioObjectUnknown);
-    for rates in samplerates {
-        check_samplerates_are_zeros(rates);
-    }
+fn test_get_range_of_sample_rates() {
+    test_get_range_of_sample_rates_in_scope(Scope::Input);
+    test_get_range_of_sample_rates_in_scope(Scope::Output);
 
-    test_get_available_samplerate_in_scope(Scope::Input);
-    test_get_available_samplerate_in_scope(Scope::Output);
-
-    fn test_get_available_samplerate_in_scope(scope: Scope) {
+    fn test_get_range_of_sample_rates_in_scope(scope: Scope) {
         if let Some(device) = test_get_default_device(scope.clone()) {
-            let samplerates = test_get_available_samplerate_of_device(device);
-            for rates in samplerates {
-                // Surprisingly, we can get the input/output samplerates from a non-input/non-output device.
-                check_samplerates(rates);
+            let ranges = test_get_available_samplerate_of_device(device);
+            for range in ranges {
+                // Surprisingly, we can get the input/output sample rates from a non-input/non-output device.
+                check_samplerates(range);
             }
         } else {
             println!("No device for {:?}.", scope);
         }
     }
 
-    fn test_get_available_samplerate_of_device(id: AudioObjectID) -> Vec<(u32, u32)> {
+    fn test_get_available_samplerate_of_device(id: AudioObjectID) -> Vec<(f64, f64)> {
         let scopes = [
             DeviceType::INPUT,
             DeviceType::OUTPUT,
             DeviceType::INPUT | DeviceType::OUTPUT,
         ];
-        let mut samplerates = Vec::new();
+        let mut ranges = Vec::new();
         for scope in scopes.iter() {
-            samplerates.push(test_get_available_samplerate_of_device_in_scope(id, *scope));
+            ranges.push(get_range_of_sample_rates(id, *scope).unwrap());
         }
-        samplerates
+        ranges
     }
 
-    fn test_get_available_samplerate_of_device_in_scope(
-        id: AudioObjectID,
-        devtype: DeviceType,
-    ) -> (u32, u32) {
-        let mut min = 0;
-        let mut max = 0;
-        audiounit_get_available_samplerate(id, devtype, &mut min, &mut max);
-        (min, max)
-    }
-
-    fn check_samplerates((min, max): (u32, u32)) {
-        assert!(min > 0);
-        assert!(max > 0);
+    fn check_samplerates((min, max): (f64, f64)) {
+        assert!(min > 0.0);
+        assert!(max > 0.0);
         assert!(min <= max);
-    }
-
-    fn check_samplerates_are_zeros((min, max): (u32, u32)) {
-        assert_eq!(min, 0);
-        assert_eq!(max, 0);
     }
 }
 

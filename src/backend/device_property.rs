@@ -194,12 +194,36 @@ pub fn get_device_sample_rate(
     }
 }
 
+pub fn get_ranges_of_device_sample_rate(
+    id: AudioDeviceID,
+    devtype: DeviceType,
+) -> std::result::Result<Vec<AudioValueRange>, OSStatus> {
+    assert_ne!(id, kAudioObjectUnknown);
+
+    let address = get_property_address(Property::DeviceSampleRates, devtype);
+
+    let mut size: usize = 0;
+    let err = audio_object_get_property_data_size(id, &address, &mut size);
+    if err != NO_ERR {
+        return Err(err);
+    }
+
+    let mut ranges: Vec<AudioValueRange> = allocate_array_by_size(size);
+    let err = audio_object_get_property_data(id, &address, &mut size, ranges.as_mut_ptr());
+    if err == NO_ERR {
+        Ok(ranges)
+    } else {
+        Err(err)
+    }
+}
+
 enum Property {
     DeviceBufferFrameSizeRange,
     DeviceLatency,
     DeviceManufacturer,
     DeviceName,
     DeviceSampleRate,
+    DeviceSampleRates,
     DeviceSource,
     DeviceSourceName,
     DeviceStreams,
@@ -215,6 +239,7 @@ impl From<Property> for AudioObjectPropertySelector {
             Property::DeviceManufacturer => kAudioObjectPropertyManufacturer,
             Property::DeviceName => kAudioObjectPropertyName,
             Property::DeviceSampleRate => kAudioDevicePropertyNominalSampleRate,
+            Property::DeviceSampleRates => kAudioDevicePropertyAvailableNominalSampleRates,
             Property::DeviceSource => kAudioDevicePropertyDataSource,
             Property::DeviceSourceName => kAudioDevicePropertyDataSourceNameForIDCFString,
             Property::DeviceStreams => kAudioDevicePropertyStreams,

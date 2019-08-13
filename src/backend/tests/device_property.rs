@@ -343,3 +343,28 @@ fn test_get_device_sample_rate() {
 fn test_get_device_sample_rate_by_unknown_device() {
     assert!(get_device_sample_rate(kAudioObjectUnknown, DeviceType::INPUT).is_err());
 }
+
+// get_ranges_of_device_sample_rate
+// ------------------------------------
+#[test]
+fn test_get_ranges_of_device_sample_rate() {
+    if let Some(device) = test_get_default_device(Scope::Input) {
+        let ranges = get_ranges_of_device_sample_rate(device, DeviceType::INPUT).unwrap();
+        println!("ranges of input sample rate: {:?}", ranges);
+    } else {
+        println!("No input device.");
+    }
+
+    if let Some(device) = test_get_default_device(Scope::Output) {
+        let ranges = get_ranges_of_device_sample_rate(device, DeviceType::OUTPUT).unwrap();
+        println!("ranges of output sample rate: {:?}", ranges);
+    } else {
+        println!("No output device.");
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_get_ranges_of_device_sample_rate_by_unknown_device() {
+    assert!(get_ranges_of_device_sample_rate(kAudioObjectUnknown, DeviceType::INPUT).is_err());
+}

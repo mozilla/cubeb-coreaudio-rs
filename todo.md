@@ -6,9 +6,7 @@
 - Merge `io_side` and `DeviceType`
 - Use `ErrorChain`
 - Centralize the error log in one place
-- Check scope for `audiounit_get_available_samplerate`
 - Create utils in device_property to replace:
-  - `audiounit_get_available_samplerate`
   - `audiounit_get_device_presentation_latency`
 - Merge _property_address.rs_ and _device_property.rs_
 - Support `enumerate_devices` with in-out type?

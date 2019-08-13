@@ -1527,50 +1527,22 @@ fn get_channel_count(devid: AudioObjectID, devtype: DeviceType) -> Result<u32> {
     Ok(count)
 }
 
-fn audiounit_get_available_samplerate(
+fn get_range_of_sample_rates(
     devid: AudioObjectID,
     devtype: DeviceType,
-    min: &mut u32,
-    max: &mut u32,
-) {
-    const GLOBAL: ffi::cubeb_device_type =
-        ffi::CUBEB_DEVICE_TYPE_INPUT | ffi::CUBEB_DEVICE_TYPE_OUTPUT;
-    let mut adr = AudioObjectPropertyAddress {
-        mSelector: 0,
-        mScope: match devtype.bits() {
-            ffi::CUBEB_DEVICE_TYPE_INPUT => kAudioDevicePropertyScopeInput,
-            ffi::CUBEB_DEVICE_TYPE_OUTPUT => kAudioDevicePropertyScopeOutput,
-            GLOBAL => kAudioObjectPropertyScopeGlobal,
-            _ => panic!("Invalid type"),
-        },
-        mElement: kAudioObjectPropertyElementMaster,
-    };
-
-    adr.mSelector = kAudioDevicePropertyAvailableNominalSampleRates;
-    let mut size = 0;
-    let mut range = AudioValueRange::default();
-    if audio_object_has_property(devid, &adr)
-        && audio_object_get_property_data_size(devid, &adr, &mut size) == NO_ERR
-    {
-        let mut ranges: Vec<AudioValueRange> = allocate_array_by_size(size);
-        range.mMinimum = std::f64::MAX;
-        range.mMaximum = std::f64::MIN;
-        if audio_object_get_property_data(devid, &adr, &mut size, ranges.as_mut_ptr()) == NO_ERR {
-            for rng in &ranges {
-                if rng.mMaximum > range.mMaximum {
-                    range.mMaximum = rng.mMaximum;
-                }
-                if rng.mMinimum < range.mMinimum {
-                    range.mMinimum = rng.mMinimum;
-                }
-            }
+) -> std::result::Result<(f64, f64), OSStatus> {
+    let (mut min, mut max) = (std::f64::MAX, std::f64::MIN);
+    let rates = get_ranges_of_device_sample_rate(devid, devtype)?;
+    assert!(!rates.is_empty());
+    for rate in rates {
+        if rate.mMaximum > max {
+            max = rate.mMaximum;
         }
-        *max = range.mMaximum as u32;
-        *min = range.mMinimum as u32;
-    } else {
-        *max = 0;
-        *min = 0;
+        if rate.mMinimum < min {
+            min = rate.mMinimum;
+        }
     }
+    Ok((min, max))
 }
 
 fn audiounit_get_device_presentation_latency(devid: AudioObjectID, devtype: DeviceType) -> u32 {
@@ -1681,12 +1653,20 @@ fn create_cubeb_device_info(
         }
     }
 
-    audiounit_get_available_samplerate(
-        devid,
-        devtype,
-        &mut dev_info.min_rate,
-        &mut dev_info.max_rate,
-    );
+    match get_range_of_sample_rates(devid, devtype) {
+        Ok((min, max)) => {
+            dev_info.min_rate = min as u32;
+            dev_info.max_rate = max as u32;
+        }
+        Err(e) => {
+            cubeb_log!(
+                "Cannot get the range of sample rate for device {} in {:?} scope. Error: {}",
+                devid,
+                devtype,
+                e
+            );
+        }
+    }
 
     let latency = audiounit_get_device_presentation_latency(devid, devtype);
 
