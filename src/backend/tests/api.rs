@@ -1537,23 +1537,10 @@ fn test_get_device_presentation_latency() {
     fn test_get_device_presentation_latencies_in_scope(scope: Scope) {
         if let Some(device) = test_get_default_device(scope.clone()) {
             // TODO: The latencies very from devices to devices. Check nothing here.
-            let _latencies = test_get_device_presentation_latencies_of_device(device);
+            let _latency = audiounit_get_device_presentation_latency(device, scope.into());
         } else {
             println!("No device for {:?}.", scope);
         }
-    }
-
-    fn test_get_device_presentation_latencies_of_device(id: AudioObjectID) -> Vec<u32> {
-        let scopes = [
-            DeviceType::INPUT,
-            DeviceType::OUTPUT,
-            DeviceType::INPUT | DeviceType::OUTPUT,
-        ];
-        let mut latencies = Vec::new();
-        for scope in scopes.iter() {
-            latencies.push(audiounit_get_device_presentation_latency(id, *scope));
-        }
-        latencies
     }
 }
 

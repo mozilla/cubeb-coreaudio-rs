@@ -137,6 +137,29 @@ pub fn get_device_latency(
     }
 }
 
+pub fn get_device_streams(
+    id: AudioDeviceID,
+    devtype: DeviceType,
+) -> std::result::Result<Vec<AudioStreamID>, OSStatus> {
+    assert_ne!(id, kAudioObjectUnknown);
+
+    let address = get_property_address(Property::DeviceStreams, devtype);
+
+    let mut size: usize = 0;
+    let err = audio_object_get_property_data_size(id, &address, &mut size);
+    if err != NO_ERR {
+        return Err(err);
+    }
+
+    let mut streams: Vec<AudioObjectID> = allocate_array_by_size(size);
+    let err = audio_object_get_property_data(id, &address, &mut size, streams.as_mut_ptr());
+    if err == NO_ERR {
+        Ok(streams)
+    } else {
+        Err(err)
+    }
+}
+
 enum Property {
     DeviceBufferFrameSizeRange,
     DeviceLatency,
@@ -144,6 +167,7 @@ enum Property {
     DeviceName,
     DeviceSource,
     DeviceSourceName,
+    DeviceStreams,
     DeviceUID,
 }
 
@@ -156,6 +180,7 @@ impl From<Property> for AudioObjectPropertySelector {
             Property::DeviceName => kAudioObjectPropertyName,
             Property::DeviceSource => kAudioDevicePropertyDataSource,
             Property::DeviceSourceName => kAudioDevicePropertyDataSourceNameForIDCFString,
+            Property::DeviceStreams => kAudioDevicePropertyStreams,
             Property::DeviceUID => kAudioDevicePropertyDeviceUID,
         }
     }

@@ -262,3 +262,28 @@ fn test_get_device_latency() {
 fn test_get_device_latency_by_unknown_device() {
     assert!(get_device_latency(kAudioObjectUnknown, DeviceType::INPUT).is_err());
 }
+
+// get_device_streams
+// ------------------------------------
+#[test]
+fn test_get_device_streams() {
+    if let Some(device) = test_get_default_device(Scope::Input) {
+        let streams = get_device_streams(device, DeviceType::INPUT).unwrap();
+        println!("streams on the input device: {:?}", streams);
+    } else {
+        println!("No input device.");
+    }
+
+    if let Some(device) = test_get_default_device(Scope::Output) {
+        let streams = get_device_streams(device, DeviceType::OUTPUT).unwrap();
+        println!("streams on the output device: {:?}", streams);
+    } else {
+        println!("No output device.");
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_get_device_streams_by_unknown_device() {
+    assert!(get_device_streams(kAudioObjectUnknown, DeviceType::INPUT).is_err());
+}
