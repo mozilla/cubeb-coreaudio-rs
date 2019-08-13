@@ -3541,10 +3541,12 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     #[cfg(not(target_os = "ios"))]
     fn current_device(&mut self) -> Result<&DeviceRef> {
         let mut device: Box<ffi::cubeb_device> = Box::new(ffi::cubeb_device::default());
-        let input_source = audiounit_get_default_datasource_string(DeviceType::INPUT)?;
-        device.input_name = input_source.into_raw();
-        let output_source = audiounit_get_default_datasource_string(DeviceType::OUTPUT)?;
-        device.output_name = output_source.into_raw();
+        if let Ok(source) = audiounit_get_default_datasource_string(DeviceType::INPUT) {
+            device.input_name = source.into_raw();
+        }
+        if let Ok(source) = audiounit_get_default_datasource_string(DeviceType::OUTPUT) {
+            device.output_name = source.into_raw();
+        }
         Ok(unsafe { DeviceRef::from_ptr(Box::into_raw(device)) })
     }
     #[cfg(target_os = "ios")]
