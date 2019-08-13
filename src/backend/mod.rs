@@ -1584,27 +1584,14 @@ fn audiounit_get_available_samplerate(
 }
 
 fn audiounit_get_device_presentation_latency(devid: AudioObjectID, devtype: DeviceType) -> u32 {
-    const GLOBAL: ffi::cubeb_device_type =
-        ffi::CUBEB_DEVICE_TYPE_INPUT | ffi::CUBEB_DEVICE_TYPE_OUTPUT;
-    let mut adr = AudioObjectPropertyAddress {
-        mSelector: 0,
-        mScope: match devtype.bits() {
-            ffi::CUBEB_DEVICE_TYPE_INPUT => kAudioDevicePropertyScopeInput,
-            ffi::CUBEB_DEVICE_TYPE_OUTPUT => kAudioDevicePropertyScopeOutput,
-            GLOBAL => kAudioObjectPropertyScopeGlobal,
-            _ => panic!("Invalid type"),
-        },
-        mElement: kAudioObjectPropertyElementMaster,
-    };
-    let mut size: usize = 0;
     let dev = get_device_latency(devid, devtype).unwrap_or(0);
 
     let mut stream: u32 = 0;
     if let Ok(streams) = get_device_streams(devid, devtype) {
         assert!(!streams.is_empty());
-        size = mem::size_of::<u32>();
-        adr.mSelector = kAudioStreamPropertyLatency;
-        audio_object_get_property_data(streams[0], &adr, &mut size, &mut stream);
+        if let Ok(latency) = get_stream_latency(streams[0], devtype) {
+            stream = latency;
+        }
     }
 
     dev + stream
