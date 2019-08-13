@@ -106,7 +106,7 @@ pub fn get_device_manufacturer(
 pub fn get_device_buffer_frame_size_range(
     id: AudioDeviceID,
     devtype: DeviceType,
-) -> std::result::Result<(f64, f64), OSStatus> {
+) -> std::result::Result<AudioValueRange, OSStatus> {
     assert_ne!(id, kAudioObjectUnknown);
 
     let address = get_property_address(Property::DeviceBufferFrameSizeRange, devtype);
@@ -114,7 +114,7 @@ pub fn get_device_buffer_frame_size_range(
     let mut range = AudioValueRange::default();
     let err = audio_object_get_property_data(id, &address, &mut size, &mut range);
     if err == NO_ERR {
-        Ok((range.mMinimum, range.mMaximum))
+        Ok(range)
     } else {
         Err(err)
     }

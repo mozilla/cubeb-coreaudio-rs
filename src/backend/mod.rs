@@ -930,36 +930,6 @@ extern "C" fn audiounit_property_listener_callback(
     NO_ERR
 }
 
-fn audiounit_get_acceptable_latency_range() -> Result<AudioValueRange> {
-    let output_device_buffer_size_range = AudioObjectPropertyAddress {
-        mSelector: kAudioDevicePropertyBufferFrameSizeRange,
-        mScope: kAudioDevicePropertyScopeOutput,
-        mElement: kAudioObjectPropertyElementMaster,
-    };
-
-    let output_device_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-    if output_device_id == kAudioObjectUnknown {
-        cubeb_log!("Could not get default output device id.");
-        return Err(Error::error());
-    }
-
-    // Get the buffer size range this device supports
-    let mut range = AudioValueRange::default();
-    let mut size = mem::size_of::<AudioValueRange>();
-    let r = audio_object_get_property_data(
-        output_device_id,
-        &output_device_buffer_size_range,
-        &mut size,
-        &mut range,
-    );
-    if r != NO_ERR {
-        cubeb_log!("AudioObjectGetPropertyData/buffer size range rv={}", r);
-        return Err(Error::error());
-    }
-
-    Ok(range)
-}
-
 fn audiounit_get_default_device_id(devtype: DeviceType) -> AudioObjectID {
     assert!(devtype == DeviceType::INPUT || devtype == DeviceType::OUTPUT);
 
@@ -1739,7 +1709,10 @@ fn create_cubeb_device_info(
     let latency = audiounit_get_device_presentation_latency(devid, devtype);
 
     let (latency_low, latency_high) = match get_device_buffer_frame_size_range(devid, devtype) {
-        Ok((min, max)) => (latency + min as u32, latency + max as u32),
+        Ok(range) => (
+            latency + range.mMinimum as u32,
+            latency + range.mMaximum as u32,
+        ),
         Err(e) => {
             cubeb_log!("Cannot get the buffer frame size for device {} in {:?} scope. Use default value instead. Error: {}", devid, devtype, e);
             (
@@ -2196,10 +2169,18 @@ impl ContextOps for AudioUnitContext {
     }
     #[cfg(not(target_os = "ios"))]
     fn min_latency(&mut self, _params: StreamParams) -> Result<u32> {
-        let range = audiounit_get_acceptable_latency_range().map_err(|e| {
-            cubeb_log!("Could not get acceptable latency range.");
-            e
-        })?;
+        let output_device_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
+        if output_device_id == kAudioObjectUnknown {
+            cubeb_log!("Could not get default output device id.");
+            return Err(Error::error());
+        }
+
+        let range = get_device_buffer_frame_size_range(output_device_id, DeviceType::OUTPUT)
+            .map_err(|e| {
+                cubeb_log!("Could not get acceptable latency range. Error: {}", e);
+                Error::error()
+            })?;
+
         Ok(cmp::max(range.mMinimum as u32, SAFE_MIN_LATENCY_FRAMES))
     }
     #[cfg(target_os = "ios")]

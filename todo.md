@@ -10,7 +10,6 @@
 - Create utils in device_property to replace:
   - `audiounit_get_available_samplerate`
   - `audiounit_get_device_presentation_latency`
-  - `audiounit_get_acceptable_latency_range`
 - Merge _property_address.rs_ and _device_property.rs_
 - Support `enumerate_devices` with in-out type?
 - Monitor `kAudioDevicePropertyDeviceIsAlive` for output device.

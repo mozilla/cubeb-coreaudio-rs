@@ -212,15 +212,21 @@ fn test_get_device_manufacturer_by_unknown_device() {
 #[test]
 fn test_get_device_buffer_frame_size_range() {
     if let Some(device) = test_get_default_device(Scope::Input) {
-        let (min, max) = get_device_buffer_frame_size_range(device, DeviceType::INPUT).unwrap();
-        println!("range of input buffer frame size: {}-{}", min, max);
+        let range = get_device_buffer_frame_size_range(device, DeviceType::INPUT).unwrap();
+        println!(
+            "range of input buffer frame size: {}-{}",
+            range.mMinimum, range.mMaximum
+        );
     } else {
         println!("No input device.");
     }
 
     if let Some(device) = test_get_default_device(Scope::Output) {
-        let (min, max) = get_device_buffer_frame_size_range(device, DeviceType::OUTPUT).unwrap();
-        println!("range of output buffer frame size: {}-{}", min, max);
+        let range = get_device_buffer_frame_size_range(device, DeviceType::OUTPUT).unwrap();
+        println!(
+            "range of output buffer frame size: {}-{}",
+            range.mMinimum, range.mMaximum
+        );
     } else {
         println!("No output device.");
     }

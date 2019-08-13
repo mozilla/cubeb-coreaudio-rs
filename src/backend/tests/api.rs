@@ -511,24 +511,6 @@ fn test_remove_listener_unknown_device() {
 // ------------------------------------
 // TODO
 
-// get_acceptable_latency_range
-// ------------------------------------
-#[test]
-fn test_get_acceptable_latency_range() {
-    let default_output = test_get_default_device(Scope::Output);
-    let range = audiounit_get_acceptable_latency_range();
-    if default_output.is_none() {
-        println!("No output device.");
-        assert_eq!(range.unwrap_err(), Error::error());
-        return;
-    }
-
-    let range = range.unwrap();
-    assert!(range.mMinimum > 0.0);
-    assert!(range.mMaximum > 0.0);
-    assert!(range.mMaximum > range.mMinimum);
-}
-
 // get_default_device_id
 // ------------------------------------
 #[test]
