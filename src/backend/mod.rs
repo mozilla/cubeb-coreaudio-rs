@@ -1532,7 +1532,6 @@ fn audiounit_get_available_samplerate(
     devtype: DeviceType,
     min: &mut u32,
     max: &mut u32,
-    def: &mut u32,
 ) {
     const GLOBAL: ffi::cubeb_device_type =
         ffi::CUBEB_DEVICE_TYPE_INPUT | ffi::CUBEB_DEVICE_TYPE_OUTPUT;
@@ -1546,15 +1545,6 @@ fn audiounit_get_available_samplerate(
         },
         mElement: kAudioObjectPropertyElementMaster,
     };
-
-    adr.mSelector = kAudioDevicePropertyNominalSampleRate;
-    if audio_object_has_property(devid, &adr) {
-        let mut size = mem::size_of::<f64>();
-        let mut fvalue: f64 = 0.0;
-        if audio_object_get_property_data(devid, &adr, &mut size, &mut fvalue) == NO_ERR {
-            *def = fvalue as u32;
-        }
-    }
 
     adr.mSelector = kAudioDevicePropertyAvailableNominalSampleRates;
     let mut size = 0;
@@ -1676,12 +1666,26 @@ fn create_cubeb_device_info(
 
     dev_info.format = ffi::CUBEB_DEVICE_FMT_ALL;
     dev_info.default_format = ffi::CUBEB_DEVICE_FMT_F32NE;
+
+    match get_device_sample_rate(devid, devtype) {
+        Ok(rate) => {
+            dev_info.default_rate = rate as u32;
+        }
+        Err(e) => {
+            cubeb_log!(
+                "Cannot get the sample rate for device {} in {:?} scope. Error: {}",
+                devid,
+                devtype,
+                e
+            );
+        }
+    }
+
     audiounit_get_available_samplerate(
         devid,
         devtype,
         &mut dev_info.min_rate,
         &mut dev_info.max_rate,
-        &mut dev_info.default_rate,
     );
 
     let latency = audiounit_get_device_presentation_latency(devid, devtype);

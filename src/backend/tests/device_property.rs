@@ -318,3 +318,28 @@ fn test_get_stream_latency() {
 fn test_get_stream_latency_by_unknown_device() {
     assert!(get_stream_latency(kAudioObjectUnknown, DeviceType::INPUT).is_err());
 }
+
+// get_device_sample_rate
+// ------------------------------------
+#[test]
+fn test_get_device_sample_rate() {
+    if let Some(device) = test_get_default_device(Scope::Input) {
+        let rate = get_device_sample_rate(device, DeviceType::INPUT).unwrap();
+        println!("input sample rate: {}", rate);
+    } else {
+        println!("No input device.");
+    }
+
+    if let Some(device) = test_get_default_device(Scope::Output) {
+        let rate = get_device_sample_rate(device, DeviceType::OUTPUT).unwrap();
+        println!("output sample rate: {}", rate);
+    } else {
+        println!("No output device.");
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_get_device_sample_rate_by_unknown_device() {
+    assert!(get_device_sample_rate(kAudioObjectUnknown, DeviceType::INPUT).is_err());
+}

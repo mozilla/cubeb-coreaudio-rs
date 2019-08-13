@@ -1487,7 +1487,7 @@ fn test_get_available_samplerate() {
         }
     }
 
-    fn test_get_available_samplerate_of_device(id: AudioObjectID) -> Vec<(u32, u32, u32)> {
+    fn test_get_available_samplerate_of_device(id: AudioObjectID) -> Vec<(u32, u32)> {
         let scopes = [
             DeviceType::INPUT,
             DeviceType::OUTPUT,
@@ -1503,27 +1503,22 @@ fn test_get_available_samplerate() {
     fn test_get_available_samplerate_of_device_in_scope(
         id: AudioObjectID,
         devtype: DeviceType,
-    ) -> (u32, u32, u32) {
-        let mut default = 0;
+    ) -> (u32, u32) {
         let mut min = 0;
         let mut max = 0;
-        audiounit_get_available_samplerate(id, devtype, &mut min, &mut max, &mut default);
-        (min, max, default)
+        audiounit_get_available_samplerate(id, devtype, &mut min, &mut max);
+        (min, max)
     }
 
-    fn check_samplerates((min, max, default): (u32, u32, u32)) {
-        assert!(default > 0);
+    fn check_samplerates((min, max): (u32, u32)) {
         assert!(min > 0);
         assert!(max > 0);
         assert!(min <= max);
-        assert!(min <= default);
-        assert!(default <= max);
     }
 
-    fn check_samplerates_are_zeros((min, max, default): (u32, u32, u32)) {
+    fn check_samplerates_are_zeros((min, max): (u32, u32)) {
         assert_eq!(min, 0);
         assert_eq!(max, 0);
-        assert_eq!(default, 0);
     }
 }
 
