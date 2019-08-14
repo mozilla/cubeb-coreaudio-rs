@@ -72,13 +72,12 @@ See [TO-DOs][todo]
     of this 4-channels aggregate device is still QUAD after setting it without error
   - Another weird thing is that we will get a `kAudioUnitErr_InvalidPropertyValue`
     if we set the layout to _QUAD_. It's the same layout as its original one but it cannot be set!
+- `kAudioDevicePropertyBufferFrameSize` cannot be set when another stream using the same device with smaller buffer size is active. See [here][chg-buf-sz] for details.
+- Potential deadlock issue: see [BMO 1572273][bmo1572273] (especially [comment 13][bmo1572273-c13])
 
 ### Test issues
-- Fail to run `test_create_blank_aggregate_device` with `test_add_device_listeners_dont_affect_other_scopes_with_*` at the same time
-  - `audiounit_create_blank_aggregate_device` will fire the callbacks in `test_add_device_listeners_dont_affect_other_scopes_with_*`
-- The APIs depending on `audiounit_set_buffer_size` cannot be called in parallel
-  - `kAudioDevicePropertyBufferFrameSize` cannot be set when another stream using the same device with smaller buffer size is active. See [here][chg-buf-sz] for reference.
-  - The *buffer frame size* within same device may be overwritten (For those *AudioUnit*s using same device ?)
+- Fail to run tests that depend on `AggregateDevice::create_blank_device` with the tests that work with the device event listeners
+  - The `AggregateDevice::create_blank_device` will add an aggregate device to the system and fire the device-change events indirectly.
 - `TestDeviceSwitcher` cannot work when there is an alive full-duplex stream
   - An aggregate device will be created for a duplex stream when its input and output devices are different.
   - `TestDeviceSwitcher` will cached the available devices, upon it's created, as the candidates for default device
@@ -93,3 +92,6 @@ See [TO-DOs][todo]
 [chg-buf-sz]: https://cs.chromium.org/chromium/src/media/audio/mac/audio_manager_mac.cc?l=982-989&rcl=0207eefb445f9855c2ed46280cb835b6f08bdb30 "issue on changing buffer size"
 
 [todo]: todo.md
+
+[bmo1572273]: https://bugzilla.mozilla.org/show_bug.cgi?id=1572273
+[bmo1572273-c13]: https://bugzilla.mozilla.org/show_bug.cgi?id=1572273#c13
