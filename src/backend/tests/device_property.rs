@@ -338,6 +338,31 @@ fn test_get_ranges_of_device_sample_rate_by_unknown_device() {
     assert!(get_ranges_of_device_sample_rate(kAudioObjectUnknown, DeviceType::INPUT).is_err());
 }
 
+// get_device_stream_format
+// ------------------------------------
+#[test]
+fn test_get_device_stream_format() {
+    if let Some(device) = test_get_default_device(Scope::Input) {
+        let format = get_device_stream_format(device, DeviceType::INPUT).unwrap();
+        println!("input stream format: {:?}", format);
+    } else {
+        println!("No input device.");
+    }
+
+    if let Some(device) = test_get_default_device(Scope::Output) {
+        let format = get_device_stream_format(device, DeviceType::OUTPUT).unwrap();
+        println!("output stream format: {:?}", format);
+    } else {
+        println!("No output device.");
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_get_device_stream_format_by_unknown_device() {
+    assert!(get_device_stream_format(kAudioObjectUnknown, DeviceType::INPUT).is_err());
+}
+
 // get_stream_latency
 // ------------------------------------
 #[test]

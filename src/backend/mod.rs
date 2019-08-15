@@ -2117,37 +2117,19 @@ impl ContextOps for AudioUnitContext {
     }
     #[cfg(not(target_os = "ios"))]
     fn max_channel_count(&mut self) -> Result<u32> {
-        let mut size: usize = 0;
-        let mut r = NO_ERR;
-        let mut output_device_id: AudioDeviceID = kAudioObjectUnknown;
-        let mut stream_format = AudioStreamBasicDescription::default();
-        let stream_format_address = AudioObjectPropertyAddress {
-            mSelector: kAudioDevicePropertyStreamFormat,
-            mScope: kAudioDevicePropertyScopeOutput,
-            mElement: kAudioObjectPropertyElementMaster,
-        };
-
-        output_device_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-        if output_device_id == kAudioObjectUnknown {
+        let device = audiounit_get_default_device_id(DeviceType::OUTPUT);
+        if device == kAudioObjectUnknown {
             return Err(Error::error());
         }
 
-        size = mem::size_of_val(&stream_format);
-        assert_eq!(size, mem::size_of::<AudioStreamBasicDescription>());
-
-        r = audio_object_get_property_data(
-            output_device_id,
-            &stream_format_address,
-            &mut size,
-            &mut stream_format,
-        );
-
-        if r != NO_ERR {
-            cubeb_log!("AudioObjectPropertyAddress/StreamFormat rv={}", r);
-            return Err(Error::error());
-        }
-
-        Ok(stream_format.mChannelsPerFrame)
+        let format = get_device_stream_format(device, DeviceType::OUTPUT).map_err(|e| {
+            cubeb_log!(
+                "Cannot get the stream format of the default output device. Error: {}",
+                e
+            );
+            Error::error()
+        })?;
+        Ok(format.mChannelsPerFrame)
     }
     #[cfg(target_os = "ios")]
     fn min_latency(&mut self, _params: StreamParams) -> Result<u32> {

@@ -200,6 +200,23 @@ pub fn get_ranges_of_device_sample_rate(
     }
 }
 
+pub fn get_device_stream_format(
+    id: AudioDeviceID,
+    devtype: DeviceType,
+) -> std::result::Result<AudioStreamBasicDescription, OSStatus> {
+    assert_ne!(id, kAudioObjectUnknown);
+
+    let address = get_property_address(Property::DeviceStreamFormat, devtype);
+    let mut size = mem::size_of::<AudioStreamBasicDescription>();
+    let mut format = AudioStreamBasicDescription::default();
+    let err = audio_object_get_property_data(id, &address, &mut size, &mut format);
+    if err == NO_ERR {
+        Ok(format)
+    } else {
+        Err(err)
+    }
+}
+
 pub fn get_stream_latency(
     id: AudioStreamID,
     devtype: DeviceType,
@@ -226,6 +243,7 @@ enum Property {
     DeviceSampleRates,
     DeviceSource,
     DeviceSourceName,
+    DeviceStreamFormat,
     DeviceStreams,
     DeviceUID,
     StreamLatency,
@@ -242,6 +260,7 @@ impl From<Property> for AudioObjectPropertySelector {
             Property::DeviceSampleRates => kAudioDevicePropertyAvailableNominalSampleRates,
             Property::DeviceSource => kAudioDevicePropertyDataSource,
             Property::DeviceSourceName => kAudioDevicePropertyDataSourceNameForIDCFString,
+            Property::DeviceStreamFormat => kAudioDevicePropertyStreamFormat,
             Property::DeviceStreams => kAudioDevicePropertyStreams,
             Property::DeviceUID => kAudioDevicePropertyDeviceUID,
             Property::StreamLatency => kAudioStreamPropertyLatency,
