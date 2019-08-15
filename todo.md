@@ -69,4 +69,3 @@
 ## Test
 - Rewrite some tests under _cubeb/test/*_ in _Rust_ as part of the integration tests
     - Add tests for capturing/recording, output, duplex streams
-- Tests cleaned up: Only tests under *aggregate_device.rs* left now.
