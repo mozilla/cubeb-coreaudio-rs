@@ -2157,35 +2157,18 @@ impl ContextOps for AudioUnitContext {
     }
     #[cfg(not(target_os = "ios"))]
     fn preferred_sample_rate(&mut self) -> Result<u32> {
-        let mut size: usize = 0;
-        let mut r = NO_ERR;
-        let mut fsamplerate: f64 = 0.0;
-        let mut output_device_id: AudioDeviceID = kAudioObjectUnknown;
-        let samplerate_address = AudioObjectPropertyAddress {
-            mSelector: kAudioDevicePropertyNominalSampleRate,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMaster,
-        };
-
-        output_device_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-        if output_device_id == kAudioObjectUnknown {
+        let device = audiounit_get_default_device_id(DeviceType::OUTPUT);
+        if device == kAudioObjectUnknown {
             return Err(Error::error());
         }
-
-        size = mem::size_of_val(&fsamplerate);
-        assert_eq!(size, mem::size_of::<f64>());
-        r = audio_object_get_property_data(
-            output_device_id,
-            &samplerate_address,
-            &mut size,
-            &mut fsamplerate,
-        );
-
-        if r != NO_ERR {
-            return Err(Error::error());
-        }
-
-        Ok(fsamplerate as u32)
+        let rate = get_device_sample_rate(device, DeviceType::OUTPUT).map_err(|e| {
+            cubeb_log!(
+                "Cannot get the sample rate of the default output device. Error: {}",
+                e
+            );
+            Error::error()
+        })?;
+        Ok(rate as u32)
     }
     fn enumerate_devices(
         &mut self,
