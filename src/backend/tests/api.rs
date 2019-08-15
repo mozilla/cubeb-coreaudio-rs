@@ -1502,7 +1502,7 @@ fn test_get_range_of_sample_rates() {
     }
 }
 
-// get_device_presentation_latency
+// get_presentation_latency
 // ------------------------------------
 #[test]
 fn test_get_device_presentation_latency() {
@@ -1512,7 +1512,11 @@ fn test_get_device_presentation_latency() {
     fn test_get_device_presentation_latencies_in_scope(scope: Scope) {
         if let Some(device) = test_get_default_device(scope.clone()) {
             // TODO: The latencies very from devices to devices. Check nothing here.
-            let _latency = audiounit_get_device_presentation_latency(device, scope.into());
+            let latency = get_presentation_latency(device, scope.clone().into());
+            println!(
+                "present latency on the device {} in scope {:?}: {}",
+                device, scope, latency
+            );
         } else {
             println!("No device for {:?}.", scope);
         }

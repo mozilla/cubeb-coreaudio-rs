@@ -1545,18 +1545,42 @@ fn get_range_of_sample_rates(
     Ok((min, max))
 }
 
-fn audiounit_get_device_presentation_latency(devid: AudioObjectID, devtype: DeviceType) -> u32 {
-    let dev = get_device_latency(devid, devtype).unwrap_or(0);
-
-    let mut stream: u32 = 0;
-    if let Ok(streams) = get_device_streams(devid, devtype) {
-        assert!(!streams.is_empty());
-        if let Ok(latency) = get_stream_latency(streams[0], devtype) {
-            stream = latency;
+fn get_presentation_latency(devid: AudioObjectID, devtype: DeviceType) -> u32 {
+    let device_latency = match get_device_latency(devid, devtype) {
+        Ok(latency) => latency,
+        Err(e) => {
+            cubeb_log!(
+                "Cannot get the device latency for device {} in {:?} scope. Error: {}",
+                devid,
+                devtype,
+                e
+            );
+            0 // default device latency
         }
-    }
+    };
 
-    dev + stream
+    let stream_latency = get_device_streams(devid, devtype).and_then(|streams| {
+        if streams.is_empty() {
+            cubeb_log!(
+                "No any stream on device {} in {:?} scope!",
+                devid,
+                devtype
+            );
+            Ok(0) // default stream latency
+        } else {
+            get_stream_latency(streams[0], devtype)
+        }
+    }).map_err(|e| {
+        cubeb_log!(
+            "Cannot get the stream, or the latency of the first stream on device {} in {:?} scope. Error: {}",
+            devid,
+            devtype,
+            e
+        );
+        e
+    }).unwrap_or(0); // default stream latency
+
+    device_latency + stream_latency
 }
 
 fn create_cubeb_device_info(
@@ -1668,7 +1692,7 @@ fn create_cubeb_device_info(
         }
     }
 
-    let latency = audiounit_get_device_presentation_latency(devid, devtype);
+    let latency = get_presentation_latency(devid, devtype);
 
     let (latency_low, latency_high) = match get_device_buffer_frame_size_range(devid, devtype) {
         Ok(range) => (
@@ -2884,10 +2908,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             }
 
             stream.current_latency_frames.store(
-                audiounit_get_device_presentation_latency(
-                    self.output_device.id,
-                    DeviceType::OUTPUT,
-                ),
+                get_presentation_latency(self.output_device.id, DeviceType::OUTPUT),
                 Ordering::SeqCst,
             );
 
