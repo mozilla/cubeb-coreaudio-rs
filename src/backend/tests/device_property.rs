@@ -288,37 +288,6 @@ fn test_get_device_streams_by_unknown_device() {
     assert!(get_device_streams(kAudioObjectUnknown, DeviceType::INPUT).is_err());
 }
 
-// get_stream_latency
-// ------------------------------------
-#[test]
-fn test_get_stream_latency() {
-    if let Some(device) = test_get_default_device(Scope::Input) {
-        let streams = get_device_streams(device, DeviceType::INPUT).unwrap();
-        for stream in streams {
-            let latency = get_stream_latency(stream, DeviceType::INPUT).unwrap();
-            println!("latency of the input stream {} is {}", stream, latency);
-        }
-    } else {
-        println!("No input device.");
-    }
-
-    if let Some(device) = test_get_default_device(Scope::Output) {
-        let streams = get_device_streams(device, DeviceType::OUTPUT).unwrap();
-        for stream in streams {
-            let latency = get_stream_latency(stream, DeviceType::OUTPUT).unwrap();
-            println!("latency of the output stream {} is {}", stream, latency);
-        }
-    } else {
-        println!("No output device.");
-    }
-}
-
-#[test]
-#[should_panic]
-fn test_get_stream_latency_by_unknown_device() {
-    assert!(get_stream_latency(kAudioObjectUnknown, DeviceType::INPUT).is_err());
-}
-
 // get_device_sample_rate
 // ------------------------------------
 #[test]
@@ -367,4 +336,35 @@ fn test_get_ranges_of_device_sample_rate() {
 #[should_panic]
 fn test_get_ranges_of_device_sample_rate_by_unknown_device() {
     assert!(get_ranges_of_device_sample_rate(kAudioObjectUnknown, DeviceType::INPUT).is_err());
+}
+
+// get_stream_latency
+// ------------------------------------
+#[test]
+fn test_get_stream_latency() {
+    if let Some(device) = test_get_default_device(Scope::Input) {
+        let streams = get_device_streams(device, DeviceType::INPUT).unwrap();
+        for stream in streams {
+            let latency = get_stream_latency(stream, DeviceType::INPUT).unwrap();
+            println!("latency of the input stream {} is {}", stream, latency);
+        }
+    } else {
+        println!("No input device.");
+    }
+
+    if let Some(device) = test_get_default_device(Scope::Output) {
+        let streams = get_device_streams(device, DeviceType::OUTPUT).unwrap();
+        for stream in streams {
+            let latency = get_stream_latency(stream, DeviceType::OUTPUT).unwrap();
+            println!("latency of the output stream {} is {}", stream, latency);
+        }
+    } else {
+        println!("No output device.");
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_get_stream_latency_by_unknown_device() {
+    assert!(get_stream_latency(kAudioObjectUnknown, DeviceType::INPUT).is_err());
 }

@@ -160,23 +160,6 @@ pub fn get_device_streams(
     }
 }
 
-pub fn get_stream_latency(
-    id: AudioStreamID,
-    devtype: DeviceType,
-) -> std::result::Result<u32, OSStatus> {
-    assert_ne!(id, kAudioObjectUnknown);
-
-    let address = get_property_address(Property::StreamLatency, devtype);
-    let mut size = mem::size_of::<u32>();
-    let mut latency: u32 = 0;
-    let err = audio_object_get_property_data(id, &address, &mut size, &mut latency);
-    if err == NO_ERR {
-        Ok(latency)
-    } else {
-        Err(err)
-    }
-}
-
 pub fn get_device_sample_rate(
     id: AudioDeviceID,
     devtype: DeviceType,
@@ -212,6 +195,23 @@ pub fn get_ranges_of_device_sample_rate(
     let err = audio_object_get_property_data(id, &address, &mut size, ranges.as_mut_ptr());
     if err == NO_ERR {
         Ok(ranges)
+    } else {
+        Err(err)
+    }
+}
+
+pub fn get_stream_latency(
+    id: AudioStreamID,
+    devtype: DeviceType,
+) -> std::result::Result<u32, OSStatus> {
+    assert_ne!(id, kAudioObjectUnknown);
+
+    let address = get_property_address(Property::StreamLatency, devtype);
+    let mut size = mem::size_of::<u32>();
+    let mut latency: u32 = 0;
+    let err = audio_object_get_property_data(id, &address, &mut size, &mut latency);
+    if err == NO_ERR {
+        Ok(latency)
     } else {
         Err(err)
     }
