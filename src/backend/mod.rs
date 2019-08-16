@@ -319,7 +319,7 @@ fn create_auto_array(
     desc: AudioStreamBasicDescription,
     latency_frames: u32,
     capacity: usize,
-) -> Result<Box<AutoArrayWrapper>> {
+) -> Result<Box<dyn AutoArrayWrapper>> {
     assert_ne!(desc.mFormatFlags, 0);
     assert_ne!(desc.mChannelsPerFrame, 0);
     assert_ne!(latency_frames, 0);
@@ -2450,7 +2450,7 @@ struct CoreStreamData<'ctx> {
     device_layout: ChannelLayout,
     // Hold the input samples in every input callback iteration.
     // Only accessed on input/output callback thread and during initial configure.
-    input_linear_buffer: Option<Box<AutoArrayWrapper>>,
+    input_linear_buffer: Option<Box<dyn AutoArrayWrapper>>,
     // Listeners indicating what system events are monitored.
     default_input_listener: Option<device_property_listener>,
     default_output_listener: Option<device_property_listener>,
