@@ -2113,14 +2113,14 @@ impl ContextOps for AudioUnitContext {
     }
     #[cfg(not(target_os = "ios"))]
     fn min_latency(&mut self, _params: StreamParams) -> Result<u32> {
-        let output_device_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-        if output_device_id == kAudioObjectUnknown {
+        let device = audiounit_get_default_device_id(DeviceType::OUTPUT);
+        if device == kAudioObjectUnknown {
             cubeb_log!("Could not get default output device id.");
             return Err(Error::error());
         }
 
-        let range = get_device_buffer_frame_size_range(output_device_id, DeviceType::OUTPUT)
-            .map_err(|e| {
+        let range =
+            get_device_buffer_frame_size_range(device, DeviceType::OUTPUT).map_err(|e| {
                 cubeb_log!("Could not get acceptable latency range. Error: {}", e);
                 Error::error()
             })?;
