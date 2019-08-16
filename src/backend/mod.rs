@@ -1491,36 +1491,12 @@ fn audiounit_get_default_datasource_string(devtype: DeviceType) -> Result<CStrin
 fn get_channel_count(devid: AudioObjectID, devtype: DeviceType) -> Result<u32> {
     assert_ne!(devid, kAudioObjectUnknown);
 
-    let adr = AudioObjectPropertyAddress {
-        mSelector: kAudioDevicePropertyStreamConfiguration,
-        mScope: match devtype {
-            DeviceType::INPUT => kAudioDevicePropertyScopeInput,
-            DeviceType::OUTPUT => kAudioDevicePropertyScopeOutput,
-            _ => panic!("Invalid type"),
-        },
-        mElement: kAudioObjectPropertyElementMaster,
-    };
-
-    let mut size: usize = 0;
-    let r = audio_object_get_property_data_size(devid, &adr, &mut size);
-    if r != NO_ERR {
-        return Err(Error::error());
-    }
-    assert_ne!(size, 0);
-
-    let mut data: Vec<u8> = allocate_array_by_size(size);
-    let ptr = data.as_mut_ptr() as *mut AudioBufferList;
-    let r = audio_object_get_property_data(devid, &adr, &mut size, ptr);
-    if r != NO_ERR {
-        return Err(Error::error());
-    }
-
-    let list = unsafe { &(*ptr) };
-    let ptr = list.mBuffers.as_ptr() as *const AudioBuffer;
-    let len = list.mNumberBuffers as usize;
+    let buffers = get_device_stream_configuration(devid, devtype).map_err(|e| {
+        cubeb_log!("Cannot get the stream configuration. Error: {}", e);
+        Error::error()
+    })?;
 
     let mut count = 0;
-    let buffers = unsafe { slice::from_raw_parts(ptr, len) };
     for buffer in buffers {
         count += buffer.mNumberChannels;
     }

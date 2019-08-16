@@ -363,6 +363,33 @@ fn test_get_device_stream_format_by_unknown_device() {
     assert!(get_device_stream_format(kAudioObjectUnknown, DeviceType::INPUT).is_err());
 }
 
+// get_device_stream_configuration
+// ------------------------------------
+#[test]
+fn test_get_device_stream_configuration() {
+    if let Some(device) = test_get_default_device(Scope::Input) {
+        let buffers = get_device_stream_configuration(device, DeviceType::INPUT).unwrap();
+        println!("input stream config: {:?}", buffers);
+        dbg!(buffers);
+    } else {
+        println!("No input device.");
+    }
+
+    if let Some(device) = test_get_default_device(Scope::Output) {
+        let buffers = get_device_stream_configuration(device, DeviceType::OUTPUT).unwrap();
+        println!("output stream config: {:?}", buffers);
+        dbg!(buffers);
+    } else {
+        println!("No output device.");
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_get_device_stream_configuration_by_unknown_device() {
+    assert!(get_device_stream_configuration(kAudioObjectUnknown, DeviceType::INPUT).is_err());
+}
+
 // get_stream_latency
 // ------------------------------------
 #[test]
