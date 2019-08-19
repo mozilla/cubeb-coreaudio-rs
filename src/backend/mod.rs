@@ -930,36 +930,6 @@ extern "C" fn audiounit_property_listener_callback(
     NO_ERR
 }
 
-fn audiounit_get_acceptable_latency_range() -> Result<AudioValueRange> {
-    let output_device_buffer_size_range = AudioObjectPropertyAddress {
-        mSelector: kAudioDevicePropertyBufferFrameSizeRange,
-        mScope: kAudioDevicePropertyScopeOutput,
-        mElement: kAudioObjectPropertyElementMaster,
-    };
-
-    let output_device_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-    if output_device_id == kAudioObjectUnknown {
-        cubeb_log!("Could not get default output device id.");
-        return Err(Error::error());
-    }
-
-    // Get the buffer size range this device supports
-    let mut range = AudioValueRange::default();
-    let mut size = mem::size_of::<AudioValueRange>();
-    let r = audio_object_get_property_data(
-        output_device_id,
-        &output_device_buffer_size_range,
-        &mut size,
-        &mut range,
-    );
-    if r != NO_ERR {
-        cubeb_log!("AudioObjectGetPropertyData/buffer size range rv={}", r);
-        return Err(Error::error());
-    }
-
-    Ok(range)
-}
-
 fn audiounit_get_default_device_id(devtype: DeviceType) -> AudioObjectID {
     assert!(devtype == DeviceType::INPUT || devtype == DeviceType::OUTPUT);
 
@@ -1509,161 +1479,84 @@ fn convert_uint32_into_string(data: u32) -> CString {
     CString::new(buffer).unwrap_or(empty)
 }
 
-fn audiounit_get_default_datasource(side: io_side) -> Result<u32> {
-    let (devtype, address) = match side {
-        io_side::INPUT => (DeviceType::INPUT, INPUT_DATA_SOURCE_PROPERTY_ADDRESS),
-        io_side::OUTPUT => (DeviceType::OUTPUT, OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS),
-    };
+fn audiounit_get_default_datasource_string(devtype: DeviceType) -> Result<CString> {
     let id = audiounit_get_default_device_id(devtype);
     if id == kAudioObjectUnknown {
         return Err(Error::error());
     }
-
-    let mut data: u32 = 0;
-    let mut size = mem::size_of::<u32>();
-    // This fails with some USB headsets (e.g., Plantronic .Audio 628).
-    let r = audio_object_get_property_data(id, &address, &mut size, &mut data);
-    if r != NO_ERR {
-        data = 0;
-    }
-
-    Ok(data)
-}
-
-fn audiounit_get_default_datasource_string(side: io_side) -> Result<CString> {
-    let data = audiounit_get_default_datasource(side)?;
+    let data = get_device_source(id, devtype).unwrap_or(0);
     Ok(convert_uint32_into_string(data))
 }
 
 fn get_channel_count(devid: AudioObjectID, devtype: DeviceType) -> Result<u32> {
     assert_ne!(devid, kAudioObjectUnknown);
 
-    let adr = AudioObjectPropertyAddress {
-        mSelector: kAudioDevicePropertyStreamConfiguration,
-        mScope: match devtype {
-            DeviceType::INPUT => kAudioDevicePropertyScopeInput,
-            DeviceType::OUTPUT => kAudioDevicePropertyScopeOutput,
-            _ => panic!("Invalid type"),
-        },
-        mElement: kAudioObjectPropertyElementMaster,
-    };
-
-    let mut size: usize = 0;
-    let r = audio_object_get_property_data_size(devid, &adr, &mut size);
-    if r != NO_ERR {
-        return Err(Error::error());
-    }
-    assert_ne!(size, 0);
-
-    let mut data: Vec<u8> = allocate_array_by_size(size);
-    let ptr = data.as_mut_ptr() as *mut AudioBufferList;
-    let r = audio_object_get_property_data(devid, &adr, &mut size, ptr);
-    if r != NO_ERR {
-        return Err(Error::error());
-    }
-
-    let list = unsafe { &(*ptr) };
-    let ptr = list.mBuffers.as_ptr() as *const AudioBuffer;
-    let len = list.mNumberBuffers as usize;
+    let buffers = get_device_stream_configuration(devid, devtype).map_err(|e| {
+        cubeb_log!("Cannot get the stream configuration. Error: {}", e);
+        Error::error()
+    })?;
 
     let mut count = 0;
-    let buffers = unsafe { slice::from_raw_parts(ptr, len) };
     for buffer in buffers {
         count += buffer.mNumberChannels;
     }
     Ok(count)
 }
 
-fn audiounit_get_available_samplerate(
+fn get_range_of_sample_rates(
     devid: AudioObjectID,
     devtype: DeviceType,
-    min: &mut u32,
-    max: &mut u32,
-    def: &mut u32,
-) {
-    const GLOBAL: ffi::cubeb_device_type =
-        ffi::CUBEB_DEVICE_TYPE_INPUT | ffi::CUBEB_DEVICE_TYPE_OUTPUT;
-    let mut adr = AudioObjectPropertyAddress {
-        mSelector: 0,
-        mScope: match devtype.bits() {
-            ffi::CUBEB_DEVICE_TYPE_INPUT => kAudioDevicePropertyScopeInput,
-            ffi::CUBEB_DEVICE_TYPE_OUTPUT => kAudioDevicePropertyScopeOutput,
-            GLOBAL => kAudioObjectPropertyScopeGlobal,
-            _ => panic!("Invalid type"),
-        },
-        mElement: kAudioObjectPropertyElementMaster,
-    };
-
-    adr.mSelector = kAudioDevicePropertyNominalSampleRate;
-    if audio_object_has_property(devid, &adr) {
-        let mut size = mem::size_of::<f64>();
-        let mut fvalue: f64 = 0.0;
-        if audio_object_get_property_data(devid, &adr, &mut size, &mut fvalue) == NO_ERR {
-            *def = fvalue as u32;
+) -> std::result::Result<(f64, f64), OSStatus> {
+    let (mut min, mut max) = (std::f64::MAX, std::f64::MIN);
+    let rates = get_ranges_of_device_sample_rate(devid, devtype)?;
+    assert!(!rates.is_empty());
+    for rate in rates {
+        if rate.mMaximum > max {
+            max = rate.mMaximum;
+        }
+        if rate.mMinimum < min {
+            min = rate.mMinimum;
         }
     }
-
-    adr.mSelector = kAudioDevicePropertyAvailableNominalSampleRates;
-    let mut size = 0;
-    let mut range = AudioValueRange::default();
-    if audio_object_has_property(devid, &adr)
-        && audio_object_get_property_data_size(devid, &adr, &mut size) == NO_ERR
-    {
-        let mut ranges: Vec<AudioValueRange> = allocate_array_by_size(size);
-        range.mMinimum = std::f64::MAX;
-        range.mMaximum = std::f64::MIN;
-        if audio_object_get_property_data(devid, &adr, &mut size, ranges.as_mut_ptr()) == NO_ERR {
-            for rng in &ranges {
-                if rng.mMaximum > range.mMaximum {
-                    range.mMaximum = rng.mMaximum;
-                }
-                if rng.mMinimum < range.mMinimum {
-                    range.mMinimum = rng.mMinimum;
-                }
-            }
-        }
-        *max = range.mMaximum as u32;
-        *min = range.mMinimum as u32;
-    } else {
-        *max = 0;
-        *min = 0;
-    }
+    Ok((min, max))
 }
 
-fn audiounit_get_device_presentation_latency(devid: AudioObjectID, devtype: DeviceType) -> u32 {
-    const GLOBAL: ffi::cubeb_device_type =
-        ffi::CUBEB_DEVICE_TYPE_INPUT | ffi::CUBEB_DEVICE_TYPE_OUTPUT;
-    let mut adr = AudioObjectPropertyAddress {
-        mSelector: 0,
-        mScope: match devtype.bits() {
-            ffi::CUBEB_DEVICE_TYPE_INPUT => kAudioDevicePropertyScopeInput,
-            ffi::CUBEB_DEVICE_TYPE_OUTPUT => kAudioDevicePropertyScopeOutput,
-            GLOBAL => kAudioObjectPropertyScopeGlobal,
-            _ => panic!("Invalid type"),
-        },
-        mElement: kAudioObjectPropertyElementMaster,
+fn get_presentation_latency(devid: AudioObjectID, devtype: DeviceType) -> u32 {
+    let device_latency = match get_device_latency(devid, devtype) {
+        Ok(latency) => latency,
+        Err(e) => {
+            cubeb_log!(
+                "Cannot get the device latency for device {} in {:?} scope. Error: {}",
+                devid,
+                devtype,
+                e
+            );
+            0 // default device latency
+        }
     };
-    let mut size: usize = 0;
-    let mut dev: u32 = 0;
-    let mut stream: u32 = 0;
-    let mut sid: [AudioStreamID; 1] = [kAudioObjectUnknown];
 
-    adr.mSelector = kAudioDevicePropertyLatency;
-    size = mem::size_of::<u32>();
-    if audio_object_get_property_data(devid, &adr, &mut size, &mut dev) != NO_ERR {
-        dev = 0;
-    }
+    let stream_latency = get_device_streams(devid, devtype).and_then(|streams| {
+        if streams.is_empty() {
+            cubeb_log!(
+                "No any stream on device {} in {:?} scope!",
+                devid,
+                devtype
+            );
+            Ok(0) // default stream latency
+        } else {
+            get_stream_latency(streams[0], devtype)
+        }
+    }).map_err(|e| {
+        cubeb_log!(
+            "Cannot get the stream, or the latency of the first stream on device {} in {:?} scope. Error: {}",
+            devid,
+            devtype,
+            e
+        );
+        e
+    }).unwrap_or(0); // default stream latency
 
-    adr.mSelector = kAudioDevicePropertyStreams;
-    size = mem::size_of_val(&sid);
-    assert_eq!(size, mem::size_of::<AudioStreamID>());
-    if audio_object_get_property_data(devid, &adr, &mut size, sid.as_mut_ptr()) == NO_ERR {
-        adr.mSelector = kAudioStreamPropertyLatency;
-        size = mem::size_of::<u32>();
-        audio_object_get_property_data(sid[0], &adr, &mut size, &mut stream);
-    }
-
-    dev + stream
+    device_latency + stream_latency
 }
 
 fn create_cubeb_device_info(
@@ -1745,18 +1638,43 @@ fn create_cubeb_device_info(
 
     dev_info.format = ffi::CUBEB_DEVICE_FMT_ALL;
     dev_info.default_format = ffi::CUBEB_DEVICE_FMT_F32NE;
-    audiounit_get_available_samplerate(
-        devid,
-        devtype,
-        &mut dev_info.min_rate,
-        &mut dev_info.max_rate,
-        &mut dev_info.default_rate,
-    );
 
-    let latency = audiounit_get_device_presentation_latency(devid, devtype);
+    match get_device_sample_rate(devid, devtype) {
+        Ok(rate) => {
+            dev_info.default_rate = rate as u32;
+        }
+        Err(e) => {
+            cubeb_log!(
+                "Cannot get the sample rate for device {} in {:?} scope. Error: {}",
+                devid,
+                devtype,
+                e
+            );
+        }
+    }
+
+    match get_range_of_sample_rates(devid, devtype) {
+        Ok((min, max)) => {
+            dev_info.min_rate = min as u32;
+            dev_info.max_rate = max as u32;
+        }
+        Err(e) => {
+            cubeb_log!(
+                "Cannot get the range of sample rate for device {} in {:?} scope. Error: {}",
+                devid,
+                devtype,
+                e
+            );
+        }
+    }
+
+    let latency = get_presentation_latency(devid, devtype);
 
     let (latency_low, latency_high) = match get_device_buffer_frame_size_range(devid, devtype) {
-        Ok((min, max)) => (latency + min as u32, latency + max as u32),
+        Ok(range) => (
+            latency + range.mMinimum as u32,
+            latency + range.mMaximum as u32,
+        ),
         Err(e) => {
             cubeb_log!("Cannot get the buffer frame size for device {} in {:?} scope. Use default value instead. Error: {}", devid, devtype, e);
             (
@@ -2175,37 +2093,19 @@ impl ContextOps for AudioUnitContext {
     }
     #[cfg(not(target_os = "ios"))]
     fn max_channel_count(&mut self) -> Result<u32> {
-        let mut size: usize = 0;
-        let mut r = NO_ERR;
-        let mut output_device_id: AudioDeviceID = kAudioObjectUnknown;
-        let mut stream_format = AudioStreamBasicDescription::default();
-        let stream_format_address = AudioObjectPropertyAddress {
-            mSelector: kAudioDevicePropertyStreamFormat,
-            mScope: kAudioDevicePropertyScopeOutput,
-            mElement: kAudioObjectPropertyElementMaster,
-        };
-
-        output_device_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-        if output_device_id == kAudioObjectUnknown {
+        let device = audiounit_get_default_device_id(DeviceType::OUTPUT);
+        if device == kAudioObjectUnknown {
             return Err(Error::error());
         }
 
-        size = mem::size_of_val(&stream_format);
-        assert_eq!(size, mem::size_of::<AudioStreamBasicDescription>());
-
-        r = audio_object_get_property_data(
-            output_device_id,
-            &stream_format_address,
-            &mut size,
-            &mut stream_format,
-        );
-
-        if r != NO_ERR {
-            cubeb_log!("AudioObjectPropertyAddress/StreamFormat rv={}", r);
-            return Err(Error::error());
-        }
-
-        Ok(stream_format.mChannelsPerFrame)
+        let format = get_device_stream_format(device, DeviceType::OUTPUT).map_err(|e| {
+            cubeb_log!(
+                "Cannot get the stream format of the default output device. Error: {}",
+                e
+            );
+            Error::error()
+        })?;
+        Ok(format.mChannelsPerFrame)
     }
     #[cfg(target_os = "ios")]
     fn min_latency(&mut self, _params: StreamParams) -> Result<u32> {
@@ -2213,10 +2113,18 @@ impl ContextOps for AudioUnitContext {
     }
     #[cfg(not(target_os = "ios"))]
     fn min_latency(&mut self, _params: StreamParams) -> Result<u32> {
-        let range = audiounit_get_acceptable_latency_range().map_err(|e| {
-            cubeb_log!("Could not get acceptable latency range.");
-            e
-        })?;
+        let device = audiounit_get_default_device_id(DeviceType::OUTPUT);
+        if device == kAudioObjectUnknown {
+            cubeb_log!("Could not get default output device id.");
+            return Err(Error::error());
+        }
+
+        let range =
+            get_device_buffer_frame_size_range(device, DeviceType::OUTPUT).map_err(|e| {
+                cubeb_log!("Could not get acceptable latency range. Error: {}", e);
+                Error::error()
+            })?;
+
         Ok(cmp::max(range.mMinimum as u32, SAFE_MIN_LATENCY_FRAMES))
     }
     #[cfg(target_os = "ios")]
@@ -2225,35 +2133,18 @@ impl ContextOps for AudioUnitContext {
     }
     #[cfg(not(target_os = "ios"))]
     fn preferred_sample_rate(&mut self) -> Result<u32> {
-        let mut size: usize = 0;
-        let mut r = NO_ERR;
-        let mut fsamplerate: f64 = 0.0;
-        let mut output_device_id: AudioDeviceID = kAudioObjectUnknown;
-        let samplerate_address = AudioObjectPropertyAddress {
-            mSelector: kAudioDevicePropertyNominalSampleRate,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMaster,
-        };
-
-        output_device_id = audiounit_get_default_device_id(DeviceType::OUTPUT);
-        if output_device_id == kAudioObjectUnknown {
+        let device = audiounit_get_default_device_id(DeviceType::OUTPUT);
+        if device == kAudioObjectUnknown {
             return Err(Error::error());
         }
-
-        size = mem::size_of_val(&fsamplerate);
-        assert_eq!(size, mem::size_of::<f64>());
-        r = audio_object_get_property_data(
-            output_device_id,
-            &samplerate_address,
-            &mut size,
-            &mut fsamplerate,
-        );
-
-        if r != NO_ERR {
-            return Err(Error::error());
-        }
-
-        Ok(fsamplerate as u32)
+        let rate = get_device_sample_rate(device, DeviceType::OUTPUT).map_err(|e| {
+            cubeb_log!(
+                "Cannot get the sample rate of the default output device. Error: {}",
+                e
+            );
+            Error::error()
+        })?;
+        Ok(rate as u32)
     }
     fn enumerate_devices(
         &mut self,
@@ -2958,10 +2849,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             }
 
             stream.current_latency_frames.store(
-                audiounit_get_device_presentation_latency(
-                    self.output_device.id,
-                    DeviceType::OUTPUT,
-                ),
+                get_presentation_latency(self.output_device.id, DeviceType::OUTPUT),
                 Ordering::SeqCst,
             );
 
@@ -3558,10 +3446,12 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     #[cfg(not(target_os = "ios"))]
     fn current_device(&mut self) -> Result<&DeviceRef> {
         let mut device: Box<ffi::cubeb_device> = Box::new(ffi::cubeb_device::default());
-        let input_source = audiounit_get_default_datasource_string(io_side::INPUT)?;
-        device.input_name = input_source.into_raw();
-        let output_source = audiounit_get_default_datasource_string(io_side::OUTPUT)?;
-        device.output_name = output_source.into_raw();
+        if let Ok(source) = audiounit_get_default_datasource_string(DeviceType::INPUT) {
+            device.input_name = source.into_raw();
+        }
+        if let Ok(source) = audiounit_get_default_datasource_string(DeviceType::OUTPUT) {
+            device.output_name = source.into_raw();
+        }
         Ok(unsafe { DeviceRef::from_ptr(Box::into_raw(device)) })
     }
     #[cfg(target_os = "ios")]

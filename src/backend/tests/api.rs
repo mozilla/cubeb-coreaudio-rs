@@ -2,8 +2,8 @@ use super::utils::{
     test_audiounit_get_buffer_frame_size, test_audiounit_scope_is_enabled, test_create_audiounit,
     test_device_channels_in_scope, test_device_in_scope, test_get_all_devices,
     test_get_default_audiounit, test_get_default_device, test_get_default_raw_stream,
-    test_get_default_source_data, test_get_default_source_name, test_get_devices_in_scope,
-    test_get_raw_context, ComponentSubType, PropertyScope, Scope,
+    test_get_default_source_name, test_get_devices_in_scope, test_get_raw_context,
+    ComponentSubType, PropertyScope, Scope,
 };
 use super::*;
 use std::any::Any;
@@ -510,24 +510,6 @@ fn test_remove_listener_unknown_device() {
 // uninstall_system_changed_callback
 // ------------------------------------
 // TODO
-
-// get_acceptable_latency_range
-// ------------------------------------
-#[test]
-fn test_get_acceptable_latency_range() {
-    let default_output = test_get_default_device(Scope::Output);
-    let range = audiounit_get_acceptable_latency_range();
-    if default_output.is_none() {
-        println!("No output device.");
-        assert_eq!(range.unwrap_err(), Error::error());
-        return;
-    }
-
-    let range = range.unwrap();
-    assert!(range.mMinimum > 0.0);
-    assert!(range.mMaximum > 0.0);
-    assert!(range.mMaximum > range.mMinimum);
-}
 
 // get_default_device_id
 // ------------------------------------
@@ -1365,25 +1347,6 @@ fn test_convert_uint32_into_string() {
     assert_eq!(data_string, CString::new("RUST").unwrap());
 }
 
-// get_default_datasource
-// ------------------------------------
-#[test]
-fn test_get_default_device_datasource() {
-    test_get_default_datasource_in_scope(Scope::Input);
-    test_get_default_datasource_in_scope(Scope::Output);
-
-    fn test_get_default_datasource_in_scope(scope: Scope) {
-        if let Some(source) = test_get_default_source_data(scope.clone()) {
-            assert_eq!(
-                audiounit_get_default_datasource(scope.into()).unwrap(),
-                source
-            );
-        } else {
-            println!("No source data for {:?}.", scope);
-        }
-    }
-}
-
 // get_default_datasource_string
 // ------------------------------------
 #[test]
@@ -1465,7 +1428,6 @@ fn test_get_channel_count_of_unknown_device() {
 }
 
 #[test]
-#[should_panic]
 fn test_get_channel_count_of_inout_type() {
     test_channel_count(Scope::Input);
     test_channel_count(Scope::Output);
@@ -1473,11 +1435,12 @@ fn test_get_channel_count_of_inout_type() {
     fn test_channel_count(scope: Scope) {
         if let Some(device) = test_get_default_device(scope.clone()) {
             assert_eq!(
+                // Get a kAudioHardwareUnknownPropertyError in get_channel_count actually.
                 get_channel_count(device, DeviceType::INPUT | DeviceType::OUTPUT).unwrap_err(),
                 Error::error()
             );
         } else {
-            panic!("Panic by default: No device for {:?}.", scope);
+            println!("No device for {:?}.", scope);
         }
     }
 }
@@ -1500,103 +1463,63 @@ fn test_get_channel_count_of_unknwon_type() {
     }
 }
 
-// get_available_samplerate
+// get_range_of_sample_rates
 // ------------------------------------
 #[test]
-fn test_get_available_samplerate() {
-    let samplerates = test_get_available_samplerate_of_device(kAudioObjectUnknown);
-    for rates in samplerates {
-        check_samplerates_are_zeros(rates);
-    }
+fn test_get_range_of_sample_rates() {
+    test_get_range_of_sample_rates_in_scope(Scope::Input);
+    test_get_range_of_sample_rates_in_scope(Scope::Output);
 
-    test_get_available_samplerate_in_scope(Scope::Input);
-    test_get_available_samplerate_in_scope(Scope::Output);
-
-    fn test_get_available_samplerate_in_scope(scope: Scope) {
+    fn test_get_range_of_sample_rates_in_scope(scope: Scope) {
         if let Some(device) = test_get_default_device(scope.clone()) {
-            let samplerates = test_get_available_samplerate_of_device(device);
-            for rates in samplerates {
-                // Surprisingly, we can get the input/output samplerates from a non-input/non-output device.
-                check_samplerates(rates);
+            let ranges = test_get_available_samplerate_of_device(device);
+            for range in ranges {
+                // Surprisingly, we can get the input/output sample rates from a non-input/non-output device.
+                check_samplerates(range);
             }
         } else {
             println!("No device for {:?}.", scope);
         }
     }
 
-    fn test_get_available_samplerate_of_device(id: AudioObjectID) -> Vec<(u32, u32, u32)> {
+    fn test_get_available_samplerate_of_device(id: AudioObjectID) -> Vec<(f64, f64)> {
         let scopes = [
             DeviceType::INPUT,
             DeviceType::OUTPUT,
             DeviceType::INPUT | DeviceType::OUTPUT,
         ];
-        let mut samplerates = Vec::new();
+        let mut ranges = Vec::new();
         for scope in scopes.iter() {
-            samplerates.push(test_get_available_samplerate_of_device_in_scope(id, *scope));
+            ranges.push(get_range_of_sample_rates(id, *scope).unwrap());
         }
-        samplerates
+        ranges
     }
 
-    fn test_get_available_samplerate_of_device_in_scope(
-        id: AudioObjectID,
-        devtype: DeviceType,
-    ) -> (u32, u32, u32) {
-        let mut default = 0;
-        let mut min = 0;
-        let mut max = 0;
-        audiounit_get_available_samplerate(id, devtype, &mut min, &mut max, &mut default);
-        (min, max, default)
-    }
-
-    fn check_samplerates((min, max, default): (u32, u32, u32)) {
-        assert!(default > 0);
-        assert!(min > 0);
-        assert!(max > 0);
+    fn check_samplerates((min, max): (f64, f64)) {
+        assert!(min > 0.0);
+        assert!(max > 0.0);
         assert!(min <= max);
-        assert!(min <= default);
-        assert!(default <= max);
-    }
-
-    fn check_samplerates_are_zeros((min, max, default): (u32, u32, u32)) {
-        assert_eq!(min, 0);
-        assert_eq!(max, 0);
-        assert_eq!(default, 0);
     }
 }
 
-// get_device_presentation_latency
+// get_presentation_latency
 // ------------------------------------
 #[test]
 fn test_get_device_presentation_latency() {
-    let latencies = test_get_device_presentation_latencies_of_device(kAudioObjectUnknown);
-    for latency in latencies {
-        // Hit the kAudioHardwareBadObjectError actually.
-        assert_eq!(latency, 0);
-    }
-
     test_get_device_presentation_latencies_in_scope(Scope::Input);
     test_get_device_presentation_latencies_in_scope(Scope::Output);
 
     fn test_get_device_presentation_latencies_in_scope(scope: Scope) {
         if let Some(device) = test_get_default_device(scope.clone()) {
             // TODO: The latencies very from devices to devices. Check nothing here.
-            let _latencies = test_get_device_presentation_latencies_of_device(device);
+            let latency = get_presentation_latency(device, scope.clone().into());
+            println!(
+                "present latency on the device {} in scope {:?}: {}",
+                device, scope, latency
+            );
         } else {
             println!("No device for {:?}.", scope);
         }
-    }
-
-    fn test_get_device_presentation_latencies_of_device(id: AudioObjectID) -> Vec<u32> {
-        let scopes = [
-            DeviceType::INPUT,
-            DeviceType::OUTPUT,
-            DeviceType::INPUT | DeviceType::OUTPUT,
-        ];
-        let mut latencies = Vec::new();
-        for scope in scopes.iter() {
-            latencies.push(audiounit_get_device_presentation_latency(id, *scope));
-        }
-        latencies
     }
 }
 
@@ -1714,18 +1637,18 @@ fn test_create_device_info_with_unknown_type() {
 }
 
 #[test]
-#[should_panic]
 fn test_create_device_from_hwdev_with_inout_type() {
     test_create_device_from_hwdev_with_inout_type_by_scope(Scope::Input);
     test_create_device_from_hwdev_with_inout_type_by_scope(Scope::Output);
 
     fn test_create_device_from_hwdev_with_inout_type_by_scope(scope: Scope) {
         if let Some(device) = test_get_default_device(scope.clone()) {
+            // Get a kAudioHardwareUnknownPropertyError in get_channel_count actually.
             assert!(
                 create_cubeb_device_info(device, DeviceType::INPUT | DeviceType::OUTPUT).is_err()
             );
         } else {
-            panic!("Panic by default: No device for {:?}.", scope);
+            println!("No device for {:?}.", scope);
         }
     }
 }
