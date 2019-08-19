@@ -17,6 +17,29 @@
 - Create a _generics_ for `cubeb_pan_stereo_buffer_{float, int}`
 - Create a _generics_ for `input_linear_buffer`
 
+## Separate the stream implementation from the interface
+The goal is to separate the audio stream into two parts(modules).
+One is _inner_, the other is _outer_.
+- The _outer_ stream implements the cubeb interface, based on the _inner_ stream.
+- The _inner_ stream implements the stream operations based on the _CoreAudio_ APIs.
+Now the _outer_ stream is named `AudioUnitStream`, the _inner_ stream is named `CoreStreamData`.
+
+The problem now is that we don't have a clear boundry of the data ownership
+between the _outer_ stream and _inner_ stream. They access the data owned by the other.
+- `audiounit_property_listener_callback` is tied to _outer_ stream
+but the event listeners are in _inner_ stream
+- `audiounit_input_callback`, `audiounit_output_callback` are registered by the _inner_ stream
+but the main logic are tied to _outer_ stream
+
+### Callback separation
+- Create static callbacks in _inner_ stream
+- Render _inner_ stream's callbacks to _outer_ stream's callbacks
+
+### Reinitialization
+If the _outer_ stream and the _inner_ stream are separate properly,
+when we need to reinitialize the stream, we can just drop the _inner_ stream
+and create a new one. It's easier than the current implementation.
+
 ## Aggregate device
 ### Get sub devices
 - A better pattern for `AggregateDevice::get_sub_devices`
@@ -42,7 +65,6 @@
 - Create wrapper for `audio_unit_{add, remove}_property_listener`, `audio_object_{add, remove}_property_listener` and their callbacks
     - Add/Remove listener with generic `*mut T` data, fire their callback with generic `*mut T` data
 
-
 ## Interface to other module
 - Create a binding layer for the `resampler`
 
@@ -63,3 +85,5 @@
 ## Test
 - Rewrite some tests under _cubeb/test/*_ in _Rust_ as part of the integration tests
     - Add tests for capturing/recording, output, duplex streams
+- Update the manual tests
+    - Those tests are created in the middle of the development. Thay might be not outdated now.

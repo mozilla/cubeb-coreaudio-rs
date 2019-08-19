@@ -5,7 +5,7 @@
 *Rust* implementation of [Cubeb][cubeb] on [the MacOS platform][cubeb-au].
 
 ## Current Goals
-- Keep refactoring the implementation until it looks rusty!
+- Keep refactoring the implementation until it looks rusty! (it's translated from C at first.)
   - Check the [todo list][todo] first
 
 ## Status
@@ -57,7 +57,7 @@ It's used to verify our callbacks for minitoring the system devices work.
   - Plug/Unplug devices to see events log.
 
 ## TODO
-See [TO-DOs][todo]
+See [todo list][todo]
 
 ## Issues
 - Atomic:
@@ -86,6 +86,11 @@ See [TO-DOs][todo]
     it will set a destroyed device as the default device
   - See details in [device_change.rs](src/backend/tests/device_change.rs)
 
+## Branches
+- [trailblazer][trailblazer]: Main branch
+- [plain-translation-from-c][from-c]: The code is rewritten from C code on a line-by-line basis
+- [ocs-disposal][ocs-disposal]: The first version that replace our custom mutex by Rust Mutex
+
 [cubeb]: https://github.com/kinetiknz/cubeb "Cross platform audio library"
 [cubeb-au]: https://github.com/kinetiknz/cubeb/blob/master/src/cubeb_audiounit.cpp "Cubeb AudioUnit"
 
@@ -95,3 +100,7 @@ See [TO-DOs][todo]
 
 [bmo1572273]: https://bugzilla.mozilla.org/show_bug.cgi?id=1572273
 [bmo1572273-c13]: https://bugzilla.mozilla.org/show_bug.cgi?id=1572273#c13
+
+[from-c]: https://github.com/ChunMinChang/cubeb-coreaudio-rs/tree/plain-translation-from-c
+[ocs-disposal]: https://github.com/ChunMinChang/cubeb-coreaudio-rs/tree/ocs-disposal
+[trailblazer]: https://github.com/ChunMinChang/cubeb-coreaudio-rs/tree/trailblazer
