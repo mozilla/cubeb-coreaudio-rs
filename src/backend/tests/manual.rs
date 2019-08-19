@@ -168,8 +168,14 @@ fn test_add_then_remove_listeners() {
             );
             listeners.push(input_source_listener);
 
-            let input_alive_listener =
-                device_property_listener::new(device, DEVICE_IS_ALIVE_PROPERTY_ADDRESS, callback);
+            let input_alive_listener = device_property_listener::new(
+                device,
+                get_property_address(
+                    Property::DeviceIsAlive,
+                    DeviceType::INPUT | DeviceType::OUTPUT,
+                ),
+                callback,
+            );
             listeners.push(input_alive_listener);
         }
 

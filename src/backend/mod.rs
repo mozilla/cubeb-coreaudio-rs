@@ -2938,7 +2938,10 @@ impl<'ctx> CoreStreamData<'ctx> {
             // Event to notify when the input is going away.
             self.input_alive_listener = Some(device_property_listener::new(
                 self.input_device.id,
-                DEVICE_IS_ALIVE_PROPERTY_ADDRESS,
+                get_property_address(
+                    Property::DeviceIsAlive,
+                    DeviceType::INPUT | DeviceType::OUTPUT,
+                ),
                 audiounit_property_listener_callback,
             ));
             let rv = stm.add_device_listener(self.input_alive_listener.as_ref().unwrap());

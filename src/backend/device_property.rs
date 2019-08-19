@@ -263,6 +263,7 @@ pub fn get_stream_latency(
 
 pub enum Property {
     DeviceBufferFrameSizeRange,
+    DeviceIsAlive,
     DeviceLatency,
     DeviceManufacturer,
     DeviceName,
@@ -281,6 +282,7 @@ impl From<Property> for AudioObjectPropertySelector {
     fn from(p: Property) -> Self {
         match p {
             Property::DeviceBufferFrameSizeRange => kAudioDevicePropertyBufferFrameSizeRange,
+            Property::DeviceIsAlive => kAudioDevicePropertyDeviceIsAlive,
             Property::DeviceLatency => kAudioDevicePropertyLatency,
             Property::DeviceManufacturer => kAudioObjectPropertyManufacturer,
             Property::DeviceName => kAudioObjectPropertyName,

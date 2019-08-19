@@ -14,13 +14,6 @@ pub const DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS: AudioObjectPropertyAddress =
         mElement: kAudioObjectPropertyElementMaster,
     };
 
-pub const DEVICE_IS_ALIVE_PROPERTY_ADDRESS: AudioObjectPropertyAddress =
-    AudioObjectPropertyAddress {
-        mSelector: kAudioDevicePropertyDeviceIsAlive,
-        mScope: kAudioObjectPropertyScopeGlobal,
-        mElement: kAudioObjectPropertyElementMaster,
-    };
-
 pub const DEVICES_PROPERTY_ADDRESS: AudioObjectPropertyAddress = AudioObjectPropertyAddress {
     mSelector: kAudioHardwarePropertyDevices,
     mScope: kAudioObjectPropertyScopeGlobal,
