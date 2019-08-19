@@ -139,14 +139,20 @@ fn test_add_then_remove_listeners() {
 
         let default_output_listener = device_property_listener::new(
             kAudioObjectSystemObject,
-            DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+            get_property_address(
+                Property::HardwareDefaultOutputDevice,
+                DeviceType::INPUT | DeviceType::OUTPUT,
+            ),
             callback,
         );
         listeners.push(default_output_listener);
 
         let default_input_listener = device_property_listener::new(
             kAudioObjectSystemObject,
-            DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS,
+            get_property_address(
+                Property::HardwareDefaultInputDevice,
+                DeviceType::INPUT | DeviceType::OUTPUT,
+            ),
             callback,
         );
         listeners.push(default_input_listener);

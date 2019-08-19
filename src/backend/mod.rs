@@ -13,7 +13,6 @@ mod auto_array;
 mod auto_release;
 mod device_property;
 mod mixer;
-mod property_address;
 mod resampler;
 mod utils;
 
@@ -29,7 +28,6 @@ use self::coreaudio_sys_utils::string::*;
 use self::coreaudio_sys_utils::sys::*;
 use self::device_property::*;
 use self::mixer::*;
-use self::property_address::*;
 use self::resampler::*;
 use self::utils::*;
 use atomic;
@@ -892,17 +890,18 @@ extern "C" fn audiounit_property_listener_callback(
 }
 
 fn audiounit_get_default_device_id(devtype: DeviceType) -> AudioObjectID {
-    assert!(devtype == DeviceType::INPUT || devtype == DeviceType::OUTPUT);
-
-    let adr = if devtype == DeviceType::OUTPUT {
-        &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS
-    } else {
-        &DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS
-    };
+    let address = get_property_address(
+        match devtype {
+            DeviceType::INPUT => Property::HardwareDefaultInputDevice,
+            DeviceType::OUTPUT => Property::HardwareDefaultOutputDevice,
+            _ => panic!("Unsupport type"),
+        },
+        DeviceType::INPUT | DeviceType::OUTPUT,
+    );
 
     let mut devid: AudioDeviceID = kAudioObjectUnknown;
     let mut size = mem::size_of::<AudioDeviceID>();
-    if audio_object_get_property_data(kAudioObjectSystemObject, adr, &mut size, &mut devid)
+    if audio_object_get_property_data(kAudioObjectSystemObject, &address, &mut size, &mut devid)
         != NO_ERR
     {
         return kAudioObjectUnknown;
@@ -2975,7 +2974,10 @@ impl<'ctx> CoreStreamData<'ctx> {
             // dropdown list.
             self.default_output_listener = Some(device_property_listener::new(
                 kAudioObjectSystemObject,
-                DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+                get_property_address(
+                    Property::HardwareDefaultOutputDevice,
+                    DeviceType::INPUT | DeviceType::OUTPUT,
+                ),
                 audiounit_property_listener_callback,
             ));
             let r = stm.add_device_listener(self.default_output_listener.as_ref().unwrap());
@@ -2990,7 +2992,10 @@ impl<'ctx> CoreStreamData<'ctx> {
             // This event will notify us when the default input device changes.
             self.default_input_listener = Some(device_property_listener::new(
                 kAudioObjectSystemObject,
-                DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS,
+                get_property_address(
+                    Property::HardwareDefaultInputDevice,
+                    DeviceType::INPUT | DeviceType::OUTPUT,
+                ),
                 audiounit_property_listener_callback,
             ));
             let r = stm.add_device_listener(self.default_input_listener.as_ref().unwrap());
