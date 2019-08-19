@@ -411,7 +411,7 @@ fn test_add_listener_unknown_device() {
     test_get_default_raw_stream(|stream| {
         let listener = device_property_listener::new(
             kAudioObjectUnknown,
-            &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+            DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
             callback,
         );
         assert_eq!(
@@ -438,7 +438,7 @@ fn test_add_listener_then_remove_system_device() {
     test_get_default_raw_stream(|stream| {
         let listener = device_property_listener::new(
             kAudioObjectSystemObject,
-            &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+            DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
             callback,
         );
         assert_eq!(stream.add_device_listener(&listener), NO_ERR);
@@ -461,7 +461,7 @@ fn test_remove_listener_without_adding_any_listener_before_system_device() {
     test_get_default_raw_stream(|stream| {
         let listener = device_property_listener::new(
             kAudioObjectSystemObject,
-            &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+            DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
             callback,
         );
         assert_eq!(stream.remove_device_listener(&listener), NO_ERR);
@@ -483,7 +483,7 @@ fn test_remove_listener_unknown_device() {
     test_get_default_raw_stream(|stream| {
         let listener = device_property_listener::new(
             kAudioObjectUnknown,
-            &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+            DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
             callback,
         );
         assert_eq!(

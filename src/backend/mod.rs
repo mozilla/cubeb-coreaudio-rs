@@ -118,14 +118,14 @@ impl Default for device_info {
 #[derive(Debug)]
 struct device_property_listener {
     device: AudioDeviceID,
-    property: &'static AudioObjectPropertyAddress,
+    property: AudioObjectPropertyAddress,
     listener: audio_object_property_listener_proc,
 }
 
 impl device_property_listener {
     fn new(
         device: AudioDeviceID,
-        property: &'static AudioObjectPropertyAddress,
+        property: AudioObjectPropertyAddress,
         listener: audio_object_property_listener_proc,
     ) -> Self {
         Self {
@@ -2907,7 +2907,7 @@ impl<'ctx> CoreStreamData<'ctx> {
 
             self.output_source_listener = Some(device_property_listener::new(
                 self.output_device.id,
-                &OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS,
+                OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS,
                 audiounit_property_listener_callback,
             ));
             let rv = stm.add_device_listener(self.output_source_listener.as_ref().unwrap());
@@ -2925,7 +2925,7 @@ impl<'ctx> CoreStreamData<'ctx> {
 
             self.input_source_listener = Some(device_property_listener::new(
                 self.input_device.id,
-                &INPUT_DATA_SOURCE_PROPERTY_ADDRESS,
+                INPUT_DATA_SOURCE_PROPERTY_ADDRESS,
                 audiounit_property_listener_callback,
             ));
             let rv = stm.add_device_listener(self.input_source_listener.as_ref().unwrap());
@@ -2938,7 +2938,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             // Event to notify when the input is going away.
             self.input_alive_listener = Some(device_property_listener::new(
                 self.input_device.id,
-                &DEVICE_IS_ALIVE_PROPERTY_ADDRESS,
+                DEVICE_IS_ALIVE_PROPERTY_ADDRESS,
                 audiounit_property_listener_callback,
             ));
             let rv = stm.add_device_listener(self.input_alive_listener.as_ref().unwrap());
@@ -2963,7 +2963,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             // dropdown list.
             self.default_output_listener = Some(device_property_listener::new(
                 kAudioObjectSystemObject,
-                &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+                DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
                 audiounit_property_listener_callback,
             ));
             let r = stm.add_device_listener(self.default_output_listener.as_ref().unwrap());
@@ -2978,7 +2978,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             // This event will notify us when the default input device changes.
             self.default_input_listener = Some(device_property_listener::new(
                 kAudioObjectSystemObject,
-                &DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS,
+                DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS,
                 audiounit_property_listener_callback,
             ));
             let r = stm.add_device_listener(self.default_input_listener.as_ref().unwrap());
@@ -3140,7 +3140,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
     fn add_device_listener(&self, listener: &device_property_listener) -> OSStatus {
         audio_object_add_property_listener(
             listener.device,
-            listener.property,
+            &listener.property,
             listener.listener,
             self as *const Self as *mut c_void,
         )
@@ -3149,7 +3149,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
     fn remove_device_listener(&self, listener: &device_property_listener) -> OSStatus {
         audio_object_remove_property_listener(
             listener.device,
-            listener.property,
+            &listener.property,
             listener.listener,
             self as *const Self as *mut c_void,
         )
