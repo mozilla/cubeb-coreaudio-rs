@@ -2907,7 +2907,7 @@ impl<'ctx> CoreStreamData<'ctx> {
 
             self.output_source_listener = Some(device_property_listener::new(
                 self.output_device.id,
-                OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS,
+                get_property_address(Property::DeviceSource, DeviceType::OUTPUT),
                 audiounit_property_listener_callback,
             ));
             let rv = stm.add_device_listener(self.output_source_listener.as_ref().unwrap());
@@ -2925,7 +2925,7 @@ impl<'ctx> CoreStreamData<'ctx> {
 
             self.input_source_listener = Some(device_property_listener::new(
                 self.input_device.id,
-                INPUT_DATA_SOURCE_PROPERTY_ADDRESS,
+                get_property_address(Property::DeviceSource, DeviceType::INPUT),
                 audiounit_property_listener_callback,
             ));
             let rv = stm.add_device_listener(self.input_source_listener.as_ref().unwrap());

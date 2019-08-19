@@ -26,17 +26,3 @@ pub const DEVICES_PROPERTY_ADDRESS: AudioObjectPropertyAddress = AudioObjectProp
     mScope: kAudioObjectPropertyScopeGlobal,
     mElement: kAudioObjectPropertyElementMaster,
 };
-
-pub const INPUT_DATA_SOURCE_PROPERTY_ADDRESS: AudioObjectPropertyAddress =
-    AudioObjectPropertyAddress {
-        mSelector: kAudioDevicePropertyDataSource,
-        mScope: kAudioDevicePropertyScopeInput,
-        mElement: kAudioObjectPropertyElementMaster,
-    };
-
-pub const OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS: AudioObjectPropertyAddress =
-    AudioObjectPropertyAddress {
-        mSelector: kAudioDevicePropertyDataSource,
-        mScope: kAudioDevicePropertyScopeOutput,
-        mElement: kAudioObjectPropertyElementMaster,
-    };
