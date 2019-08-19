@@ -275,6 +275,7 @@ pub enum Property {
     DeviceStreamFormat,
     DeviceStreams,
     DeviceUID,
+    HardwareDevices,
     StreamLatency,
 }
 
@@ -294,6 +295,7 @@ impl From<Property> for AudioObjectPropertySelector {
             Property::DeviceStreamFormat => kAudioDevicePropertyStreamFormat,
             Property::DeviceStreams => kAudioDevicePropertyStreams,
             Property::DeviceUID => kAudioDevicePropertyDeviceUID,
+            Property::HardwareDevices => kAudioHardwarePropertyDevices,
             Property::StreamLatency => kAudioStreamPropertyLatency,
         }
     }

@@ -1695,11 +1695,12 @@ fn audiounit_device_destroy(device: &mut ffi::cubeb_device_info) {
 
 fn audiounit_get_devices() -> Vec<AudioObjectID> {
     let mut size: usize = 0;
-    let mut ret = audio_object_get_property_data_size(
-        kAudioObjectSystemObject,
-        &DEVICES_PROPERTY_ADDRESS,
-        &mut size,
+    let address = get_property_address(
+        Property::HardwareDevices,
+        DeviceType::INPUT | DeviceType::OUTPUT,
     );
+    let mut ret =
+        audio_object_get_property_data_size(kAudioObjectSystemObject, &address, &mut size);
     if ret != NO_ERR {
         return Vec::new();
     }
@@ -1707,7 +1708,7 @@ fn audiounit_get_devices() -> Vec<AudioObjectID> {
     let mut devices: Vec<AudioObjectID> = allocate_array_by_size(size);
     ret = audio_object_get_property_data(
         kAudioObjectSystemObject,
-        &DEVICES_PROPERTY_ADDRESS,
+        &address,
         &mut size,
         devices.as_mut_ptr(),
     );
@@ -1966,9 +1967,13 @@ impl AudioUnitContext {
         }
 
         if devices.input.changed_callback.is_none() && devices.output.changed_callback.is_none() {
+            let address = get_property_address(
+                Property::HardwareDevices,
+                DeviceType::INPUT | DeviceType::OUTPUT,
+            );
             let ret = audio_object_add_property_listener(
                 kAudioObjectSystemObject,
-                &DEVICES_PROPERTY_ADDRESS,
+                &address,
                 audiounit_collection_changed_callback,
                 context_ptr,
             );
@@ -2025,10 +2030,14 @@ impl AudioUnitContext {
             return Ok(());
         }
 
+        let address = get_property_address(
+            Property::HardwareDevices,
+            DeviceType::INPUT | DeviceType::OUTPUT,
+        );
         // Note: unregister a non registered cb is not a problem, not checking.
         let r = audio_object_remove_property_listener(
             kAudioObjectSystemObject,
-            &DEVICES_PROPERTY_ADDRESS,
+            &address,
             audiounit_collection_changed_callback,
             context_ptr,
         );

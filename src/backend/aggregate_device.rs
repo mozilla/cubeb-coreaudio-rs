@@ -110,10 +110,14 @@ impl AggregateDevice {
         let mut cloned_condvar_pair = condvar_pair.clone();
         let data_ptr = &mut cloned_condvar_pair as *mut Arc<(Mutex<Vec<AudioObjectID>>, Condvar)>;
 
+        let address = get_property_address(
+            Property::HardwareDevices,
+            DeviceType::INPUT | DeviceType::OUTPUT,
+        );
         assert_eq!(
             audio_object_add_property_listener(
                 kAudioObjectSystemObject,
-                &DEVICES_PROPERTY_ADDRESS,
+                &address,
                 devices_changed_callback,
                 data_ptr as *mut c_void,
             ),
@@ -124,7 +128,7 @@ impl AggregateDevice {
             assert_eq!(
                 audio_object_remove_property_listener(
                     kAudioObjectSystemObject,
-                    &DEVICES_PROPERTY_ADDRESS,
+                    &address,
                     devices_changed_callback,
                     data_ptr as *mut c_void,
                 ),

@@ -13,9 +13,3 @@ pub const DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS: AudioObjectPropertyAddress =
         mScope: kAudioObjectPropertyScopeGlobal,
         mElement: kAudioObjectPropertyElementMaster,
     };
-
-pub const DEVICES_PROPERTY_ADDRESS: AudioObjectPropertyAddress = AudioObjectPropertyAddress {
-    mSelector: kAudioHardwarePropertyDevices,
-    mScope: kAudioObjectPropertyScopeGlobal,
-    mElement: kAudioObjectPropertyElementMaster,
-};
