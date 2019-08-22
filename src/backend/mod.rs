@@ -596,7 +596,11 @@ fn host_time_to_ns(host_time: u64) -> u64 {
 fn compute_output_latency(stm: &AudioUnitStream, host_time: u64) -> u32 {
     let now = host_time_to_ns(unsafe { mach_absolute_time() });
     let audio_output_time = host_time_to_ns(host_time);
-    let output_latency_ns = (audio_output_time - now) as u64;
+    let output_latency_ns = if audio_output_time < now {
+        0
+    } else {
+        audio_output_time - now
+    };
 
     const NS2S: u64 = 1_000_000_000;
     // The total output latency is the timestamp difference + the stream latency +
