@@ -771,13 +771,6 @@ extern "C" fn audiounit_output_callback(
             .store(stm.frames_queued, atomic::Ordering::SeqCst);
         stm.frames_queued += outframes as u64;
 
-        let outaff = stm.core_stream_data.output_desc.mFormatFlags;
-        let panning = if stm.core_stream_data.output_desc.mChannelsPerFrame == 2 {
-            stm.panning.load(Ordering::Relaxed)
-        } else {
-            0.0
-        };
-
         // Post process output samples.
         if stm.draining.load(Ordering::SeqCst) {
             // Clear missing frames (silence)
@@ -799,26 +792,7 @@ extern "C" fn audiounit_output_callback(
         }
 
         // Mixing
-        if stm.core_stream_data.mixer.is_none() {
-            // Pan stereo.
-            if panning != 0.0 {
-                unsafe {
-                    if outaff & kAudioFormatFlagIsFloat != 0 {
-                        ffi::cubeb_pan_stereo_buffer_float(
-                            output_buffer as *mut f32,
-                            outframes as u32,
-                            panning,
-                        );
-                    } else if outaff & kAudioFormatFlagIsSignedInteger != 0 {
-                        ffi::cubeb_pan_stereo_buffer_int(
-                            output_buffer as *mut i16,
-                            outframes as u32,
-                            panning,
-                        );
-                    }
-                }
-            }
-        } else {
+        if stm.core_stream_data.mixer.is_some() {
             assert!(
                 buffers[0].mDataByteSize
                     >= stm.core_stream_data.output_desc.mBytesPerFrame * output_frames
@@ -3134,7 +3108,6 @@ struct AudioUnitStream<'ctx> {
     latency_frames: u32,
     current_latency_frames: AtomicU32,
     total_output_latency_frames: AtomicU32,
-    panning: atomic::Atomic<f32>,
     // This is true if a device change callback is currently running.
     switching_device: AtomicBool,
     core_stream_data: CoreStreamData<'ctx>,
@@ -3165,7 +3138,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
             latency_frames,
             current_latency_frames: AtomicU32::new(0),
             total_output_latency_frames: AtomicU32::new(0),
-            panning: atomic::Atomic::new(0.0_f32),
             switching_device: AtomicBool::new(false),
             core_stream_data: CoreStreamData::default(),
         }
@@ -3435,13 +3407,6 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     }
     fn set_volume(&mut self, volume: f32) -> Result<()> {
         set_volume(self.core_stream_data.output_unit, volume)
-    }
-    fn set_panning(&mut self, panning: f32) -> Result<()> {
-        if self.core_stream_data.output_desc.mChannelsPerFrame > 2 {
-            return Err(Error::invalid_format());
-        }
-        self.panning.store(panning, Ordering::Relaxed);
-        Ok(())
     }
     #[cfg(target_os = "ios")]
     fn current_device(&mut self) -> Result<&DeviceRef> {

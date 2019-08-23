@@ -14,7 +14,6 @@
 - Change to official _coreaudio-sys_ after [pull #28](https://github.com/RustAudio/coreaudio-sys/pull/28) is is merged
 
 ### Generics
-- Create a _generics_ for `cubeb_pan_stereo_buffer_{float, int}`
 - Create a _generics_ for `input_linear_buffer`
 
 ## Separate the stream implementation from the interface
