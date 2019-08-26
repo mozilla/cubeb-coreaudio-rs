@@ -1316,11 +1316,12 @@ fn set_buffer_size(
 }
 
 fn set_buffer_size_sync(unit: AudioUnit, devtype: DeviceType, frames: u32) -> Result<()> {
-    let current_frames = get_buffer_size(unit, devtype).map_err(|r| {
+    let current_frames = get_buffer_size(unit, devtype).map_err(|e| {
         cubeb_log!(
-            "AudioUnitGetProperty/{:?}/kAudioDevicePropertyBufferFrameSize rv={}",
+            "Cannot get buffer size of AudioUnit {:?} for {:?}. Error: {}",
+            unit,
             devtype,
-            r
+            e
         );
         Error::error()
     })?;
@@ -1384,8 +1385,13 @@ fn set_buffer_size_sync(unit: AudioUnit, devtype: DeviceType, frames: u32) -> Re
         }
     }
 
-    let new_frames = get_buffer_size(unit, devtype).map_err(|r| {
-        cubeb_log!("Cannot get new {:?} buffer size. Error: {}", devtype, r);
+    let new_frames = get_buffer_size(unit, devtype).map_err(|e| {
+        cubeb_log!(
+            "Cannot get new buffer size of AudioUnit {:?} for {:?}. Error: {}",
+            unit,
+            devtype,
+            e
+        );
         Error::error()
     })?;
     cubeb_log!(
