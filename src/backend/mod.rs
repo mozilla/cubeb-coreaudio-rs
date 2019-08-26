@@ -1030,7 +1030,10 @@ fn audiounit_get_current_channel_layout(output_unit: AudioUnit) -> ChannelLayout
     audiounit_convert_channel_layout(layout.as_ref())
 }
 
-fn audiounit_set_channel_layout(unit: AudioUnit, layout: ChannelLayout) -> Result<()> {
+fn audiounit_set_channel_layout(
+    unit: AudioUnit,
+    layout: ChannelLayout,
+) -> std::result::Result<(), OSStatus> {
     assert!(!unit.is_null());
 
     if layout == ChannelLayout::UNDEFINED {
@@ -1038,7 +1041,6 @@ fn audiounit_set_channel_layout(unit: AudioUnit, layout: ChannelLayout) -> Resul
         return Ok(());
     }
 
-    let mut r = NO_ERR;
     let nb_channels = unsafe { ffi::cubeb_channel_layout_nb_channels(layout.into()) };
 
     // We do not use CoreAudio standard layout for lack of documentation on what
@@ -1072,7 +1074,7 @@ fn audiounit_set_channel_layout(unit: AudioUnit, layout: ChannelLayout) -> Resul
         channel_map >>= 1;
     }
 
-    r = audio_unit_set_property(
+    let err = audio_unit_set_property(
         unit,
         kAudioUnitProperty_AudioChannelLayout,
         kAudioUnitScope_Input,
@@ -1080,15 +1082,11 @@ fn audiounit_set_channel_layout(unit: AudioUnit, layout: ChannelLayout) -> Resul
         au_layout.as_ref(),
         size,
     );
-    if r != NO_ERR {
-        cubeb_log!(
-            "AudioUnitSetProperty/output/kAudioUnitProperty_AudioChannelLayout rv={}",
-            r
-        );
-        return Err(Error::error());
+    if err == NO_ERR {
+        Ok(())
+    } else {
+        Err(err)
     }
-
-    Ok(())
 }
 
 fn start_audiounit(unit: AudioUnit) -> Result<()> {
@@ -2657,11 +2655,15 @@ impl<'ctx> CoreStreamData<'ctx> {
 
             // Set the input layout to match the output device layout.
             self.device_layout = audiounit_get_current_channel_layout(self.output_unit);
-            audiounit_set_channel_layout(self.output_unit, self.device_layout);
+            let msg = match audiounit_set_channel_layout(self.output_unit, self.device_layout) {
+                Ok(_) => "successfully".to_string(),
+                Err(e) => format!("failed. Error: {}", e),
+            };
             cubeb_log!(
-                "({:p}) Output hardware layout: {:?}",
+                "({:p}) Set output hardware layout to {:?} {}.",
                 self.stm_ptr,
-                self.device_layout
+                self.device_layout,
+                msg
             );
 
             self.mixer = if hw_channels != self.output_stream_params.channels()

@@ -4,9 +4,6 @@
 - Some of bugs are found when adding tests. Search *FIXIT* to find them.
 - Remove `#[allow(non_camel_case_types)]`, `#![allow(unused_assignments)]`, `#![allow(unused_must_use)]`
 - Rephrase the error messages for those APIs use `io_side` previously
-    - `audiounit_set_channel_layout`
-        - return `OSStatus` for error
-        - Log error in `setup` instead
     - `get_buffer_size`
         - Revise the error message when `get_buffer_size` is failed in `set_buffer_size_sync`
     - `set_buffer_size`
