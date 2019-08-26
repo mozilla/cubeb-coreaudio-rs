@@ -3,7 +3,16 @@
 ## General
 - Some of bugs are found when adding tests. Search *FIXIT* to find them.
 - Remove `#[allow(non_camel_case_types)]`, `#![allow(unused_assignments)]`, `#![allow(unused_must_use)]`
-- Merge `io_side` and `DeviceType`
+- Rephrase the error messages for those APIs use `io_side` previously
+    - `audiounit_set_channel_layout`
+        - return `OSStatus` for error
+        - Log error in `setup` instead
+    - `get_buffer_size`
+        - Revise the error message when `get_buffer_size` is failed in `set_buffer_size_sync`
+    - `set_buffer_size`
+        - Revise the error message when `set_buffer_size` is failed in `set_buffer_size_sync`
+    - `set_buffer_size_sync`
+        - Check if the error messages using `DeviceType` should be revised
 - Use `ErrorChain`
 - Centralize the error log in one place
 - Merge _property_address.rs_ and _device_property.rs_

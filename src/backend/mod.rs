@@ -41,7 +41,6 @@ use cubeb_backend::{
 use mach::mach_time::{mach_absolute_time, mach_timebase_info};
 use std::cmp;
 use std::ffi::{CStr, CString};
-use std::fmt;
 use std::mem;
 use std::os::raw::c_void;
 use std::ptr;
@@ -82,23 +81,6 @@ lazy_static! {
         }
         (timebase_info.numer, timebase_info.denom)
     };
-}
-
-#[allow(non_camel_case_types)]
-#[derive(Clone, Debug, PartialEq)]
-enum io_side {
-    INPUT,
-    OUTPUT,
-}
-
-impl fmt::Display for io_side {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let side = match self {
-            io_side::INPUT => "input",
-            io_side::OUTPUT => "output",
-        };
-        write!(f, "{}", side)
-    }
 }
 
 fn make_sized_audio_channel_layout(sz: usize) -> AutoRelease<AudioChannelLayout> {
@@ -1048,16 +1030,8 @@ fn audiounit_get_current_channel_layout(output_unit: AudioUnit) -> ChannelLayout
     audiounit_convert_channel_layout(layout.as_ref())
 }
 
-fn audiounit_set_channel_layout(
-    unit: AudioUnit,
-    side: io_side,
-    layout: ChannelLayout,
-) -> Result<()> {
+fn audiounit_set_channel_layout(unit: AudioUnit, layout: ChannelLayout) -> Result<()> {
     assert!(!unit.is_null());
-
-    if side != io_side::OUTPUT {
-        return Err(Error::error());
-    }
 
     if layout == ChannelLayout::UNDEFINED {
         // We leave everything as-is...
@@ -1108,8 +1082,7 @@ fn audiounit_set_channel_layout(
     );
     if r != NO_ERR {
         cubeb_log!(
-            "AudioUnitSetProperty/{}/kAudioUnitProperty_AudioChannelLayout rv={}",
-            side.to_string(),
+            "AudioUnitSetProperty/output/kAudioUnitProperty_AudioChannelLayout rv={}",
             r
         );
         return Err(Error::error());
@@ -1156,11 +1129,11 @@ fn create_audiounit(device: &device_info) -> Result<AudioUnit> {
 
     if device.flags.contains(device_flags::DEV_INPUT) {
         // Input only.
-        enable_audiounit_scope(unit, io_side::INPUT, true).map_err(|e| {
+        enable_audiounit_scope(unit, DeviceType::INPUT, true).map_err(|e| {
             cubeb_log!("Fail to enable audiounit input scope. Error: {}", e);
             Error::error()
         })?;
-        enable_audiounit_scope(unit, io_side::OUTPUT, false).map_err(|e| {
+        enable_audiounit_scope(unit, DeviceType::OUTPUT, false).map_err(|e| {
             cubeb_log!("Fail to disable audiounit output scope. Error: {}", e);
             Error::error()
         })?;
@@ -1168,11 +1141,11 @@ fn create_audiounit(device: &device_info) -> Result<AudioUnit> {
 
     if device.flags.contains(device_flags::DEV_OUTPUT) {
         // Output only.
-        enable_audiounit_scope(unit, io_side::OUTPUT, true).map_err(|e| {
+        enable_audiounit_scope(unit, DeviceType::OUTPUT, true).map_err(|e| {
             cubeb_log!("Fail to enable audiounit output scope. Error: {}", e);
             Error::error()
         })?;
-        enable_audiounit_scope(unit, io_side::INPUT, false).map_err(|e| {
+        enable_audiounit_scope(unit, DeviceType::INPUT, false).map_err(|e| {
             cubeb_log!("Fail to disable audiounit input scope. Error: {}", e);
             Error::error()
         })?;
@@ -1192,15 +1165,19 @@ fn create_audiounit(device: &device_info) -> Result<AudioUnit> {
 
 fn enable_audiounit_scope(
     unit: AudioUnit,
-    side: io_side,
+    devtype: DeviceType,
     enable_io: bool,
 ) -> std::result::Result<(), OSStatus> {
     assert!(!unit.is_null());
 
     let enable: u32 = if enable_io { 1 } else { 0 };
-    let (scope, element) = match side {
-        io_side::INPUT => (kAudioUnitScope_Input, AU_IN_BUS),
-        io_side::OUTPUT => (kAudioUnitScope_Output, AU_OUT_BUS),
+    let (scope, element) = match devtype {
+        DeviceType::INPUT => (kAudioUnitScope_Input, AU_IN_BUS),
+        DeviceType::OUTPUT => (kAudioUnitScope_Output, AU_OUT_BUS),
+        _ => panic!(
+            "Enable AudioUnit {:?} with unsupported type: {:?}",
+            unit, devtype
+        ),
     };
     let status = audio_unit_set_property(
         unit,
@@ -1283,11 +1260,15 @@ fn create_audiounit_by_description(desc: AudioComponentDescription) -> Result<Au
     }
 }
 
-fn get_buffer_size(unit: AudioUnit, side: io_side) -> std::result::Result<u32, OSStatus> {
+fn get_buffer_size(unit: AudioUnit, devtype: DeviceType) -> std::result::Result<u32, OSStatus> {
     assert!(!unit.is_null());
-    let (scope, element) = match side {
-        io_side::INPUT => (kAudioUnitScope_Output, AU_IN_BUS),
-        io_side::OUTPUT => (kAudioUnitScope_Input, AU_OUT_BUS),
+    let (scope, element) = match devtype {
+        DeviceType::INPUT => (kAudioUnitScope_Output, AU_IN_BUS),
+        DeviceType::OUTPUT => (kAudioUnitScope_Input, AU_OUT_BUS),
+        _ => panic!(
+            "Get buffer size of AudioUnit {:?} with unsupported type: {:?}",
+            unit, devtype
+        ),
     };
     let mut frames: u32 = 0;
     let mut size = mem::size_of::<u32>();
@@ -1309,13 +1290,17 @@ fn get_buffer_size(unit: AudioUnit, side: io_side) -> std::result::Result<u32, O
 
 fn set_buffer_size(
     unit: AudioUnit,
-    side: io_side,
+    devtype: DeviceType,
     frames: u32,
 ) -> std::result::Result<(), OSStatus> {
     assert!(!unit.is_null());
-    let (scope, element) = match side {
-        io_side::INPUT => (kAudioUnitScope_Output, AU_IN_BUS),
-        io_side::OUTPUT => (kAudioUnitScope_Input, AU_OUT_BUS),
+    let (scope, element) = match devtype {
+        DeviceType::INPUT => (kAudioUnitScope_Output, AU_IN_BUS),
+        DeviceType::OUTPUT => (kAudioUnitScope_Input, AU_OUT_BUS),
+        _ => panic!(
+            "Set buffer size of AudioUnit {:?} with unsupported type: {:?}",
+            unit, devtype
+        ),
     };
     let status = audio_unit_set_property(
         unit,
@@ -1332,19 +1317,19 @@ fn set_buffer_size(
     }
 }
 
-fn set_buffer_size_sync(unit: AudioUnit, side: io_side, frames: u32) -> Result<()> {
-    let current_frames = get_buffer_size(unit, side.clone()).map_err(|r| {
+fn set_buffer_size_sync(unit: AudioUnit, devtype: DeviceType, frames: u32) -> Result<()> {
+    let current_frames = get_buffer_size(unit, devtype).map_err(|r| {
         cubeb_log!(
-            "AudioUnitGetProperty/{}/kAudioDevicePropertyBufferFrameSize rv={}",
-            side.to_string(),
+            "AudioUnitGetProperty/{:?}/kAudioDevicePropertyBufferFrameSize rv={}",
+            devtype,
             r
         );
         Error::error()
     })?;
     if frames == current_frames {
         cubeb_log!(
-            "The size of {} buffer frames is already {}",
-            side.to_string(),
+            "The size of {:?} buffer frames is already {}",
+            devtype,
             frames
         );
         return Ok(());
@@ -1377,10 +1362,10 @@ fn set_buffer_size_sync(unit: AudioUnit, side: io_side, frames: u32) -> Result<(
         );
     });
 
-    set_buffer_size(unit, side.clone(), frames).map_err(|r| {
+    set_buffer_size(unit, devtype, frames).map_err(|r| {
         cubeb_log!(
-            "AudioUnitSetProperty/{}/kAudioDevicePropertyBufferFrameSize rv={}",
-            side.to_string(),
+            "AudioUnitSetProperty/{:?}/kAudioDevicePropertyBufferFrameSize rv={}",
+            devtype,
             r
         );
         Error::error()
@@ -1392,8 +1377,8 @@ fn set_buffer_size_sync(unit: AudioUnit, side: io_side, frames: u32) -> Result<(
         let (chg, timeout_res) = cvar.wait_timeout(changed, waiting_time).unwrap();
         if timeout_res.timed_out() {
             cubeb_log!(
-                "Time out for waiting the {} buffer size setting!",
-                side.to_string()
+                "Time out for waiting the {:?} buffer size setting!",
+                devtype
             );
         }
         if !*chg {
@@ -1401,17 +1386,13 @@ fn set_buffer_size_sync(unit: AudioUnit, side: io_side, frames: u32) -> Result<(
         }
     }
 
-    let new_frames = get_buffer_size(unit, side.clone()).map_err(|r| {
-        cubeb_log!(
-            "Cannot get new {} buffer size. Error: {}",
-            side.to_string(),
-            r
-        );
+    let new_frames = get_buffer_size(unit, devtype).map_err(|r| {
+        cubeb_log!("Cannot get new {:?} buffer size. Error: {}", devtype, r);
         Error::error()
     })?;
     cubeb_log!(
-        "The new size of {} buffer frames is {}",
-        side.to_string(),
+        "The new size of {:?} buffer frames is {}",
+        devtype,
         new_frames
     );
 
@@ -2538,7 +2519,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             // Use latency to set buffer size
             assert_ne!(stream.latency_frames, 0);
             if let Err(r) =
-                set_buffer_size_sync(self.input_unit, io_side::INPUT, stream.latency_frames)
+                set_buffer_size_sync(self.input_unit, DeviceType::INPUT, stream.latency_frames)
             {
                 cubeb_log!("({:p}) Error in change input buffer size.", self.stm_ptr);
                 return Err(r);
@@ -2676,7 +2657,7 @@ impl<'ctx> CoreStreamData<'ctx> {
 
             // Set the input layout to match the output device layout.
             self.device_layout = audiounit_get_current_channel_layout(self.output_unit);
-            audiounit_set_channel_layout(self.output_unit, io_side::OUTPUT, self.device_layout);
+            audiounit_set_channel_layout(self.output_unit, self.device_layout);
             cubeb_log!(
                 "({:p}) Output hardware layout: {:?}",
                 self.stm_ptr,
@@ -2725,7 +2706,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             // Use latency to set buffer size
             assert_ne!(stream.latency_frames, 0);
             if let Err(r) =
-                set_buffer_size_sync(self.output_unit, io_side::OUTPUT, stream.latency_frames)
+                set_buffer_size_sync(self.output_unit, DeviceType::OUTPUT, stream.latency_frames)
             {
                 cubeb_log!("({:p}) Error in change output buffer size.", self.stm_ptr);
                 return Err(r);
