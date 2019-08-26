@@ -1361,11 +1361,12 @@ fn set_buffer_size_sync(unit: AudioUnit, devtype: DeviceType, frames: u32) -> Re
         );
     });
 
-    set_buffer_size(unit, devtype, frames).map_err(|r| {
+    set_buffer_size(unit, devtype, frames).map_err(|e| {
         cubeb_log!(
-            "AudioUnitSetProperty/{:?}/kAudioDevicePropertyBufferFrameSize rv={}",
+            "Fail to set buffer size for AudioUnit {:?} for {:?}. Error: {}",
+            unit,
             devtype,
-            r
+            e
         );
         Error::error()
     })?;
