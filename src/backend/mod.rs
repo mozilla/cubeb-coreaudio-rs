@@ -1327,7 +1327,8 @@ fn set_buffer_size_sync(unit: AudioUnit, devtype: DeviceType, frames: u32) -> Re
     })?;
     if frames == current_frames {
         cubeb_log!(
-            "The size of {:?} buffer frames is already {}",
+            "The buffer frame size of AudioUnit {:?} for {:?} is already {}",
+            unit,
             devtype,
             frames
         );
@@ -1377,7 +1378,8 @@ fn set_buffer_size_sync(unit: AudioUnit, devtype: DeviceType, frames: u32) -> Re
         let (chg, timeout_res) = cvar.wait_timeout(changed, waiting_time).unwrap();
         if timeout_res.timed_out() {
             cubeb_log!(
-                "Time out for waiting the {:?} buffer size setting!",
+                "Time out for waiting the buffer frame size setting of AudioUnit {:?} for {:?}",
+                unit,
                 devtype
             );
         }
@@ -1396,7 +1398,8 @@ fn set_buffer_size_sync(unit: AudioUnit, devtype: DeviceType, frames: u32) -> Re
         Error::error()
     })?;
     cubeb_log!(
-        "The new size of {:?} buffer frames is {}",
+        "The new buffer frames size of AudioUnit {:?} for {:?} is {}",
+        unit,
         devtype,
         new_frames
     );
