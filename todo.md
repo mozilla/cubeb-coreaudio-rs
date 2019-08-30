@@ -40,6 +40,10 @@ when we need to reinitialize the stream, we can just drop the _inner_ stream
 and create a new one. It's easier than the current implementation.
 
 ## Aggregate device
+### Usage policy
+- [BMO 1563475][bmo1563475]: Only use _aggregate device_ when the mic is a input-only and the speaker is output-only device.
+
+[bmo1563475]: https://bugzilla.mozilla.org/show_bug.cgi?id=1563475#c4
 ### Get sub devices
 - A better pattern for `AggregateDevice::get_sub_devices`
 ### Set sub devices
