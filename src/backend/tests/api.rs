@@ -1351,6 +1351,22 @@ fn test_get_default_device_name() {
 // ------------------------------------
 // TODO
 
+// is_device_a_type_of
+// ------------------------------------
+#[test]
+fn test_is_device_a_type_of() {
+    test_is_device_in_scope(Scope::Input);
+    test_is_device_in_scope(Scope::Output);
+
+    fn test_is_device_in_scope(scope: Scope) {
+        if let Some(device) = test_get_default_device(scope.clone()) {
+            assert!(is_device_a_type_of(device, scope.into()));
+        } else {
+            println!("No device for {:?}.", scope);
+        }
+    }
+}
+
 // get_channel_count
 // ------------------------------------
 #[test]
