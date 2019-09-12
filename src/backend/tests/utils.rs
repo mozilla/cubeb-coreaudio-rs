@@ -548,32 +548,39 @@ pub fn test_set_default_device(
 pub struct TestDeviceSwitcher {
     scope: Scope,
     devices: Vec<AudioObjectID>,
+    current_device_index: usize,
 }
 
 impl TestDeviceSwitcher {
     pub fn new(scope: Scope) -> Self {
         let devices = test_get_devices_in_scope(scope.clone());
+        let current = test_get_default_device(scope.clone()).unwrap();
+        let index = devices
+            .iter()
+            .position(|device| *device == current)
+            .unwrap();
         println!("{:?} devices: {:?}", scope, devices);
         Self {
             scope: scope,
             devices: devices,
+            current_device_index: index,
         }
     }
 
-    pub fn next(&self) -> std::result::Result<bool, OSStatus> {
-        let current = test_get_default_device(self.scope.clone()).unwrap();
-        let mut index = self
-            .devices
-            .iter()
-            .position(|device| *device == current)
-            .unwrap();
-        index = (index + 1) % self.devices.len();
-        let next = self.devices[index];
+    pub fn next(&mut self) {
+        let current = self.devices[self.current_device_index];
+        let next_index = (self.current_device_index + 1) % self.devices.len();
+        let next = self.devices[next_index];
         println!(
             "Switch device for {:?}: {} -> {}",
             self.scope, current, next
         );
-        test_set_default_device(next, self.scope.clone())
+        assert!(self.set_device(next).unwrap());
+        self.current_device_index = next_index;
+    }
+
+    fn set_device(&self, device: AudioObjectID) -> std::result::Result<bool, OSStatus> {
+        test_set_default_device(device, self.scope.clone())
     }
 }
 
