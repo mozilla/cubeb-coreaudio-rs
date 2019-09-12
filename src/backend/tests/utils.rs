@@ -552,9 +552,11 @@ pub struct TestDeviceSwitcher {
 
 impl TestDeviceSwitcher {
     pub fn new(scope: Scope) -> Self {
+        let devices = test_get_devices_in_scope(scope.clone());
+        println!("{:?} devices: {:?}", scope, devices);
         Self {
-            scope: scope.clone(),
-            devices: test_get_devices_in_scope(scope),
+            scope: scope,
+            devices: devices,
         }
     }
 
