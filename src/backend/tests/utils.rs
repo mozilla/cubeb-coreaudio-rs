@@ -293,47 +293,50 @@ pub fn test_get_devices_in_scope(scope: Scope) -> Vec<AudioObjectID> {
     devices
 }
 
-pub fn test_print_devices_in_scope(scope: Scope) {
-    #[derive(Debug)]
-    struct Info {
-        id: AudioObjectID,
-        label: String,
-        uid: String,
-    }
-    impl Info {
-        fn new(id: AudioObjectID, label: String, uid: String) -> Self {
-            Self { id, label, uid }
-        }
-    }
-
-    let mut infos = Vec::new();
-    let devices = test_get_devices_in_scope(scope.clone());
-    for device in devices {
-        let label = match get_device_label(device, scope.clone().into()) {
-            Ok(label) => label.into_string(),
-            Err(status) => format!("Unknown: Error: {}", status).to_string(),
-        };
-
-        let uid = match get_device_uid(device, scope.clone().into()) {
-            Ok(uid) => uid.into_string(),
-            Err(status) => format!("Unknow: Error: {}", status).to_string(),
-        };
-
-        infos.push(Info::new(device, label, uid));
-    }
-
+fn test_print_devices_in_scope(devices: &Vec<AudioObjectID>, scope: Scope) {
     println!(
         "\n{:?} devices\n\
          --------------------",
         scope
     );
-    for info in infos {
+    for device in devices {
+        let info = TestDeviceInfo::new(*device, scope.clone());
         print_info(&info);
     }
     println!("");
 
-    fn print_info(info: &Info) {
+    fn print_info(info: &TestDeviceInfo) {
         println!("{:>4}: {}\n\tuid: {}", info.id, info.label, info.uid);
+    }
+}
+
+#[derive(Debug)]
+struct TestDeviceInfo {
+    id: AudioObjectID,
+    label: String,
+    uid: String,
+}
+impl TestDeviceInfo {
+    fn new(id: AudioObjectID, scope: Scope) -> Self {
+        Self {
+            id,
+            label: Self::get_label(id, scope.clone()),
+            uid: Self::get_uid(id, scope),
+        }
+    }
+
+    fn get_label(id: AudioObjectID, scope: Scope) -> String {
+        match get_device_uid(id, scope.into()) {
+            Ok(uid) => uid.into_string(),
+            Err(status) => format!("Unknow. Error: {}", status).to_string(),
+        }
+    }
+
+    fn get_uid(id: AudioObjectID, scope: Scope) -> String {
+        match get_device_label(id, scope.into()) {
+            Ok(label) => label.into_string(),
+            Err(status) => format!("Unknown. Error: {}", status).to_string(),
+        }
     }
 }
 
@@ -603,7 +606,7 @@ impl TestDeviceSwitcher {
             .iter()
             .position(|device| *device == current)
             .unwrap();
-        println!("{:?} devices: {:?}", scope, devices);
+        test_print_devices_in_scope(&devices, scope.clone());
         Self {
             scope: scope,
             devices: devices,
