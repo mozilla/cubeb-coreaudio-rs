@@ -49,6 +49,14 @@ and create a new one. It's easier than the current implementation.
 ### Usage policy
 - [BMO 1563475][bmo1563475]: Only use _aggregate device_ when the mic is a input-only and the speaker is output-only device.
 - Test if we should do drift compensation.
+- Add a test for `should_use_aggregate_device`
+    - Create a dummy stream and check
+    - Check again after reinit
+        - Input only: expect false
+        - Output only: expect false
+        - Duplex
+            - Default input and output are different and they are mic-only and speaker-only: expect true
+            - Otherwise: expect false
 
 [bmo1563475]: https://bugzilla.mozilla.org/show_bug.cgi?id=1563475#c4
 ### Get sub devices
