@@ -2433,11 +2433,7 @@ impl<'ctx> CoreStreamData<'ctx> {
         self.output_stream_params.rate() > 0
     }
 
-    fn should_use_aggregate_device(
-        &self,
-        input_device: &device_info,
-        output_device: &device_info,
-    ) -> bool {
+    fn should_use_aggregate_device(&self) -> bool {
         // Only using aggregate device when
         // 1. Stream is duplex
         // 2. Input device is valid
@@ -2455,13 +2451,13 @@ impl<'ctx> CoreStreamData<'ctx> {
         // input and output or not.
         self.has_input()
             && self.has_output()
-            && input_device.id != kAudioObjectUnknown
-            && input_device.flags.contains(device_flags::DEV_INPUT)
-            && output_device.id != kAudioObjectUnknown
-            && output_device.flags.contains(device_flags::DEV_OUTPUT)
-            && input_device.id != output_device.id
-            && !is_device_a_type_of(input_device.id, DeviceType::OUTPUT)
-            && !is_device_a_type_of(output_device.id, DeviceType::INPUT)
+            && self.input_device.id != kAudioObjectUnknown
+            && self.input_device.flags.contains(device_flags::DEV_INPUT)
+            && self.output_device.id != kAudioObjectUnknown
+            && self.output_device.flags.contains(device_flags::DEV_OUTPUT)
+            && self.input_device.id != self.output_device.id
+            && !is_device_a_type_of(self.input_device.id, DeviceType::OUTPUT)
+            && !is_device_a_type_of(self.output_device.id, DeviceType::INPUT)
     }
 
     fn setup(&mut self) -> Result<()> {
@@ -2481,7 +2477,7 @@ impl<'ctx> CoreStreamData<'ctx> {
         let mut in_dev_info = self.input_device.clone();
         let mut out_dev_info = self.output_device.clone();
 
-        if self.should_use_aggregate_device(&in_dev_info, &out_dev_info) {
+        if self.should_use_aggregate_device() {
             match AggregateDevice::new(in_dev_info.id, out_dev_info.id) {
                 Ok(device) => {
                     in_dev_info.id = device.get_device_id();
