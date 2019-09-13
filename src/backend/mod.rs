@@ -2433,6 +2433,37 @@ impl<'ctx> CoreStreamData<'ctx> {
         self.output_stream_params.rate() > 0
     }
 
+    fn should_use_aggregate_device(
+        &self,
+        input_device: &device_info,
+        output_device: &device_info,
+    ) -> bool {
+        // Only using aggregate device when
+        // 1. Stream is duplex
+        // 2. Input device is valid
+        // 3. Output device is valid
+        // 4. Input device and output device are different (based on their device id)
+        //   Some headset with mic will show different device ids for its
+        //   input and output, e.g., AirPods. They will be treated as different devices.
+        // 5. Input device is a microphone only device
+        // 6. Output device is a speaker only device
+        //   headset with mic is not a mic only and not a speaker only device
+
+        // Note that the `output_device` will be set anyway when reinitializing the stream,
+        // so we cannot rely on the `input_device` and `output_device` only. We must check
+        // `self.has_input()` and `self.has_output()` so we can make sure if the stream has
+        // input and output or not.
+        self.has_input()
+            && self.has_output()
+            && input_device.id != kAudioObjectUnknown
+            && input_device.flags.contains(device_flags::DEV_INPUT)
+            && output_device.id != kAudioObjectUnknown
+            && output_device.flags.contains(device_flags::DEV_OUTPUT)
+            && input_device.id != output_device.id
+            && !is_device_a_type_of(input_device.id, DeviceType::OUTPUT)
+            && !is_device_a_type_of(output_device.id, DeviceType::INPUT)
+    }
+
     fn setup(&mut self) -> Result<()> {
         if self
             .input_stream_params
@@ -2450,7 +2481,7 @@ impl<'ctx> CoreStreamData<'ctx> {
         let mut in_dev_info = self.input_device.clone();
         let mut out_dev_info = self.output_device.clone();
 
-        if self.has_input() && self.has_output() && in_dev_info.id != out_dev_info.id {
+        if self.should_use_aggregate_device(&in_dev_info, &out_dev_info) {
             match AggregateDevice::new(in_dev_info.id, out_dev_info.id) {
                 Ok(device) => {
                     in_dev_info.id = device.get_device_id();
@@ -2458,17 +2489,19 @@ impl<'ctx> CoreStreamData<'ctx> {
                     in_dev_info.flags = device_flags::DEV_INPUT;
                     out_dev_info.flags = device_flags::DEV_OUTPUT;
                     self.aggregate_device = device;
+                    cubeb_log!(
+                        "({:p}) Use aggregate device {} for input and output.",
+                        self.stm_ptr,
+                        self.aggregate_device.get_device_id()
+                    );
                 }
                 Err(status) => {
                     cubeb_log!(
-                        "({:p}) Create aggregate devices failed. Error: {}",
+                        "({:p}) Create aggregate devices failed. Error: {}.\
+                         Use assigned devices directly instead.",
                         self.stm_ptr,
                         status
                     );
-                    // !!!NOTE: It is not necessary to return here. If it does not
-                    // return it will fallback to the old implementation. The intention
-                    // is to investigate how often it fails. I plan to remove
-                    // it after a couple of weeks.
                 }
             }
         }
