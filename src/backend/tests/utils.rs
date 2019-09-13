@@ -293,6 +293,50 @@ pub fn test_get_devices_in_scope(scope: Scope) -> Vec<AudioObjectID> {
     devices
 }
 
+pub fn test_print_devices_in_scope(scope: Scope) {
+    #[derive(Debug)]
+    struct Info {
+        id: AudioObjectID,
+        label: String,
+        uid: String,
+    }
+    impl Info {
+        fn new(id: AudioObjectID, label: String, uid: String) -> Self {
+            Self { id, label, uid }
+        }
+    }
+
+    let mut infos = Vec::new();
+    let devices = test_get_devices_in_scope(scope.clone());
+    for device in devices {
+        let label = match get_device_label(device, scope.clone().into()) {
+            Ok(label) => label.into_string(),
+            Err(status) => format!("Unknown: Error: {}", status).to_string(),
+        };
+
+        let uid = match get_device_uid(device, scope.clone().into()) {
+            Ok(uid) => uid.into_string(),
+            Err(status) => format!("Unknow: Error: {}", status).to_string(),
+        };
+
+        infos.push(Info::new(device, label, uid));
+    }
+
+    println!(
+        "\n{:?} devices\n\
+         --------------------",
+        scope
+    );
+    for info in infos {
+        print_info(&info);
+    }
+    println!("");
+
+    fn print_info(info: &Info) {
+        println!("{:>4}: {}\n\tuid: {}", info.id, info.label, info.uid);
+    }
+}
+
 pub fn test_device_channels_in_scope(
     id: AudioObjectID,
     scope: Scope,

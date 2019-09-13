@@ -17,8 +17,8 @@
 use super::utils::{
     test_create_device_change_listener, test_device_in_scope, test_get_default_device,
     test_get_devices_in_scope, test_get_stream_with_default_callbacks_by_type,
-    test_ops_stream_operation, test_set_default_device, Scope, StreamType, TestDevicePlugger,
-    TestDeviceSwitcher,
+    test_ops_stream_operation, test_print_devices_in_scope, test_set_default_device, Scope,
+    StreamType, TestDevicePlugger, TestDeviceSwitcher,
 };
 use super::*;
 use std::fmt::Debug;
@@ -32,6 +32,8 @@ fn test_switch_device() {
 }
 
 fn test_switch_device_in_scope(scope: Scope) {
+    test_print_devices_in_scope(scope.clone());
+
     // Do nothing if there is no 2 available devices at least.
     let devices = test_get_devices_in_scope(scope.clone());
     if devices.len() < 2 {
