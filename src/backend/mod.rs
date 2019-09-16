@@ -2434,21 +2434,9 @@ impl<'ctx> CoreStreamData<'ctx> {
     }
 
     fn should_use_aggregate_device(&self) -> bool {
-        // Only using aggregate device when
-        // 1. Stream is duplex
-        // 2. Input device is valid
-        // 3. Output device is valid
-        // 4. Input device and output device are different (based on their device id)
-        //   Some headset with mic will show different device ids for its
-        //   input and output, e.g., AirPods. They will be treated as different devices.
-        // 5. Input device is a microphone only device
-        // 6. Output device is a speaker only device
-        //   headset with mic is not a mic only and not a speaker only device
-
-        // Note that the `output_device` will be set anyway when reinitializing the stream,
-        // so we cannot rely on the `input_device` and `output_device` only. We must check
-        // `self.has_input()` and `self.has_output()` so we can make sure if the stream has
-        // input and output or not.
+        // Only using aggregate device when the input is a mic-only device and the output is a
+        // speaker-only device. Otherwise, the mic on the output device may become the main
+        // microphone of the aggregate device for this duplex stream.
         self.has_input()
             && self.has_output()
             && self.input_device.id != kAudioObjectUnknown
