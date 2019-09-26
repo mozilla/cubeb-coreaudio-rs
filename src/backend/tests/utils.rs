@@ -8,15 +8,6 @@ pub enum Scope {
     Output,
 }
 
-impl From<Scope> for io_side {
-    fn from(scope: Scope) -> Self {
-        match scope {
-            Scope::Input => io_side::INPUT,
-            Scope::Output => io_side::OUTPUT,
-        }
-    }
-}
-
 impl From<Scope> for DeviceType {
     fn from(scope: Scope) -> Self {
         match scope {

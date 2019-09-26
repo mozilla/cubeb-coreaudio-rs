@@ -31,16 +31,6 @@ fn test_make_sized_audio_channel_layout_with_wrong_size() {
     let _ = make_sized_audio_channel_layout(wrong_size);
 }
 
-// to_string
-// ------------------------------------
-#[test]
-fn test_to_string() {
-    let input = io_side::INPUT;
-    assert_eq!(input.to_string(), "input");
-    let output = io_side::OUTPUT;
-    assert_eq!(output.to_string(), "output");
-}
-
 // has_input
 // ------------------------------------
 // TODO
@@ -951,7 +941,7 @@ fn test_set_channel_layout_output() {
     let source = source.unwrap();
     let unit = unit.unwrap();
     if let Some(layout) = devices_layouts.get(source.as_str()) {
-        assert!(audiounit_set_channel_layout(unit.get_inner(), io_side::OUTPUT, *layout).is_ok());
+        assert!(audiounit_set_channel_layout(unit.get_inner(), *layout).is_ok());
         assert_eq!(
             audiounit_get_current_channel_layout(unit.get_inner()),
             *layout
@@ -967,12 +957,7 @@ fn test_set_channel_layout_output_undefind() {
         // Get original layout.
         let original_layout = audiounit_get_current_channel_layout(unit.get_inner());
         // Leave layout as it is.
-        assert!(audiounit_set_channel_layout(
-            unit.get_inner(),
-            io_side::OUTPUT,
-            ChannelLayout::UNDEFINED
-        )
-        .is_ok());
+        assert!(audiounit_set_channel_layout(unit.get_inner(), ChannelLayout::UNDEFINED).is_ok());
         // Check the layout is same as the original one.
         assert_eq!(
             audiounit_get_current_channel_layout(unit.get_inner()),
@@ -986,14 +971,14 @@ fn test_set_channel_layout_output_undefind() {
 #[test]
 fn test_set_channel_layout_input() {
     if let Some(unit) = test_get_default_audiounit(Scope::Input) {
+        // Get original layout.
+        let original_layout = audiounit_get_current_channel_layout(unit.get_inner());
+        // Leave layout as it is.
+        assert!(audiounit_set_channel_layout(unit.get_inner(), ChannelLayout::UNDEFINED).is_ok());
+        // Check the layout is same as the original one.
         assert_eq!(
-            audiounit_set_channel_layout(
-                unit.get_inner(),
-                io_side::INPUT,
-                ChannelLayout::UNDEFINED
-            )
-            .unwrap_err(),
-            Error::error()
+            audiounit_get_current_channel_layout(unit.get_inner()),
+            original_layout
         );
     } else {
         println!("No input audiounit.");
@@ -1003,12 +988,7 @@ fn test_set_channel_layout_input() {
 #[test]
 #[should_panic]
 fn test_set_channel_layout_with_null_unit() {
-    assert!(audiounit_set_channel_layout(
-        ptr::null_mut(),
-        io_side::OUTPUT,
-        ChannelLayout::UNDEFINED
-    )
-    .is_err());
+    assert!(audiounit_set_channel_layout(ptr::null_mut(), ChannelLayout::UNDEFINED).is_err());
 }
 
 // create_default_audiounit
@@ -1044,10 +1024,10 @@ fn test_enable_audiounit_scope() {
     // for the unit whose subtype is kAudioUnitSubType_HALOutput
     // even when there is no available input or output devices.
     if let Some(unit) = test_create_audiounit(ComponentSubType::HALOutput) {
-        assert!(enable_audiounit_scope(unit.get_inner(), io_side::OUTPUT, true).is_ok());
-        assert!(enable_audiounit_scope(unit.get_inner(), io_side::OUTPUT, false).is_ok());
-        assert!(enable_audiounit_scope(unit.get_inner(), io_side::INPUT, true).is_ok());
-        assert!(enable_audiounit_scope(unit.get_inner(), io_side::INPUT, false).is_ok());
+        assert!(enable_audiounit_scope(unit.get_inner(), DeviceType::OUTPUT, true).is_ok());
+        assert!(enable_audiounit_scope(unit.get_inner(), DeviceType::OUTPUT, false).is_ok());
+        assert!(enable_audiounit_scope(unit.get_inner(), DeviceType::INPUT, true).is_ok());
+        assert!(enable_audiounit_scope(unit.get_inner(), DeviceType::INPUT, false).is_ok());
     } else {
         println!("No audiounit to perform test.");
     }
@@ -1057,19 +1037,19 @@ fn test_enable_audiounit_scope() {
 fn test_enable_audiounit_scope_for_default_output_unit() {
     if let Some(unit) = test_create_audiounit(ComponentSubType::DefaultOutput) {
         assert_eq!(
-            enable_audiounit_scope(unit.get_inner(), io_side::OUTPUT, true).unwrap_err(),
+            enable_audiounit_scope(unit.get_inner(), DeviceType::OUTPUT, true).unwrap_err(),
             kAudioUnitErr_InvalidProperty
         );
         assert_eq!(
-            enable_audiounit_scope(unit.get_inner(), io_side::OUTPUT, false).unwrap_err(),
+            enable_audiounit_scope(unit.get_inner(), DeviceType::OUTPUT, false).unwrap_err(),
             kAudioUnitErr_InvalidProperty
         );
         assert_eq!(
-            enable_audiounit_scope(unit.get_inner(), io_side::INPUT, true).unwrap_err(),
+            enable_audiounit_scope(unit.get_inner(), DeviceType::INPUT, true).unwrap_err(),
             kAudioUnitErr_InvalidProperty
         );
         assert_eq!(
-            enable_audiounit_scope(unit.get_inner(), io_side::INPUT, false).unwrap_err(),
+            enable_audiounit_scope(unit.get_inner(), DeviceType::INPUT, false).unwrap_err(),
             kAudioUnitErr_InvalidProperty
         );
     }
@@ -1079,7 +1059,7 @@ fn test_enable_audiounit_scope_for_default_output_unit() {
 #[should_panic]
 fn test_enable_audiounit_scope_with_null_unit() {
     let unit: AudioUnit = ptr::null_mut();
-    assert!(enable_audiounit_scope(unit, io_side::INPUT, false).is_err());
+    assert!(enable_audiounit_scope(unit, DeviceType::INPUT, false).is_err());
 }
 
 // create_audiounit
