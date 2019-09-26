@@ -21,6 +21,7 @@
 
 ### Generics
 - Create a _generics_ for `input_linear_buffer`
+    - Consider replacing `AutoArrayWrapper` by [`ringbuf`](https://github.com/agerasev/ringbuf)
 
 ## Separate the stream implementation from the interface
 The goal is to separate the audio stream into two parts(modules).
