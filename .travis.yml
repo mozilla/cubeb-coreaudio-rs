@@ -10,5 +10,4 @@ before_script:
   - cargo --version
 script:
   - cargo build --verbose
-  - cargo test --verbose
   - sh run_tests.sh
