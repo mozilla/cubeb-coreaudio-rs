@@ -759,7 +759,7 @@ extern "C" fn audiounit_output_callback(
             let frames_to_bytes = |frames: usize| -> usize {
                 let sample_size =
                     cubeb_sample_size(stm.core_stream_data.output_stream_params.format());
-                let channel_count = stm.core_stream_data.output_desc.mChannelsPerFrame as usize;
+                let channel_count = stm.core_stream_data.output_stream_params.channels() as usize;
                 frames * sample_size * channel_count
             };
             let out_bytes = unsafe {
