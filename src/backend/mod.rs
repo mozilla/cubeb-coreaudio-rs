@@ -424,7 +424,7 @@ extern "C" fn audiounit_input_callback(
                    tstamp: *const AudioTimeStamp,
                    bus: u32,
                    input_frames: u32|
-     -> (ErrorHandle, Option<State>) {
+     -> ErrorHandle {
         assert_eq!(
             stm.core_stream_data.stm_ptr,
             user_ptr as *const AudioUnitStream
@@ -452,7 +452,7 @@ extern "C" fn audiounit_input_callback(
             && (status != kAudioUnitErr_CannotDoInCurrentContext
                 || stm.core_stream_data.output_unit.is_null())
         {
-            return (ErrorHandle::Return(status), None);
+            return ErrorHandle::Return(status);
         }
         let handle = if status == kAudioUnitErr_CannotDoInCurrentContext {
             assert!(!stm.core_stream_data.output_unit.is_null());
@@ -507,7 +507,7 @@ extern "C" fn audiounit_input_callback(
 
         // Full Duplex. We'll call data_callback in the AudioUnit output callback.
         if !stm.core_stream_data.output_unit.is_null() {
-            return (handle, None);
+            return handle;
         }
 
         // Input only. Call the user callback through resampler.
@@ -550,7 +550,6 @@ extern "C" fn audiounit_input_callback(
         );
         if outframes < total_input_frames {
             stm.draining.store(true, Ordering::SeqCst);
-            return (handle, None);
         }
         // Reset input buffer
         stm.core_stream_data
@@ -559,13 +558,10 @@ extern "C" fn audiounit_input_callback(
             .unwrap()
             .clear();
 
-        (handle, None)
+        handle
     };
 
-    let (handle, notification) = handler(stm, flags, tstamp, bus, input_frames);
-    if let Some(state) = notification {
-        stm.notify_state_changed(state);
-    }
+    let handle = handler(stm, flags, tstamp, bus, input_frames);
     let status = match handle {
         ErrorHandle::Reinit => {
             stm.reinit_async();
