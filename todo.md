@@ -11,9 +11,17 @@
 - Create a wrapper for `CFArrayCreateMutable` like what we do for `CFMutableDictionaryRef`
 - Create a wrapper for property listener’s callback
 - Change to official _coreaudio-sys_ after [pull #28](https://github.com/RustAudio/coreaudio-sys/pull/28) is is merged
+- Use `Option<AggregateDevice>` rather than `AggregateDevice` for `aggregate_device` in `CoreStreamData`
+
+### Type of stream
+- Use `Option<device_info>` rather than `device_info` for `{input, output}_device` in `CoreStreamData`
+- Use `Option<StreamParams>` rather than `StreamParams` for `{input, output}_stream_params` in `CoreStreamData`
+- Same as `{input, output}_desc`, `{input, output}_hw_rate`, ...etc
+- It would much clearer if we have a `struct X` to wrap all the above stuff and use `input_x` and `output_x` in `CoreStreamData`
 
 ### Generics
 - Create a _generics_ for `input_linear_buffer`
+    - Consider replacing `AutoArrayWrapper` by [`ringbuf`](https://github.com/agerasev/ringbuf)
 
 ## Separate the stream implementation from the interface
 The goal is to separate the audio stream into two parts(modules).
@@ -41,6 +49,15 @@ and create a new one. It's easier than the current implementation.
 ## Aggregate device
 ### Usage policy
 - [BMO 1563475][bmo1563475]: Only use _aggregate device_ when the mic is a input-only and the speaker is output-only device.
+- Test if we should do drift compensation.
+- Add a test for `should_use_aggregate_device`
+    - Create a dummy stream and check
+    - Check again after reinit
+        - Input only: expect false
+        - Output only: expect false
+        - Duplex
+            - Default input and output are different and they are mic-only and speaker-only: expect true
+            - Otherwise: expect false
 
 [bmo1563475]: https://bugzilla.mozilla.org/show_bug.cgi?id=1563475#c4
 ### Get sub devices
