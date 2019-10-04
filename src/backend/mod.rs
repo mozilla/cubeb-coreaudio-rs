@@ -408,6 +408,15 @@ extern "C" fn audiounit_input_callback(
         return NO_ERR;
     }
 
+    // Cancel the callback if draining is set.
+    if stm.draining.load(Ordering::SeqCst) {
+        assert!(stop_audiounit(stm.core_stream_data.input_unit).is_ok());
+        // Currently, only output callback can set `stm.draining`, so the stream
+        // must be duplex. The state callback is fired in the output callback.
+        assert!(!stm.core_stream_data.output_unit.is_null());
+        return NO_ERR;
+    }
+
     let handler = |stm: &mut AudioUnitStream,
                    flags: *mut AudioUnitRenderActionFlags,
                    tstamp: *const AudioTimeStamp,
@@ -635,7 +644,9 @@ extern "C" fn audiounit_output_callback(
     }
 
     if stm.draining.load(Ordering::SeqCst) {
-        stm.core_stream_data.stop_audiounits();
+        // Cancel the output callback only. For duplex stream,
+        // the input callback will be cancelled in its own callback.
+        assert!(stop_audiounit(stm.core_stream_data.output_unit).is_ok());
         stm.notify_state_changed(State::Drained);
         audiounit_make_silent(&mut buffers[0]);
         return NO_ERR;
