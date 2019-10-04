@@ -408,12 +408,14 @@ extern "C" fn audiounit_input_callback(
         return NO_ERR;
     }
 
-    // Cancel the callback if draining is set.
+    // Cancel this callback if the stream is drained.
     if stm.draining.load(Ordering::SeqCst) {
         assert!(stop_audiounit(stm.core_stream_data.input_unit).is_ok());
-        // Currently, only output callback can set `stm.draining`, so the stream
-        // must be duplex. The state callback is fired in the output callback.
-        assert!(!stm.core_stream_data.output_unit.is_null());
+        // Only fire state-changed callback for input-only stream.
+        // The state-changed callback for the duplex stream is fired in the output callback.
+        if stm.core_stream_data.output_unit.is_null() {
+            stm.notify_state_changed(State::Drained);
+        }
         return NO_ERR;
     }
 
@@ -547,11 +549,8 @@ extern "C" fn audiounit_input_callback(
             0,
         );
         if outframes < total_input_frames {
-            assert_eq!(
-                audio_output_unit_stop(stm.core_stream_data.input_unit),
-                NO_ERR
-            );
-            return (handle, Some(State::Drained));
+            stm.draining.store(true, Ordering::SeqCst);
+            return (handle, None);
         }
         // Reset input buffer
         stm.core_stream_data
