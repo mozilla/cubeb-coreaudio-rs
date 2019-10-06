@@ -408,17 +408,6 @@ extern "C" fn audiounit_input_callback(
         return NO_ERR;
     }
 
-    // Cancel this callback if the stream is drained.
-    if stm.draining.load(Ordering::SeqCst) {
-        assert!(stop_audiounit(stm.core_stream_data.input_unit).is_ok());
-        // Only fire state-changed callback for input-only stream.
-        // The state-changed callback for the duplex stream is fired in the output callback.
-        if stm.core_stream_data.output_unit.is_null() {
-            stm.notify_state_changed(State::Drained);
-        }
-        return NO_ERR;
-    }
-
     let handler = |stm: &mut AudioUnitStream,
                    flags: *mut AudioUnitRenderActionFlags,
                    tstamp: *const AudioTimeStamp,
@@ -561,7 +550,24 @@ extern "C" fn audiounit_input_callback(
         handle
     };
 
-    let handle = handler(stm, flags, tstamp, bus, input_frames);
+    // If the stream is drained, do nothing.
+    let handle = if !stm.draining.load(Ordering::SeqCst) {
+        handler(stm, flags, tstamp, bus, input_frames)
+    } else {
+        ErrorHandle::Return(NO_ERR)
+    };
+
+    // If the input (input-only stream) or the output is drained (duplex stream),
+    // cancel this callback.
+    if stm.draining.load(Ordering::SeqCst) {
+        assert!(stop_audiounit(stm.core_stream_data.input_unit).is_ok());
+        // Only fire state-changed callback for input-only stream.
+        // The state-changed callback for the duplex stream is fired in the output callback.
+        if stm.core_stream_data.output_unit.is_null() {
+            stm.notify_state_changed(State::Drained);
+        }
+    }
+
     let status = match handle {
         ErrorHandle::Reinit => {
             stm.reinit_async();
