@@ -13,7 +13,6 @@ mod auto_array;
 mod auto_release;
 mod device_property;
 mod mixer;
-mod property_address;
 mod resampler;
 mod utils;
 
@@ -29,7 +28,6 @@ use self::coreaudio_sys_utils::string::*;
 use self::coreaudio_sys_utils::sys::*;
 use self::device_property::*;
 use self::mixer::*;
-use self::property_address::*;
 use self::resampler::*;
 use self::utils::*;
 use atomic;
@@ -118,14 +116,14 @@ impl Default for device_info {
 #[derive(Debug)]
 struct device_property_listener {
     device: AudioDeviceID,
-    property: &'static AudioObjectPropertyAddress,
+    property: AudioObjectPropertyAddress,
     listener: audio_object_property_listener_proc,
 }
 
 impl device_property_listener {
     fn new(
         device: AudioDeviceID,
-        property: &'static AudioObjectPropertyAddress,
+        property: AudioObjectPropertyAddress,
         listener: audio_object_property_listener_proc,
     ) -> Self {
         Self {
@@ -904,17 +902,18 @@ extern "C" fn audiounit_property_listener_callback(
 }
 
 fn audiounit_get_default_device_id(devtype: DeviceType) -> AudioObjectID {
-    assert!(devtype == DeviceType::INPUT || devtype == DeviceType::OUTPUT);
-
-    let adr = if devtype == DeviceType::OUTPUT {
-        &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS
-    } else {
-        &DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS
-    };
+    let address = get_property_address(
+        match devtype {
+            DeviceType::INPUT => Property::HardwareDefaultInputDevice,
+            DeviceType::OUTPUT => Property::HardwareDefaultOutputDevice,
+            _ => panic!("Unsupport type"),
+        },
+        DeviceType::INPUT | DeviceType::OUTPUT,
+    );
 
     let mut devid: AudioDeviceID = kAudioObjectUnknown;
     let mut size = mem::size_of::<AudioDeviceID>();
-    if audio_object_get_property_data(kAudioObjectSystemObject, adr, &mut size, &mut devid)
+    if audio_object_get_property_data(kAudioObjectSystemObject, &address, &mut size, &mut devid)
         != NO_ERR
     {
         return kAudioObjectUnknown;
@@ -1712,11 +1711,12 @@ fn audiounit_device_destroy(device: &mut ffi::cubeb_device_info) {
 
 fn audiounit_get_devices() -> Vec<AudioObjectID> {
     let mut size: usize = 0;
-    let mut ret = audio_object_get_property_data_size(
-        kAudioObjectSystemObject,
-        &DEVICES_PROPERTY_ADDRESS,
-        &mut size,
+    let address = get_property_address(
+        Property::HardwareDevices,
+        DeviceType::INPUT | DeviceType::OUTPUT,
     );
+    let mut ret =
+        audio_object_get_property_data_size(kAudioObjectSystemObject, &address, &mut size);
     if ret != NO_ERR {
         return Vec::new();
     }
@@ -1724,7 +1724,7 @@ fn audiounit_get_devices() -> Vec<AudioObjectID> {
     let mut devices: Vec<AudioObjectID> = allocate_array_by_size(size);
     ret = audio_object_get_property_data(
         kAudioObjectSystemObject,
-        &DEVICES_PROPERTY_ADDRESS,
+        &address,
         &mut size,
         devices.as_mut_ptr(),
     );
@@ -1983,9 +1983,13 @@ impl AudioUnitContext {
         }
 
         if devices.input.changed_callback.is_none() && devices.output.changed_callback.is_none() {
+            let address = get_property_address(
+                Property::HardwareDevices,
+                DeviceType::INPUT | DeviceType::OUTPUT,
+            );
             let ret = audio_object_add_property_listener(
                 kAudioObjectSystemObject,
-                &DEVICES_PROPERTY_ADDRESS,
+                &address,
                 audiounit_collection_changed_callback,
                 context_ptr,
             );
@@ -2042,10 +2046,14 @@ impl AudioUnitContext {
             return Ok(());
         }
 
+        let address = get_property_address(
+            Property::HardwareDevices,
+            DeviceType::INPUT | DeviceType::OUTPUT,
+        );
         // Note: unregister a non registered cb is not a problem, not checking.
         let r = audio_object_remove_property_listener(
             kAudioObjectSystemObject,
-            &DEVICES_PROPERTY_ADDRESS,
+            &address,
             audiounit_collection_changed_callback,
             context_ptr,
         );
@@ -2941,7 +2949,7 @@ impl<'ctx> CoreStreamData<'ctx> {
 
             self.output_source_listener = Some(device_property_listener::new(
                 self.output_device.id,
-                &OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS,
+                get_property_address(Property::DeviceSource, DeviceType::OUTPUT),
                 audiounit_property_listener_callback,
             ));
             let rv = stm.add_device_listener(self.output_source_listener.as_ref().unwrap());
@@ -2959,7 +2967,7 @@ impl<'ctx> CoreStreamData<'ctx> {
 
             self.input_source_listener = Some(device_property_listener::new(
                 self.input_device.id,
-                &INPUT_DATA_SOURCE_PROPERTY_ADDRESS,
+                get_property_address(Property::DeviceSource, DeviceType::INPUT),
                 audiounit_property_listener_callback,
             ));
             let rv = stm.add_device_listener(self.input_source_listener.as_ref().unwrap());
@@ -2972,7 +2980,10 @@ impl<'ctx> CoreStreamData<'ctx> {
             // Event to notify when the input is going away.
             self.input_alive_listener = Some(device_property_listener::new(
                 self.input_device.id,
-                &DEVICE_IS_ALIVE_PROPERTY_ADDRESS,
+                get_property_address(
+                    Property::DeviceIsAlive,
+                    DeviceType::INPUT | DeviceType::OUTPUT,
+                ),
                 audiounit_property_listener_callback,
             ));
             let rv = stm.add_device_listener(self.input_alive_listener.as_ref().unwrap());
@@ -2997,7 +3008,10 @@ impl<'ctx> CoreStreamData<'ctx> {
             // dropdown list.
             self.default_output_listener = Some(device_property_listener::new(
                 kAudioObjectSystemObject,
-                &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+                get_property_address(
+                    Property::HardwareDefaultOutputDevice,
+                    DeviceType::INPUT | DeviceType::OUTPUT,
+                ),
                 audiounit_property_listener_callback,
             ));
             let r = stm.add_device_listener(self.default_output_listener.as_ref().unwrap());
@@ -3012,7 +3026,10 @@ impl<'ctx> CoreStreamData<'ctx> {
             // This event will notify us when the default input device changes.
             self.default_input_listener = Some(device_property_listener::new(
                 kAudioObjectSystemObject,
-                &DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS,
+                get_property_address(
+                    Property::HardwareDefaultInputDevice,
+                    DeviceType::INPUT | DeviceType::OUTPUT,
+                ),
                 audiounit_property_listener_callback,
             ));
             let r = stm.add_device_listener(self.default_input_listener.as_ref().unwrap());
@@ -3174,7 +3191,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
     fn add_device_listener(&self, listener: &device_property_listener) -> OSStatus {
         audio_object_add_property_listener(
             listener.device,
-            listener.property,
+            &listener.property,
             listener.listener,
             self as *const Self as *mut c_void,
         )
@@ -3183,7 +3200,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
     fn remove_device_listener(&self, listener: &device_property_listener) -> OSStatus {
         audio_object_remove_property_listener(
             listener.device,
-            listener.property,
+            &listener.property,
             listener.listener,
             self as *const Self as *mut c_void,
         )

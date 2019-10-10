@@ -139,14 +139,20 @@ fn test_add_then_remove_listeners() {
 
         let default_output_listener = device_property_listener::new(
             kAudioObjectSystemObject,
-            &DEFAULT_OUTPUT_DEVICE_PROPERTY_ADDRESS,
+            get_property_address(
+                Property::HardwareDefaultOutputDevice,
+                DeviceType::INPUT | DeviceType::OUTPUT,
+            ),
             callback,
         );
         listeners.push(default_output_listener);
 
         let default_input_listener = device_property_listener::new(
             kAudioObjectSystemObject,
-            &DEFAULT_INPUT_DEVICE_PROPERTY_ADDRESS,
+            get_property_address(
+                Property::HardwareDefaultInputDevice,
+                DeviceType::INPUT | DeviceType::OUTPUT,
+            ),
             callback,
         );
         listeners.push(default_input_listener);
@@ -154,7 +160,7 @@ fn test_add_then_remove_listeners() {
         if let Some(device) = test_get_default_device(Scope::Output) {
             let output_source_listener = device_property_listener::new(
                 device,
-                &OUTPUT_DATA_SOURCE_PROPERTY_ADDRESS,
+                get_property_address(Property::DeviceSource, DeviceType::OUTPUT),
                 callback,
             );
             listeners.push(output_source_listener);
@@ -163,13 +169,19 @@ fn test_add_then_remove_listeners() {
         if let Some(device) = test_get_default_device(Scope::Input) {
             let input_source_listener = device_property_listener::new(
                 device,
-                &INPUT_DATA_SOURCE_PROPERTY_ADDRESS,
+                get_property_address(Property::DeviceSource, DeviceType::INPUT),
                 callback,
             );
             listeners.push(input_source_listener);
 
-            let input_alive_listener =
-                device_property_listener::new(device, &DEVICE_IS_ALIVE_PROPERTY_ADDRESS, callback);
+            let input_alive_listener = device_property_listener::new(
+                device,
+                get_property_address(
+                    Property::DeviceIsAlive,
+                    DeviceType::INPUT | DeviceType::OUTPUT,
+                ),
+                callback,
+            );
             listeners.push(input_alive_listener);
         }
 

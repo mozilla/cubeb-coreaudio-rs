@@ -261,8 +261,9 @@ pub fn get_stream_latency(
     }
 }
 
-enum Property {
+pub enum Property {
     DeviceBufferFrameSizeRange,
+    DeviceIsAlive,
     DeviceLatency,
     DeviceManufacturer,
     DeviceName,
@@ -274,6 +275,9 @@ enum Property {
     DeviceStreamFormat,
     DeviceStreams,
     DeviceUID,
+    HardwareDefaultInputDevice,
+    HardwareDefaultOutputDevice,
+    HardwareDevices,
     StreamLatency,
 }
 
@@ -281,6 +285,7 @@ impl From<Property> for AudioObjectPropertySelector {
     fn from(p: Property) -> Self {
         match p {
             Property::DeviceBufferFrameSizeRange => kAudioDevicePropertyBufferFrameSizeRange,
+            Property::DeviceIsAlive => kAudioDevicePropertyDeviceIsAlive,
             Property::DeviceLatency => kAudioDevicePropertyLatency,
             Property::DeviceManufacturer => kAudioObjectPropertyManufacturer,
             Property::DeviceName => kAudioObjectPropertyName,
@@ -292,12 +297,15 @@ impl From<Property> for AudioObjectPropertySelector {
             Property::DeviceStreamFormat => kAudioDevicePropertyStreamFormat,
             Property::DeviceStreams => kAudioDevicePropertyStreams,
             Property::DeviceUID => kAudioDevicePropertyDeviceUID,
+            Property::HardwareDefaultInputDevice => kAudioHardwarePropertyDefaultInputDevice,
+            Property::HardwareDefaultOutputDevice => kAudioHardwarePropertyDefaultOutputDevice,
+            Property::HardwareDevices => kAudioHardwarePropertyDevices,
             Property::StreamLatency => kAudioStreamPropertyLatency,
         }
     }
 }
 
-fn get_property_address(property: Property, devtype: DeviceType) -> AudioObjectPropertyAddress {
+pub fn get_property_address(property: Property, devtype: DeviceType) -> AudioObjectPropertyAddress {
     const GLOBAL: ffi::cubeb_device_type =
         ffi::CUBEB_DEVICE_TYPE_INPUT | ffi::CUBEB_DEVICE_TYPE_OUTPUT;
     let scope = match devtype.bits() {
