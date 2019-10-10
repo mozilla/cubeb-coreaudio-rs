@@ -5,12 +5,10 @@
 - Remove `#[allow(non_camel_case_types)]`, `#![allow(unused_assignments)]`, `#![allow(unused_must_use)]`
 - Use `ErrorChain`
 - Centralize the error log in one place
-- Merge _property_address.rs_ and _device_property.rs_
 - Support `enumerate_devices` with in-out type?
 - Monitor `kAudioDevicePropertyDeviceIsAlive` for output device.
 - Create a wrapper for `CFArrayCreateMutable` like what we do for `CFMutableDictionaryRef`
 - Create a wrapper for property listener’s callback
-- Change to official _coreaudio-sys_ after [pull #28](https://github.com/RustAudio/coreaudio-sys/pull/28) is is merged
 - Use `Option<AggregateDevice>` rather than `AggregateDevice` for `aggregate_device` in `CoreStreamData`
 
 ### Type of stream
