@@ -73,7 +73,6 @@ See [todo list][todo]
   - Another weird thing is that we will get a `kAudioUnitErr_InvalidPropertyValue`
     if we set the layout to _QUAD_. It's the same layout as its original one but it cannot be set!
 - `kAudioDevicePropertyBufferFrameSize` cannot be set when another stream using the same device with smaller buffer size is active. See [here][chg-buf-sz] for details.
-- Potential deadlock issue: see [BMO 1572273][bmo1572273] (especially [comment 13][bmo1572273-c13])
 
 ### Test issues
 - Fail to run tests that depend on `AggregateDevice::create_blank_device` with the tests that work with the device event listeners
