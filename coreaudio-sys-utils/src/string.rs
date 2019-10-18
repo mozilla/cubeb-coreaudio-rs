@@ -128,11 +128,9 @@ fn utf8_from_cfstringref(string_ref: CFStringRef) -> Vec<u8> {
 mod test {
     use super::*;
 
-    const STATIC_STRING: &str = "static string for testing";
-    const STATIC_EMPTY_STRING: &str = "";
-
     #[test]
     fn test_create_static_cfstring_ref() {
+        const STATIC_STRING: &str = "static string for testing";
         let stringref =
             StringRef::new(cfstringref_from_static_string(STATIC_STRING) as CFStringRef);
         assert_eq!(STATIC_STRING, stringref.to_string());
@@ -145,6 +143,7 @@ mod test {
 
     #[test]
     fn test_create_static_empty_cfstring_ref() {
+        const STATIC_EMPTY_STRING: &str = "";
         let stringref =
             StringRef::new(cfstringref_from_static_string(STATIC_EMPTY_STRING) as CFStringRef);
         assert_eq!(STATIC_EMPTY_STRING, stringref.to_string());
