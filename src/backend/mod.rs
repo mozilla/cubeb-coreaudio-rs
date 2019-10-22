@@ -1758,8 +1758,10 @@ fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID> {
 
     let mut devices_in_scope = Vec::new();
     for device in devices {
-        if get_channel_count(device, devtype).unwrap() > 0 {
-            devices_in_scope.push(device);
+        if let Ok(channels) = get_channel_count(device, devtype) {
+            if channels > 0 {
+                devices_in_scope.push(device);
+            }
         }
     }
 
