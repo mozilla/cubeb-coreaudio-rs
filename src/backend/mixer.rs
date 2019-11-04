@@ -154,12 +154,23 @@ impl Mixer {
         out_channel_count: usize,
         mut output_channels: Vec<mixer::Channel>,
     ) -> Self {
+        // The input channel layout is expected to be a standard SMPTR layout.
         assert_eq!(
             in_channel_count as u32,
             input_layout.bits().count_ones(),
             "Mismatch between input channels and layout"
         );
         let input_channels = get_channel_order(input_layout);
+
+        // When having one or two channel, force mono or stereo. Some devices (namely,
+        // Bose QC35, mark 1 and 2), expose a single channel mapped to the right for
+        // some reason.
+        // TODO: Only apply this setting when device is Bose QC35 (by device_property.rs).
+        if out_channel_count == 1 {
+            output_channels = vec![mixer::Channel::FrontCenter];
+        } else if out_channel_count == 2 {
+            output_channels = vec![mixer::Channel::FrontLeft, mixer::Channel::FrontRight];
+        }
 
         let all_slience = vec![mixer::Channel::Silence; out_channel_count];
         if output_channels.len() == 0

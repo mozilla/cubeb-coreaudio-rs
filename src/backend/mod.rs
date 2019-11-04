@@ -944,15 +944,6 @@ fn audiounit_get_default_device_id(devtype: DeviceType) -> AudioObjectID {
 }
 
 fn audiounit_convert_channel_layout(layout: &AudioChannelLayout) -> Vec<mixer::Channel> {
-    // When having one or two channel, force mono or stereo. Some devices (namely,
-    // Bose QC35, mark 1 and 2), expose a single channel mapped to the right for
-    // some reason.
-    if layout.mNumberChannelDescriptions == 1 {
-        return vec![mixer::Channel::FrontCenter];
-    } else if layout.mNumberChannelDescriptions == 2 {
-        return vec![mixer::Channel::FrontLeft, mixer::Channel::FrontRight];
-    }
-
     if layout.mChannelLayoutTag != kAudioChannelLayoutTag_UseChannelDescriptions {
         // kAudioChannelLayoutTag_UseChannelBitmap
         // kAudioChannelLayoutTag_Mono
