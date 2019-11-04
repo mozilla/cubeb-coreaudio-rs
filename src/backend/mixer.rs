@@ -154,6 +154,15 @@ impl Mixer {
         out_channel_count: usize,
         mut output_channels: Vec<mixer::Channel>,
     ) -> Self {
+        cubeb_log!(
+            "Create a mixer with input channel count: {}, input layout: {:?}, \
+             out channel count: {}, output channels: {:?}",
+            in_channel_count,
+            input_layout,
+            out_channel_count,
+            output_channels
+        );
+
         let input_channels = if in_channel_count as u32 != input_layout.bits().count_ones() {
             cubeb_log!("Mismatch between input channels and layout. Apply default layout instead");
             get_default_channel_order(in_channel_count)
