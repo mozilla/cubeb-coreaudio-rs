@@ -199,7 +199,9 @@ impl Into<mixer::Channel> for CAChannelLabel {
         match self.0 {
             sys::kAudioChannelLabel_Left => mixer::Channel::FrontLeft,
             sys::kAudioChannelLabel_Right => mixer::Channel::FrontRight,
-            sys::kAudioChannelLabel_Center => mixer::Channel::FrontCenter,
+            sys::kAudioChannelLabel_Center | sys::kAudioChannelLabel_Mono => {
+                mixer::Channel::FrontCenter
+            }
             sys::kAudioChannelLabel_LFEScreen => mixer::Channel::LowFrequency,
             sys::kAudioChannelLabel_LeftSurround => mixer::Channel::BackLeft,
             sys::kAudioChannelLabel_RightSurround => mixer::Channel::BackRight,
