@@ -32,9 +32,8 @@ use self::resampler::*;
 use self::utils::*;
 use atomic;
 use cubeb_backend::{
-    ffi, ChannelLayout, Context, ContextOps, DeviceCollectionRef, DeviceId, DeviceRef, DeviceType,
-    Error, Ops, Result, SampleFormat, State, Stream, StreamOps, StreamParams, StreamParamsRef,
-    StreamPrefs,
+    ffi, Context, ContextOps, DeviceCollectionRef, DeviceId, DeviceRef, DeviceType, Error, Ops,
+    Result, SampleFormat, State, Stream, StreamOps, StreamParams, StreamParamsRef, StreamPrefs,
 };
 use mach::mach_time::{mach_absolute_time, mach_timebase_info};
 use std::cmp;
@@ -136,62 +135,6 @@ impl device_property_listener {
 
 #[derive(Debug, PartialEq)]
 struct CAChannelLabel(AudioChannelLabel);
-
-impl From<ChannelLayout> for CAChannelLabel {
-    fn from(layout: ChannelLayout) -> Self {
-        // Make sure the layout is a channel (only one bit set to 1)
-        assert_eq!(layout.bits() & (layout.bits() - 1), 0);
-        let channel = match layout {
-            ChannelLayout::FRONT_LEFT => kAudioChannelLabel_Left,
-            ChannelLayout::FRONT_RIGHT => kAudioChannelLabel_Right,
-            ChannelLayout::FRONT_CENTER => kAudioChannelLabel_Center,
-            ChannelLayout::LOW_FREQUENCY => kAudioChannelLabel_LFEScreen,
-            ChannelLayout::BACK_LEFT => kAudioChannelLabel_LeftSurround,
-            ChannelLayout::BACK_RIGHT => kAudioChannelLabel_RightSurround,
-            ChannelLayout::FRONT_LEFT_OF_CENTER => kAudioChannelLabel_LeftCenter,
-            ChannelLayout::FRONT_RIGHT_OF_CENTER => kAudioChannelLabel_RightCenter,
-            ChannelLayout::BACK_CENTER => kAudioChannelLabel_CenterSurround,
-            ChannelLayout::SIDE_LEFT => kAudioChannelLabel_LeftSurroundDirect,
-            ChannelLayout::SIDE_RIGHT => kAudioChannelLabel_RightSurroundDirect,
-            ChannelLayout::TOP_CENTER => kAudioChannelLabel_TopCenterSurround,
-            ChannelLayout::TOP_FRONT_LEFT => kAudioChannelLabel_VerticalHeightLeft,
-            ChannelLayout::TOP_FRONT_CENTER => kAudioChannelLabel_VerticalHeightCenter,
-            ChannelLayout::TOP_FRONT_RIGHT => kAudioChannelLabel_VerticalHeightRight,
-            ChannelLayout::TOP_BACK_LEFT => kAudioChannelLabel_TopBackLeft,
-            ChannelLayout::TOP_BACK_CENTER => kAudioChannelLabel_TopBackCenter,
-            ChannelLayout::TOP_BACK_RIGHT => kAudioChannelLabel_TopBackRight,
-            _ => kAudioChannelLabel_Unknown,
-        };
-        Self(channel)
-    }
-}
-
-impl Into<ChannelLayout> for CAChannelLabel {
-    fn into(self) -> ChannelLayout {
-        use self::coreaudio_sys_utils::sys;
-        match self.0 {
-            sys::kAudioChannelLabel_Left => ChannelLayout::FRONT_LEFT,
-            sys::kAudioChannelLabel_Right => ChannelLayout::FRONT_RIGHT,
-            sys::kAudioChannelLabel_Center => ChannelLayout::FRONT_CENTER,
-            sys::kAudioChannelLabel_LFEScreen => ChannelLayout::LOW_FREQUENCY,
-            sys::kAudioChannelLabel_LeftSurround => ChannelLayout::BACK_LEFT,
-            sys::kAudioChannelLabel_RightSurround => ChannelLayout::BACK_RIGHT,
-            sys::kAudioChannelLabel_LeftCenter => ChannelLayout::FRONT_LEFT_OF_CENTER,
-            sys::kAudioChannelLabel_RightCenter => ChannelLayout::FRONT_RIGHT_OF_CENTER,
-            sys::kAudioChannelLabel_CenterSurround => ChannelLayout::BACK_CENTER,
-            sys::kAudioChannelLabel_LeftSurroundDirect => ChannelLayout::SIDE_LEFT,
-            sys::kAudioChannelLabel_RightSurroundDirect => ChannelLayout::SIDE_RIGHT,
-            sys::kAudioChannelLabel_TopCenterSurround => ChannelLayout::TOP_CENTER,
-            sys::kAudioChannelLabel_VerticalHeightLeft => ChannelLayout::TOP_FRONT_LEFT,
-            sys::kAudioChannelLabel_VerticalHeightCenter => ChannelLayout::TOP_FRONT_CENTER,
-            sys::kAudioChannelLabel_VerticalHeightRight => ChannelLayout::TOP_FRONT_RIGHT,
-            sys::kAudioChannelLabel_TopBackLeft => ChannelLayout::TOP_BACK_LEFT,
-            sys::kAudioChannelLabel_TopBackCenter => ChannelLayout::TOP_BACK_CENTER,
-            sys::kAudioChannelLabel_TopBackRight => ChannelLayout::TOP_BACK_RIGHT,
-            _ => ChannelLayout::UNDEFINED,
-        }
-    }
-}
 
 impl Into<mixer::Channel> for CAChannelLabel {
     fn into(self) -> mixer::Channel {
