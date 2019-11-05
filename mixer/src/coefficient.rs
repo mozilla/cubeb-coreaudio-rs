@@ -128,6 +128,14 @@ where
         self.would_overflow_from_coefficient_value
     }
 
+    pub fn input_channels(&self) -> &[Channel] {
+        &self.input_layout.channels
+    }
+
+    pub fn output_channels(&self) -> &[Channel] {
+        &self.output_layout.channels
+    }
+
     // Given audio input and output channel-maps, generate a CxC mixing coefficients matrix M,
     // whose indice are ordered by the values defined in enum Channel, such that
     // output_data(i) = Σ M[i][j] * input_data(j), for all j in [0, C),

@@ -46,6 +46,16 @@ where
     // where i is in [0, N) and coefficient is a function returning mixing coefficient from
     // input channel j to output channel i.
     pub fn mix(&self, input_buffer: &[T], output_buffer: &mut [T]) {
+        assert_eq!(
+            input_buffer.len(),
+            self.input_channels().len(),
+            "input slice must have the same size as the input channel's one."
+        );
+        assert_eq!(
+            output_buffer.len(),
+            self.output_channels().len(),
+            "output slice must have the same size as the output channel's one."
+        );
         for (i, output) in output_buffer.iter_mut().enumerate() {
             // T must implement Default that returns a zero value from default().
             let mut value = T::Coef::default(); // Create a zero value.
@@ -59,5 +69,13 @@ where
                 self.coefficient.would_overflow_from_coefficient_value(),
             );
         }
+    }
+
+    pub fn input_channels(&self) -> &[Channel] {
+        &self.coefficient.input_channels()
+    }
+
+    pub fn output_channels(&self) -> &[Channel] {
+        &self.coefficient.output_channels()
     }
 }

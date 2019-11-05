@@ -85,12 +85,24 @@ impl MixerType {
         }
     }
 
+    fn input_channels(&self) -> &[Channel] {
+        match self {
+            MixerType::IntegerMixer(m) => m.input_channels(),
+            MixerType::FloatMixer(m) => m.input_channels(),
+        }
+    }
+
+    fn output_channels(&self) -> &[Channel] {
+        match self {
+            MixerType::IntegerMixer(m) => m.output_channels(),
+            MixerType::FloatMixer(m) => m.output_channels(),
+        }
+    }
+
     fn mix(
         &self,
-        input_channels: &[mixer::Channel],
         input_buffer_ptr: *const u8,
         input_buffer_size: usize,
-        output_channels: &[mixer::Channel],
         output_buffer_ptr: *mut u8,
         output_buffer_size: usize,
         frames: usize,
@@ -98,23 +110,24 @@ impl MixerType {
         use std::slice;
 
         // Check input buffer size.
-        let size_needed = frames * input_channels.len() * self.sample_size();
+        let size_needed = frames * self.input_channels().len() * self.sample_size();
         assert!(input_buffer_size >= size_needed);
         // Check output buffer size.
-        let size_needed = frames * output_channels.len() * self.sample_size();
+        let size_needed = frames * self.output_channels().len() * self.sample_size();
         assert!(output_buffer_size >= size_needed);
 
         match self {
             MixerType::IntegerMixer(m) => {
                 let in_buf_ptr = input_buffer_ptr as *const i16;
                 let out_buf_ptr = output_buffer_ptr as *mut i16;
-                let input_buffer =
-                    unsafe { slice::from_raw_parts(in_buf_ptr, frames * input_channels.len()) };
-                let output_buffer = unsafe {
-                    slice::from_raw_parts_mut(out_buf_ptr, frames * output_channels.len())
+                let input_buffer = unsafe {
+                    slice::from_raw_parts(in_buf_ptr, frames * self.input_channels().len())
                 };
-                let mut in_buf = input_buffer.chunks(input_channels.len());
-                let mut out_buf = output_buffer.chunks_mut(output_channels.len());
+                let output_buffer = unsafe {
+                    slice::from_raw_parts_mut(out_buf_ptr, frames * self.output_channels().len())
+                };
+                let mut in_buf = input_buffer.chunks(self.input_channels().len());
+                let mut out_buf = output_buffer.chunks_mut(self.output_channels().len());
                 for _ in 0..frames {
                     m.mix(in_buf.next().unwrap(), out_buf.next().unwrap());
                 }
@@ -122,13 +135,14 @@ impl MixerType {
             MixerType::FloatMixer(m) => {
                 let in_buf_ptr = input_buffer_ptr as *const f32;
                 let out_buf_ptr = output_buffer_ptr as *mut f32;
-                let input_buffer =
-                    unsafe { slice::from_raw_parts(in_buf_ptr, frames * input_channels.len()) };
-                let output_buffer = unsafe {
-                    slice::from_raw_parts_mut(out_buf_ptr, frames * output_channels.len())
+                let input_buffer = unsafe {
+                    slice::from_raw_parts(in_buf_ptr, frames * self.input_channels().len())
                 };
-                let mut in_buf = input_buffer.chunks(input_channels.len());
-                let mut out_buf = output_buffer.chunks_mut(output_channels.len());
+                let output_buffer = unsafe {
+                    slice::from_raw_parts_mut(out_buf_ptr, frames * self.output_channels().len())
+                };
+                let mut in_buf = input_buffer.chunks(self.input_channels().len());
+                let mut out_buf = output_buffer.chunks_mut(self.output_channels().len());
                 for _ in 0..frames {
                     m.mix(in_buf.next().unwrap(), out_buf.next().unwrap());
                 }
@@ -140,8 +154,6 @@ impl MixerType {
 #[derive(Debug)]
 pub struct Mixer {
     mixer: MixerType,
-    input_channels: Vec<mixer::Channel>,
-    output_channels: Vec<mixer::Channel>,
     // Only accessed from callback thread.
     buffer: Vec<u8>,
 }
@@ -190,16 +202,13 @@ impl Mixer {
         }
 
         Self {
-            // TODO: Get input and output channels from mixer instead of copying them.
-            mixer: MixerType::new(format, input_channels.clone(), output_channels.clone()),
-            input_channels,
-            output_channels,
+            mixer: MixerType::new(format, input_channels, output_channels),
             buffer: Vec::new(),
         }
     }
 
     pub fn update_buffer_size(&mut self, frames: usize) -> bool {
-        let size_needed = frames * self.input_channels.len() * self.mixer.sample_size();
+        let size_needed = frames * self.mixer.input_channels().len() * self.mixer.sample_size();
         let elements_needed = size_needed / mem::size_of::<u8>();
         if self.buffer.len() < elements_needed {
             self.buffer.resize(elements_needed, 0);
@@ -217,10 +226,8 @@ impl Mixer {
     pub fn mix(&self, frames: usize, dest_buffer: *mut c_void, dest_buffer_size: usize) -> c_int {
         let (src_buffer_ptr, src_buffer_size) = self.get_buffer_info();
         self.mixer.mix(
-            &self.input_channels,
             src_buffer_ptr,
             src_buffer_size,
-            &self.output_channels,
             dest_buffer as *mut u8,
             dest_buffer_size,
             frames,
