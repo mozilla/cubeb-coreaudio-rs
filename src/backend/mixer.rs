@@ -72,7 +72,7 @@ impl MixerType {
                 Self::IntegerMixer(mixer::Mixer::<i16>::new(input_channels, output_channels))
             }
             SampleFormat::Float32LE | SampleFormat::Float32BE | SampleFormat::Float32NE => {
-                cubeb_log!("Create an integer type(f32) mixer");
+                cubeb_log!("Create an floating type(f32) mixer");
                 Self::FloatMixer(mixer::Mixer::<f32>::new(input_channels, output_channels))
             }
         }
