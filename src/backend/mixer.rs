@@ -236,6 +236,7 @@ impl Mixer {
     }
 }
 
+// This test gives a clear channel order of the ChannelLayout passed from cubeb interface.
 #[test]
 fn test_get_channel_order() {
     assert_eq!(

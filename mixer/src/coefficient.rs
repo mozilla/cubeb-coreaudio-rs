@@ -88,7 +88,7 @@ where
                 .unwrap_or_else(|_| Self::get_basic_matrix());
 
         // TODO: Create a NxM mixing matrix directly rather than creating a CHANNELSxCHANNELS
-        // matrix first than picking the used coefficient.
+        // matrix first than picking the used coefficients.
         let coefficient_matrix = Self::pick_coefficients(
             &input_layout.channels,
             &output_layout.channels,
@@ -293,7 +293,7 @@ where
             if output_map.contains(ChannelMap::FRONT_2) {
                 matrix[FRONT_LEFT][FRONT_LEFT_OF_CENTER] += 1.0;
                 matrix[FRONT_RIGHT][FRONT_RIGHT_OF_CENTER] += 1.0;
-            // if output has front-center, mix input's front-stereo-of-center to output's front-center.
+            // or if output has front-center, mix input's front-stereo-of-center to output's front-center.
             } else if output_map.contains(ChannelMap::FRONT_CENTER) {
                 matrix[FRONT_CENTER][FRONT_LEFT_OF_CENTER] += FRAC_1_SQRT_2;
                 matrix[FRONT_CENTER][FRONT_RIGHT_OF_CENTER] += FRAC_1_SQRT_2;
@@ -305,7 +305,7 @@ where
             // if output has front-center, mix input's low-frequency to output's front-center.
             if output_map.contains(ChannelMap::FRONT_CENTER) {
                 matrix[FRONT_CENTER][LOW_FREQUENCY] += LFE_MIX_LEVEL;
-            // if output has front-stereo, mix input's low-frequency to output's front-stereo.
+            // or if output has front-stereo, mix input's low-frequency to output's front-stereo.
             } else if output_map.contains(ChannelMap::FRONT_2) {
                 matrix[FRONT_LEFT][LOW_FREQUENCY] += LFE_MIX_LEVEL * FRAC_1_SQRT_2;
                 matrix[FRONT_RIGHT][LOW_FREQUENCY] += LFE_MIX_LEVEL * FRAC_1_SQRT_2;
