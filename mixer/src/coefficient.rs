@@ -100,9 +100,10 @@ where
         // columns are all 0.
         let normalized_matrix = Self::normalize(T::max_coefficients_sum(), coefficient_matrix);
 
+        let would_overflow = T::would_overflow_from_coefficient_value(&normalized_matrix);
+
         // Convert the type of the coefficients from f64 to T::Coef.
         let matrix = normalized_matrix
-            .clone()
             .into_iter()
             .map(|row| row.into_iter().map(T::coefficient_from_f64).collect())
             .collect();
@@ -111,9 +112,7 @@ where
             input_layout,
             output_layout,
             matrix,
-            would_overflow_from_coefficient_value: T::would_overflow_from_coefficient_value(
-                &normalized_matrix,
-            ),
+            would_overflow_from_coefficient_value: would_overflow,
         }
     }
 
