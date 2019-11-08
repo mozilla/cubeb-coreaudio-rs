@@ -158,9 +158,9 @@ where
     ) -> Result<[[f64; CHANNELS]; CHANNELS], Error> {
         // Mixing coefficients constants.
         use std::f64::consts::FRAC_1_SQRT_2;
-        use std::f64::consts::SQRT_2; // sqrt(2) // 1/sqrt(2)
-        const CENTER_MIX_LEVEL: f64 = FRAC_1_SQRT_2; // 1/sqrt(2)
-        const SURROUND_MIX_LEVEL: f64 = FRAC_1_SQRT_2; // 1/sqrt(2)
+        use std::f64::consts::SQRT_2;
+        const CENTER_MIX_LEVEL: f64 = FRAC_1_SQRT_2;
+        const SURROUND_MIX_LEVEL: f64 = FRAC_1_SQRT_2;
         const LFE_MIX_LEVEL: f64 = 1.0;
 
         // The indices of channels in the mixing coefficients matrix.
