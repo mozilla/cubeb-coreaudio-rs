@@ -1037,10 +1037,9 @@ pub fn test_ops_stream_operation_with_default_callbacks<F>(
     }
 }
 
-// Note: The in-out stream initializeed with different device will create an aggregate_device and
-//       result in firing device-collection-changed callbacks. Run in-out streams with tests
-//       capturing device-collection-changed callbacks may cause troubles. See more details in the
-//       comments for test_create_blank_aggregate_device.
+// The in-out stream initializeed with different device will create an aggregate_device and
+// result in firing device-collection-changed callbacks. Run in-out streams with tests
+// capturing device-collection-changed callbacks may cause troubles.
 pub fn test_ops_stream_operation<F>(
     name: &'static str,
     input_device: ffi::cubeb_devid,
