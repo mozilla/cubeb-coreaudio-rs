@@ -1,6 +1,6 @@
 use super::utils::{
     test_get_default_device, test_get_default_raw_stream, test_get_devices_in_scope,
-    test_ops_stream_operation, test_ops_stream_operation_with_default_callbacks, Scope,
+    test_get_stream_with_default_callbacks_by_type, test_ops_stream_operation, Scope, StreamType,
     TestDeviceSwitcher,
 };
 use super::*;
@@ -262,7 +262,7 @@ fn test_loop_in_a_output_stream() {
         None,            // Use default input device.
         None,            // Use default output device.
         ptr::null_mut(), // Use null since no any callback would be registered.
-        |stream| {
+        |_stream| {
             println!("Test anything here. Unplug/Plug devices or change default devices.");
             loop {}
         },
@@ -278,7 +278,7 @@ fn test_loop_in_a_input_stream() {
         None,            // Use default input device.
         None,            // Use default output device.
         ptr::null_mut(), // Use null since no any callback would be registered.
-        |stream| {
+        |_stream| {
             println!("Test anything here. Unplug/Plug devices or change default devices.");
             loop {}
         },
@@ -294,84 +294,9 @@ fn test_loop_in_a_duplex_stream() {
         None,            // Use default input device.
         None,            // Use default output device.
         ptr::null_mut(), // Use null since no any callback would be registered.
-        |stream| {
+        |_stream| {
             println!("Test anything here. Unplug/Plug devices or change default devices.");
             loop {}
         },
     );
-}
-
-bitflags! {
-    struct StreamType: u8 {
-        const INPUT = 0b01;
-        const OUTPUT = 0b10;
-        const DUPLEX = Self::INPUT.bits | Self::OUTPUT.bits;
-    }
-}
-
-fn test_get_stream_with_default_callbacks_by_type<F>(
-    name: &'static str,
-    stm_type: StreamType,
-    input_device: Option<AudioObjectID>,
-    output_device: Option<AudioObjectID>,
-    data: *mut c_void,
-    operation: F,
-) where
-    F: FnOnce(&mut AudioUnitStream),
-{
-    let mut input_params = get_dummy_stream_params(Scope::Input);
-    let mut output_params = get_dummy_stream_params(Scope::Output);
-
-    let in_params = if stm_type.contains(StreamType::INPUT) {
-        &mut input_params as *mut ffi::cubeb_stream_params
-    } else {
-        ptr::null_mut()
-    };
-    let out_params = if stm_type.contains(StreamType::OUTPUT) {
-        &mut output_params as *mut ffi::cubeb_stream_params
-    } else {
-        ptr::null_mut()
-    };
-    let in_device = if let Some(id) = input_device {
-        id as ffi::cubeb_devid
-    } else {
-        ptr::null_mut()
-    };
-    let out_device = if let Some(id) = output_device {
-        id as ffi::cubeb_devid
-    } else {
-        ptr::null_mut()
-    };
-
-    test_ops_stream_operation_with_default_callbacks(
-        name,
-        in_device,
-        in_params,
-        out_device,
-        out_params,
-        data,
-        |stream| {
-            let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
-            operation(stm);
-        },
-    );
-}
-
-fn get_dummy_stream_params(scope: Scope) -> ffi::cubeb_stream_params {
-    // The stream format for input and output must be same.
-    const STREAM_FORMAT: u32 = ffi::CUBEB_SAMPLE_FLOAT32NE;
-
-    // Make sure the parameters meet the requirements of AudioUnitContext::stream_init
-    // (in the comments).
-    let mut stream_params = ffi::cubeb_stream_params::default();
-    stream_params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
-    let (format, rate, channels, layout) = match scope {
-        Scope::Input => (STREAM_FORMAT, 48000, 1, ffi::CUBEB_LAYOUT_MONO),
-        Scope::Output => (STREAM_FORMAT, 44100, 2, ffi::CUBEB_LAYOUT_STEREO),
-    };
-    stream_params.format = format;
-    stream_params.rate = rate;
-    stream_params.channels = channels;
-    stream_params.layout = layout;
-    stream_params
 }
