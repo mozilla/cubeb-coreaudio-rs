@@ -980,6 +980,63 @@ where
     unsafe { OPS.destroy.unwrap()(context) }
 }
 
+pub fn test_ops_stream_operation_with_default_callbacks<F>(
+    name: &'static str,
+    input_device: ffi::cubeb_devid,
+    input_stream_params: *mut ffi::cubeb_stream_params,
+    output_device: ffi::cubeb_devid,
+    output_stream_params: *mut ffi::cubeb_stream_params,
+    data: *mut c_void,
+    operation: F,
+) where
+    F: FnOnce(*mut ffi::cubeb_stream),
+{
+    test_ops_stream_operation(
+        name,
+        input_device,
+        input_stream_params,
+        output_device,
+        output_stream_params,
+        4096, // TODO: Get latency by get_min_latency instead ?
+        Some(data_callback),
+        Some(state_callback),
+        data,
+        operation,
+    );
+
+    extern "C" fn state_callback(
+        stream: *mut ffi::cubeb_stream,
+        _user_ptr: *mut c_void,
+        state: ffi::cubeb_state,
+    ) {
+        assert!(!stream.is_null());
+        assert_ne!(state, ffi::CUBEB_STATE_ERROR);
+    }
+
+    extern "C" fn data_callback(
+        stream: *mut ffi::cubeb_stream,
+        _user_ptr: *mut c_void,
+        _input_buffer: *const c_void,
+        output_buffer: *mut c_void,
+        nframes: i64,
+    ) -> i64 {
+        assert!(!stream.is_null());
+
+        // Feed silence data to output buffer
+        if !output_buffer.is_null() {
+            let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+            let channels = stm.core_stream_data.output_stream_params.channels();
+            let samples = nframes as usize * channels as usize;
+            let sample_size = cubeb_sample_size(stm.core_stream_data.output_stream_params.format());
+            unsafe {
+                ptr::write_bytes(output_buffer, 0, samples * sample_size);
+            }
+        }
+
+        nframes
+    }
+}
+
 // Note: The in-out stream initializeed with different device will create an aggregate_device and
 //       result in firing device-collection-changed callbacks. Run in-out streams with tests
 //       capturing device-collection-changed callbacks may cause troubles. See more details in the
