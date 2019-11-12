@@ -716,10 +716,10 @@ fn test_ops_default_callbacks_stream_operation<F>(
     }
 }
 
-// The stream format for input and output must be same.
-const STREAM_FORMAT: u32 = ffi::CUBEB_SAMPLE_FLOAT32NE;
-
 fn get_dummy_stream_params(scope: Scope) -> ffi::cubeb_stream_params {
+    // The stream format for input and output must be same.
+    const STREAM_FORMAT: u32 = ffi::CUBEB_SAMPLE_FLOAT32NE;
+
     // Make sure the parameters meet the requirements of AudioUnitContext::stream_init
     // (in the comments).
     let mut stream_params = ffi::cubeb_stream_params::default();
