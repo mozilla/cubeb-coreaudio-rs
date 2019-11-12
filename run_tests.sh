@@ -1,3 +1,6 @@
+# display backtrace for debugging
+export RUST_BACKTRACE=1
+
 # Regular Tests
 cargo test --verbose
 cargo test test_configure_output -- --ignored
