@@ -4,12 +4,12 @@ use super::utils::{
     TestDeviceSwitcher,
 };
 use super::*;
+use std::io;
 
 #[ignore]
 #[test]
 fn test_switch_output_device() {
     use std::f32::consts::PI;
-    use std::io;
 
     const SAMPLE_FREQUENCY: u32 = 48_000;
 
@@ -263,8 +263,21 @@ fn test_loop_in_a_output_stream() {
         None,            // Use default output device.
         ptr::null_mut(), // Use null since no any callback would be registered.
         |_stream| {
-            println!("Test anything here. Unplug/Plug devices or change default devices.");
-            loop {}
+            println!("Test anything here. Unplug/Plug devices or change default devices. Press 'q' to to quit.");
+            loop {
+                let mut input = String::new();
+                let _ = io::stdin().read_line(&mut input);
+                assert_eq!(input.pop().unwrap(), '\n');
+                match input.as_str() {
+                    "q" => {
+                        println!("Quit.");
+                        break;
+                    }
+                    x => {
+                        println!("Unknown command: {}", x);
+                    }
+                }
+            }
         },
     );
 }
@@ -279,8 +292,21 @@ fn test_loop_in_a_input_stream() {
         None,            // Use default output device.
         ptr::null_mut(), // Use null since no any callback would be registered.
         |_stream| {
-            println!("Test anything here. Unplug/Plug devices or change default devices.");
-            loop {}
+            println!("Test anything here. Unplug/Plug devices or change default devices. Press 'q' to to quit.");
+            loop {
+                let mut input = String::new();
+                let _ = io::stdin().read_line(&mut input);
+                assert_eq!(input.pop().unwrap(), '\n');
+                match input.as_str() {
+                    "q" => {
+                        println!("Quit.");
+                        break;
+                    }
+                    x => {
+                        println!("Unknown command: {}", x);
+                    }
+                }
+            }
         },
     );
 }
@@ -295,8 +321,21 @@ fn test_loop_in_a_duplex_stream() {
         None,            // Use default output device.
         ptr::null_mut(), // Use null since no any callback would be registered.
         |_stream| {
-            println!("Test anything here. Unplug/Plug devices or change default devices.");
-            loop {}
+            println!("Test anything here. Unplug/Plug devices or change default devices. Press 'q' to to quit.");
+            loop {
+                let mut input = String::new();
+                let _ = io::stdin().read_line(&mut input);
+                assert_eq!(input.pop().unwrap(), '\n');
+                match input.as_str() {
+                    "q" => {
+                        println!("Quit.");
+                        break;
+                    }
+                    x => {
+                        println!("Unknown command: {}", x);
+                    }
+                }
+            }
         },
     );
 }
