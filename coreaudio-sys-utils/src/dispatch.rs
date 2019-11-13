@@ -57,7 +57,7 @@ where
         let closure = unsafe { Box::from_raw(unboxed_closure as *mut F) };
         // Execute the closure.
         (*closure)();
-        // closure is released after finishiing this function call.
+        // closure is released after finishing this function call.
     }
 
     let closure = Box::new(closure); // Allocate closure on heap.
