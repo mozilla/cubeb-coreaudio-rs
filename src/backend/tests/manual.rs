@@ -255,78 +255,58 @@ fn test_device_collection_change() {
 
 #[ignore]
 #[test]
-fn test_loop_in_a_output_stream() {
-    test_get_stream_with_default_callbacks_by_type(
-        "loop in a output stream",
-        StreamType::OUTPUT,
-        None,            // Use default input device.
-        None,            // Use default output device.
-        ptr::null_mut(), // Use null since no any callback would be registered.
-        |_stream| {
-            println!("Test anything here. Unplug/Plug devices or change default devices. Press 'q' to to quit.");
-            loop {
-                let mut input = String::new();
-                let _ = io::stdin().read_line(&mut input);
-                assert_eq!(input.pop().unwrap(), '\n');
-                match input.as_str() {
-                    "q" => {
-                        println!("Quit.");
-                        break;
-                    }
-                    x => {
-                        println!("Unknown command: {}", x);
-                    }
-                }
+fn test_stream_tester() {
+    let mut stream_type = StreamType::empty();
+    while stream_type.is_empty() {
+        println!("Select stream type:\n1) Input 2) Output 3) In-Out Duplex");
+        let mut input = String::new();
+        let _ = io::stdin().read_line(&mut input);
+        assert_eq!(input.pop().unwrap(), '\n');
+        stream_type = match input.as_str() {
+            "1" => StreamType::INPUT,
+            "2" => StreamType::OUTPUT,
+            "3" => StreamType::DUPLEX,
+            _ => {
+                println!("Invalid type. Select again.\n");
+                StreamType::empty()
             }
-        },
+        }
+    }
+    stream_tester_by_type(
+        "loop within a stream",
+        stream_type,
+        None, // Use default input device.
+        None, // Use default output device.
     );
 }
 
-#[ignore]
-#[test]
-fn test_loop_in_a_input_stream() {
+fn stream_tester_by_type(
+    name: &'static str,
+    stm_type: StreamType,
+    input_device: Option<AudioObjectID>,
+    output_device: Option<AudioObjectID>,
+) {
     test_get_stream_with_default_callbacks_by_type(
-        "loop in a input stream",
-        StreamType::INPUT,
-        None,            // Use default input device.
-        None,            // Use default output device.
+        name,
+        stm_type,
+        input_device,
+        output_device,
         ptr::null_mut(), // Use null since no any callback would be registered.
-        |_stream| {
-            println!("Test anything here. Unplug/Plug devices or change default devices. Press 'q' to to quit.");
+        |stream| {
+            println!("Commands:\n\t's' to start stream\n\t't' to stop stream\n\t'q' to to quit.");
             loop {
                 let mut input = String::new();
                 let _ = io::stdin().read_line(&mut input);
                 assert_eq!(input.pop().unwrap(), '\n');
                 match input.as_str() {
-                    "q" => {
-                        println!("Quit.");
-                        break;
+                    "s" => {
+                        println!("Start stream.");
+                        assert!(stream.start().is_ok());
                     }
-                    x => {
-                        println!("Unknown command: {}", x);
+                    "t" => {
+                        println!("Stop stream.");
+                        assert!(stream.stop().is_ok());
                     }
-                }
-            }
-        },
-    );
-}
-
-#[ignore]
-#[test]
-fn test_loop_in_a_duplex_stream() {
-    test_get_stream_with_default_callbacks_by_type(
-        "loop in a in-out stream",
-        StreamType::DUPLEX,
-        None,            // Use default input device.
-        None,            // Use default output device.
-        ptr::null_mut(), // Use null since no any callback would be registered.
-        |_stream| {
-            println!("Test anything here. Unplug/Plug devices or change default devices. Press 'q' to to quit.");
-            loop {
-                let mut input = String::new();
-                let _ = io::stdin().read_line(&mut input);
-                assert_eq!(input.pop().unwrap(), '\n');
-                match input.as_str() {
                     "q" => {
                         println!("Quit.");
                         break;

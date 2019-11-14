@@ -45,6 +45,4 @@ cargo test test_reinit_duplex_stream_by_unplugging_a_default_output_device -- --
 # cargo test test_switch_output_device -- --ignored --nocapture
 # cargo test test_add_then_remove_listeners -- --ignored --nocapture
 # cargo test test_device_collection_change -- --ignored --nocapture
-# cargo test test_loop_in_a_output_stream -- --ignored --nocapture
-# cargo test test_loop_in_a_input_stream -- --ignored --nocapture
-# cargo test test_loop_in_a_duplex_stream -- --ignored --nocapture
+# cargo test test_stream_tester -- --ignored --nocapture
