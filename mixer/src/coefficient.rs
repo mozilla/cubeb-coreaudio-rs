@@ -346,8 +346,8 @@ where
     // and their channel data are both ordered by the values defined in enum Channel.
     // The generated matrix M makes sure that:
     //
-    // out_audio(i) = in_audio(j), if i == j and both i, j are non-slience channel
-    //              = 0,           if i != j or i, j are slience channel
+    // out_audio(i) = in_audio(j), if i == j and both i, j are non-silence channel
+    //              = 0,           if i != j or i, j are silence channel
     //
     // │ FrontLeft    │       │ FrontLeft    │ ◂ data in front-left channel
     // │ FrontRight   │       │ FrontRight   │ ◂ data in front-right channel
@@ -358,8 +358,8 @@ where
     //    out_audio               in_audio
     //
     // That is,
-    // 1. If the input-channel is slience, it won't be mixed into any channel.
-    // 2. If the output-channel is slience, its output-channel data will be zero (slience).
+    // 1. If the input-channel is silence, it won't be mixed into any channel.
+    // 2. If the output-channel is silence, its output-channel data will be zero (silence).
     // 3. If input-channel j is different from output-channel i, audio data in input channel j
     //    won't be mixed into the audio output data in channel i
     // 4. If input-channel j is same as output-channel i,  audio data in input channel j will be

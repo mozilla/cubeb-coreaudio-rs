@@ -192,10 +192,10 @@ impl Mixer {
             output_channels = vec![mixer::Channel::FrontLeft, mixer::Channel::FrontRight];
         }
 
-        let all_slience = vec![mixer::Channel::Silence; out_channel_count];
+        let all_silence = vec![mixer::Channel::Silence; out_channel_count];
         if output_channels.len() == 0
             || out_channel_count != output_channels.len()
-            || all_slience == output_channels
+            || all_silence == output_channels
         {
             cubeb_log!("Mismatch between output channels and layout. Apply default layout instead");
             output_channels = get_default_channel_order(out_channel_count);
