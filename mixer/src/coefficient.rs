@@ -462,8 +462,7 @@ impl MixingCoefficient for i16 {
     }
 
     fn coefficient_from_f64(value: f64) -> Self::Coef {
-        // 32767 = 0x8000 = 2^15
-        (value * 32768_f64).round() as Self::Coef
+        (value * f64::from(1 << 15)).round() as Self::Coef
     }
 
     fn would_overflow_from_coefficient_value(coefficient: &[Vec<f64>]) -> Option<bool> {
@@ -472,14 +471,14 @@ impl MixingCoefficient for i16 {
             let mut sum: Self::Coef = 0;
             let mut rem: f64 = 0.0;
             for coef in row {
-                let target = coef * 32768_f64 + rem;
+                let target = coef * f64::from(1 << 15) + rem;
                 let value = target.round() as Self::Coef;
                 rem += target - target.round();
                 sum += value.abs();
             }
             max_sum = max_sum.max(sum);
         }
-        Some(max_sum > 32768)
+        Some(max_sum > (1 << 15))
     }
 
     fn to_coefficient_value(value: Self) -> Self::Coef {
@@ -489,8 +488,7 @@ impl MixingCoefficient for i16 {
     fn from_coefficient_value(value: Self::Coef, would_overflow: Option<bool>) -> Self {
         use std::convert::TryFrom;
         let would_overflow = would_overflow.expect("would_overflow must have value for i16 type");
-        // 16384 = 0x4000 = 2^14
-        let mut converted = (value + 16384) >> 15;
+        let mut converted = (value + (1 << 14)) >> 15;
         // clip the signed integer value into the -32768,32767 range.
         if would_overflow && ((converted + 0x8000) & !0xFFFF != 0) {
             converted = (converted >> 31) ^ 0x7FFF;
