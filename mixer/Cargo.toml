@@ -8,3 +8,8 @@ edition = "2018"
 
 [dependencies]
 bitflags = "1.2"
+criterion = "0.3"
+
+[[bench]]
+name = "benchmark"
+harness = false
