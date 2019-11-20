@@ -258,7 +258,7 @@ fn test_device_collection_change() {
 fn test_stream_tester() {
     let mut stream_type = StreamType::empty();
     while stream_type.is_empty() {
-        println!("Select stream type:\n1) Input 2) Output 3) In-Out Duplex");
+        println!("Select stream type:\n1) Input 2) Output 3) In-Out Duplex 4) Quit");
         let mut input = String::new();
         let _ = io::stdin().read_line(&mut input);
         assert_eq!(input.pop().unwrap(), '\n');
@@ -266,6 +266,10 @@ fn test_stream_tester() {
             "1" => StreamType::INPUT,
             "2" => StreamType::OUTPUT,
             "3" => StreamType::DUPLEX,
+            "4" => {
+                println!("Quit.\n");
+                return;
+            }
             _ => {
                 println!("Invalid type. Select again.\n");
                 StreamType::empty()
