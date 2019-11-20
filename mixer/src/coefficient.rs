@@ -87,17 +87,12 @@ where
             Self::build_mixing_matrix(input_layout.channel_map, output_layout.channel_map)
                 .unwrap_or_else(|_| Self::get_basic_matrix());
 
-        // TODO: Create a NxM mixing matrix directly rather than creating a CHANNELSxCHANNELS
-        // matrix first than picking the used coefficients.
         let coefficient_matrix = Self::pick_coefficients(
             &input_layout.channels,
             &output_layout.channels,
             &mixing_matrix,
         );
 
-        // TODO: No need to normalize the coefficient_matrix when it's from get_basic_matrix.
-        // Since no duplicate channels in input, in each row, only one column is 1 and all other
-        // columns are all 0.
         let normalized_matrix = Self::normalize(T::max_coefficients_sum(), coefficient_matrix);
 
         let would_overflow = T::would_overflow_from_coefficient_value(&normalized_matrix);
