@@ -295,7 +295,7 @@ fn test_stream_tester() {
             unsafe { OPS.stream_start.unwrap()(stream_ptr) },
             ffi::CUBEB_OK
         );
-        println!("Stream started.");
+        println!("Stream {:p} started.", stream_ptr);
     }
 
     fn stop_stream(stream_ptr: *mut ffi::cubeb_stream) {
@@ -307,7 +307,7 @@ fn test_stream_tester() {
             unsafe { OPS.stream_stop.unwrap()(stream_ptr) },
             ffi::CUBEB_OK
         );
-        println!("Stream stopped.");
+        println!("Stream {:p} stopped.", stream_ptr);
     }
 
     fn destroy_stream(stream_ptr: &mut *mut ffi::cubeb_stream) {
@@ -318,8 +318,8 @@ fn test_stream_tester() {
         unsafe {
             OPS.stream_destroy.unwrap()(*stream_ptr);
         }
+        println!("Stream {:p} destroyed.", *stream_ptr);
         *stream_ptr = ptr::null_mut();
-        println!("Stream destroyed.");
     }
 
     fn create_stream(stream_ptr: &mut *mut ffi::cubeb_stream, context_ptr: *mut ffi::cubeb) {
@@ -330,7 +330,7 @@ fn test_stream_tester() {
 
         let mut stream_type = StreamType::empty();
         while stream_type.is_empty() {
-            println!("Select stream type:\n1) Input 2) Output 3) In-Out Duplex 4) Quit");
+            println!("Select stream type:\n1) Input 2) Output 3) In-Out Duplex 4) Back");
             let mut input = String::new();
             let _ = io::stdin().read_line(&mut input);
             assert_eq!(input.pop().unwrap(), '\n');
@@ -384,6 +384,7 @@ fn test_stream_tester() {
             ffi::CUBEB_OK
         );
         assert!(!stream_ptr.is_null());
+        println!("Stream {:p} created.", *stream_ptr);
 
         extern "C" fn state_callback(
             stream: *mut ffi::cubeb_stream,
