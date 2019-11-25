@@ -3386,28 +3386,29 @@ impl<'ctx> AudioUnitStream<'ctx> {
         *self.destroy_pending.get_mut() = true;
 
         let queue = self.context.serial_queue;
-        let mutexed_stm = Arc::new(Mutex::new(self));
-        let also_mutexed_stm = Arc::clone(&mutexed_stm);
+
+        let stream_mutex = Arc::new(Mutex::new(self));
+        let stream_clone = Arc::clone(&stream_mutex);
         // Execute close in serial queue to avoid collision
         // with reinit when un/plug devices
         sync_dispatch(queue, move || {
-            let mut stm_guard = also_mutexed_stm.lock().unwrap();
+            let mut stream = stream_clone.lock().unwrap();
 
             // Call stop_audiounits to avoid potential data race. If there is a running data callback,
             // which locks a mutex inside CoreAudio framework, then this call will block the current
             // thread until the callback is finished since this call asks to lock a mutex inside
             // CoreAudio framework that is used by the data callback.
-            if !stm_guard.shutdown.load(Ordering::SeqCst) {
-                stm_guard.core_stream_data.stop_audiounits();
-                *stm_guard.shutdown.get_mut() = true;
+            if !stream.shutdown.load(Ordering::SeqCst) {
+                stream.core_stream_data.stop_audiounits();
+                *stream.shutdown.get_mut() = true;
             }
 
-            stm_guard.destroy_internal();
+            stream.destroy_internal();
         });
 
-        let stm_guard = mutexed_stm.lock().unwrap();
-        let stm_ptr = *stm_guard as *const AudioUnitStream;
-        cubeb_log!("Cubeb stream ({:p}) destroyed successful.", stm_ptr);
+        let stream = stream_mutex.lock().unwrap();
+        let ptr = *stream as *const AudioUnitStream;
+        cubeb_log!("Cubeb stream ({:p}) destroyed successful.", ptr);
     }
 }
 
