@@ -3417,14 +3417,31 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         *self.shutdown.get_mut() = false;
         *self.draining.get_mut() = false;
 
-        self.core_stream_data.start_audiounits()?;
+        // Execute start in serial queue to avoid racing with destroy or reinit.
+        let queue = self.context.serial_queue;
 
-        self.notify_state_changed(State::Started);
+        let stream_mutex = Arc::new(Mutex::new(self));
+        let stream_clone = Arc::clone(&stream_mutex);
 
-        cubeb_log!(
-            "Cubeb stream ({:p}) started successfully.",
-            self as *const AudioUnitStream
-        );
+        let result_mutex = Arc::new(Mutex::new(Ok(())));
+        let result_clone = Arc::clone(&result_mutex);
+
+        sync_dispatch(queue, move || {
+            let mut result = result_clone.lock().unwrap();
+            let stream = stream_clone.lock().unwrap();
+            *result = stream.core_stream_data.start_audiounits();
+        });
+
+        let result = result_mutex.lock().unwrap();
+        if result.is_err() {
+            return *result;
+        }
+
+        let mut stream = stream_mutex.lock().unwrap();
+        stream.notify_state_changed(State::Started);
+
+        let ptr = *stream as *const AudioUnitStream;
+        cubeb_log!("Cubeb stream ({:p}) started successfully.", ptr);
         Ok(())
     }
     fn stop(&mut self) -> Result<()> {
