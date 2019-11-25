@@ -3379,15 +3379,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
     }
 
     fn destroy(&mut self) {
-        // Call stop_audiounits to avoid potential data race. If there is a running data callback,
-        // which locks a mutex inside CoreAudio framework, then this call will block the current
-        // thread until the callback is finished since this call asks to lock a mutex inside
-        // CoreAudio framework that is used by the data callback.
-        if !self.shutdown.load(Ordering::SeqCst) {
-            self.core_stream_data.stop_audiounits();
-            *self.shutdown.get_mut() = true;
-        }
-
         *self.destroy_pending.get_mut() = true;
 
         let queue = self.context.serial_queue;
@@ -3397,6 +3388,16 @@ impl<'ctx> AudioUnitStream<'ctx> {
         // with reinit when un/plug devices
         sync_dispatch(queue, move || {
             let mut stm_guard = also_mutexed_stm.lock().unwrap();
+
+            // Call stop_audiounits to avoid potential data race. If there is a running data callback,
+            // which locks a mutex inside CoreAudio framework, then this call will block the current
+            // thread until the callback is finished since this call asks to lock a mutex inside
+            // CoreAudio framework that is used by the data callback.
+            if !stm_guard.shutdown.load(Ordering::SeqCst) {
+                stm_guard.core_stream_data.stop_audiounits();
+                *stm_guard.shutdown.get_mut() = true;
+            }
+
             stm_guard.destroy_internal();
         });
 
