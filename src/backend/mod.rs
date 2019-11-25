@@ -3447,14 +3447,22 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     fn stop(&mut self) -> Result<()> {
         *self.shutdown.get_mut() = true;
 
-        self.core_stream_data.stop_audiounits();
+        // Execute stop in serial queue to avoid racing with destroy or reinit.
+        let queue = self.context.serial_queue;
 
-        self.notify_state_changed(State::Stopped);
+        let stream_mutex = Arc::new(Mutex::new(self));
+        let stream_clone = Arc::clone(&stream_mutex);
 
-        cubeb_log!(
-            "Cubeb stream ({:p}) stopped successfully.",
-            self as *const AudioUnitStream
-        );
+        sync_dispatch(queue, move || {
+            let stream = stream_clone.lock().unwrap();
+            stream.core_stream_data.stop_audiounits();
+        });
+
+        let mut stream = stream_mutex.lock().unwrap();
+        stream.notify_state_changed(State::Stopped);
+
+        let ptr = *stream as *const AudioUnitStream;
+        cubeb_log!("Cubeb stream ({:p}) stopped successfully.", ptr);
         Ok(())
     }
     fn reset_default_device(&mut self) -> Result<()> {
