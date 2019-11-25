@@ -2439,6 +2439,10 @@ impl<'ctx> CoreStreamData<'ctx> {
     }
 
     fn start_audiounits(&self) -> Result<()> {
+        // Only allowed to be called after the stream is initialized
+        // and before the stream is destroyed.
+        assert!(!self.input_unit.is_null() || !self.output_unit.is_null());
+
         if !self.input_unit.is_null() {
             start_audiounit(self.input_unit)?;
         }
