@@ -3387,28 +3387,23 @@ impl<'ctx> AudioUnitStream<'ctx> {
 
         let queue = self.context.serial_queue;
 
-        let stream_mutex = Arc::new(Mutex::new(self));
-        let stream_clone = Arc::clone(&stream_mutex);
+        let stream_ptr = self as *const AudioUnitStream;
         // Execute close in serial queue to avoid collision
         // with reinit when un/plug devices
         sync_dispatch(queue, move || {
-            let mut stream = stream_clone.lock().unwrap();
-
             // Call stop_audiounits to avoid potential data race. If there is a running data callback,
             // which locks a mutex inside CoreAudio framework, then this call will block the current
             // thread until the callback is finished since this call asks to lock a mutex inside
             // CoreAudio framework that is used by the data callback.
-            if !stream.shutdown.load(Ordering::SeqCst) {
-                stream.core_stream_data.stop_audiounits();
-                *stream.shutdown.get_mut() = true;
+            if !self.shutdown.load(Ordering::SeqCst) {
+                self.core_stream_data.stop_audiounits();
+                *self.shutdown.get_mut() = true;
             }
 
-            stream.destroy_internal();
+            self.destroy_internal();
         });
 
-        let stream = stream_mutex.lock().unwrap();
-        let ptr = *stream as *const AudioUnitStream;
-        cubeb_log!("Cubeb stream ({:p}) destroyed successful.", ptr);
+        cubeb_log!("Cubeb stream ({:p}) destroyed successful.", stream_ptr);
     }
 }
 
@@ -3425,29 +3420,23 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
 
         // Execute start in serial queue to avoid racing with destroy or reinit.
         let queue = self.context.serial_queue;
-
-        let stream_mutex = Arc::new(Mutex::new(self));
-        let stream_clone = Arc::clone(&stream_mutex);
-
-        let result_mutex = Arc::new(Mutex::new(Ok(())));
-        let result_clone = Arc::clone(&result_mutex);
-
+        let mut result = Err(Error::error());
+        let started = &mut result;
+        let stream = &self;
         sync_dispatch(queue, move || {
-            let mut result = result_clone.lock().unwrap();
-            let stream = stream_clone.lock().unwrap();
-            *result = stream.core_stream_data.start_audiounits();
+            *started = stream.core_stream_data.start_audiounits();
         });
 
-        let result = result_mutex.lock().unwrap();
         if result.is_err() {
-            return *result;
+            return result;
         }
 
-        let mut stream = stream_mutex.lock().unwrap();
-        stream.notify_state_changed(State::Started);
+        self.notify_state_changed(State::Started);
 
-        let ptr = *stream as *const AudioUnitStream;
-        cubeb_log!("Cubeb stream ({:p}) started successfully.", ptr);
+        cubeb_log!(
+            "Cubeb stream ({:p}) started successfully.",
+            self as *const AudioUnitStream
+        );
         Ok(())
     }
     fn stop(&mut self) -> Result<()> {
@@ -3455,20 +3444,17 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
 
         // Execute stop in serial queue to avoid racing with destroy or reinit.
         let queue = self.context.serial_queue;
-
-        let stream_mutex = Arc::new(Mutex::new(self));
-        let stream_clone = Arc::clone(&stream_mutex);
-
+        let stream = &self;
         sync_dispatch(queue, move || {
-            let stream = stream_clone.lock().unwrap();
             stream.core_stream_data.stop_audiounits();
         });
 
-        let mut stream = stream_mutex.lock().unwrap();
-        stream.notify_state_changed(State::Stopped);
+        self.notify_state_changed(State::Stopped);
 
-        let ptr = *stream as *const AudioUnitStream;
-        cubeb_log!("Cubeb stream ({:p}) stopped successfully.", ptr);
+        cubeb_log!(
+            "Cubeb stream ({:p}) stopped successfully.",
+            self as *const AudioUnitStream
+        );
         Ok(())
     }
     fn reset_default_device(&mut self) -> Result<()> {
