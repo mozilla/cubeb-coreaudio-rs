@@ -393,6 +393,8 @@ fn test_stream_tester() {
         ) {
             assert!(!stream.is_null());
             assert_ne!(state, ffi::CUBEB_STATE_ERROR);
+            let s = State::from(state);
+            println!("state: {:?}", s);
         }
 
         extern "C" fn data_callback(
