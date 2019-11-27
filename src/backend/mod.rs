@@ -3221,7 +3221,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
         )
     }
 
-    fn notify_state_changed(&mut self, state: State) {
+    fn notify_state_changed(&self, state: State) {
         if self.state_callback.is_none() {
             return;
         }
