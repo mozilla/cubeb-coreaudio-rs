@@ -1,6 +1,5 @@
 use super::utils::{
-    test_device_channels_in_scope, test_get_default_device, test_ops_context_operation,
-    test_ops_stream_operation, Scope,
+    test_get_default_device, test_ops_context_operation, test_ops_stream_operation, Scope,
 };
 use super::*;
 

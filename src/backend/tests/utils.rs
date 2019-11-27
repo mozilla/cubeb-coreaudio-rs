@@ -884,7 +884,6 @@ pub fn test_ops_context_operation<F>(name: &'static str, operation: F)
 where
     F: FnOnce(*mut ffi::cubeb),
 {
-    use std::ffi::CString;
     let name_c_string = CString::new(name).expect("Failed to create context name");
     let mut context = ptr::null_mut::<ffi::cubeb>();
     assert_eq!(

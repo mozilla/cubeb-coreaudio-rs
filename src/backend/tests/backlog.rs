@@ -22,21 +22,13 @@ fn test_context_register_device_collection_changed_twice(devtype: DeviceType) {
 
     extern "C" fn callback(_: *mut ffi::cubeb, _: *mut c_void) {}
 
-    assert!(
-        ctx.register_device_collection_changed(
-            devtype,
-            Some(callback),
-            ptr::null_mut()
-        ).is_ok();
-    );
+    assert!(ctx
+        .register_device_collection_changed(devtype, Some(callback), ptr::null_mut())
+        .is_ok());
 
-    assert!(
-        ctx.register_device_collection_changed(
-            devtype,
-            Some(callback),
-            ptr::null_mut()
-        ).is_err();
-    );
+    assert!(ctx
+        .register_device_collection_changed(devtype, Some(callback), ptr::null_mut())
+        .is_err());
 }
 
 #[test]
