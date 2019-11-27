@@ -492,23 +492,6 @@ fn test_ops_stream_set_volume() {
 }
 
 #[test]
-fn test_ops_stream_set_panning() {
-    test_default_output_stream_operation("stream: set panning", |stream| {
-        // This closure won't be executed if there is no output device.
-        let default_output = test_get_default_device(Scope::Output).unwrap();
-        let channels = test_device_channels_in_scope(default_output, Scope::Output);
-        assert_eq!(
-            unsafe { OPS.stream_set_panning.unwrap()(stream, 0.5) },
-            if channels.is_ok() && channels.unwrap() <= 2 {
-                ffi::CUBEB_OK
-            } else {
-                ffi::CUBEB_ERROR_INVALID_FORMAT
-            }
-        );
-    });
-}
-
-#[test]
 fn test_ops_stream_current_device() {
     test_default_output_stream_operation("stream: get current device and destroy it", |stream| {
         if test_get_default_device(Scope::Input).is_none()

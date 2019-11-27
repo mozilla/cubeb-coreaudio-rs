@@ -643,12 +643,6 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
     stm.frames_played.store(stm.frames_queued, atomic::Ordering::SeqCst);
     stm.frames_queued += outframes as u64;
 
-    let outaff = stm.output_desc.mFormatFlags;
-    let panning = if stm.output_desc.mChannelsPerFrame == 2 {
-        stm.panning.load(Ordering::Relaxed)
-    } else {
-        0.0
-    };
 
     /* Post process output samples. */
     if *stm.draining.get_mut() {
@@ -662,18 +656,7 @@ extern fn audiounit_output_callback(user_ptr: *mut c_void,
     }
 
     /* Mixing */
-    if stm.mixer.as_mut_ptr().is_null() {
-        /* Pan stereo. */
-        if panning != 0.0 {
-            unsafe {
-                if outaff & kAudioFormatFlagIsFloat != 0 {
-                    ffi::cubeb_pan_stereo_buffer_float(output_buffer as *mut f32, outframes as u32, panning);
-                } else if outaff & kAudioFormatFlagIsSignedInteger != 0 {
-                    ffi::cubeb_pan_stereo_buffer_int(output_buffer as *mut i16, outframes as u32, panning);
-                }
-            }
-        }
-    } else {
+    if !stm.mixer.as_mut_ptr().is_null() {
         assert!(!stm.temp_buffer.is_empty());
         assert_eq!(stm.temp_buffer_size, stm.temp_buffer.len() * mem::size_of::<u8>());
         assert_eq!(output_buffer, stm.temp_buffer.as_mut_ptr() as *mut c_void);
@@ -3803,7 +3786,6 @@ struct AudioUnitStream<'ctx> {
     latency_frames: u32,
     // current_latency_frames: AtomicU32,
     current_latency_frames: atomic::Atomic<u32>,
-    panning: atomic::Atomic<f32>,
     resampler: AutoRelease<ffi::cubeb_resampler>,
     /* This is true if a device change callback is currently running.  */
     switching_device: AtomicBool,
@@ -3878,7 +3860,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
             destroy_pending: AtomicBool::new(false),
             latency_frames,
             current_latency_frames: atomic::Atomic::new(0),
-            panning: atomic::Atomic::new(0.0_f32),
             resampler: AutoRelease::new(ptr::null_mut(), ffi::cubeb_resampler_destroy),
             switching_device: AtomicBool::new(false),
             buffer_size_change_state: AtomicBool::new(false),
@@ -4022,14 +4003,6 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
             cubeb_log!("AudioUnitSetParameter/kHALOutputParam_Volume rv={}", r);
             return Err(Error::error());
         }
-        Ok(())
-    }
-    fn set_panning(&mut self, panning: f32) -> Result<()> {
-        if self.output_desc.mChannelsPerFrame > 2 {
-            return Err(Error::invalid_format());
-        }
-
-        self.panning.store(panning, Ordering::Relaxed);
         Ok(())
     }
     #[cfg(target_os = "ios")]
