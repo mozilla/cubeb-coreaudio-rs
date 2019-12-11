@@ -3221,7 +3221,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
         )
     }
 
-    fn notify_state_changed(&mut self, state: State) {
+    fn notify_state_changed(&self, state: State) {
         if self.state_callback.is_none() {
             return;
         }
@@ -3275,7 +3275,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
                     "({:p}) Create input device info failed. This can happen when last media device is unplugged",
                     self.core_stream_data.stm_ptr
                 );
-                self.core_stream_data.close();
                 e
             })?;
         }
@@ -3288,7 +3287,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 "({:p}) Create output device info failed. This can happen when last media device is unplugged",
                 self.core_stream_data.stm_ptr
             );
-            self.core_stream_data.close();
             e
         })?;
 
@@ -3305,7 +3303,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
                         "({:p}) Create input device info failed. This can happen when last media device is unplugged",
                         self.core_stream_data.stm_ptr
                     );
-                    self.core_stream_data.close();
                     e
                 })?;
                 self.core_stream_data.setup().map_err(|e| {
@@ -3313,7 +3310,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
                         "({:p}) Second stream reinit failed.",
                         self.core_stream_data.stm_ptr
                     );
-                    self.core_stream_data.close();
                     e
                 })?;
             }
@@ -3330,7 +3326,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
                     "({:p}) Start audiounit failed.",
                     self.core_stream_data.stm_ptr
                 );
-                self.core_stream_data.close();
                 e
             })?;
         }
@@ -3365,6 +3360,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             }
 
             if stm_guard.reinit().is_err() {
+                stm_guard.core_stream_data.close();
                 stm_guard.notify_state_changed(State::Error);
                 cubeb_log!(
                     "({:p}) Could not reopen the stream after switching.",
