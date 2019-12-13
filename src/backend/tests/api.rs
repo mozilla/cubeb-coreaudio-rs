@@ -1498,7 +1498,7 @@ fn test_get_range_of_sample_rates() {
         ];
         let mut ranges = Vec::new();
         for scope in scopes.iter() {
-            ranges.push(get_range_of_sample_rates(id, *scope).unwrap());
+            ranges.push(get_range_of_sample_rates(id, *scope).unwrap().unwrap());
         }
         ranges
     }
