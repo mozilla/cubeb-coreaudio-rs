@@ -1490,12 +1490,16 @@ fn get_channel_count(devid: AudioObjectID, devtype: DeviceType) -> Result<u32> {
 fn get_range_of_sample_rates(
     devid: AudioObjectID,
     devtype: DeviceType,
-) -> std::result::Result<Option<(f64, f64)>, OSStatus> {
-    let (mut min, mut max) = (std::f64::MAX, std::f64::MIN);
-    let rates = get_ranges_of_device_sample_rate(devid, devtype)?;
-    if rates.is_empty() {
-        return Ok(None);
+) -> std::result::Result<(f64, f64), String> {
+    let result = get_ranges_of_device_sample_rate(devid, devtype);
+    if let Err(e) = result {
+        return Err(format!("status {}", e).to_string());
     }
+    let rates = result.unwrap();
+    if rates.is_empty() {
+        return Err(String::from("No data"));
+    }
+    let (mut min, mut max) = (std::f64::MAX, std::f64::MIN);
     for rate in rates {
         if rate.mMaximum > max {
             max = rate.mMaximum;
@@ -1504,7 +1508,7 @@ fn get_range_of_sample_rates(
             min = rate.mMinimum;
         }
     }
-    Ok(Some((min, max)))
+    Ok((min, max))
 }
 
 fn get_presentation_latency(devid: AudioObjectID, devtype: DeviceType) -> u32 {
@@ -1640,16 +1644,9 @@ fn create_cubeb_device_info(
     }
 
     match get_range_of_sample_rates(devid, devtype) {
-        Ok(Some((min, max))) => {
+        Ok((min, max)) => {
             dev_info.min_rate = min as u32;
             dev_info.max_rate = max as u32;
-        }
-        Ok(None) => {
-            cubeb_log!(
-                "No range of sample rate for device {} in {:?} scope found!",
-                devid,
-                devtype
-            );
         }
         Err(e) => {
             cubeb_log!(
