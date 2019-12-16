@@ -1490,10 +1490,16 @@ fn get_channel_count(devid: AudioObjectID, devtype: DeviceType) -> Result<u32> {
 fn get_range_of_sample_rates(
     devid: AudioObjectID,
     devtype: DeviceType,
-) -> std::result::Result<(f64, f64), OSStatus> {
+) -> std::result::Result<(f64, f64), String> {
+    let result = get_ranges_of_device_sample_rate(devid, devtype);
+    if let Err(e) = result {
+        return Err(format!("status {}", e).to_string());
+    }
+    let rates = result.unwrap();
+    if rates.is_empty() {
+        return Err(String::from("No data"));
+    }
     let (mut min, mut max) = (std::f64::MAX, std::f64::MIN);
-    let rates = get_ranges_of_device_sample_rate(devid, devtype)?;
-    assert!(!rates.is_empty());
     for rate in rates {
         if rate.mMaximum > max {
             max = rate.mMaximum;
