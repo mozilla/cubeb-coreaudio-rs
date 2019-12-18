@@ -1001,6 +1001,8 @@ fn audiounit_get_preferred_channel_layout(output_unit: AudioUnit) -> ChannelLayo
     audiounit_convert_channel_layout(layout.as_ref())
 }
 
+// This is for output AudioUnit only. Calling this by input-only AudioUnit is prone
+// to crash intermittently.
 fn audiounit_get_current_channel_layout(output_unit: AudioUnit) -> ChannelLayout {
     let mut rv = NO_ERR;
     let mut size: usize = 0;
