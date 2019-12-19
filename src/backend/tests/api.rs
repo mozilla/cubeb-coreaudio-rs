@@ -31,14 +31,6 @@ fn test_make_sized_audio_channel_layout_with_wrong_size() {
     let _ = make_sized_audio_channel_layout(wrong_size);
 }
 
-// has_input
-// ------------------------------------
-// TODO
-
-// has_output
-// ------------------------------------
-// TODO
-
 // channel_label_to_cubeb_channel
 // ------------------------------------
 // Convert a CAChannelLabel into a ChannelLayout
@@ -264,14 +256,6 @@ fn test_make_silent() {
     }
 }
 
-// render_input
-// ------------------------------------
-// TODO
-
-// input_callback
-// ------------------------------------
-// TODO
-
 // minimum_resampling_input_frames
 // ------------------------------------
 #[test]
@@ -309,10 +293,6 @@ fn test_minimum_resampling_input_frames_equal_input_output_rate() {
         frames
     );
 }
-
-// output_callback
-// ------------------------------------
-// TODO
 
 // create_device_info
 // ------------------------------------
@@ -377,22 +357,6 @@ fn test_set_device_info_to_nonexistent_output_device() {
     let nonexistent_id = std::u32::MAX;
     let _device = create_device_info(nonexistent_id, DeviceType::OUTPUT);
 }
-
-// reinit_stream
-// ------------------------------------
-// TODO
-
-// reinit_stream_async
-// ------------------------------------
-// TODO
-
-// event_addr_to_string
-// ------------------------------------
-// TODO
-
-// property_listener_callback
-// ------------------------------------
-// TODO
 
 // add_listener (for default output device)
 // ------------------------------------
@@ -504,14 +468,6 @@ fn test_remove_listener_unknown_device() {
         );
     });
 }
-
-// install_system_changed_callback
-// ------------------------------------
-// TODO
-
-// uninstall_system_changed_callback
-// ------------------------------------
-// TODO
 
 // get_default_device_id
 // ------------------------------------
@@ -834,11 +790,6 @@ fn test_get_preferred_channel_layout_output() {
     }
 }
 
-// TODO: Should it be banned ? It only works with output audiounit for now.
-// #[test]
-// fn test_get_preferred_channel_layout_input() {
-// }
-
 // get_current_channel_layout
 // ------------------------------------
 #[test]
@@ -872,11 +823,6 @@ fn test_get_current_channel_layout_output() {
         println!("Device {} is not in the whitelist.", source);
     }
 }
-
-// TODO: Should it be banned ? It only works with output audiounit for now.
-// #[test]
-// fn test_get_current_channel_layout_input() {
-// }
 
 // create_stream_description
 // ------------------------------------
@@ -1290,30 +1236,6 @@ fn test_set_buffer_size_sync_by_scope_with_null_unit(scope: Scope) {
     assert!(set_buffer_size_sync(unit, scope.into(), 2048).is_err());
 }
 
-// setup_stream
-// ------------------------------------
-// TODO
-
-// stream_destroy_internal
-// ------------------------------------
-// TODO
-
-// stream_destroy
-// ------------------------------------
-// TODO
-
-// stream_start_internal
-// ------------------------------------
-// TODO
-
-// stream_start
-// ------------------------------------
-// TODO
-
-// stream_stop_internal
-// ------------------------------------
-// TODO
-
 // get_volume, set_volume
 // ------------------------------------
 #[test]
@@ -1358,10 +1280,6 @@ fn test_get_default_device_name() {
         }
     }
 }
-
-// strref_to_cstr_utf8
-// ------------------------------------
-// TODO
 
 // is_device_a_type_of
 // ------------------------------------
