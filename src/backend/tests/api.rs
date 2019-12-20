@@ -927,23 +927,6 @@ fn test_set_channel_layout_output_undefind() {
 }
 
 #[test]
-fn test_set_channel_layout_input() {
-    if let Some(unit) = test_get_default_audiounit(Scope::Input) {
-        // Get original layout.
-        let original_layout = audiounit_get_current_channel_layout(unit.get_inner());
-        // Leave layout as it is.
-        assert!(audiounit_set_channel_layout(unit.get_inner(), ChannelLayout::UNDEFINED).is_ok());
-        // Check the layout is same as the original one.
-        assert_eq!(
-            audiounit_get_current_channel_layout(unit.get_inner()),
-            original_layout
-        );
-    } else {
-        println!("No input audiounit.");
-    }
-}
-
-#[test]
 #[should_panic]
 fn test_set_channel_layout_with_null_unit() {
     assert!(audiounit_set_channel_layout(ptr::null_mut(), ChannelLayout::UNDEFINED).is_err());
