@@ -5,7 +5,7 @@ use std::os::raw::{c_int, c_void};
 extern crate mixer;
 pub use self::mixer::Channel;
 
-const CHANNEL_OERDER: [mixer::Channel; 19] = [
+const CHANNEL_OERDER: [mixer::Channel; mixer::Channel::count()] = [
     mixer::Channel::FrontLeft,
     mixer::Channel::FrontRight,
     mixer::Channel::FrontCenter,
