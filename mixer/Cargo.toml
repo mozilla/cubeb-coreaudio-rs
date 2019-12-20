@@ -8,6 +8,8 @@ edition = "2018"
 
 [dependencies]
 bitflags = "1.2"
+
+[dev-dependencies]
 criterion = "0.3"
 
 [[bench]]
