@@ -63,8 +63,8 @@ enum MixerType {
 impl MixerType {
     fn new(
         format: SampleFormat,
-        input_channels: Vec<audio_mixer::Channel>,
-        output_channels: Vec<audio_mixer::Channel>,
+        input_channels: &[audio_mixer::Channel],
+        output_channels: &[audio_mixer::Channel],
     ) -> Self {
         match format {
             SampleFormat::S16LE | SampleFormat::S16BE | SampleFormat::S16NE => {
@@ -211,7 +211,7 @@ impl Mixer {
         }
 
         Self {
-            mixer: MixerType::new(format, input_channels, output_channels),
+            mixer: MixerType::new(format, &input_channels, &output_channels),
             buffer: Vec::new(),
         }
     }
