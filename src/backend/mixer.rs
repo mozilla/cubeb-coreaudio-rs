@@ -107,9 +107,9 @@ impl MixerType {
 
     fn mix(
         &self,
-        input_buffer_ptr: *const u8,
+        input_buffer_ptr: *const (),
         input_buffer_size: usize,
-        output_buffer_ptr: *mut u8,
+        output_buffer_ptr: *mut (),
         output_buffer_size: usize,
         frames: usize,
     ) {
@@ -235,9 +235,9 @@ impl Mixer {
     pub fn mix(&self, frames: usize, dest_buffer: *mut c_void, dest_buffer_size: usize) -> c_int {
         let (src_buffer_ptr, src_buffer_size) = self.get_buffer_info();
         self.mixer.mix(
-            src_buffer_ptr,
+            src_buffer_ptr as *const (),
             src_buffer_size,
-            dest_buffer as *mut u8,
+            dest_buffer as *mut (),
             dest_buffer_size,
             frames,
         );
