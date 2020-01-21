@@ -1647,7 +1647,7 @@ fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID> {
     devices.retain(|&device| {
         if let Ok(uid) = get_device_global_uid(device) {
             let uid = uid.into_string();
-            uid != PRIVATE_AGGREGATE_DEVICE_NAME
+            !uid.contains(PRIVATE_AGGREGATE_DEVICE_NAME)
         } else {
             // Fail to get device uid.
             true
