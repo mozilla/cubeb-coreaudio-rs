@@ -524,7 +524,8 @@ extern "C" fn audiounit_input_callback(
     // If the input (input-only stream) or the output is drained (duplex stream),
     // cancel this callback.
     if stm.draining.load(Ordering::SeqCst) {
-        debug_assert!(stop_audiounit(stm.core_stream_data.input_unit).is_ok());
+        let r = stop_audiounit(stm.core_stream_data.input_unit);
+        assert!(r.is_ok());
         // Only fire state-changed callback for input-only stream.
         // The state-changed callback for the duplex stream is fired in the output callback.
         if stm.core_stream_data.output_unit.is_null() {
@@ -611,7 +612,8 @@ extern "C" fn audiounit_output_callback(
     if stm.draining.load(Ordering::SeqCst) {
         // Cancel the output callback only. For duplex stream,
         // the input callback will be cancelled in its own callback.
-        debug_assert!(stop_audiounit(stm.core_stream_data.output_unit).is_ok());
+        let r = stop_audiounit(stm.core_stream_data.output_unit);
+        assert!(r.is_ok());
         stm.notify_state_changed(State::Drained);
         audiounit_make_silent(&mut buffers[0]);
         return NO_ERR;
@@ -2356,10 +2358,12 @@ impl<'ctx> CoreStreamData<'ctx> {
 
     fn stop_audiounits(&self) {
         if !self.input_unit.is_null() {
-            debug_assert!(stop_audiounit(self.input_unit).is_ok());
+            let r = stop_audiounit(self.input_unit);
+            assert!(r.is_ok());
         }
         if !self.output_unit.is_null() {
-            debug_assert!(stop_audiounit(self.output_unit).is_ok());
+            let r = stop_audiounit(self.output_unit);
+            assert!(r.is_ok());
         }
     }
 
