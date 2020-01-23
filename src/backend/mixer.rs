@@ -63,8 +63,8 @@ enum MixerType {
 impl MixerType {
     fn new(
         format: SampleFormat,
-        input_channels: Vec<audio_mixer::Channel>,
-        output_channels: Vec<audio_mixer::Channel>,
+        input_channels: &[audio_mixer::Channel],
+        output_channels: &[audio_mixer::Channel],
     ) -> Self {
         match format {
             SampleFormat::S16LE | SampleFormat::S16BE | SampleFormat::S16NE => {
@@ -107,9 +107,9 @@ impl MixerType {
 
     fn mix(
         &self,
-        input_buffer_ptr: *const u8,
+        input_buffer_ptr: *const (),
         input_buffer_size: usize,
-        output_buffer_ptr: *mut u8,
+        output_buffer_ptr: *mut (),
         output_buffer_size: usize,
         frames: usize,
     ) {
@@ -211,7 +211,7 @@ impl Mixer {
         }
 
         Self {
-            mixer: MixerType::new(format, input_channels, output_channels),
+            mixer: MixerType::new(format, &input_channels, &output_channels),
             buffer: Vec::new(),
         }
     }
@@ -235,9 +235,9 @@ impl Mixer {
     pub fn mix(&self, frames: usize, dest_buffer: *mut c_void, dest_buffer_size: usize) -> c_int {
         let (src_buffer_ptr, src_buffer_size) = self.get_buffer_info();
         self.mixer.mix(
-            src_buffer_ptr,
+            src_buffer_ptr as *const (),
             src_buffer_size,
-            dest_buffer as *mut u8,
+            dest_buffer as *mut (),
             dest_buffer_size,
             frames,
         );
