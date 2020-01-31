@@ -3276,7 +3276,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
     }
 
     fn destroy(&mut self) {
-        *self.destroy_pending.get_mut() = true;
+        self.destroy_pending.store(true, Ordering::SeqCst);
 
         let queue = self.context.serial_queue;
 
