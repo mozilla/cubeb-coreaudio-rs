@@ -720,7 +720,7 @@ extern "C" fn audiounit_output_callback(
         }
 
         if outframes < 0 || outframes > i64::from(output_frames) {
-            *stm.shutdown.get_mut() = true;
+            stm.shutdown.store(true, Ordering::SeqCst);
             stm.core_stream_data.stop_audiounits();
             audiounit_make_silent(&mut buffers[0]);
             return (NO_ERR, Some(State::Error));
@@ -3289,7 +3289,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             // CoreAudio framework that is used by the data callback.
             if !self.shutdown.load(Ordering::SeqCst) {
                 self.core_stream_data.stop_audiounits();
-                *self.shutdown.get_mut() = true;
+                self.shutdown.store(true, Ordering::SeqCst);
             }
 
             self.destroy_internal();
@@ -3307,7 +3307,7 @@ impl<'ctx> Drop for AudioUnitStream<'ctx> {
 
 impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     fn start(&mut self) -> Result<()> {
-        *self.shutdown.get_mut() = false;
+        self.shutdown.store(false, Ordering::SeqCst);
         *self.draining.get_mut() = false;
 
         // Execute start in serial queue to avoid racing with destroy or reinit.
@@ -3332,7 +3332,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         Ok(())
     }
     fn stop(&mut self) -> Result<()> {
-        *self.shutdown.get_mut() = true;
+        self.shutdown.store(true, Ordering::SeqCst);
 
         // Execute stop in serial queue to avoid racing with destroy or reinit.
         let queue = self.context.serial_queue;
