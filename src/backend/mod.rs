@@ -726,7 +726,8 @@ extern "C" fn audiounit_output_callback(
             return (NO_ERR, Some(State::Error));
         }
 
-        *stm.draining.get_mut() = outframes < i64::from(output_frames);
+        stm.draining
+            .store(outframes < i64::from(output_frames), Ordering::SeqCst);
         stm.frames_played
             .store(stm.frames_queued, atomic::Ordering::SeqCst);
         stm.frames_queued += outframes as u64;
@@ -3308,7 +3309,7 @@ impl<'ctx> Drop for AudioUnitStream<'ctx> {
 impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     fn start(&mut self) -> Result<()> {
         self.shutdown.store(false, Ordering::SeqCst);
-        *self.draining.get_mut() = false;
+        self.draining.store(false, Ordering::SeqCst);
 
         // Execute start in serial queue to avoid racing with destroy or reinit.
         let queue = self.context.serial_queue;
