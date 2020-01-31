@@ -3264,7 +3264,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 );
             }
             stm_guard.switching_device.store(false, Ordering::SeqCst);
-            *stm_guard.reinit_pending.get_mut() = false;
+            stm_guard.reinit_pending.store(false, Ordering::SeqCst);
         });
     }
 
