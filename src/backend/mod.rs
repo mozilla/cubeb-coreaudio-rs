@@ -794,7 +794,7 @@ extern "C" fn audiounit_property_listener_callback(
         );
         return NO_ERR;
     }
-    *stm.switching_device.get_mut() = true;
+    stm.switching_device.store(true, Ordering::SeqCst);
 
     cubeb_log!(
         "({:p}) Audio device changed, {} events.",
@@ -832,7 +832,7 @@ extern "C" fn audiounit_property_listener_callback(
                     .contains(device_flags::DEV_SYSTEM_DEFAULT)
                 {
                     cubeb_log!("It's the default input device, ignore the event");
-                    *stm.switching_device.get_mut() = false;
+                    stm.switching_device.store(false, Ordering::SeqCst);
                     return NO_ERR;
                 }
             }
@@ -849,7 +849,7 @@ extern "C" fn audiounit_property_listener_callback(
                     i,
                     addr.mSelector
                 );
-                *stm.switching_device.get_mut() = false;
+                stm.switching_device.store(false, Ordering::SeqCst);
                 return NO_ERR;
             }
         }
@@ -3263,7 +3263,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
                     stm_ptr
                 );
             }
-            *stm_guard.switching_device.get_mut() = false;
+            stm_guard.switching_device.store(false, Ordering::SeqCst);
             *stm_guard.reinit_pending.get_mut() = false;
         });
     }
