@@ -33,6 +33,13 @@ after finishing normal tests.
 Most of the tests are executed in `run_tests.sh`.
 Only those tests commented with *FIXIT* are left.
 
+### Run Sanitizers
+Run _AddressSanitizer (ASan), LeakSanitizer (LSan), MemorySanitizer (MSan), ThreadSanitizer (TSan)_
+by `sh run_sanitizers.sh`.
+
+The above command will run all the test suits in *run_tests.sh* by all the available _sanitizers_.
+However, it takes a long time for finshing the tests.
+
 ### Device Switching
 The system default device will be changed during our tests.
 All the available devices will take turns being the system default device.
