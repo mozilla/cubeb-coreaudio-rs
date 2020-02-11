@@ -3041,6 +3041,8 @@ impl<'ctx> Drop for CoreStreamData<'ctx> {
 // #[repr(C)] is used to prevent any padding from being added in the beginning of the AudioUnitStream.
 #[repr(C)]
 #[derive(Debug)]
+// Allow exposing this private struct in public interfaces when running tests.
+#[cfg_attr(test, allow(private_in_public))]
 struct AudioUnitStream<'ctx> {
     context: &'ctx mut AudioUnitContext,
     user_ptr: *mut c_void,
