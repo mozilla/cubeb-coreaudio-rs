@@ -3393,10 +3393,10 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
 
         let mut device: Box<ffi::cubeb_device> = Box::new(ffi::cubeb_device::default());
 
-        let input_name = input_name.unwrap_or(CString::default());
+        let input_name = input_name.unwrap_or_default();
         device.input_name = input_name.into_raw();
 
-        let output_name = output_name.unwrap_or(CString::default());
+        let output_name = output_name.unwrap_or_default();
         device.output_name = output_name.into_raw();
 
         Ok(unsafe { DeviceRef::from_ptr(Box::into_raw(device)) })
