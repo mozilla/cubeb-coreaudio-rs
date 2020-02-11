@@ -539,14 +539,13 @@ extern "C" fn audiounit_input_callback(
         }
     }
 
-    let status = match handle {
+    match handle {
         ErrorHandle::Reinit => {
             stm.reinit_async();
             NO_ERR
         }
         ErrorHandle::Return(s) => s,
-    };
-    status
+    }
 }
 
 fn host_time_to_ns(host_time: u64) -> u64 {
