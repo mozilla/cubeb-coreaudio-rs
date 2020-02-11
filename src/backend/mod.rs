@@ -552,7 +552,7 @@ fn host_time_to_ns(host_time: u64) -> u64 {
     let mut rv: f64 = host_time as f64;
     rv *= HOST_TIME_TO_NS_RATIO.0 as f64;
     rv /= HOST_TIME_TO_NS_RATIO.1 as f64;
-    return rv as u64;
+    rv as u64
 }
 
 fn compute_output_latency(stm: &AudioUnitStream, host_time: u64) -> u32 {
