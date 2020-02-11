@@ -383,6 +383,12 @@ extern "C" fn audiounit_input_callback(
             user_ptr as *const AudioUnitStream
         );
 
+        // `flags` and `tstamp` must be non-null so they can be casted into the references.
+        assert!(!flags.is_null());
+        let flags = unsafe { &mut (*flags) };
+        assert!(!tstamp.is_null());
+        let tstamp = unsafe { &(*tstamp) };
+
         // Create the AudioBufferList to store input.
         let mut input_buffer_list = AudioBufferList::default();
         input_buffer_list.mBuffers[0].mDataByteSize =

@@ -124,11 +124,11 @@ pub fn audio_output_unit_stop(unit: AudioUnit) -> OSStatus {
 
 pub fn audio_unit_render(
     in_unit: AudioUnit,
-    io_action_flags: *mut AudioUnitRenderActionFlags,
-    in_time_stamp: *const AudioTimeStamp,
+    io_action_flags: &mut AudioUnitRenderActionFlags,
+    in_time_stamp: &AudioTimeStamp,
     in_output_bus_number: u32,
     in_number_frames: u32,
-    io_data: *mut AudioBufferList,
+    io_data: &mut AudioBufferList,
 ) -> OSStatus {
     assert!(!in_unit.is_null());
     unsafe {
