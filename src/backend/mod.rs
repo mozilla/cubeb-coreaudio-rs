@@ -328,9 +328,9 @@ fn get_volume(unit: AudioUnit) -> Result<f32> {
 }
 
 fn minimum_resampling_input_frames(input_rate: f64, output_rate: f64, output_frames: i64) -> i64 {
-    assert_ne!(input_rate, 0_f64);
-    assert_ne!(output_rate, 0_f64);
-    if input_rate == output_rate {
+    assert!(!approx_eq!(f64, input_rate, 0_f64));
+    assert!(!approx_eq!(f64, output_rate, 0_f64));
+    if approx_eq!(f64, input_rate, output_rate) {
         return output_frames;
     }
     (input_rate * output_frames as f64 / output_rate).ceil() as i64
