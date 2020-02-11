@@ -5,6 +5,8 @@ rust:
   - nightly
 os:
   - osx
+env:
+  - RUST_BACKTRACE=1
 before_script:
   - rustc --version
   - cargo --version
