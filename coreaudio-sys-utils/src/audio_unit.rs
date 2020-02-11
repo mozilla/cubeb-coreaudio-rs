@@ -52,7 +52,7 @@ pub fn audio_unit_set_property<T>(
     property: AudioUnitPropertyID,
     scope: AudioUnitScope,
     element: AudioUnitElement,
-    data: *const T,
+    data: &T,
     size: usize,
 ) -> OSStatus {
     assert!(!unit.is_null());
@@ -62,7 +62,7 @@ pub fn audio_unit_set_property<T>(
             property,
             scope,
             element,
-            data as *const c_void,
+            data as *const T as *const c_void,
             size as UInt32,
         )
     }
