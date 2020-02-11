@@ -1771,9 +1771,7 @@ impl DevicesData {
     }
 
     fn is_empty(&self) -> bool {
-        self.changed_callback == None
-            && self.callback_user_ptr == ptr::null_mut()
-            && self.devices.is_empty()
+        self.changed_callback == None && self.callback_user_ptr.is_null() && self.devices.is_empty()
     }
 }
 
