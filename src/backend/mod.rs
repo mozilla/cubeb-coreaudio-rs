@@ -2394,6 +2394,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             && !is_device_a_type_of(self.output_device.id, DeviceType::INPUT)
     }
 
+    #[allow(clippy::cognitive_complexity)] // TODO: Refactoring.
     fn setup(&mut self) -> Result<()> {
         if self
             .input_stream_params
