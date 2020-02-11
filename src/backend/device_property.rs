@@ -217,6 +217,7 @@ pub fn get_device_stream_format(
     }
 }
 
+#[allow(clippy::cast_ptr_alignment)] // Allow casting *mut u8 to *mut AudioBufferList
 pub fn get_device_stream_configuration(
     id: AudioDeviceID,
     devtype: DeviceType,
