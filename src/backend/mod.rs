@@ -1230,6 +1230,7 @@ fn set_buffer_size(
     }
 }
 
+#[allow(clippy::mutex_atomic)] // The mutex needs to be fed into Condvar::wait_timeout.
 fn set_buffer_size_sync(unit: AudioUnit, devtype: DeviceType, frames: u32) -> Result<()> {
     let current_frames = get_buffer_size(unit, devtype).map_err(|e| {
         cubeb_log!(
