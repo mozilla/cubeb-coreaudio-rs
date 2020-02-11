@@ -194,7 +194,7 @@ fn create_device_info(id: AudioDeviceID, devtype: DeviceType) -> Result<device_i
     assert_ne!(id, kAudioObjectSystemObject);
 
     let mut info = device_info {
-        id: id,
+        id,
         flags: match devtype {
             DeviceType::INPUT => device_flags::DEV_INPUT,
             DeviceType::OUTPUT => device_flags::DEV_OUTPUT,
