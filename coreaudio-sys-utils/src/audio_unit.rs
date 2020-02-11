@@ -1,23 +1,26 @@
 use coreaudio_sys::*;
+use std::convert::TryFrom;
 use std::os::raw::c_void;
+use std::ptr;
 
 pub fn audio_unit_get_property_info(
     unit: AudioUnit,
     property: AudioUnitPropertyID,
     scope: AudioUnitScope,
     element: AudioUnitElement,
-    size: *mut usize,
-    writable: *mut Boolean,
+    size: &mut usize,
+    writable: Option<&mut bool>, // Use `Option` since `writable` is nullable.
 ) -> OSStatus {
     assert!(!unit.is_null());
+    assert!(UInt32::try_from(*size).is_ok()); // Check if `size` can be converted to a UInt32.
     unsafe {
         AudioUnitGetPropertyInfo(
             unit,
             property,
             scope,
             element,
-            size as *mut UInt32,
-            writable,
+            size as *mut usize as *mut UInt32,
+            writable.map_or(ptr::null_mut(), |v| v as *mut bool as *mut Boolean),
         )
     }
 }

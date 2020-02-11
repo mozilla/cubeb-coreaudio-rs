@@ -925,7 +925,7 @@ fn audiounit_get_preferred_channel_layout(output_unit: AudioUnit) -> Vec<mixer::
         kAudioUnitScope_Output,
         AU_OUT_BUS,
         &mut size,
-        ptr::null_mut(),
+        None,
     );
     if rv != NO_ERR {
         cubeb_log!(
@@ -967,7 +967,7 @@ fn audiounit_get_current_channel_layout(output_unit: AudioUnit) -> Vec<mixer::Ch
         kAudioUnitScope_Output,
         AU_OUT_BUS,
         &mut size,
-        ptr::null_mut(),
+        None,
     );
     if rv != NO_ERR {
         cubeb_log!(
