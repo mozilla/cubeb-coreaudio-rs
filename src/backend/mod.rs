@@ -752,8 +752,8 @@ extern "C" fn audiounit_output_callback(
                 )
             };
             let start = frames_to_bytes(outframes as usize);
-            for i in start..out_bytes.len() {
-                out_bytes[i] = 0;
+            for byte in out_bytes.iter_mut().skip(start) {
+                *byte = 0;
             }
         }
 
