@@ -30,18 +30,19 @@ pub fn audio_unit_get_property<T>(
     property: AudioUnitPropertyID,
     scope: AudioUnitScope,
     element: AudioUnitElement,
-    data: *mut T,
-    size: *mut usize,
+    data: &mut T,
+    size: &mut usize,
 ) -> OSStatus {
     assert!(!unit.is_null());
+    assert!(UInt32::try_from(*size).is_ok()); // Check if `size` can be converted to a UInt32.
     unsafe {
         AudioUnitGetProperty(
             unit,
             property,
             scope,
             element,
-            data as *mut c_void,
-            size as *mut UInt32,
+            data as *mut T as *mut c_void,
+            size as *mut usize as *mut UInt32,
         )
     }
 }
