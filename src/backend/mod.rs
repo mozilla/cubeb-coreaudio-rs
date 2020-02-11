@@ -1397,7 +1397,7 @@ fn get_range_of_sample_rates(
 ) -> std::result::Result<(f64, f64), String> {
     let result = get_ranges_of_device_sample_rate(devid, devtype);
     if let Err(e) = result {
-        return Err(format!("status {}", e).to_string());
+        return Err(format!("status {}", e));
     }
     let rates = result.unwrap();
     if rates.is_empty() {
