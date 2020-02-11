@@ -202,7 +202,7 @@ impl Mixer {
         }
 
         let all_silence = vec![audio_mixer::Channel::Silence; out_channel_count];
-        if output_channels.len() == 0
+        if output_channels.is_empty()
             || out_channel_count != output_channels.len()
             || all_silence == output_channels
         {
