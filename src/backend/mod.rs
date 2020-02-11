@@ -3217,8 +3217,8 @@ impl<'ctx> AudioUnitStream<'ctx> {
             }
         }
 
-        if vol_rv.is_ok() {
-            set_volume(self.core_stream_data.output_unit, vol_rv.unwrap());
+        if let Ok(volume) = vol_rv {
+            set_volume(self.core_stream_data.output_unit, volume);
         }
 
         // If the stream was running, start it again.
