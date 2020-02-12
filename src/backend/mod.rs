@@ -2638,6 +2638,13 @@ impl<'ctx> CoreStreamData<'ctx> {
             );
             self.output_hw_rate = output_hw_desc.mSampleRate;
             let hw_channels = output_hw_desc.mChannelsPerFrame;
+            if hw_channels == 0 {
+                cubeb_log!(
+                    "({:p}) Output hardware has no output channel! Bail out.",
+                    self.stm_ptr
+                );
+                return Err(Error::device_unavailable());
+            }
 
             self.device_layout = audiounit_get_current_channel_layout(self.output_unit);
 
