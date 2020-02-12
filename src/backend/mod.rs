@@ -2438,6 +2438,12 @@ impl<'ctx> CoreStreamData<'ctx> {
 
         // Configure I/O stream
         if self.has_input() {
+            cubeb_log!(
+                "({:p}) Initialize input by device info: {:?}",
+                self.stm_ptr,
+                in_dev_info
+            );
+
             self.input_unit = create_audiounit(&in_dev_info).map_err(|e| {
                 cubeb_log!("({:p}) AudioUnit creation for input failed.", self.stm_ptr);
                 e
@@ -2577,6 +2583,12 @@ impl<'ctx> CoreStreamData<'ctx> {
         }
 
         if self.has_output() {
+            cubeb_log!(
+                "({:p}) Initialize output by device info: {:?}",
+                self.stm_ptr,
+                out_dev_info
+            );
+
             self.output_unit = create_audiounit(&out_dev_info).map_err(|e| {
                 cubeb_log!("({:p}) AudioUnit creation for output failed.", self.stm_ptr);
                 e
@@ -2627,6 +2639,13 @@ impl<'ctx> CoreStreamData<'ctx> {
             );
             self.output_hw_rate = output_hw_desc.mSampleRate;
             let hw_channels = output_hw_desc.mChannelsPerFrame;
+            if hw_channels == 0 {
+                cubeb_log!(
+                    "({:p}) Output hardware has no output channel! Bail out.",
+                    self.stm_ptr
+                );
+                return Err(Error::device_unavailable());
+            }
 
             self.device_layout = audiounit_get_current_channel_layout(self.output_unit);
 
