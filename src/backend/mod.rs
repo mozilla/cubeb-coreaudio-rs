@@ -720,13 +720,14 @@ extern "C" fn audiounit_output_callback(
         }
 
         if outframes < 0 || outframes > i64::from(output_frames) {
-            *stm.shutdown.get_mut() = true;
+            stm.shutdown.store(true, Ordering::SeqCst);
             stm.core_stream_data.stop_audiounits();
             audiounit_make_silent(&mut buffers[0]);
             return (NO_ERR, Some(State::Error));
         }
 
-        *stm.draining.get_mut() = outframes < i64::from(output_frames);
+        stm.draining
+            .store(outframes < i64::from(output_frames), Ordering::SeqCst);
         stm.frames_played
             .store(stm.frames_queued, atomic::Ordering::SeqCst);
         stm.frames_queued += outframes as u64;
@@ -794,7 +795,7 @@ extern "C" fn audiounit_property_listener_callback(
         );
         return NO_ERR;
     }
-    *stm.switching_device.get_mut() = true;
+    stm.switching_device.store(true, Ordering::SeqCst);
 
     cubeb_log!(
         "({:p}) Audio device changed, {} events.",
@@ -832,7 +833,7 @@ extern "C" fn audiounit_property_listener_callback(
                     .contains(device_flags::DEV_SYSTEM_DEFAULT)
                 {
                     cubeb_log!("It's the default input device, ignore the event");
-                    *stm.switching_device.get_mut() = false;
+                    stm.switching_device.store(false, Ordering::SeqCst);
                     return NO_ERR;
                 }
             }
@@ -849,7 +850,7 @@ extern "C" fn audiounit_property_listener_callback(
                     i,
                     addr.mSelector
                 );
-                *stm.switching_device.get_mut() = false;
+                stm.switching_device.store(false, Ordering::SeqCst);
                 return NO_ERR;
             }
         }
@@ -3263,8 +3264,8 @@ impl<'ctx> AudioUnitStream<'ctx> {
                     stm_ptr
                 );
             }
-            *stm_guard.switching_device.get_mut() = false;
-            *stm_guard.reinit_pending.get_mut() = false;
+            stm_guard.switching_device.store(false, Ordering::SeqCst);
+            stm_guard.reinit_pending.store(false, Ordering::SeqCst);
         });
     }
 
@@ -3275,7 +3276,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
     }
 
     fn destroy(&mut self) {
-        *self.destroy_pending.get_mut() = true;
+        self.destroy_pending.store(true, Ordering::SeqCst);
 
         let queue = self.context.serial_queue;
 
@@ -3289,7 +3290,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             // CoreAudio framework that is used by the data callback.
             if !self.shutdown.load(Ordering::SeqCst) {
                 self.core_stream_data.stop_audiounits();
-                *self.shutdown.get_mut() = true;
+                self.shutdown.store(true, Ordering::SeqCst);
             }
 
             self.destroy_internal();
@@ -3307,8 +3308,8 @@ impl<'ctx> Drop for AudioUnitStream<'ctx> {
 
 impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     fn start(&mut self) -> Result<()> {
-        *self.shutdown.get_mut() = false;
-        *self.draining.get_mut() = false;
+        self.shutdown.store(false, Ordering::SeqCst);
+        self.draining.store(false, Ordering::SeqCst);
 
         // Execute start in serial queue to avoid racing with destroy or reinit.
         let queue = self.context.serial_queue;
@@ -3332,7 +3333,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         Ok(())
     }
     fn stop(&mut self) -> Result<()> {
-        *self.shutdown.get_mut() = true;
+        self.shutdown.store(true, Ordering::SeqCst);
 
         // Execute stop in serial queue to avoid racing with destroy or reinit.
         let queue = self.context.serial_queue;
