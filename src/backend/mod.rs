@@ -2141,7 +2141,7 @@ impl ContextOps for AudioUnitContext {
                     cubeb_log!("Fail to create device info for input.");
                     e
                 })?;
-            let stm_params = StreamParams::from(unsafe { (*params.as_ptr()) });
+            let stm_params = StreamParams::from(unsafe { *params.as_ptr() });
             Some((stm_params, in_device))
         } else {
             None
@@ -2153,7 +2153,7 @@ impl ContextOps for AudioUnitContext {
                     cubeb_log!("Fail to create device info for output.");
                     e
                 })?;
-            let stm_params = StreamParams::from(unsafe { (*params.as_ptr()) });
+            let stm_params = StreamParams::from(unsafe { *params.as_ptr() });
             Some((stm_params, out_device))
         } else {
             None
