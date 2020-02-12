@@ -2741,14 +2741,14 @@ impl<'ctx> CoreStreamData<'ctx> {
         };
 
         let resampler_input_params = if self.has_input() {
-            let mut params = unsafe { (*(self.input_stream_params.as_ptr())) };
+            let mut params = unsafe { *(self.input_stream_params.as_ptr()) };
             params.rate = self.input_hw_rate as u32;
             Some(params)
         } else {
             None
         };
         let resampler_output_params = if self.has_output() {
-            let params = unsafe { (*(self.output_stream_params.as_ptr())) };
+            let params = unsafe { *(self.output_stream_params.as_ptr()) };
             Some(params)
         } else {
             None
