@@ -3302,6 +3302,29 @@ impl<'ctx> AudioUnitStream<'ctx> {
     }
 
     fn destroy(&mut self) {
+        if self
+            .core_stream_data
+            .uninstall_system_changed_callback()
+            .is_err()
+        {
+            cubeb_log!(
+                "({:p}) Could not uninstall the system changed callback",
+                self as *const AudioUnitStream
+            );
+        }
+
+        if self
+            .core_stream_data
+            .uninstall_device_changed_callback()
+            .is_err()
+        {
+            cubeb_log!(
+                "({:p}) Could not uninstall all device change listeners",
+                self as *const AudioUnitStream
+            );
+        }
+
+        // Execute the stream destroy work.
         self.destroy_pending.store(true, Ordering::SeqCst);
 
         let queue = self.context.serial_queue;
