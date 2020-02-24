@@ -1,4 +1,4 @@
-# display backtrace for debugging
+# Display backtrace for debugging
 export RUST_BACKTRACE=1
 
 # Run tests in the sub crate
