@@ -5,6 +5,51 @@ use std::mem;
 use std::os::raw::c_void;
 use std::ptr;
 
+// Queue: A wrapper around `dispatch_queue_t`.
+// ------------------------------------------------------------------------------------------------
+#[derive(Debug)]
+pub struct Queue(dispatch_queue_t);
+
+impl Queue {
+    pub fn new(label: &'static str) -> Self {
+        Self(create_dispatch_queue(label, DISPATCH_QUEUE_SERIAL))
+    }
+
+    pub fn run_async<F>(&self, work: F)
+    where
+        F: Send + FnOnce(),
+    {
+        async_dispatch(self.0, work);
+    }
+
+    pub fn run_sync<F>(&self, work: F)
+    where
+        F: Send + FnOnce(),
+    {
+        sync_dispatch(self.0, work);
+    }
+
+    // This will release the inner `dispatch_queue_t` asynchronously.
+    fn release(&self) {
+        release_dispatch_queue(self.0);
+    }
+}
+
+impl Drop for Queue {
+    fn drop(&mut self) {
+        self.release();
+    }
+}
+
+impl Clone for Queue {
+    fn clone(&self) -> Self {
+        retain_dispatch_queue(self.0);
+        Self(self.0)
+    }
+}
+
+// Low-level Grand Central Dispatch (GCD) APIs
+// ------------------------------------------------------------------------------------------------
 pub const DISPATCH_QUEUE_SERIAL: dispatch_queue_attr_t = ptr::null_mut::<dispatch_queue_attr_s>();
 
 pub fn create_dispatch_queue(
@@ -20,6 +65,13 @@ pub fn release_dispatch_queue(queue: dispatch_queue_t) {
     // TODO: This is incredibly unsafe. Find another way to release the queue.
     unsafe {
         dispatch_release(mem::transmute::<dispatch_queue_t, dispatch_object_t>(queue));
+    }
+}
+
+pub fn retain_dispatch_queue(queue: dispatch_queue_t) {
+    // TODO: This is incredibly unsafe. Find another way to retain the queue.
+    unsafe {
+        dispatch_retain(mem::transmute::<dispatch_queue_t, dispatch_object_t>(queue));
     }
 }
 
@@ -69,83 +121,28 @@ where
     )
 }
 
-#[cfg(test)]
-mod test {
-    use super::*;
-    use std::sync::{Arc, Mutex};
-    const COUNT: u32 = 10;
+#[test]
+fn run_tasks_in_order() {
+    let mut visited = Vec::<u32>::new();
 
-    #[test]
-    fn test_async_dispatch() {
-        use std::sync::mpsc::channel;
+    // Rust compilter doesn't allow a pointer to be passed across threads.
+    // A hacky way to do that is to cast the pointer into a value, then
+    // the value, which is actually an address, can be copied into threads.
+    let ptr = &mut visited as *mut Vec<u32> as usize;
 
-        get_queue_and_resource("Run with async dispatch api wrappers", |queue, resource| {
-            let (tx, rx) = channel();
-            for i in 0..COUNT {
-                let (res, tx) = (Arc::clone(&resource), tx.clone());
-                async_dispatch(queue, move || {
-                    let mut res = res.lock().unwrap();
-                    assert_eq!(res.last_touched, if i == 0 { None } else { Some(i - 1) });
-                    assert_eq!(res.touched_count, i);
-                    res.touch(i);
-                    if i == COUNT - 1 {
-                        tx.send(()).unwrap();
-                    }
-                });
-            }
-            rx.recv().unwrap(); // Wait until it's touched COUNT times.
-            let resource = resource.lock().unwrap();
-            assert_eq!(resource.touched_count, COUNT);
-            assert_eq!(resource.last_touched.unwrap(), COUNT - 1);
-        });
-    }
+    fn visit(v: u32, visited_ptr: usize) {
+        let visited = unsafe { &mut *(visited_ptr as *mut Vec<u32>) };
+        visited.push(v);
+    };
 
-    #[test]
-    fn test_sync_dispatch() {
-        get_queue_and_resource("Run with sync dispatch api wrappers", |queue, resource| {
-            for i in 0..COUNT {
-                let res = Arc::clone(&resource);
-                sync_dispatch(queue, move || {
-                    let mut res = res.lock().unwrap();
-                    assert_eq!(res.last_touched, if i == 0 { None } else { Some(i - 1) });
-                    assert_eq!(res.touched_count, i);
-                    res.touch(i);
-                });
-            }
-            let resource = resource.lock().unwrap();
-            assert_eq!(resource.touched_count, COUNT);
-            assert_eq!(resource.last_touched.unwrap(), COUNT - 1);
-        });
-    }
+    let queue = Queue::new("Run tasks in order");
 
-    struct Resource {
-        last_touched: Option<u32>,
-        touched_count: u32,
-    }
+    queue.run_sync(move || visit(1, ptr));
+    queue.run_sync(move || visit(2, ptr));
+    queue.run_async(move || visit(3, ptr));
+    queue.run_async(move || visit(4, ptr));
+    // Call sync here to block the current thread and make sure all the tasks are done.
+    queue.run_sync(move || visit(5, ptr));
 
-    impl Resource {
-        fn new() -> Self {
-            Resource {
-                last_touched: None,
-                touched_count: 0,
-            }
-        }
-        fn touch(&mut self, who: u32) {
-            self.last_touched = Some(who);
-            self.touched_count += 1;
-        }
-    }
-
-    fn get_queue_and_resource<F>(label: &'static str, callback: F)
-    where
-        F: FnOnce(dispatch_queue_t, Arc<Mutex<Resource>>),
-    {
-        let queue = create_dispatch_queue(label, DISPATCH_QUEUE_SERIAL);
-        let resource = Arc::new(Mutex::new(Resource::new()));
-
-        callback(queue, resource);
-
-        // Release the queue.
-        release_dispatch_queue(queue);
-    }
+    assert_eq!(visited, vec![1, 2, 3, 4, 5]);
 }
