@@ -50,9 +50,9 @@ impl Clone for Queue {
 
 // Low-level Grand Central Dispatch (GCD) APIs
 // ------------------------------------------------------------------------------------------------
-pub const DISPATCH_QUEUE_SERIAL: dispatch_queue_attr_t = ptr::null_mut::<dispatch_queue_attr_s>();
+const DISPATCH_QUEUE_SERIAL: dispatch_queue_attr_t = ptr::null_mut::<dispatch_queue_attr_s>();
 
-pub fn create_dispatch_queue(
+fn create_dispatch_queue(
     label: &'static str,
     queue_attr: dispatch_queue_attr_t,
 ) -> dispatch_queue_t {
@@ -61,21 +61,21 @@ pub fn create_dispatch_queue(
     unsafe { dispatch_queue_create(c_string, queue_attr) }
 }
 
-pub fn release_dispatch_queue(queue: dispatch_queue_t) {
+fn release_dispatch_queue(queue: dispatch_queue_t) {
     // TODO: This is incredibly unsafe. Find another way to release the queue.
     unsafe {
         dispatch_release(mem::transmute::<dispatch_queue_t, dispatch_object_t>(queue));
     }
 }
 
-pub fn retain_dispatch_queue(queue: dispatch_queue_t) {
+fn retain_dispatch_queue(queue: dispatch_queue_t) {
     // TODO: This is incredibly unsafe. Find another way to retain the queue.
     unsafe {
         dispatch_retain(mem::transmute::<dispatch_queue_t, dispatch_object_t>(queue));
     }
 }
 
-pub fn async_dispatch<F>(queue: dispatch_queue_t, work: F)
+fn async_dispatch<F>(queue: dispatch_queue_t, work: F)
 where
     F: Send + FnOnce(),
 {
@@ -85,7 +85,7 @@ where
     }
 }
 
-pub fn sync_dispatch<F>(queue: dispatch_queue_t, work: F)
+fn sync_dispatch<F>(queue: dispatch_queue_t, work: F)
 where
     F: Send + FnOnce(),
 {
