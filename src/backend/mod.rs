@@ -3066,6 +3066,8 @@ impl<'ctx> Drop for CoreStreamData<'ctx> {
 struct AudioUnitStream<'ctx> {
     context: &'ctx mut AudioUnitContext,
     user_ptr: *mut c_void,
+    // Task queue for the stream.
+    queue: Queue,
 
     data_callback: ffi::cubeb_data_callback,
     state_callback: ffi::cubeb_state_callback,
@@ -3102,6 +3104,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
         AudioUnitStream {
             context,
             user_ptr,
+            queue: Queue::new(DISPATCH_QUEUE_LABEL),
             data_callback,
             state_callback,
             device_changed_callback: Mutex::new(None),
@@ -3261,7 +3264,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             return;
         }
 
-        let queue = self.context.serial_queue.clone();
+        let queue = self.queue.clone();
         let mutexed_stm = Arc::new(Mutex::new(self));
         let also_mutexed_stm = Arc::clone(&mutexed_stm);
         // Use a new thread, through the queue, to avoid deadlock when calling
@@ -3322,7 +3325,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
         // Execute the stream destroy work.
         self.destroy_pending.store(true, Ordering::SeqCst);
 
-        let queue = self.context.serial_queue.clone();
+        let queue = self.queue.clone();
 
         let stream_ptr = self as *const AudioUnitStream;
         // Execute close in serial queue to avoid collision
@@ -3359,7 +3362,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         let mut result = Err(Error::error());
         let started = &mut result;
         let stream = &self;
-        self.context.serial_queue.run_sync(move || {
+        self.queue.run_sync(move || {
             *started = stream.core_stream_data.start_audiounits();
         });
 
@@ -3380,7 +3383,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
 
         // Execute stop in serial queue to avoid racing with destroy or reinit.
         let stream = &self;
-        self.context.serial_queue.run_sync(move || {
+        self.queue.run_sync(move || {
             stream.core_stream_data.stop_audiounits();
         });
 
