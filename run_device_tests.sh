@@ -1,3 +1,11 @@
+echo "\n\nRun device-changed tests\n===================="
+
+if [[ -z "${RUST_BACKTRACE}" ]]; then
+  # Display backtrace for debugging
+  export RUST_BACKTRACE=1
+fi
+echo "RUST_BACKTRACE is set to ${RUST_BACKTRACE}\n"
+
 cargo test test_switch_device -- --ignored --nocapture
 cargo test test_plug_and_unplug_device -- --ignored --nocapture
 # cargo test test_register_device_changed_callback -- --ignored --nocapture --test-threads=1

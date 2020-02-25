@@ -1,5 +1,10 @@
-# Display backtrace for debugging
-export RUST_BACKTRACE=1
+echo "\n\nTest suite for cubeb-coreaudio\n========================================"
+
+if [[ -z "${RUST_BACKTRACE}" ]]; then
+  # Display backtrace for debugging
+  export RUST_BACKTRACE=1
+fi
+echo "RUST_BACKTRACE is set to ${RUST_BACKTRACE}\n"
 
 # Run tests in the sub crate
 # Run the tests by `cargo * -p <SUB_CRATE>` if it's possible. By doing so, the duplicate compiling
