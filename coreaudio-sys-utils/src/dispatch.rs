@@ -4,6 +4,7 @@ use std::ffi::CString;
 use std::mem;
 use std::os::raw::c_void;
 use std::ptr;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 // Queue: A wrapper around `dispatch_queue_t`.
 // ------------------------------------------------------------------------------------------------
@@ -19,14 +20,48 @@ impl Queue {
     where
         F: Send + FnOnce(),
     {
-        async_dispatch(self.0, work);
+        let should_cancel = self.get_context::<AtomicBool>();
+        async_dispatch(self.0, || {
+            if should_cancel.map_or(false, |v| v.load(Ordering::SeqCst)) {
+                return;
+            }
+            work();
+        });
     }
 
     pub fn run_sync<F>(&self, work: F)
     where
         F: Send + FnOnce(),
     {
-        sync_dispatch(self.0, work);
+        let should_cancel = self.get_context::<AtomicBool>();
+        sync_dispatch(self.0, || {
+            if should_cancel.map_or(false, |v| v.load(Ordering::SeqCst)) {
+                return;
+            }
+            work();
+        });
+    }
+
+    pub fn run_final<F>(&self, work: F)
+    where
+        F: Send + FnOnce(),
+    {
+        self.set_context(Box::new(AtomicBool::new(false)));
+        let should_cancel = self.get_context::<AtomicBool>();
+        sync_dispatch(self.0, || {
+            work();
+            should_cancel
+                .expect("dispatch context should be allocated!")
+                .store(true, Ordering::SeqCst);
+        });
+    }
+
+    fn get_context<T>(&self) -> Option<&mut T> {
+        get_dispatch_context(self.0)
+    }
+
+    fn set_context<T>(&self, context: Box<T>) {
+        set_dispatch_context(self.0, context);
     }
 
     // This will release the inner `dispatch_queue_t` asynchronously.
@@ -95,6 +130,32 @@ where
     }
 }
 
+// The type `T` must be same as the `T` used in `set_dispatch_context`
+fn get_dispatch_context<'a, T>(queue: dispatch_queue_t) -> Option<&'a mut T> {
+    unsafe {
+        let context =
+            dispatch_get_context(mem::transmute::<dispatch_queue_t, dispatch_object_t>(queue))
+                as *mut T;
+        context.as_mut()
+    }
+}
+
+fn set_dispatch_context<T>(queue: dispatch_queue_t, context: Box<T>) {
+    unsafe {
+        let queue = mem::transmute::<dispatch_queue_t, dispatch_object_t>(queue);
+        // Leak the context from Box.
+        dispatch_set_context(queue, Box::into_raw(context) as *mut c_void);
+
+        extern "C" fn finalizer<T>(context: *mut c_void) {
+            // Retake the leaked context into box and then drop it.
+            let _ = unsafe { Box::from_raw(context as *mut T) };
+        }
+
+        // The `finalizer` is only run if the `context` in `queue` is set by `dispatch_set_context`.
+        dispatch_set_finalizer_f(queue, Some(finalizer::<T>));
+    }
+}
+
 // Return an raw pointer to a (unboxed) closure and an executor that
 // will run the closure (after re-boxing the closure) when it's called.
 fn create_closure_and_executor<F>(closure: F) -> (*mut c_void, dispatch_function_t)
@@ -145,4 +206,33 @@ fn run_tasks_in_order() {
     queue.run_sync(move || visit(5, ptr));
 
     assert_eq!(visited, vec![1, 2, 3, 4, 5]);
+}
+
+#[test]
+fn run_final_task() {
+    let mut visited = Vec::<u32>::new();
+
+    {
+        // Rust compilter doesn't allow a pointer to be passed across threads.
+        // A hacky way to do that is to cast the pointer into a value, then
+        // the value, which is actually an address, can be copied into threads.
+        let ptr = &mut visited as *mut Vec<u32> as usize;
+
+        fn visit(v: u32, visited_ptr: usize) {
+            let visited = unsafe { &mut *(visited_ptr as *mut Vec<u32>) };
+            visited.push(v);
+        };
+
+        let queue = Queue::new("Task after run_final will be cancelled");
+
+        queue.run_sync(move || visit(1, ptr));
+        queue.run_async(move || visit(2, ptr));
+        queue.run_final(move || visit(3, ptr));
+        queue.run_async(move || visit(4, ptr));
+        queue.run_sync(move || visit(5, ptr));
+    }
+    // `queue` will be dropped asynchronously and then the `finalizer` of the `queue`
+    // should be fired to clean up the `context` set in the `queue`.
+
+    assert_eq!(visited, vec![1, 2, 3]);
 }

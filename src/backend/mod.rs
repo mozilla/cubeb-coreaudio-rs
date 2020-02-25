@@ -3330,7 +3330,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
         let stream_ptr = self as *const AudioUnitStream;
         // Execute close in serial queue to avoid collision
         // with reinit when un/plug devices
-        queue.run_sync(move || {
+        queue.run_final(move || {
             // Call stop_audiounits to avoid potential data race. If there is a running data callback,
             // which locks a mutex inside CoreAudio framework, then this call will block the current
             // thread until the callback is finished since this call asks to lock a mutex inside
