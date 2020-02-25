@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 pub struct Queue(dispatch_queue_t);
 
 impl Queue {
-    pub fn new(label: &'static str) -> Self {
+    pub fn new(label: &str) -> Self {
         Self(create_dispatch_queue(label, DISPATCH_QUEUE_SERIAL))
     }
 
@@ -87,10 +87,7 @@ impl Clone for Queue {
 // ------------------------------------------------------------------------------------------------
 const DISPATCH_QUEUE_SERIAL: dispatch_queue_attr_t = ptr::null_mut::<dispatch_queue_attr_s>();
 
-fn create_dispatch_queue(
-    label: &'static str,
-    queue_attr: dispatch_queue_attr_t,
-) -> dispatch_queue_t {
+fn create_dispatch_queue(label: &str, queue_attr: dispatch_queue_attr_t) -> dispatch_queue_t {
     let label = CString::new(label).unwrap();
     let c_string = label.as_ptr();
     unsafe { dispatch_queue_create(c_string, queue_attr) }

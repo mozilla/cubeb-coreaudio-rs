@@ -2165,6 +2165,10 @@ impl ContextOps for AudioUnitContext {
             global_latency_frames,
         ));
 
+        // Rename the task queue to be an unique label.
+        let queue_label = format!("{}.{:p}", DISPATCH_QUEUE_LABEL, boxed_stream.as_ref());
+        boxed_stream.queue = Queue::new(queue_label.as_str());
+
         boxed_stream.core_stream_data =
             CoreStreamData::new(boxed_stream.as_ref(), in_stm_settings, out_stm_settings);
 
