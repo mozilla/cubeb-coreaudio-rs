@@ -43,14 +43,22 @@ by `sh run_sanitizers.sh`.
 The above command will run all the test suits in *run_tests.sh* by all the available _sanitizers_.
 However, it takes a long time for finshing the tests.
 
-### Device Switching
+### Device Tests
+
+Run `run_device_tests.sh`.
+
+If you'd like to run all the device tests with sanitizers,
+use `RUSTFLAGS="-Z sanitizer=<SAN>" sh run_device_tests.sh`
+with valid `<SAN>` such as `address` or `thread`.
+
+#### Device Switching
 
 The system default device will be changed during our tests.
 All the available devices will take turns being the system default device.
 However, after finishing the tests, the default device will be set to the original one.
 The sounds in the tests should be able to continue whatever the system default device is.
 
-### Device Plugging/Unplugging
+#### Device Plugging/Unplugging
 
 We implement APIs simulating plugging or unplugging a device
 by adding or removing an aggregate device programmatically.
