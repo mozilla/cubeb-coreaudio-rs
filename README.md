@@ -76,6 +76,15 @@ It's used to verify our callbacks for minitoring the system devices work.
 - Device collection change
   - `cargo test test_device_collection_change -- --ignored --nocapture`
   - Plug/Unplug devices to see events log.
+- Manual Stream Tester
+  - `cargo test test_stream_tester -- --ignored --nocapture`
+    - `c` to create a stream
+    - `d` to destroy a stream
+    - `s` to start the created stream
+    - `t` to stop the created stream
+    - `q` to quit the test
+  - It's useful to simulate the stream bahavior to reproduce the bug we found,
+    with some modified code.
 
 ## TODO
 
