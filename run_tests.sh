@@ -1,20 +1,25 @@
-# display backtrace for debugging
+# Display backtrace for debugging
 export RUST_BACKTRACE=1
 
 # Run tests in the sub crate
+# Run the tests by `cargo * -p <SUB_CRATE>` if it's possible. By doing so, the duplicate compiling
+# between this crate and the <SUB_CRATE> can be saved. The compiling for <SUB_CRATE> can be reused
+# when running `cargo *` with this crate.
 # -------------------------------------------------------------------------------------------------
-cd coreaudio-sys-utils
+SUB_CRATE="coreaudio-sys-utils"
 
 # Format check
+# `cargo fmt -p *` is only usable in workspaces, so a workaround is to enter to the sub crate
+# and then exit from it.
+cd $SUB_CRATE
 cargo fmt --all -- --check
+cd ..
 
 # Lints check
-cargo clippy -- -D warnings
+cargo clippy -p $SUB_CRATE -- -D warnings
 
 # Regular Tests
-cargo test
-
-cd ..
+cargo test -p $SUB_CRATE
 
 # Run tests in the main crate
 # -------------------------------------------------------------------------------------------------
