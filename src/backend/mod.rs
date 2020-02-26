@@ -1597,8 +1597,8 @@ fn is_aggregate_device(device_info: &ffi::cubeb_device_info) -> bool {
     }
 }
 
-fn audiounit_device_destroy(device: &mut ffi::cubeb_device_info) {
-    // This should be mapped to the memory allocation in audiounit_create_device_from_hwdev.
+fn destroy_cubeb_device_info(device: &mut ffi::cubeb_device_info) {
+    // This should be mapped to the memory allocation in create_cubeb_device_info.
     // Set the pointers to null in case it points to some released memory.
     unsafe {
         if !device.device_id.is_null() {
@@ -2098,7 +2098,7 @@ impl ContextOps for AudioUnitContext {
 
         let mut devices = retake_forgotten_vec(coll.device, coll.count);
         for device in &mut devices {
-            audiounit_device_destroy(device);
+            destroy_cubeb_device_info(device);
         }
         drop(devices); // Release the memory.
         coll.device = ptr::null_mut();

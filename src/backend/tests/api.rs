@@ -1486,7 +1486,7 @@ fn test_is_aggregate_device() {
     assert!(!is_aggregate_device(&info));
 }
 
-// device_destroy
+// destroy_cubeb_device_info
 // ------------------------------------
 #[test]
 fn test_device_destroy() {
@@ -1502,7 +1502,7 @@ fn test_device_destroy() {
     device.friendly_name = friendly_name.into_raw();
     device.vendor_name = vendor_name.into_raw();
 
-    audiounit_device_destroy(&mut device);
+    destroy_cubeb_device_info(&mut device);
 
     assert!(device.device_id.is_null());
     assert!(device.group_id.is_null());
@@ -1525,7 +1525,7 @@ fn test_device_destroy_with_different_device_id_and_group_id() {
     device.friendly_name = friendly_name.into_raw();
     device.vendor_name = vendor_name.into_raw();
 
-    audiounit_device_destroy(&mut device);
+    destroy_cubeb_device_info(&mut device);
     // Hit the assertion above, so we will leak some memory allocated for the above cstring.
 
     assert!(device.device_id.is_null());
@@ -1543,7 +1543,7 @@ fn test_device_destroy_empty_device() {
     assert!(device.friendly_name.is_null());
     assert!(device.vendor_name.is_null());
 
-    audiounit_device_destroy(&mut device);
+    destroy_cubeb_device_info(&mut device);
 
     assert!(device.device_id.is_null());
     assert!(device.group_id.is_null());
