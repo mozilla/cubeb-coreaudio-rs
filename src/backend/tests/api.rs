@@ -1512,24 +1512,9 @@ fn test_device_destroy() {
 #[should_panic]
 fn test_device_destroy_with_different_device_id_and_group_id() {
     let mut device = ffi::cubeb_device_info::default();
-
-    let device_id = CString::new("test: device id").unwrap();
-    let group_id = CString::new("test: group id").unwrap();
-    let friendly_name = CString::new("test: friendly name").unwrap();
-    let vendor_name = CString::new("test: vendor name").unwrap();
-
-    device.device_id = device_id.into_raw();
-    device.group_id = group_id.into_raw();
-    device.friendly_name = friendly_name.into_raw();
-    device.vendor_name = vendor_name.into_raw();
-
+    device.device_id = 0xdeaddead as *const _;
+    device.group_id = 0xdeadbeef as *const _;
     destroy_cubeb_device_info(&mut device);
-    // Hit the assertion above, so we will leak some memory allocated for the above cstring.
-
-    assert!(device.device_id.is_null());
-    assert!(device.group_id.is_null());
-    assert!(device.friendly_name.is_null());
-    assert!(device.vendor_name.is_null());
 }
 
 #[test]
