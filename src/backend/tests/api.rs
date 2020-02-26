@@ -1355,24 +1355,22 @@ fn test_create_cubeb_device_info() {
             let mut results = test_create_device_infos_by_device(device);
             assert_eq!(results.len(), 2);
             // Input device type:
+            let input_result = results.pop_front().unwrap();
             if is_input {
-                check_device_info_by_device(
-                    results.pop_front().unwrap().unwrap(),
-                    device,
-                    Scope::Input,
-                );
+                let mut input_device_info = input_result.unwrap();
+                check_device_info_by_device(&input_device_info, device, Scope::Input);
+                destroy_cubeb_device_info(&mut input_device_info);
             } else {
-                assert_eq!(results.pop_front().unwrap().unwrap_err(), Error::error());
+                assert_eq!(input_result.unwrap_err(), Error::error());
             }
             // Output device type:
+            let output_result = results.pop_front().unwrap();
             if is_output {
-                check_device_info_by_device(
-                    results.pop_front().unwrap().unwrap(),
-                    device,
-                    Scope::Output,
-                );
+                let mut output_device_info = output_result.unwrap();
+                check_device_info_by_device(&output_device_info, device, Scope::Output);
+                destroy_cubeb_device_info(&mut output_device_info);
             } else {
-                assert_eq!(results.pop_front().unwrap().unwrap_err(), Error::error());
+                assert_eq!(output_result.unwrap_err(), Error::error());
             }
         } else {
             println!("No device for {:?}.", scope);
@@ -1390,7 +1388,7 @@ fn test_create_cubeb_device_info() {
         results
     }
 
-    fn check_device_info_by_device(info: ffi::cubeb_device_info, id: AudioObjectID, scope: Scope) {
+    fn check_device_info_by_device(info: &ffi::cubeb_device_info, id: AudioObjectID, scope: Scope) {
         assert!(!info.devid.is_null());
         assert!(mem::size_of_val(&info.devid) >= mem::size_of::<AudioObjectID>());
         assert_eq!(info.devid as AudioObjectID, id);
