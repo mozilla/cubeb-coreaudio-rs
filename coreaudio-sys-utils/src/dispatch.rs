@@ -26,7 +26,7 @@ impl Queue {
     where
         F: Send + FnOnce(),
     {
-        let should_cancel = self.get_context::<AtomicBool>();
+        let should_cancel = self.get_context();
         async_dispatch(self.0, || {
             if should_cancel.map_or(false, |v| v.load(Ordering::SeqCst)) {
                 return;
@@ -39,7 +39,7 @@ impl Queue {
     where
         F: Send + FnOnce(),
     {
-        let should_cancel = self.get_context::<AtomicBool>();
+        let should_cancel = self.get_context();
         sync_dispatch(self.0, || {
             if should_cancel.map_or(false, |v| v.load(Ordering::SeqCst)) {
                 return;
@@ -52,7 +52,7 @@ impl Queue {
     where
         F: Send + FnOnce(),
     {
-        let should_cancel = self.get_context::<AtomicBool>();
+        let should_cancel = self.get_context();
         sync_dispatch(self.0, || {
             work();
             should_cancel
@@ -61,29 +61,28 @@ impl Queue {
         });
     }
 
-    // The type `T` must be same as the `T` used in `set_context`
-    fn get_context<T>(&self) -> Option<&mut T> {
+    fn get_context(&self) -> Option<&mut AtomicBool> {
         unsafe {
             let context = dispatch_get_context(
                 mem::transmute::<dispatch_queue_t, dispatch_object_t>(self.0),
-            ) as *mut T;
+            ) as *mut AtomicBool;
             context.as_mut()
         }
     }
 
-    fn set_context<T>(&self, context: Box<T>) {
+    fn set_context(&self, context: Box<AtomicBool>) {
         unsafe {
             let queue = mem::transmute::<dispatch_queue_t, dispatch_object_t>(self.0);
             // Leak the context from Box.
             dispatch_set_context(queue, Box::into_raw(context) as *mut c_void);
 
-            extern "C" fn finalizer<T>(context: *mut c_void) {
+            extern "C" fn finalizer(context: *mut c_void) {
                 // Retake the leaked context into box and then drop it.
-                let _ = unsafe { Box::from_raw(context as *mut T) };
+                let _ = unsafe { Box::from_raw(context as *mut AtomicBool) };
             }
 
             // The `finalizer` is only run if the `context` in `queue` is set by `dispatch_set_context`.
-            dispatch_set_finalizer_f(queue, Some(finalizer::<T>));
+            dispatch_set_finalizer_f(queue, Some(finalizer));
         }
     }
 
