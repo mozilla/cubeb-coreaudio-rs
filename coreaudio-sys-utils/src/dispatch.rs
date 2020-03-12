@@ -18,7 +18,7 @@ impl Queue {
         let label = CString::new(label).unwrap();
         let c_string = label.as_ptr();
         let queue = Self(unsafe { dispatch_queue_create(c_string, DISPATCH_QUEUE_SERIAL) });
-        queue.set_context(Box::new(AtomicBool::new(false)));
+        queue.set_should_cancel(Box::new(AtomicBool::new(false)));
         queue
     }
 
@@ -26,7 +26,7 @@ impl Queue {
     where
         F: Send + FnOnce(),
     {
-        let should_cancel = self.get_context();
+        let should_cancel = self.get_should_cancel();
         async_dispatch(self.0, || {
             if should_cancel.map_or(false, |v| v.load(Ordering::SeqCst)) {
                 return;
@@ -39,7 +39,7 @@ impl Queue {
     where
         F: Send + FnOnce(),
     {
-        let should_cancel = self.get_context();
+        let should_cancel = self.get_should_cancel();
         sync_dispatch(self.0, || {
             if should_cancel.map_or(false, |v| v.load(Ordering::SeqCst)) {
                 return;
@@ -52,7 +52,7 @@ impl Queue {
     where
         F: Send + FnOnce(),
     {
-        let should_cancel = self.get_context();
+        let should_cancel = self.get_should_cancel();
         sync_dispatch(self.0, || {
             work();
             should_cancel
@@ -61,7 +61,7 @@ impl Queue {
         });
     }
 
-    fn get_context(&self) -> Option<&mut AtomicBool> {
+    fn get_should_cancel(&self) -> Option<&mut AtomicBool> {
         unsafe {
             let context = dispatch_get_context(
                 mem::transmute::<dispatch_queue_t, dispatch_object_t>(self.0),
@@ -70,7 +70,7 @@ impl Queue {
         }
     }
 
-    fn set_context(&self, context: Box<AtomicBool>) {
+    fn set_should_cancel(&self, context: Box<AtomicBool>) {
         unsafe {
             let queue = mem::transmute::<dispatch_queue_t, dispatch_object_t>(self.0);
             // Leak the context from Box.
