@@ -68,9 +68,14 @@ impl Queue {
         set_dispatch_context(self.0, context);
     }
 
-    // This will release the inner `dispatch_queue_t` asynchronously.
     fn release(&self) {
-        release_dispatch_queue(self.0);
+        unsafe {
+            // This will release the inner `dispatch_queue_t` asynchronously.
+            // TODO: This is incredibly unsafe. Find another way to release the queue.
+            dispatch_release(mem::transmute::<dispatch_queue_t, dispatch_object_t>(
+                self.0,
+            ));
+        }
     }
 }
 
@@ -89,13 +94,6 @@ impl Clone for Queue {
 
 // Low-level Grand Central Dispatch (GCD) APIs
 // ------------------------------------------------------------------------------------------------
-fn release_dispatch_queue(queue: dispatch_queue_t) {
-    // TODO: This is incredibly unsafe. Find another way to release the queue.
-    unsafe {
-        dispatch_release(mem::transmute::<dispatch_queue_t, dispatch_object_t>(queue));
-    }
-}
-
 fn retain_dispatch_queue(queue: dispatch_queue_t) {
     // TODO: This is incredibly unsafe. Find another way to retain the queue.
     unsafe {
