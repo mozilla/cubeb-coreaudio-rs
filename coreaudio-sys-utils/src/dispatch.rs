@@ -60,8 +60,14 @@ impl Queue {
         });
     }
 
+    // The type `T` must be same as the `T` used in `set_context`
     fn get_context<T>(&self) -> Option<&mut T> {
-        get_dispatch_context(self.0)
+        unsafe {
+            let context = dispatch_get_context(
+                mem::transmute::<dispatch_queue_t, dispatch_object_t>(self.0),
+            ) as *mut T;
+            context.as_mut()
+        }
     }
 
     fn set_context<T>(&self, context: Box<T>) {
@@ -116,16 +122,6 @@ where
     let (closure, executor) = create_closure_and_executor(work);
     unsafe {
         dispatch_sync_f(queue, closure, executor);
-    }
-}
-
-// The type `T` must be same as the `T` used in `set_dispatch_context`
-fn get_dispatch_context<'a, T>(queue: dispatch_queue_t) -> Option<&'a mut T> {
-    unsafe {
-        let context =
-            dispatch_get_context(mem::transmute::<dispatch_queue_t, dispatch_object_t>(queue))
-                as *mut T;
-        context.as_mut()
     }
 }
 
