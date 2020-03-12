@@ -13,7 +13,11 @@ pub struct Queue(dispatch_queue_t);
 
 impl Queue {
     pub fn new(label: &str) -> Self {
-        Self(create_dispatch_queue(label, DISPATCH_QUEUE_SERIAL))
+        const DISPATCH_QUEUE_SERIAL: dispatch_queue_attr_t =
+            ptr::null_mut::<dispatch_queue_attr_s>();
+        let label = CString::new(label).unwrap();
+        let c_string = label.as_ptr();
+        Self(unsafe { dispatch_queue_create(c_string, DISPATCH_QUEUE_SERIAL) })
     }
 
     pub fn run_async<F>(&self, work: F)
@@ -85,14 +89,6 @@ impl Clone for Queue {
 
 // Low-level Grand Central Dispatch (GCD) APIs
 // ------------------------------------------------------------------------------------------------
-const DISPATCH_QUEUE_SERIAL: dispatch_queue_attr_t = ptr::null_mut::<dispatch_queue_attr_s>();
-
-fn create_dispatch_queue(label: &str, queue_attr: dispatch_queue_attr_t) -> dispatch_queue_t {
-    let label = CString::new(label).unwrap();
-    let c_string = label.as_ptr();
-    unsafe { dispatch_queue_create(c_string, queue_attr) }
-}
-
 fn release_dispatch_queue(queue: dispatch_queue_t) {
     // TODO: This is incredibly unsafe. Find another way to release the queue.
     unsafe {
