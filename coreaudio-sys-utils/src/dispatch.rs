@@ -87,20 +87,18 @@ impl Drop for Queue {
 
 impl Clone for Queue {
     fn clone(&self) -> Self {
-        retain_dispatch_queue(self.0);
+        // TODO: This is incredibly unsafe. Find another way to retain the queue.
+        unsafe {
+            dispatch_retain(mem::transmute::<dispatch_queue_t, dispatch_object_t>(
+                self.0,
+            ));
+        }
         Self(self.0)
     }
 }
 
 // Low-level Grand Central Dispatch (GCD) APIs
 // ------------------------------------------------------------------------------------------------
-fn retain_dispatch_queue(queue: dispatch_queue_t) {
-    // TODO: This is incredibly unsafe. Find another way to retain the queue.
-    unsafe {
-        dispatch_retain(mem::transmute::<dispatch_queue_t, dispatch_object_t>(queue));
-    }
-}
-
 fn async_dispatch<F>(queue: dispatch_queue_t, work: F)
 where
     F: Send + FnOnce(),
