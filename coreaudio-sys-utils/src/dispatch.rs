@@ -17,7 +17,9 @@ impl Queue {
             ptr::null_mut::<dispatch_queue_attr_s>();
         let label = CString::new(label).unwrap();
         let c_string = label.as_ptr();
-        Self(unsafe { dispatch_queue_create(c_string, DISPATCH_QUEUE_SERIAL) })
+        let queue = Self(unsafe { dispatch_queue_create(c_string, DISPATCH_QUEUE_SERIAL) });
+        queue.set_context(Box::new(AtomicBool::new(false)));
+        queue
     }
 
     pub fn run_async<F>(&self, work: F)
@@ -50,7 +52,6 @@ impl Queue {
     where
         F: Send + FnOnce(),
     {
-        self.set_context(Box::new(AtomicBool::new(false)));
         let should_cancel = self.get_context::<AtomicBool>();
         sync_dispatch(self.0, || {
             work();
