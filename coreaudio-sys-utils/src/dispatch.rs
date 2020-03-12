@@ -71,7 +71,19 @@ impl Queue {
     }
 
     fn set_context<T>(&self, context: Box<T>) {
-        set_dispatch_context(self.0, context);
+        unsafe {
+            let queue = mem::transmute::<dispatch_queue_t, dispatch_object_t>(self.0);
+            // Leak the context from Box.
+            dispatch_set_context(queue, Box::into_raw(context) as *mut c_void);
+
+            extern "C" fn finalizer<T>(context: *mut c_void) {
+                // Retake the leaked context into box and then drop it.
+                let _ = unsafe { Box::from_raw(context as *mut T) };
+            }
+
+            // The `finalizer` is only run if the `context` in `queue` is set by `dispatch_set_context`.
+            dispatch_set_finalizer_f(queue, Some(finalizer::<T>));
+        }
     }
 
     fn release(&self) {
@@ -122,22 +134,6 @@ where
     let (closure, executor) = create_closure_and_executor(work);
     unsafe {
         dispatch_sync_f(queue, closure, executor);
-    }
-}
-
-fn set_dispatch_context<T>(queue: dispatch_queue_t, context: Box<T>) {
-    unsafe {
-        let queue = mem::transmute::<dispatch_queue_t, dispatch_object_t>(queue);
-        // Leak the context from Box.
-        dispatch_set_context(queue, Box::into_raw(context) as *mut c_void);
-
-        extern "C" fn finalizer<T>(context: *mut c_void) {
-            // Retake the leaked context into box and then drop it.
-            let _ = unsafe { Box::from_raw(context as *mut T) };
-        }
-
-        // The `finalizer` is only run if the `context` in `queue` is set by `dispatch_set_context`.
-        dispatch_set_finalizer_f(queue, Some(finalizer::<T>));
     }
 }
 
