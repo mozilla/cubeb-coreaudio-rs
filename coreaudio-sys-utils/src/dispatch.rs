@@ -27,12 +27,15 @@ impl Queue {
         F: Send + FnOnce(),
     {
         let should_cancel = self.get_should_cancel();
-        async_dispatch(self.0, || {
+        let (closure, executor) = create_closure_and_executor(|| {
             if should_cancel.map_or(false, |v| v.load(Ordering::SeqCst)) {
                 return;
             }
             work();
         });
+        unsafe {
+            dispatch_async_f(self.0, closure, executor);
+        }
     }
 
     pub fn run_sync<F>(&self, work: F)
@@ -117,16 +120,6 @@ impl Clone for Queue {
 
 // Low-level Grand Central Dispatch (GCD) APIs
 // ------------------------------------------------------------------------------------------------
-fn async_dispatch<F>(queue: dispatch_queue_t, work: F)
-where
-    F: Send + FnOnce(),
-{
-    let (closure, executor) = create_closure_and_executor(work);
-    unsafe {
-        dispatch_async_f(queue, closure, executor);
-    }
-}
-
 fn sync_dispatch<F>(queue: dispatch_queue_t, work: F)
 where
     F: Send + FnOnce(),
