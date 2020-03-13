@@ -2219,9 +2219,14 @@ impl Drop for AudioUnitContext {
             }
         }
 
-        // Unregister the callback if necessary.
-        self.remove_devices_changed_listener(DeviceType::INPUT);
-        self.remove_devices_changed_listener(DeviceType::OUTPUT);
+        // Make sure all the pending (device-collection-changed-callback) tasks
+        // in queue are done, and cancel all the tasks appended after `drop` is executed.
+        let queue = self.serial_queue.clone();
+        queue.run_final(|| {
+            // Unregister the callback if necessary.
+            self.remove_devices_changed_listener(DeviceType::INPUT);
+            self.remove_devices_changed_listener(DeviceType::OUTPUT);
+        });
     }
 }
 
