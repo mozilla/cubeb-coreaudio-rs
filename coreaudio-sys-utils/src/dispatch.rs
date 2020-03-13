@@ -43,12 +43,15 @@ impl Queue {
         F: Send + FnOnce(),
     {
         let should_cancel = self.get_should_cancel();
-        sync_dispatch(self.0, || {
+        let (closure, executor) = create_closure_and_executor(|| {
             if should_cancel.map_or(false, |v| v.load(Ordering::SeqCst)) {
                 return;
             }
             work();
         });
+        unsafe {
+            dispatch_sync_f(self.0, closure, executor);
+        }
     }
 
     pub fn run_final<F>(&self, work: F)
@@ -56,12 +59,15 @@ impl Queue {
         F: Send + FnOnce(),
     {
         let should_cancel = self.get_should_cancel();
-        sync_dispatch(self.0, || {
+        let (closure, executor) = create_closure_and_executor(|| {
             work();
             should_cancel
                 .expect("dispatch context should be allocated!")
                 .store(true, Ordering::SeqCst);
         });
+        unsafe {
+            dispatch_sync_f(self.0, closure, executor);
+        }
     }
 
     fn get_should_cancel(&self) -> Option<&mut AtomicBool> {
@@ -120,16 +126,6 @@ impl Clone for Queue {
 
 // Low-level Grand Central Dispatch (GCD) APIs
 // ------------------------------------------------------------------------------------------------
-fn sync_dispatch<F>(queue: dispatch_queue_t, work: F)
-where
-    F: Send + FnOnce(),
-{
-    let (closure, executor) = create_closure_and_executor(work);
-    unsafe {
-        dispatch_sync_f(queue, closure, executor);
-    }
-}
-
 // Return an raw pointer to a (unboxed) closure and an executor that
 // will run the closure (after re-boxing the closure) when it's called.
 fn create_closure_and_executor<F>(closure: F) -> (*mut c_void, dispatch_function_t)
