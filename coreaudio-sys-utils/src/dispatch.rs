@@ -27,7 +27,7 @@ impl Queue {
         F: Send + FnOnce(),
     {
         let should_cancel = self.get_should_cancel();
-        let (closure, executor) = create_closure_and_executor(|| {
+        let (closure, executor) = Self::create_closure_and_executor(|| {
             if should_cancel.map_or(false, |v| v.load(Ordering::SeqCst)) {
                 return;
             }
@@ -43,7 +43,7 @@ impl Queue {
         F: Send + FnOnce(),
     {
         let should_cancel = self.get_should_cancel();
-        let (closure, executor) = create_closure_and_executor(|| {
+        let (closure, executor) = Self::create_closure_and_executor(|| {
             if should_cancel.map_or(false, |v| v.load(Ordering::SeqCst)) {
                 return;
             }
@@ -59,7 +59,7 @@ impl Queue {
         F: Send + FnOnce(),
     {
         let should_cancel = self.get_should_cancel();
-        let (closure, executor) = create_closure_and_executor(|| {
+        let (closure, executor) = Self::create_closure_and_executor(|| {
             work();
             should_cancel
                 .expect("dispatch context should be allocated!")
@@ -104,6 +104,30 @@ impl Queue {
             ));
         }
     }
+
+    fn create_closure_and_executor<F>(closure: F) -> (*mut c_void, dispatch_function_t)
+    where
+        F: FnOnce(),
+    {
+        extern "C" fn closure_executer<F>(unboxed_closure: *mut c_void)
+        where
+            F: FnOnce(),
+        {
+            // Retake the leaked closure.
+            let closure = unsafe { Box::from_raw(unboxed_closure as *mut F) };
+            // Execute the closure.
+            (*closure)();
+            // closure is released after finishing this function call.
+        }
+
+        let closure = Box::new(closure); // Allocate closure on heap.
+        let executor: dispatch_function_t = Some(closure_executer::<F>);
+
+        (
+            Box::into_raw(closure) as *mut c_void, // Leak the closure.
+            executor,
+        )
+    }
 }
 
 impl Drop for Queue {
@@ -122,34 +146,6 @@ impl Clone for Queue {
         }
         Self(self.0)
     }
-}
-
-// Low-level Grand Central Dispatch (GCD) APIs
-// ------------------------------------------------------------------------------------------------
-// Return an raw pointer to a (unboxed) closure and an executor that
-// will run the closure (after re-boxing the closure) when it's called.
-fn create_closure_and_executor<F>(closure: F) -> (*mut c_void, dispatch_function_t)
-where
-    F: FnOnce(),
-{
-    extern "C" fn closure_executer<F>(unboxed_closure: *mut c_void)
-    where
-        F: FnOnce(),
-    {
-        // Retake the leaked closure.
-        let closure = unsafe { Box::from_raw(unboxed_closure as *mut F) };
-        // Execute the closure.
-        (*closure)();
-        // closure is released after finishing this function call.
-    }
-
-    let closure = Box::new(closure); // Allocate closure on heap.
-    let executor: dispatch_function_t = Some(closure_executer::<F>);
-
-    (
-        Box::into_raw(closure) as *mut c_void, // Leak the closure.
-        executor,
-    )
 }
 
 #[test]
