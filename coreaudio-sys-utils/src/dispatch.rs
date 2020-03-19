@@ -98,7 +98,8 @@ impl Queue {
     fn release(&self) {
         unsafe {
             // This will release the inner `dispatch_queue_t` asynchronously.
-            // TODO: This is incredibly unsafe. Find another way to release the queue.
+            // TODO: It's incredibly unsafe to call `transmute` directly.
+            //       Find another way to release the queue.
             dispatch_release(mem::transmute::<dispatch_queue_t, dispatch_object_t>(
                 self.0,
             ));
@@ -138,7 +139,8 @@ impl Drop for Queue {
 
 impl Clone for Queue {
     fn clone(&self) -> Self {
-        // TODO: This is incredibly unsafe. Find another way to retain the queue.
+        // TODO: It's incredibly unsafe to call `transmute` directly.
+        //       Find another way to release the queue.
         unsafe {
             dispatch_retain(mem::transmute::<dispatch_queue_t, dispatch_object_t>(
                 self.0,
