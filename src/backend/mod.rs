@@ -642,6 +642,8 @@ extern "C" fn audiounit_output_callback(
             }
         };
 
+        let prev_frames_written = stm.frames_written.load(Ordering::SeqCst);
+
         stm.frames_written
             .fetch_add(i64::from(output_frames), Ordering::SeqCst);
 
@@ -661,6 +663,26 @@ extern "C" fn audiounit_output_callback(
                 frames_written,
             );
             let missing_frames = input_frames_needed - stm.frames_read.load(Ordering::SeqCst);
+            // Else if the input has buffered a lot already because the output started late, we
+            // need to trim the input buffer
+            let input_channels = stm.core_stream_data.input_desc.mChannelsPerFrame as usize;
+            let buffered_input_frames = stm
+                .core_stream_data
+                .input_linear_buffer
+                .as_ref()
+                .unwrap()
+                .elements()
+                / input_channels;
+            if prev_frames_written == 0 && buffered_input_frames > input_frames_needed  as usize {
+                let samples_to_pop = (buffered_input_frames - input_frames_needed as usize) * input_channels;
+                stm.core_stream_data
+                    .input_linear_buffer
+                    .as_mut()
+                    .unwrap()
+                    .pop(samples_to_pop);
+                stm.frames_read.fetch_sub((samples_to_pop / input_channels) as i64, Ordering::SeqCst);
+            }
+
             let elements = (missing_frames
                 * i64::from(stm.core_stream_data.input_desc.mChannelsPerFrame))
                 as usize;
