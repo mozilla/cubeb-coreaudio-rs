@@ -204,15 +204,18 @@ fn create_device_info(id: AudioDeviceID, devtype: DeviceType) -> Result<device_i
 
     let default_device_id = audiounit_get_default_device_id(devtype);
     if default_device_id == kAudioObjectUnknown {
+        cubeb_log!("Could not find default audio device for {:?}", devtype);
         return Err(Error::error());
     }
 
     if id == kAudioObjectUnknown {
         info.id = default_device_id;
+        cubeb_log!("Falling back to default device, after having requested a specific device.");
         info.flags |= device_flags::DEV_SELECTED_DEFAULT;
     }
 
     if info.id == default_device_id {
+        cubeb_log!("Requesting default input device.");
         info.flags |= device_flags::DEV_SYSTEM_DEFAULT;
     }
 
@@ -639,6 +642,8 @@ extern "C" fn audiounit_output_callback(
             }
         };
 
+        let prev_frames_written = stm.frames_written.load(Ordering::SeqCst);
+
         stm.frames_written
             .fetch_add(i64::from(output_frames), Ordering::SeqCst);
 
@@ -655,9 +660,29 @@ extern "C" fn audiounit_output_callback(
             let input_frames_needed = minimum_resampling_input_frames(
                 stm.core_stream_data.input_hw_rate,
                 f64::from(stm.core_stream_data.output_stream_params.rate()),
-                frames_written,
+                output_frames as i64,
             );
             let missing_frames = input_frames_needed - stm.frames_read.load(Ordering::SeqCst);
+            // Else if the input has buffered a lot already because the output started late, we
+            // need to trim the input buffer
+            let input_channels = stm.core_stream_data.input_desc.mChannelsPerFrame as usize;
+            let buffered_input_frames = stm
+                .core_stream_data
+                .input_linear_buffer
+                .as_ref()
+                .unwrap()
+                .elements()
+                / input_channels;
+            if prev_frames_written == 0 && buffered_input_frames > input_frames_needed  as usize {
+                let samples_to_pop = (buffered_input_frames - input_frames_needed as usize) * input_channels;
+                stm.core_stream_data
+                    .input_linear_buffer
+                    .as_mut()
+                    .unwrap()
+                    .pop(samples_to_pop);
+                stm.frames_read.fetch_sub((samples_to_pop / input_channels) as i64, Ordering::SeqCst);
+            }
+
             let elements = (missing_frames
                 * i64::from(stm.core_stream_data.input_desc.mChannelsPerFrame))
                 as usize;
@@ -669,7 +694,7 @@ extern "C" fn audiounit_output_callback(
                     .push_zeros(elements);
                 stm.frames_read.store(input_frames_needed, Ordering::SeqCst);
                 cubeb_log!(
-                    "({:p}) {} pushed {} frames of input silence.",
+                    "({:p}) Missing Frames {} pushed {} frames of input silence.",
                     stm.core_stream_data.stm_ptr,
                     if stm.frames_read.load(Ordering::SeqCst) == 0 {
                         "Input hasn't started,"
