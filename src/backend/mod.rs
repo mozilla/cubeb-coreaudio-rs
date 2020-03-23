@@ -660,7 +660,7 @@ extern "C" fn audiounit_output_callback(
             let input_frames_needed = minimum_resampling_input_frames(
                 stm.core_stream_data.input_hw_rate,
                 f64::from(stm.core_stream_data.output_stream_params.rate()),
-                frames_written,
+                output_frames as i64,
             );
             let missing_frames = input_frames_needed - stm.frames_read.load(Ordering::SeqCst);
             // Else if the input has buffered a lot already because the output started late, we
