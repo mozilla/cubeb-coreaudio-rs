@@ -42,7 +42,7 @@ use std::mem;
 use std::os::raw::c_void;
 use std::ptr;
 use std::slice;
-use std::sync::atomic::{AtomicBool, AtomicUsize, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
@@ -330,7 +330,11 @@ fn get_volume(unit: AudioUnit) -> Result<f32> {
     }
 }
 
-fn minimum_resampling_input_frames(input_rate: f64, output_rate: f64, output_frames: usize) -> usize {
+fn minimum_resampling_input_frames(
+    input_rate: f64,
+    output_rate: f64,
+    output_frames: usize,
+) -> usize {
     assert!(!approx_eq!(f64, input_rate, 0_f64));
     assert!(!approx_eq!(f64, output_rate, 0_f64));
     if approx_eq!(f64, input_rate, output_rate) {
@@ -691,7 +695,8 @@ extern "C" fn audiounit_output_callback(
                     .as_mut()
                     .unwrap()
                     .push_zeros(silent_samples_to_push);
-                stm.frames_read.fetch_add(input_frames_needed, Ordering::SeqCst);
+                stm.frames_read
+                    .fetch_add(input_frames_needed, Ordering::SeqCst);
                 cubeb_log!(
                     "({:p}) Missing Frames: {} pushed {} frames of input silence.",
                     stm.core_stream_data.stm_ptr,
