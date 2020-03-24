@@ -210,12 +210,12 @@ fn create_device_info(id: AudioDeviceID, devtype: DeviceType) -> Result<device_i
 
     if id == kAudioObjectUnknown {
         info.id = default_device_id;
-        cubeb_log!("Falling back to default device, after having requested a specific device.");
+        cubeb_log!("Creating a default device info.");
         info.flags |= device_flags::DEV_SELECTED_DEFAULT;
     }
 
     if info.id == default_device_id {
-        cubeb_log!("Requesting default input device.");
+        cubeb_log!("Requesting default system device.");
         info.flags |= device_flags::DEV_SYSTEM_DEFAULT;
     }
 
@@ -694,14 +694,14 @@ extern "C" fn audiounit_output_callback(
                     .push_zeros(silent_samples_to_push);
                 stm.frames_read.fetch_add(input_frames_needed, Ordering::SeqCst);
                 cubeb_log!(
-                    "({:p}) Missing Frames {} pushed {} frames of input silence.",
+                    "({:p}) Missing Frames: {} pushed {} frames of input silence.",
                     stm.core_stream_data.stm_ptr,
                     if stm.frames_read.load(Ordering::SeqCst) == 0 {
-                        "Input hasn't started,"
+                        "input hasn't started,"
                     } else if stm.switching_device.load(Ordering::SeqCst) {
-                        "Device switching,"
+                        "device switching,"
                     } else {
-                        "Drop out,"
+                        "drop out,"
                     },
                     silent_frames_to_push
                 );
