@@ -656,7 +656,6 @@ extern "C" fn audiounit_output_callback(
             // Otherwise, if we had more than expected callbacks in a row, or we're
             // currently switching, we add some silence as well to compensate for the
             // fact that we're lacking some input data.
-            let frames_written = stm.frames_written.load(Ordering::SeqCst);
             let input_frames_needed = minimum_resampling_input_frames(
                 stm.core_stream_data.input_hw_rate,
                 f64::from(stm.core_stream_data.output_stream_params.rate()),
@@ -673,14 +672,16 @@ extern "C" fn audiounit_output_callback(
                 .unwrap()
                 .elements()
                 / input_channels;
-            if prev_frames_written == 0 && buffered_input_frames > input_frames_needed  as usize {
-                let samples_to_pop = (buffered_input_frames - input_frames_needed as usize) * input_channels;
+            if prev_frames_written == 0 && buffered_input_frames > input_frames_needed as usize {
+                let samples_to_pop =
+                    (buffered_input_frames - input_frames_needed as usize) * input_channels;
                 stm.core_stream_data
                     .input_linear_buffer
                     .as_mut()
                     .unwrap()
                     .pop(samples_to_pop);
-                stm.frames_read.fetch_sub((samples_to_pop / input_channels) as i64, Ordering::SeqCst);
+                stm.frames_read
+                    .fetch_sub((samples_to_pop / input_channels) as i64, Ordering::SeqCst);
             }
 
             let elements = (missing_frames
