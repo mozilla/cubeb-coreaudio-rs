@@ -669,7 +669,6 @@ extern "C" fn audiounit_output_callback(
                 .unwrap()
                 .elements()
                 / input_channels;
-            let missing_input_frames = input_frames_needed > buffered_input_frames;
             // Else if the input has buffered a lot already because the output started late, we
             // need to trim the input buffer
             if prev_frames_written == 0 && buffered_input_frames > input_frames_needed as usize {
@@ -684,9 +683,9 @@ extern "C" fn audiounit_output_callback(
                     .fetch_sub((samples_to_pop / input_channels) as usize, Ordering::SeqCst);
             }
 
-            if missing_input_frames {
+            if input_frames_needed > buffered_input_frames {
                 let silent_frames_to_push = input_frames_needed - buffered_input_frames;
-                let silent_samples_to_push = silent_frames_to_push / input_channels;
+                let silent_samples_to_push = silent_frames_to_push * input_channels;
                 stm.core_stream_data
                     .input_linear_buffer
                     .as_mut()
