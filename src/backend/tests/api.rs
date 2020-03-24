@@ -1394,7 +1394,8 @@ fn test_create_cubeb_device_info() {
         assert_eq!(info.devid as AudioObjectID, id);
         assert!(!info.device_id.is_null());
         assert!(!info.friendly_name.is_null());
-        assert_eq!(info.group_id, info.device_id);
+        assert!(!info.group_id.is_null());
+
         // TODO: Hit a kAudioHardwareUnknownPropertyError for AirPods
         // assert!(!info.vendor_name.is_null());
 
@@ -1495,8 +1496,8 @@ fn test_device_destroy() {
     let vendor_name = CString::new("test: vendor name").unwrap();
 
     device.device_id = device_id.into_raw();
-    // The group_id is a mirror to device_id in our implementation, so we could skip it.
-    device.group_id = device.device_id;
+    let group_id = CString::new("test: group id").unwrap();
+    device.group_id = group_id.into_raw();
     device.friendly_name = friendly_name.into_raw();
     device.vendor_name = vendor_name.into_raw();
 
@@ -1506,15 +1507,6 @@ fn test_device_destroy() {
     assert!(device.group_id.is_null());
     assert!(device.friendly_name.is_null());
     assert!(device.vendor_name.is_null());
-}
-
-#[test]
-#[should_panic]
-fn test_device_destroy_with_different_device_id_and_group_id() {
-    let mut device = ffi::cubeb_device_info::default();
-    device.device_id = 0xdeaddead as *const _;
-    device.group_id = 0xdeadbeef as *const _;
-    destroy_cubeb_device_info(&mut device);
 }
 
 #[test]
