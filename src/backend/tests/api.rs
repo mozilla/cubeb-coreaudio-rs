@@ -117,7 +117,7 @@ fn test_minimum_resampling_input_frames() {
 
     let frames = 100;
     let times = input_rate / output_rate;
-    let expected = (frames as f64 * times).ceil() as i64;
+    let expected = (frames as f64 * times).ceil() as usize;
 
     assert_eq!(
         minimum_resampling_input_frames(input_rate, output_rate, frames),
