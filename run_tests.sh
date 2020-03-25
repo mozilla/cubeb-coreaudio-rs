@@ -15,6 +15,19 @@ format_check() {
   return $result
 }
 
+lints_check() {
+  if [[ -n "$1" ]]; then
+    cargo clippy -p $1 -- -D warnings
+  else
+    cargo clippy -- -D warnings
+  fi
+  local result=$?
+  if [[ $result -ne 0 ]]; then
+    echo "Please fix errors with 'cargo clippy' (version $(cargo clippy -- --version))"
+  fi
+  return $result
+}
+
 # Run tests in the sub crate
 # Run the tests by `cargo * -p <SUB_CRATE>` if it's possible. By doing so, the duplicate compiling
 # between this crate and the <SUB_CRATE> can be saved. The compiling for <SUB_CRATE> can be reused
@@ -30,7 +43,7 @@ format_check || exit $?
 cd ..
 
 # Lints check
-cargo clippy -p $SUB_CRATE -- -D warnings
+(lints_check $SUB_CRATE) || exit $?
 
 # Regular Tests
 cargo test -p $SUB_CRATE
@@ -41,7 +54,7 @@ cargo test -p $SUB_CRATE
 format_check || exit $?
 
 # Lints check
-cargo clippy -- -D warnings
+lints_check || exit $?
 
 # Regular Tests
 cargo test --verbose
