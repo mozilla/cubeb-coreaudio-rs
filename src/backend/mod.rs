@@ -1506,11 +1506,25 @@ fn create_cubeb_device_info(
         Ok(uid) => {
             let c_string = uid.into_cstring();
             dev_info.device_id = c_string.into_raw();
-            dev_info.group_id = dev_info.device_id;
         }
         Err(e) => {
             cubeb_log!(
                 "Cannot get the uid for device {} in {:?} scope. Error: {}",
+                devid,
+                devtype,
+                e
+            );
+        }
+    }
+
+    match get_device_model_uid(devid, devtype) {
+        Ok(uid) => {
+            let c_string = uid.into_cstring();
+            dev_info.group_id = c_string.into_raw();
+        }
+        Err(e) => {
+            cubeb_log!(
+                "Cannot get the model uid for device {} in {:?} scope. Error: {}",
                 devid,
                 devtype,
                 e
@@ -1630,14 +1644,14 @@ fn destroy_cubeb_device_info(device: &mut ffi::cubeb_device_info) {
     // This should be mapped to the memory allocation in create_cubeb_device_info.
     // Set the pointers to null in case it points to some released memory.
     unsafe {
-        if !device.device_id.is_null() {
-            // group_id is a mirror to device_id, so we could skip it.
-            assert!(!device.group_id.is_null());
-            assert_eq!(device.device_id, device.group_id);
-            let _ = CString::from_raw(device.device_id as *mut _);
-            device.device_id = ptr::null();
-            device.group_id = ptr::null();
-        }
+        assert!(!device.device_id.is_null());
+        let _ = CString::from_raw(device.device_id as *mut _);
+        device.device_id = ptr::null();
+
+        assert!(!device.group_id.is_null());
+        let _ = CString::from_raw(device.group_id as *mut _);
+        device.group_id = ptr::null();
+
         if !device.friendly_name.is_null() {
             let _ = CString::from_raw(device.friendly_name as *mut _);
             device.friendly_name = ptr::null();
