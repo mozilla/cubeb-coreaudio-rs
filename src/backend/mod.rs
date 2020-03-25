@@ -1641,21 +1641,25 @@ fn is_aggregate_device(device_info: &ffi::cubeb_device_info) -> bool {
 }
 
 fn destroy_cubeb_device_info(device: &mut ffi::cubeb_device_info) {
-    // This should be mapped to the memory allocation in create_cubeb_device_info.
+    // This should be mapped to the memory allocation in `create_cubeb_device_info`.
+    // The `device_id`, `group_id`, `vendor_name` can be null pointer if the queries
+    // failed, while `friendly_name` will be assigned to a default empty "" string.
     // Set the pointers to null in case it points to some released memory.
     unsafe {
-        assert!(!device.device_id.is_null());
-        let _ = CString::from_raw(device.device_id as *mut _);
-        device.device_id = ptr::null();
-
-        assert!(!device.group_id.is_null());
-        let _ = CString::from_raw(device.group_id as *mut _);
-        device.group_id = ptr::null();
-
-        if !device.friendly_name.is_null() {
-            let _ = CString::from_raw(device.friendly_name as *mut _);
-            device.friendly_name = ptr::null();
+        if !device.device_id.is_null() {
+            let _ = CString::from_raw(device.device_id as *mut _);
+            device.device_id = ptr::null();
         }
+
+        if !device.group_id.is_null() {
+            let _ = CString::from_raw(device.group_id as *mut _);
+            device.group_id = ptr::null();
+        }
+
+        assert!(!device.friendly_name.is_null());
+        let _ = CString::from_raw(device.friendly_name as *mut _);
+        device.friendly_name = ptr::null();
+
         if !device.vendor_name.is_null() {
             let _ = CString::from_raw(device.vendor_name as *mut _);
             device.vendor_name = ptr::null();
