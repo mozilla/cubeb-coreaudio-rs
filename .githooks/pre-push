@@ -15,28 +15,11 @@
 # the standard input in the form:
 #
 #   <local ref> <local sha1> <remote ref> <remote sha1>
-#
-# This sample shows how to prevent push of commits where the log message starts
-# with "WIP" (work in progress).
 
 remote="$1"
 url="$2"
 
-cargo fmt
+cargo fmt -- --check || (echo "Please run 'cargo fmt'"; false);
 
-if [[ -n `git diff` ]]
-then
-  echo "Please run cargo fmt"
-  git reset -q --hard HEAD
-  exit 1
-fi
-
-cargo clippy
-
-if [[ -n `git diff` ]]
-then
-  echo "Please run cargo clippy"
-  git reset -q --hard HEAD
-  exit 1
-fi
+cargo clippy -- -D warnings || (echo "Please run 'cargo clippy'"; false);
 
