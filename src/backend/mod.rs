@@ -118,7 +118,6 @@ impl Default for device_info {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Debug)]
 struct device_property_listener {
     device: AudioDeviceID,
     property: AudioObjectPropertyAddress,
