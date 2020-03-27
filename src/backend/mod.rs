@@ -1838,7 +1838,6 @@ impl Default for DevicesData {
     }
 }
 
-#[derive(Debug)]
 struct SharedDevices {
     input: DevicesData,
     output: DevicesData,
