@@ -96,10 +96,16 @@ fn make_sized_audio_channel_layout(sz: usize) -> AutoRelease<AudioChannelLayout>
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct device_info {
     id: AudioDeviceID,
     flags: device_flags,
+}
+
+impl std::fmt::Display for device_info {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{{ id: {}, flags: {:?} }}", self.id, self.flags)
+    }
 }
 
 impl Default for device_info {
@@ -2494,7 +2500,7 @@ impl<'ctx> CoreStreamData<'ctx> {
         // Configure I/O stream
         if self.has_input() {
             cubeb_log!(
-                "({:p}) Initialize input by device info: {:?}",
+                "({:p}) Initialize input by device info: {}",
                 self.stm_ptr,
                 in_dev_info
             );
@@ -2639,7 +2645,7 @@ impl<'ctx> CoreStreamData<'ctx> {
 
         if self.has_output() {
             cubeb_log!(
-                "({:p}) Initialize output by device info: {:?}",
+                "({:p}) Initialize output by device info: {}",
                 self.stm_ptr,
                 out_dev_info
             );
