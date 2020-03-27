@@ -89,28 +89,26 @@ fn test_get_device_model_uid_by_unknown_device() {
 #[test]
 fn test_get_device_source() {
     if let Some(device) = test_get_default_device(Scope::Input) {
-        if let Ok(source) = get_device_source(device, DeviceType::INPUT) {
-            println!(
+        match get_device_source(device, DeviceType::INPUT) {
+            Ok(source) => println!(
                 "input: {:X}, {:?}",
                 source,
                 convert_uint32_into_string(source)
-            );
-        } else {
-            println!("No input data source.");
+            ),
+            Err(e) => println!("No input data source. Error: {}", e),
         }
     } else {
         println!("No input device.");
     }
 
     if let Some(device) = test_get_default_device(Scope::Output) {
-        if let Ok(source) = get_device_source(device, DeviceType::OUTPUT) {
-            println!(
+        match get_device_source(device, DeviceType::OUTPUT) {
+            Ok(source) => println!(
                 "output: {:X}, {:?}",
                 source,
                 convert_uint32_into_string(source)
-            );
-        } else {
-            println!("No output data source.");
+            ),
+            Err(e) => println!("No output data source. Error: {}", e),
         }
     } else {
         println!("No output device.");
@@ -128,20 +126,18 @@ fn test_get_device_source_by_unknown_device() {
 #[test]
 fn test_get_device_source_name() {
     if let Some(device) = test_get_default_device(Scope::Input) {
-        if let Ok(name) = get_device_source_name(device, DeviceType::INPUT) {
-            println!("input: {}", name.into_string());
-        } else {
-            println!("No input data source name.");
+        match get_device_source_name(device, DeviceType::INPUT) {
+            Ok(name) => println!("input: {}", name.into_string()),
+            Err(e) => println!("No input data source name. Error: {}", e),
         }
     } else {
         println!("No input device.");
     }
 
     if let Some(device) = test_get_default_device(Scope::Output) {
-        if let Ok(name) = get_device_source_name(device, DeviceType::OUTPUT) {
-            println!("output: {}", name.into_string());
-        } else {
-            println!("No output data source name.");
+        match get_device_source_name(device, DeviceType::OUTPUT) {
+            Ok(name) => println!("output: {}", name.into_string()),
+            Err(e) => println!("No output data source name. Error: {}", e),
         }
     } else {
         println!("No output device.");
