@@ -1789,7 +1789,6 @@ extern "C" fn audiounit_collection_changed_callback(
     NO_ERR
 }
 
-#[derive(Debug)]
 struct DevicesData {
     changed_callback: ffi::cubeb_device_collection_changed_callback,
     callback_user_ptr: *mut c_void,
