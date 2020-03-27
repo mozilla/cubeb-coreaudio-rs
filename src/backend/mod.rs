@@ -138,7 +138,7 @@ impl device_property_listener {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 struct CAChannelLabel(AudioChannelLabel);
 
 impl Into<mixer::Channel> for CAChannelLabel {
