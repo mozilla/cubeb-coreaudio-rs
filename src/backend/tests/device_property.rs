@@ -53,6 +53,36 @@ fn test_get_device_uid_by_unknwon_device() {
     assert!(get_device_uid(kAudioObjectUnknown, DeviceType::INPUT).is_err());
 }
 
+// get_device_model_uid
+// ------------------------------------
+// Some devices (e.g., AirPods) fail to get model uid.
+#[test]
+fn test_get_device_model_uid() {
+    if let Some(device) = test_get_default_device(Scope::Input) {
+        match get_device_model_uid(device, DeviceType::INPUT) {
+            Ok(uid) => println!("input model uid: {}", uid.into_string()),
+            Err(e) => println!("No input model uid. Error: {}", e),
+        }
+    } else {
+        println!("No input device.");
+    }
+
+    if let Some(device) = test_get_default_device(Scope::Output) {
+        match get_device_model_uid(device, DeviceType::OUTPUT) {
+            Ok(uid) => println!("output model uid: {}", uid.into_string()),
+            Err(e) => println!("No output model uid. Error: {}", e),
+        }
+    } else {
+        println!("No output device.");
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_get_device_model_uid_by_unknown_device() {
+    assert!(get_device_model_uid(kAudioObjectUnknown, DeviceType::INPUT).is_err());
+}
+
 // get_device_source
 // ------------------------------------
 // Some USB headsets (e.g., Plantronic .Audio 628) fails to get data source.
