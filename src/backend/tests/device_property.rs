@@ -396,7 +396,6 @@ fn test_get_device_stream_configuration() {
     if let Some(device) = test_get_default_device(Scope::Input) {
         let buffers = get_device_stream_configuration(device, DeviceType::INPUT).unwrap();
         println!("input stream config: {:?}", buffers);
-        dbg!(buffers);
     } else {
         println!("No input device.");
     }
@@ -404,7 +403,6 @@ fn test_get_device_stream_configuration() {
     if let Some(device) = test_get_default_device(Scope::Output) {
         let buffers = get_device_stream_configuration(device, DeviceType::OUTPUT).unwrap();
         println!("output stream config: {:?}", buffers);
-        dbg!(buffers);
     } else {
         println!("No output device.");
     }
