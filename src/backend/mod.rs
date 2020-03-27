@@ -1898,7 +1898,6 @@ pub const OPS: Ops = capi_new!(AudioUnitContext, AudioUnitStream);
 // the Cubeb APIs on different implementation.
 // #[repr(C)] is used to prevent any padding from being added in the beginning of the AudioUnitContext.
 #[repr(C)]
-#[derive(Debug)]
 pub struct AudioUnitContext {
     _ops: *const Ops,
     serial_queue: Queue,
