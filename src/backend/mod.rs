@@ -1853,7 +1853,6 @@ impl Default for SharedDevices {
     }
 }
 
-#[derive(Debug)]
 struct LatencyController {
     streams: u32,
     latency: Option<u32>,
