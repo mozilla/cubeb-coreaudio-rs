@@ -2280,7 +2280,6 @@ impl Drop for AudioUnitContext {
 unsafe impl Send for AudioUnitContext {}
 unsafe impl Sync for AudioUnitContext {}
 
-#[derive(Debug)]
 struct CoreStreamData<'ctx> {
     stm_ptr: *const AudioUnitStream<'ctx>,
     aggregate_device: AggregateDevice,
@@ -3116,7 +3115,6 @@ impl<'ctx> Drop for CoreStreamData<'ctx> {
 // defined pointer. The Cubeb interface use this assumption to operate the Cubeb APIs.
 // #[repr(C)] is used to prevent any padding from being added in the beginning of the AudioUnitStream.
 #[repr(C)]
-#[derive(Debug)]
 // Allow exposing this private struct in public interfaces when running tests.
 #[cfg_attr(test, allow(private_in_public))]
 struct AudioUnitStream<'ctx> {
