@@ -36,7 +36,6 @@ pub fn cfstringref_from_string(string: &str) -> coreaudio_sys::CFStringRef {
     cfstringref as coreaudio_sys::CFStringRef
 }
 
-#[derive(Debug)]
 pub struct StringRef(CFStringRef);
 impl StringRef {
     pub fn new(string_ref: CFStringRef) -> Self {
