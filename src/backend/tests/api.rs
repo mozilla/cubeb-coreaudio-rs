@@ -1395,8 +1395,7 @@ fn test_create_cubeb_device_info() {
         assert_eq!(info.devid as AudioObjectID, id);
         assert!(!info.device_id.is_null());
         assert!(!info.friendly_name.is_null());
-        // Hit a kAudioHardwareUnknownPropertyError for AirPods
-        // assert!(!info.group_id.is_null());
+        assert!(!info.group_id.is_null());
 
         // TODO: Hit a kAudioHardwareUnknownPropertyError for AirPods
         // assert!(!info.vendor_name.is_null());
