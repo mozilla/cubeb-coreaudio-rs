@@ -58,7 +58,6 @@ fn get_default_channel_order(channel_count: usize) -> Vec<audio_mixer::Channel> 
     channels
 }
 
-#[derive(Debug)]
 enum MixerType {
     IntegerMixer(audio_mixer::Mixer<i16>),
     FloatMixer(audio_mixer::Mixer<f32>),
@@ -161,7 +160,6 @@ impl MixerType {
     }
 }
 
-#[derive(Debug)]
 pub struct Mixer {
     mixer: MixerType,
     // Only accessed from callback thread.

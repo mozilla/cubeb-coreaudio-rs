@@ -111,7 +111,6 @@ pub fn audio_object_remove_property_listener<T>(
     unsafe { AudioObjectRemovePropertyListener(id, address, Some(listener), data as *mut c_void) }
 }
 
-#[derive(Debug)]
 pub struct PropertySelector(AudioObjectPropertySelector);
 
 impl PropertySelector {
