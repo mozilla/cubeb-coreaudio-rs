@@ -681,15 +681,17 @@ extern "C" fn audiounit_output_callback(
             // Else if the input has buffered a lot already because the output started late, we
             // need to trim the input buffer
             if prev_frames_written == 0 && buffered_input_frames > input_frames_needed as usize {
-                let samples_to_pop =
-                    (buffered_input_frames - input_frames_needed as usize) * input_channels;
+                let frames_to_pop = buffered_input_frames - input_frames_needed as usize;
+                let samples_to_pop = frames_to_pop * input_channels;
                 stm.core_stream_data
                     .input_linear_buffer
                     .as_mut()
                     .unwrap()
                     .pop(samples_to_pop);
                 stm.frames_read
-                    .fetch_sub((samples_to_pop / input_channels) as usize, Ordering::SeqCst);
+                    .fetch_sub(frames_to_pop as usize, Ordering::SeqCst);
+
+                cubeb_log!("Dropping {} frames in input buffer.", frames_to_pop);
             }
 
             if input_frames_needed > buffered_input_frames {
@@ -715,28 +717,18 @@ extern "C" fn audiounit_output_callback(
                     silent_frames_to_push
                 );
             }
-            let input_frames = stm
-                .core_stream_data
-                .input_linear_buffer
-                .as_ref()
-                .unwrap()
-                .elements()
-                / stm.core_stream_data.input_desc.mChannelsPerFrame as usize;
-            cubeb_logv!("Total input frames: {}", input_frames);
             (
                 stm.core_stream_data
                     .input_linear_buffer
                     .as_mut()
                     .unwrap()
                     .as_mut_ptr(),
-                input_frames as i64,
+                input_frames_needed as i64,
             )
         } else {
             (ptr::null_mut::<c_void>(), 0)
         };
 
-        // Call user callback through resampler.
-        assert!(!output_buffer.is_null());
         let outframes = stm.core_stream_data.resampler.fill(
             input_buffer,
             if input_buffer.is_null() {
@@ -747,6 +739,7 @@ extern "C" fn audiounit_output_callback(
             output_buffer,
             i64::from(output_frames),
         );
+
         if !input_buffer.is_null() {
             // Pop from the buffer the frames used by the the resampler.
             let elements =
