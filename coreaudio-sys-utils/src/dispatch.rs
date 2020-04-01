@@ -8,6 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 // Queue: A wrapper around `dispatch_queue_t`.
 // ------------------------------------------------------------------------------------------------
+#[derive(Debug)]
 pub struct Queue(dispatch_queue_t);
 
 impl Queue {

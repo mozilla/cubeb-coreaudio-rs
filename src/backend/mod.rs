@@ -96,16 +96,10 @@ fn make_sized_audio_channel_layout(sz: usize) -> AutoRelease<AudioChannelLayout>
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct device_info {
     id: AudioDeviceID,
     flags: device_flags,
-}
-
-impl std::fmt::Display for device_info {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{{ id: {}, flags: {:?} }}", self.id, self.flags)
-    }
 }
 
 impl Default for device_info {
@@ -118,6 +112,7 @@ impl Default for device_info {
 }
 
 #[allow(non_camel_case_types)]
+#[derive(Debug)]
 struct device_property_listener {
     device: AudioDeviceID,
     property: AudioObjectPropertyAddress,
@@ -138,7 +133,7 @@ impl device_property_listener {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 struct CAChannelLabel(AudioChannelLabel);
 
 impl Into<mixer::Channel> for CAChannelLabel {
@@ -1682,6 +1677,7 @@ extern "C" fn audiounit_collection_changed_callback(
     NO_ERR
 }
 
+#[derive(Debug)]
 struct DevicesData {
     changed_callback: ffi::cubeb_device_collection_changed_callback,
     callback_user_ptr: *mut c_void,
@@ -1730,6 +1726,7 @@ impl Default for DevicesData {
     }
 }
 
+#[derive(Debug)]
 struct SharedDevices {
     input: DevicesData,
     output: DevicesData,
@@ -1744,6 +1741,7 @@ impl Default for SharedDevices {
     }
 }
 
+#[derive(Debug)]
 struct LatencyController {
     streams: u32,
     latency: Option<u32>,
@@ -1788,6 +1786,7 @@ pub const OPS: Ops = capi_new!(AudioUnitContext, AudioUnitStream);
 // the Cubeb APIs on different implementation.
 // #[repr(C)] is used to prevent any padding from being added in the beginning of the AudioUnitContext.
 #[repr(C)]
+#[derive(Debug)]
 pub struct AudioUnitContext {
     _ops: *const Ops,
     serial_queue: Queue,
@@ -2174,6 +2173,7 @@ impl Drop for AudioUnitContext {
 unsafe impl Send for AudioUnitContext {}
 unsafe impl Sync for AudioUnitContext {}
 
+#[derive(Debug)]
 struct CoreStreamData<'ctx> {
     stm_ptr: *const AudioUnitStream<'ctx>,
     aggregate_device: AggregateDevice,
@@ -2386,7 +2386,7 @@ impl<'ctx> CoreStreamData<'ctx> {
         // Configure I/O stream
         if self.has_input() {
             cubeb_log!(
-                "({:p}) Initialize input by device info: {}",
+                "({:p}) Initialize input by device info: {:?}",
                 self.stm_ptr,
                 in_dev_info
             );
@@ -2522,7 +2522,7 @@ impl<'ctx> CoreStreamData<'ctx> {
 
         if self.has_output() {
             cubeb_log!(
-                "({:p}) Initialize output by device info: {}",
+                "({:p}) Initialize output by device info: {:?}",
                 self.stm_ptr,
                 out_dev_info
             );
@@ -2998,6 +2998,7 @@ impl<'ctx> Drop for CoreStreamData<'ctx> {
 // defined pointer. The Cubeb interface use this assumption to operate the Cubeb APIs.
 // #[repr(C)] is used to prevent any padding from being added in the beginning of the AudioUnitStream.
 #[repr(C)]
+#[derive(Debug)]
 // Allow exposing this private struct in public interfaces when running tests.
 #[cfg_attr(test, allow(private_in_public))]
 struct AudioUnitStream<'ctx> {

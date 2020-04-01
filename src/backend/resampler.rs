@@ -3,6 +3,7 @@ use cubeb_backend::ffi;
 use std::os::raw::{c_long, c_uint, c_void};
 use std::ptr;
 
+#[derive(Debug)]
 pub struct Resampler(AutoRelease<ffi::cubeb_resampler>);
 
 impl Resampler {

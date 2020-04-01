@@ -4,11 +4,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const APPLE_EVENT_TIMEOUT: OSStatus = -1712;
 pub const DRIFT_COMPENSATION: u32 = 1;
 
+#[derive(Debug)]
 pub struct AggregateDevice {
     plugin_id: AudioObjectID,
     device_id: AudioObjectID,
-    _input_id: AudioObjectID,
-    _output_id: AudioObjectID,
+    input_id: AudioObjectID,
+    output_id: AudioObjectID,
 }
 
 impl AggregateDevice {
@@ -48,8 +49,8 @@ impl AggregateDevice {
         Ok(Self {
             plugin_id,
             device_id,
-            _input_id: input_id,
-            _output_id: output_id,
+            input_id,
+            output_id,
         })
     }
 
@@ -601,8 +602,8 @@ impl Default for AggregateDevice {
         Self {
             plugin_id: kAudioObjectUnknown,
             device_id: kAudioObjectUnknown,
-            _input_id: kAudioObjectUnknown,
-            _output_id: kAudioObjectUnknown,
+            input_id: kAudioObjectUnknown,
+            output_id: kAudioObjectUnknown,
         }
     }
 }
