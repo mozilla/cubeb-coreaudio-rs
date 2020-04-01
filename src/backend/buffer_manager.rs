@@ -1,5 +1,6 @@
 use std::os::raw::c_void;
 use std::slice;
+use std::fmt;
 
 use cubeb_backend::SampleFormat;
 
@@ -172,5 +173,11 @@ impl BufferManager {
                 c.pop_slice(&mut slice_to_pop.0);
             }
         }
+    }
+}
+
+impl fmt::Debug for BufferManager {
+    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Ok(())
     }
 }
