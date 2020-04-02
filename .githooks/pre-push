@@ -16,8 +16,8 @@
 #
 #   <local ref> <local sha1> <remote ref> <remote sha1>
 
-remote="$1"
-url="$2"
+REMOTE="$1"
+URL="$2"
 
 cargo fmt -- --check || (echo "Please run 'cargo fmt'"; false);
 
