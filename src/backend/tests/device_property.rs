@@ -53,25 +53,6 @@ fn test_get_device_uid_by_unknwon_device() {
     assert!(get_device_uid(kAudioObjectUnknown, DeviceType::INPUT).is_err());
 }
 
-// get_device_global_model_uid
-// ------------------------------------
-#[test]
-fn test_get_device_global_model_uid() {
-    // Input device.
-    if let Some(input) = test_get_default_device(Scope::Input) {
-        let uid = get_device_global_model_uid(input).unwrap();
-        let uid = uid.into_string();
-        assert!(!uid.is_empty());
-    }
-
-    // Output device.
-    if let Some(output) = test_get_default_device(Scope::Output) {
-        let uid = get_device_global_model_uid(output).unwrap();
-        let uid = uid.into_string();
-        assert!(!uid.is_empty());
-    }
-}
-
 // get_device_model_uid
 // ------------------------------------
 // Some devices (e.g., AirPods) fail to get model uid.

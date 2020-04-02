@@ -21,10 +21,6 @@ pub fn get_device_uid(
     }
 }
 
-pub fn get_device_global_model_uid(id: AudioDeviceID) -> std::result::Result<StringRef, OSStatus> {
-    get_device_model_uid(id, DeviceType::INPUT | DeviceType::OUTPUT)
-}
-
 pub fn get_device_model_uid(
     id: AudioDeviceID,
     devtype: DeviceType,
