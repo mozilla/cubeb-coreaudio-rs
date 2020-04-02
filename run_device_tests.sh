@@ -1,3 +1,5 @@
+set -e
+
 echo "\n\nRun device-changed tests\n===================="
 
 if [[ -z "${RUST_BACKTRACE}" ]]; then
