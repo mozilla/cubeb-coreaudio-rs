@@ -128,7 +128,7 @@ fn test_get_device_source() {
     if let Some(device) = test_get_default_device(Scope::Input) {
         match get_device_source(device, DeviceType::INPUT) {
             Ok(source) => println!(
-                "input: {:X}, {:?}",
+                "input source: {:X}, {:?}",
                 source,
                 convert_uint32_into_string(source)
             ),
@@ -141,7 +141,7 @@ fn test_get_device_source() {
     if let Some(device) = test_get_default_device(Scope::Output) {
         match get_device_source(device, DeviceType::OUTPUT) {
             Ok(source) => println!(
-                "output: {:X}, {:?}",
+                "output source: {:X}, {:?}",
                 source,
                 convert_uint32_into_string(source)
             ),
