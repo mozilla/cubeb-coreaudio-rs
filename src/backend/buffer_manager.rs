@@ -1,6 +1,6 @@
+use std::fmt;
 use std::os::raw::c_void;
 use std::slice;
-use std::fmt;
 
 use cubeb_backend::SampleFormat;
 
