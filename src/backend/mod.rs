@@ -1517,9 +1517,7 @@ fn create_cubeb_device_info(
         }
     }
 
-    // Some devices (e.g., AirPods) fails to get model uid in a specific scope
-    // so we use global scope instead.
-    match get_device_global_model_uid(devid) {
+    match get_device_model_uid(devid, devtype) {
         Ok(uid) => {
             let c_string = uid.into_cstring();
             dev_info.group_id = c_string.into_raw();
