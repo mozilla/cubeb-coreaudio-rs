@@ -26,12 +26,19 @@ IS_DESTRUCTIVE="\-\-delete|\-f"
 PROTECTED_BRANCH="trailblazer"
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
+WILL_DELETE_PROTECTED_BRANCH=":$PROTECTED_BRANCH"
+
 if [[ $PUSH_COMMAND =~ $IS_DESTRUCTIVE ]]; then
     if [ $CURRENT_BRANCH = $PROTECTED_BRANCH ] || [[ $PUSH_COMMAND =~ $PROTECTED_BRANCH ]]; then
         echo "'$PROTECTED_BRANCH' cannot be deleted!"
         exit 1
     fi
     exit 0
+fi
+
+if [[ $PUSH_COMMAND =~ $WILL_DELETE_PROTECTED_BRANCH ]]; then
+    echo "'$PROTECTED_BRANCH' cannot be deleted!"
+    exit 1
 fi
 
 cargo fmt -- --check || (echo "Please run 'cargo fmt'"; false);
