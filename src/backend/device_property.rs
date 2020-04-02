@@ -38,6 +38,24 @@ pub fn get_device_model_uid(
     }
 }
 
+#[allow(dead_code)] // `pub` for running test
+pub fn get_device_transport_type(
+    id: AudioDeviceID,
+    devtype: DeviceType,
+) -> std::result::Result<u32, OSStatus> {
+    assert_ne!(id, kAudioObjectUnknown);
+
+    let address = get_property_address(Property::TransportType, devtype);
+    let mut size = mem::size_of::<u32>();
+    let mut transport: u32 = 0;
+    let err = audio_object_get_property_data(id, &address, &mut size, &mut transport);
+    if err == NO_ERR {
+        Ok(transport)
+    } else {
+        Err(err)
+    }
+}
+
 pub fn get_device_source(
     id: AudioDeviceID,
     devtype: DeviceType,
@@ -298,6 +316,7 @@ pub enum Property {
     HardwareDevices,
     ModelUID,
     StreamLatency,
+    TransportType,
 }
 
 impl From<Property> for AudioObjectPropertySelector {
@@ -321,6 +340,7 @@ impl From<Property> for AudioObjectPropertySelector {
             Property::HardwareDevices => kAudioHardwarePropertyDevices,
             Property::ModelUID => kAudioDevicePropertyModelUID,
             Property::StreamLatency => kAudioStreamPropertyLatency,
+            Property::TransportType => kAudioDevicePropertyTransportType,
         }
     }
 }

@@ -83,6 +83,43 @@ fn test_get_device_model_uid_by_unknown_device() {
     assert!(get_device_model_uid(kAudioObjectUnknown, DeviceType::INPUT).is_err());
 }
 
+// get_device_transport_type
+// ------------------------------------
+#[test]
+fn test_get_device_transport_type() {
+    if let Some(device) = test_get_default_device(Scope::Input) {
+        match get_device_transport_type(device, DeviceType::INPUT) {
+            Ok(trans_type) => println!(
+                "input transport type: {:X}, {:?}",
+                trans_type,
+                convert_uint32_into_string(trans_type)
+            ),
+            Err(e) => println!("No input transport type. Error: {}", e),
+        }
+    } else {
+        println!("No input device.");
+    }
+
+    if let Some(device) = test_get_default_device(Scope::Output) {
+        match get_device_transport_type(device, DeviceType::OUTPUT) {
+            Ok(trans_type) => println!(
+                "output transport type: {:X}, {:?}",
+                trans_type,
+                convert_uint32_into_string(trans_type)
+            ),
+            Err(e) => println!("No output transport type. Error: {}", e),
+        }
+    } else {
+        println!("No output device.");
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_get_device_transport_type_by_unknown_device() {
+    assert!(get_device_transport_type(kAudioObjectUnknown, DeviceType::INPUT).is_err());
+}
+
 // get_device_source
 // ------------------------------------
 // Some USB headsets (e.g., Plantronic .Audio 628) fails to get data source.
