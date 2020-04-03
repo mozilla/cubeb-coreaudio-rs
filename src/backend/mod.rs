@@ -1537,7 +1537,10 @@ fn get_device_group_id(
         }
     }
 
+    // Some devices (e.g. AirPods) might only set the model-uid in the global scope.
+    // The query might fail if the scope is input-only or output-only.
     get_device_model_uid(id, devtype)
+        .or_else(|_| get_device_model_uid(id, DeviceType::INPUT | DeviceType::OUTPUT))
 }
 
 fn create_cubeb_device_info(
