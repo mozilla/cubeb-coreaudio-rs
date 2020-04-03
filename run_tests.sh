@@ -1,3 +1,5 @@
+set -e
+
 echo "\n\nTest suite for cubeb-coreaudio\n========================================"
 
 if [[ -z "${RUST_BACKTRACE}" ]]; then
