@@ -1413,6 +1413,12 @@ fn test_get_same_group_id_for_builtin_device_pairs() {
     }
 }
 
+#[test]
+#[should_panic]
+fn test_get_device_group_id_by_unknown_device() {
+    assert!(get_device_group_id(kAudioObjectUnknown, DeviceType::INPUT).is_err());
+}
+
 // get_device_label
 // ------------------------------------
 #[test]
