@@ -1362,6 +1362,57 @@ fn test_get_device_group_id() {
     }
 }
 
+#[test]
+fn test_get_same_group_id_for_builtin_device_pairs() {
+    use std::collections::HashMap;
+
+    const IMIC: u32 = 0x696D_6963; // "imic"
+    const ISPK: u32 = 0x6973_706B; // "ispk"
+    const EMIC: u32 = 0x656D_6963; // "emic"
+    const HDPN: u32 = 0x6864_706E; // "hdpn"
+    let pairs = [(IMIC, ISPK), (EMIC, HDPN)];
+
+    // TODO: group_ids will have collision if one input device and one output device
+    //       has same source value.
+    let mut group_ids = HashMap::<u32, String>::new();
+    let input_devices = test_get_devices_in_scope(Scope::Input);
+    for device in input_devices.iter() {
+        match get_device_source(*device, DeviceType::INPUT) {
+            Ok(source) => match get_device_group_id(*device, DeviceType::INPUT) {
+                Ok(id) => assert!(group_ids
+                    .insert(source, id.into_string().unwrap())
+                    .is_none()),
+                Err(e) => assert!(group_ids.insert(source, format!("Error {}", e)).is_none()),
+            },
+            _ => {} // do nothing when failing to get source.
+        }
+    }
+    let output_devices = test_get_devices_in_scope(Scope::Output);
+    for device in output_devices.iter() {
+        match get_device_source(*device, DeviceType::OUTPUT) {
+            Ok(source) => match get_device_group_id(*device, DeviceType::OUTPUT) {
+                Ok(id) => assert!(group_ids
+                    .insert(source, id.into_string().unwrap())
+                    .is_none()),
+                Err(e) => assert!(group_ids.insert(source, format!("Error {}", e)).is_none()),
+            },
+            _ => {} // do nothing when failing to get source.
+        }
+    }
+
+    for (dev1, dev2) in pairs.iter() {
+        let id1 = group_ids.get(dev1);
+        let id2 = group_ids.get(dev2);
+
+        if id1.is_some() && id2.is_some() {
+            assert_eq!(id1, id2);
+        }
+
+        group_ids.remove(dev1);
+        group_ids.remove(dev2);
+    }
+}
+
 // get_device_label
 // ------------------------------------
 #[test]
