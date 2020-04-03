@@ -1362,6 +1362,31 @@ fn test_get_device_group_id() {
     }
 }
 
+// get_device_label
+// ------------------------------------
+#[test]
+fn test_get_device_label() {
+    if let Some(device) = test_get_default_device(Scope::Input) {
+        let name = get_device_label(device, DeviceType::INPUT).unwrap();
+        println!("input device label: {}", name.into_string());
+    } else {
+        println!("No input device.");
+    }
+
+    if let Some(device) = test_get_default_device(Scope::Output) {
+        let name = get_device_label(device, DeviceType::OUTPUT).unwrap();
+        println!("output device label: {}", name.into_string());
+    } else {
+        println!("No output device.");
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_get_device_label_by_unknown_device() {
+    assert!(get_device_label(kAudioObjectUnknown, DeviceType::INPUT).is_err());
+}
+
 // create_cubeb_device_info
 // destroy_cubeb_device_info
 // ------------------------------------

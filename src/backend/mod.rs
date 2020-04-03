@@ -1543,6 +1543,13 @@ fn get_device_group_id(
         .or_else(|_| get_device_model_uid(id, DeviceType::INPUT | DeviceType::OUTPUT))
 }
 
+fn get_device_label(
+    id: AudioDeviceID,
+    devtype: DeviceType,
+) -> std::result::Result<StringRef, OSStatus> {
+    get_device_source_name(id, devtype).or_else(|_| get_device_name(id, devtype))
+}
+
 fn create_cubeb_device_info(
     devid: AudioObjectID,
     devtype: DeviceType,
