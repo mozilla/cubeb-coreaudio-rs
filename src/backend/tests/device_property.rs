@@ -1,32 +1,6 @@
 use super::utils::{test_get_default_device, Scope};
 use super::*;
 
-// get_device_global_uid
-// ------------------------------------
-#[test]
-fn test_get_device_global_uid() {
-    // Input device.
-    if let Some(input) = test_get_default_device(Scope::Input) {
-        let uid = get_device_global_uid(input).unwrap();
-        let uid = uid.into_string();
-        assert!(!uid.is_empty());
-    }
-
-    // Output device.
-    if let Some(output) = test_get_default_device(Scope::Output) {
-        let uid = get_device_global_uid(output).unwrap();
-        let uid = uid.into_string();
-        assert!(!uid.is_empty());
-    }
-}
-
-#[test]
-#[should_panic]
-fn test_get_device_global_uid_by_unknwon_device() {
-    // Unknown device.
-    assert!(get_device_global_uid(kAudioObjectUnknown).is_err());
-}
-
 // get_device_uid
 // ------------------------------------
 #[test]

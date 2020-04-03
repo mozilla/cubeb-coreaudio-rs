@@ -1,9 +1,5 @@
 use super::*;
 
-pub fn get_device_global_uid(id: AudioDeviceID) -> std::result::Result<StringRef, OSStatus> {
-    get_device_uid(id, DeviceType::INPUT | DeviceType::OUTPUT)
-}
-
 pub fn get_device_uid(
     id: AudioDeviceID,
     devtype: DeviceType,

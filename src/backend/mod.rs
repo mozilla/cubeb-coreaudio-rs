@@ -1550,6 +1550,10 @@ fn get_device_label(
     get_device_source_name(id, devtype).or_else(|_| get_device_name(id, devtype))
 }
 
+fn get_device_global_uid(id: AudioDeviceID) -> std::result::Result<StringRef, OSStatus> {
+    get_device_uid(id, DeviceType::INPUT | DeviceType::OUTPUT)
+}
+
 fn create_cubeb_device_info(
     devid: AudioObjectID,
     devtype: DeviceType,
