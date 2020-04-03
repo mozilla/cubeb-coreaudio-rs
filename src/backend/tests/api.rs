@@ -1339,6 +1339,29 @@ fn test_get_device_presentation_latency() {
     }
 }
 
+// get_device_group_id
+// ------------------------------------
+#[test]
+fn test_get_device_group_id() {
+    if let Some(device) = test_get_default_device(Scope::Input) {
+        match get_device_group_id(device, DeviceType::INPUT) {
+            Ok(id) => println!("input group id: {}", id.into_string()),
+            Err(e) => println!("No input group id. Error: {}", e),
+        }
+    } else {
+        println!("No input device.");
+    }
+
+    if let Some(device) = test_get_default_device(Scope::Output) {
+        match get_device_group_id(device, DeviceType::OUTPUT) {
+            Ok(id) => println!("output group id: {}", id.into_string()),
+            Err(e) => println!("No output group id. Error: {}", e),
+        }
+    } else {
+        println!("No output device.");
+    }
+}
+
 // create_cubeb_device_info
 // destroy_cubeb_device_info
 // ------------------------------------

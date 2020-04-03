@@ -1483,6 +1483,63 @@ fn get_presentation_latency(devid: AudioObjectID, devtype: DeviceType) -> u32 {
     device_latency + stream_latency
 }
 
+fn get_device_group_id(
+    id: AudioDeviceID,
+    devtype: DeviceType,
+) -> std::result::Result<StringRef, OSStatus> {
+    match get_device_transport_type(id, devtype) {
+        // If the device type is "bltn" (builtin)
+        Ok(0x626C_746E) => {
+            cubeb_log!(
+                "transport type is {:?}",
+                convert_uint32_into_string(0x626C_746E)
+            );
+            match get_device_source(id, devtype) {
+                Ok(source) => {
+                    let msg = format!("source is {:?}", convert_uint32_into_string(source));
+                    match source {
+                        // "imic" (internal microphone) or "ispk" (internal speaker)
+                        0x696D_6963 | 0x6973_706B => {
+                            const GROUP_ID: &str = "builtin-internal-mic|spk";
+                            cubeb_log!("{}. Use hardcode group id: {}.", msg, GROUP_ID);
+                            return Ok(StringRef::from_str(GROUP_ID));
+                        }
+                        // "emic" (external microphone) or "hdpn" (headphone)
+                        0x656D_6963 | 0x6864_706E => {
+                            const GROUP_ID: &str = "builtin-external-mic|hdpn";
+                            cubeb_log!("{}. Use hardcode group id: {}", msg, GROUP_ID);
+                            return Ok(StringRef::from_str("builtin-external-mic|hdpn"));
+                        }
+                        _ => {
+                            cubeb_log!("{}. Get model uid instead.", msg);
+                        }
+                    }
+                }
+                Err(e) => {
+                    cubeb_log!(
+                        "Error: {} when getting device source. Get model uid instead.",
+                        e
+                    );
+                }
+            }
+        }
+        Ok(trans_type) => {
+            cubeb_log!(
+                "transport type is {:?}. Get model uid instead.",
+                convert_uint32_into_string(trans_type)
+            );
+        }
+        Err(e) => {
+            cubeb_log!(
+                "Error: {} when getting transport type. Get model uid instead.",
+                e
+            );
+        }
+    }
+
+    get_device_model_uid(id, devtype)
+}
+
 fn create_cubeb_device_info(
     devid: AudioObjectID,
     devtype: DeviceType,
@@ -1517,9 +1574,9 @@ fn create_cubeb_device_info(
         }
     }
 
-    match get_device_model_uid(devid, devtype) {
-        Ok(uid) => {
-            let c_string = uid.into_cstring();
+    match get_device_group_id(devid, devtype) {
+        Ok(group_id) => {
+            let c_string = group_id.into_cstring();
             dev_info.group_id = c_string.into_raw();
         }
         Err(e) => {
