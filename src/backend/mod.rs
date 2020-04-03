@@ -1486,7 +1486,7 @@ fn get_presentation_latency(devid: AudioObjectID, devtype: DeviceType) -> u32 {
 fn get_device_group_id(
     id: AudioDeviceID,
     devtype: DeviceType,
-) -> std::result::Result<StringRef, OSStatus> {
+) -> std::result::Result<CString, OSStatus> {
     match get_device_transport_type(id, devtype) {
         // If the device type is "bltn" (builtin)
         Ok(0x626C_746E) => {
@@ -1502,13 +1502,13 @@ fn get_device_group_id(
                         0x696D_6963 | 0x6973_706B => {
                             const GROUP_ID: &str = "builtin-internal-mic|spk";
                             cubeb_log!("{}. Use hardcode group id: {}.", msg, GROUP_ID);
-                            return Ok(StringRef::from_str(GROUP_ID));
+                            return Ok(CString::new(GROUP_ID).unwrap());
                         }
                         // "emic" (external microphone) or "hdpn" (headphone)
                         0x656D_6963 | 0x6864_706E => {
                             const GROUP_ID: &str = "builtin-external-mic|hdpn";
                             cubeb_log!("{}. Use hardcode group id: {}", msg, GROUP_ID);
-                            return Ok(StringRef::from_str("builtin-external-mic|hdpn"));
+                            return Ok(CString::new(GROUP_ID).unwrap());
                         }
                         _ => {
                             cubeb_log!("{}. Get model uid instead.", msg);
@@ -1541,6 +1541,7 @@ fn get_device_group_id(
     // The query might fail if the scope is input-only or output-only.
     get_device_model_uid(id, devtype)
         .or_else(|_| get_device_model_uid(id, DeviceType::INPUT | DeviceType::OUTPUT))
+        .map(|uid| uid.into_cstring())
 }
 
 fn get_device_label(
@@ -1590,8 +1591,7 @@ fn create_cubeb_device_info(
 
     match get_device_group_id(devid, devtype) {
         Ok(group_id) => {
-            let c_string = group_id.into_cstring();
-            dev_info.group_id = c_string.into_raw();
+            dev_info.group_id = group_id.into_raw();
         }
         Err(e) => {
             cubeb_log!(

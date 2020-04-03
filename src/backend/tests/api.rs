@@ -1345,7 +1345,7 @@ fn test_get_device_presentation_latency() {
 fn test_get_device_group_id() {
     if let Some(device) = test_get_default_device(Scope::Input) {
         match get_device_group_id(device, DeviceType::INPUT) {
-            Ok(id) => println!("input group id: {}", id.into_string()),
+            Ok(id) => println!("input group id: {:?}", id),
             Err(e) => println!("No input group id. Error: {}", e),
         }
     } else {
@@ -1354,7 +1354,7 @@ fn test_get_device_group_id() {
 
     if let Some(device) = test_get_default_device(Scope::Output) {
         match get_device_group_id(device, DeviceType::OUTPUT) {
-            Ok(id) => println!("output group id: {}", id.into_string()),
+            Ok(id) => println!("output group id: {:?}", id),
             Err(e) => println!("No output group id. Error: {}", e),
         }
     } else {

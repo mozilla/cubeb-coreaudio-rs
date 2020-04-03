@@ -44,11 +44,6 @@ impl StringRef {
         Self(string_ref)
     }
 
-    #[allow(clippy::should_implement_trait)] // No need to implement `FromStr` trait for now.
-    pub fn from_str(string: &'static str) -> Self {
-        Self(cfstringref_from_static_string(string) as CFStringRef)
-    }
-
     pub fn into_string(self) -> String {
         self.to_string()
     }
