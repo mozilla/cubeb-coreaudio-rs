@@ -21,9 +21,6 @@
 
 ### Generics
 
-- Create a _generics_ for `input_linear_buffer`
-  - Consider replacing `AutoArrayWrapper` by [`ringbuf`](https://github.com/agerasev/ringbuf)
-
 ## Separate the stream implementation from the interface
 
 The goal is to separate the audio stream into two parts(modules).
@@ -103,10 +100,6 @@ and create a new one. It's easier than the current implementation.
   - Implement `get_data`, `set_data`
 - Create wrapper for `audio_unit_{add, remove}_property_listener`, `audio_object_{add, remove}_property_listener` and their callbacks
   - Add/Remove listener with generic `*mut T` data, fire their callback with generic `*mut T` data
-
-## Interface to other module
-
-- Create a binding layer for the `resampler`
 
 ## [Cubeb Interface][cubeb-rs]
 
