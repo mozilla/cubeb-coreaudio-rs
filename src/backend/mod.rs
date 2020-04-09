@@ -1665,7 +1665,10 @@ fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID> {
 
     // Remove the aggregate device from the list of devices (if any).
     devices.retain(|&device| {
-        if let Ok(uid) = get_device_global_uid(device) {
+        // TODO: (bug 1628411) Figure out when `device` is `kAudioObjectUnknown`.
+        if device == kAudioObjectUnknown {
+            false
+        } else if let Ok(uid) = get_device_global_uid(device) {
             let uid = uid.into_string();
             !uid.contains(PRIVATE_AGGREGATE_DEVICE_NAME)
         } else {
