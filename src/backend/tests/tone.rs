@@ -1,8 +1,10 @@
-use super::utils::{test_get_default_device, test_ops_stream_operation, Scope};
+use super::utils::{test_enable_log, test_get_default_device, test_ops_stream_operation, Scope};
 use super::*;
 
 #[test]
 fn test_dial_tone() {
+    test_enable_log(ffi::CUBEB_LOG_VERBOSE);
+
     use std::f32::consts::PI;
     use std::thread;
     use std::time::Duration;

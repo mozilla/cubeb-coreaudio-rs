@@ -2,6 +2,7 @@
 //
 // This program is made available under an ISC-style license.  See the
 // accompanying file LICENSE for details.
+#![feature(c_variadic)]
 
 extern crate atomic;
 #[macro_use]
