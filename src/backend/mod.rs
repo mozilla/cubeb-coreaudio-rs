@@ -705,6 +705,7 @@ extern "C" fn audiounit_output_callback(
     status
 }
 
+#[allow(clippy::cognitive_complexity)]
 extern "C" fn audiounit_property_listener_callback(
     id: AudioObjectID,
     address_count: u32,
@@ -1378,6 +1379,7 @@ fn get_presentation_latency(devid: AudioObjectID, devtype: DeviceType) -> u32 {
     device_latency + stream_latency
 }
 
+#[allow(clippy::cognitive_complexity)]
 fn get_device_group_id(
     id: AudioDeviceID,
     devtype: DeviceType,
@@ -1450,6 +1452,7 @@ fn get_device_global_uid(id: AudioDeviceID) -> std::result::Result<StringRef, OS
     get_device_uid(id, DeviceType::INPUT | DeviceType::OUTPUT)
 }
 
+#[allow(clippy::cognitive_complexity)]
 fn create_cubeb_device_info(
     devid: AudioObjectID,
     devtype: DeviceType,
