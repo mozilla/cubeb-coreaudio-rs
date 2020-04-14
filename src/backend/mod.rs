@@ -1387,7 +1387,10 @@ fn get_device_group_id(
 
     match get_device_transport_type(id, devtype) {
         Ok(BLTN) => {
-            cubeb_log!("transport type is {:?}", convert_uint32_into_string(BLTN));
+            cubeb_log!(
+                "The transport type is {:?}",
+                convert_uint32_into_string(BLTN)
+            );
             match get_custom_group_id(id, devtype) {
                 Some(id) => return Ok(id),
                 None => {
@@ -1397,7 +1400,7 @@ fn get_device_group_id(
         }
         Ok(trans_type) => {
             cubeb_log!(
-                "transport type is {:?}. Get model uid instead.",
+                "The transport type is {:?}. Get model uid instead.",
                 convert_uint32_into_string(trans_type)
             );
         }
