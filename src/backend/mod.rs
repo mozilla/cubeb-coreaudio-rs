@@ -1383,13 +1383,11 @@ fn get_device_group_id(
     id: AudioDeviceID,
     devtype: DeviceType,
 ) -> std::result::Result<CString, OSStatus> {
+    const BLTN: u32 = 0x626C_746E; // "bltn" (builtin)
+
     match get_device_transport_type(id, devtype) {
-        // If the device type is "bltn" (builtin)
-        Ok(0x626C_746E) => {
-            cubeb_log!(
-                "transport type is {:?}",
-                convert_uint32_into_string(0x626C_746E)
-            );
+        Ok(BLTN) => {
+            cubeb_log!("transport type is {:?}", convert_uint32_into_string(BLTN));
             match get_custom_group_id(id, devtype) {
                 Some(id) => return Ok(id),
                 None => {
@@ -1419,18 +1417,21 @@ fn get_device_group_id(
 }
 
 fn get_custom_group_id(id: AudioDeviceID, devtype: DeviceType) -> Option<CString> {
+    const IMIC: u32 = 0x696D_6963; // "imic" (internal microphone)
+    const ISPK: u32 = 0x6973_706B; // "ispk" (internal speaker)
+    const EMIC: u32 = 0x656D_6963; // "emic" (external microphone)
+    const HDPN: u32 = 0x6864_706E; // "hdpn" (headphone)
+
     match get_device_source(id, devtype) {
         Ok(source) => {
             let msg = format!("source is {:?}", convert_uint32_into_string(source));
             match source {
-                // "imic" (internal microphone) or "ispk" (internal speaker)
-                0x696D_6963 | 0x6973_706B => {
+                IMIC | ISPK => {
                     const GROUP_ID: &str = "builtin-internal-mic|spk";
                     cubeb_log!("{}. use hardcode group id: {}.", msg, GROUP_ID);
                     return Some(CString::new(GROUP_ID).unwrap());
                 }
-                // "emic" (external microphone) or "hdpn" (headphone)
-                0x656D_6963 | 0x6864_706E => {
+                EMIC | HDPN => {
                     const GROUP_ID: &str = "builtin-external-mic|hdpn";
                     cubeb_log!("{}. use hardcode group id: {}", msg, GROUP_ID);
                     return Some(CString::new(GROUP_ID).unwrap());
