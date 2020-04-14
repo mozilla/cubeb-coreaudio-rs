@@ -1423,23 +1423,29 @@ fn get_custom_group_id(id: AudioDeviceID, devtype: DeviceType) -> Option<CString
     const HDPN: u32 = 0x6864_706E; // "hdpn" (headphone)
 
     match get_device_source(id, devtype) {
-        Ok(source) => {
-            let msg = format!("source is {:?}", convert_uint32_into_string(source));
-            match source {
-                IMIC | ISPK => {
-                    const GROUP_ID: &str = "builtin-internal-mic|spk";
-                    cubeb_log!("{}. use hardcode group id: {}.", msg, GROUP_ID);
-                    return Some(CString::new(GROUP_ID).unwrap());
-                }
-                EMIC | HDPN => {
-                    const GROUP_ID: &str = "builtin-external-mic|hdpn";
-                    cubeb_log!("{}. use hardcode group id: {}", msg, GROUP_ID);
-                    return Some(CString::new(GROUP_ID).unwrap());
-                }
-                _ => {
-                    cubeb_log!("No builtin group id when {}.", msg);
-                }
-            }
+        s @ Ok(IMIC) | s @ Ok(ISPK) => {
+            const GROUP_ID: &str = "builtin-internal-mic|spk";
+            cubeb_log!(
+                "Use hardcode group id: {} when source is: {:?}.",
+                GROUP_ID,
+                convert_uint32_into_string(s.unwrap())
+            );
+            return Some(CString::new(GROUP_ID).unwrap());
+        }
+        s @ Ok(EMIC) | s @ Ok(HDPN) => {
+            const GROUP_ID: &str = "builtin-external-mic|hdpn";
+            cubeb_log!(
+                "Use hardcode group id: {} when source is: {:?}.",
+                GROUP_ID,
+                convert_uint32_into_string(s.unwrap())
+            );
+            return Some(CString::new(GROUP_ID).unwrap());
+        }
+        Ok(s) => {
+            cubeb_log!(
+                "No custom group id when source is: {:?}.",
+                convert_uint32_into_string(s)
+            );
         }
         Err(e) => {
             cubeb_log!("Error: {} when getting device source. ", e);
