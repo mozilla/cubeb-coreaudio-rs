@@ -1379,7 +1379,6 @@ fn get_presentation_latency(devid: AudioObjectID, devtype: DeviceType) -> u32 {
     device_latency + stream_latency
 }
 
-#[allow(clippy::cognitive_complexity)]
 fn get_device_group_id(
     id: AudioDeviceID,
     devtype: DeviceType,
@@ -1391,34 +1390,12 @@ fn get_device_group_id(
                 "transport type is {:?}",
                 convert_uint32_into_string(0x626C_746E)
             );
-            match get_device_source(id, devtype) {
-                Ok(source) => {
-                    let msg = format!("source is {:?}", convert_uint32_into_string(source));
-                    match source {
-                        // "imic" (internal microphone) or "ispk" (internal speaker)
-                        0x696D_6963 | 0x6973_706B => {
-                            const GROUP_ID: &str = "builtin-internal-mic|spk";
-                            cubeb_log!("{}. Use hardcode group id: {}.", msg, GROUP_ID);
-                            return Ok(CString::new(GROUP_ID).unwrap());
-                        }
-                        // "emic" (external microphone) or "hdpn" (headphone)
-                        0x656D_6963 | 0x6864_706E => {
-                            const GROUP_ID: &str = "builtin-external-mic|hdpn";
-                            cubeb_log!("{}. Use hardcode group id: {}", msg, GROUP_ID);
-                            return Ok(CString::new(GROUP_ID).unwrap());
-                        }
-                        _ => {
-                            cubeb_log!("{}. Get model uid instead.", msg);
-                        }
-                    }
+            match get_custom_group_id(id, devtype) {
+                Some(id) => return Ok(id),
+                None => {
+                    cubeb_log!("Get model uid instead.");
                 }
-                Err(e) => {
-                    cubeb_log!(
-                        "Error: {} when getting device source. Get model uid instead.",
-                        e
-                    );
-                }
-            }
+            };
         }
         Ok(trans_type) => {
             cubeb_log!(
@@ -1439,6 +1416,35 @@ fn get_device_group_id(
     get_device_model_uid(id, devtype)
         .or_else(|_| get_device_model_uid(id, DeviceType::INPUT | DeviceType::OUTPUT))
         .map(|uid| uid.into_cstring())
+}
+
+fn get_custom_group_id(id: AudioDeviceID, devtype: DeviceType) -> Option<CString> {
+    match get_device_source(id, devtype) {
+        Ok(source) => {
+            let msg = format!("source is {:?}", convert_uint32_into_string(source));
+            match source {
+                // "imic" (internal microphone) or "ispk" (internal speaker)
+                0x696D_6963 | 0x6973_706B => {
+                    const GROUP_ID: &str = "builtin-internal-mic|spk";
+                    cubeb_log!("{}. use hardcode group id: {}.", msg, GROUP_ID);
+                    return Some(CString::new(GROUP_ID).unwrap());
+                }
+                // "emic" (external microphone) or "hdpn" (headphone)
+                0x656D_6963 | 0x6864_706E => {
+                    const GROUP_ID: &str = "builtin-external-mic|hdpn";
+                    cubeb_log!("{}. use hardcode group id: {}", msg, GROUP_ID);
+                    return Some(CString::new(GROUP_ID).unwrap());
+                }
+                _ => {
+                    cubeb_log!("No builtin group id when {}.", msg);
+                }
+            }
+        }
+        Err(e) => {
+            cubeb_log!("Error: {} when getting device source. ", e);
+        }
+    }
+    None
 }
 
 fn get_device_label(
