@@ -399,12 +399,9 @@ extern "C" fn audiounit_input_callback(
             // For now state that no error occurred and feed silence, stream will be
             // resumed once reinit has completed.
             cubeb_logv!(
-                "({:p}) input: reinit pending feeding silence instead",
+                "({:p}) input: reinit pending, output will pull silence instead",
                 stm.core_stream_data.stm_ptr
             );
-            let elements =
-                (input_frames * stm.core_stream_data.input_desc.mChannelsPerFrame) as usize;
-            input_buffer_manager.push_silent_data(elements);
             ErrorHandle::Reinit
         } else {
             assert_eq!(status, NO_ERR);
@@ -610,13 +607,12 @@ extern "C" fn audiounit_output_callback(
                 && (stm.switching_device.load(Ordering::SeqCst)
                     || stm.frames_read.load(Ordering::SeqCst) == 0)
             {
+                // The silent frames will be inserted in `get_linear_data` below.
                 let silent_frames_to_push = input_frames_needed - buffered_input_frames;
-                let silent_samples_to_push = silent_frames_to_push * input_channels;
-                input_buffer_manager.push_silent_data(silent_samples_to_push);
                 stm.frames_read
                     .fetch_add(input_frames_needed, Ordering::SeqCst);
                 cubeb_log!(
-                    "({:p}) Missing Frames: {} pushed {} frames of input silence.",
+                    "({:p}) Missing Frames: {} will append {} frames of input silence.",
                     stm.core_stream_data.stm_ptr,
                     if stm.frames_read.load(Ordering::SeqCst) == 0 {
                         "input hasn't started,"
