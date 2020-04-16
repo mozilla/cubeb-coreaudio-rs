@@ -176,6 +176,9 @@ impl Mixer {
         out_channel_count: usize,
         mut output_channels: Vec<audio_mixer::Channel>,
     ) -> Self {
+        assert!(in_channel_count > 0);
+        assert!(out_channel_count > 0);
+
         cubeb_log!(
             "Create a mixer with input channel count: {}, input layout: {:?}, \
              out channel count: {}, output channels: {:?}",
@@ -210,7 +213,7 @@ impl Mixer {
             || out_channel_count != output_channels.len()
             || all_silence == output_channels
         {
-            cubeb_log!("Mismatch between output channels and layout. Apply default layout instead");
+            cubeb_log!("Use invalid layout. Apply default layout instead");
             output_channels = get_default_channel_order(out_channel_count);
         }
 
