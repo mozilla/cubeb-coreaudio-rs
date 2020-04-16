@@ -194,8 +194,8 @@ impl Mixer {
 
         // When having one or two channel, force mono or stereo. Some devices (namely,
         // Bose QC35, mark 1 and 2), expose a single channel mapped to the right for
-        // some reason.
-        // TODO: Only apply this setting when device is Bose QC35 (by device_property.rs).
+        // some reason. Some devices (e.g., builtin speaker on MacBook Pro 2018) map
+        // the channel layout to the undefined channels.
         if out_channel_count == 1 {
             output_channels = vec![audio_mixer::Channel::FrontCenter];
         } else if out_channel_count == 2 {
