@@ -2834,6 +2834,11 @@ impl<'ctx> CoreStreamData<'ctx> {
                 cubeb_log!("AudioUnitInitialize/input rv={}", r);
                 return Err(Error::error());
             }
+
+            stream.current_input_latency_frames.store(
+                get_fixed_latency(self.input_device.id, DeviceType::INPUT),
+                Ordering::SeqCst,
+            );
         }
 
         if !self.output_unit.is_null() {
@@ -3477,7 +3482,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     }
     #[cfg(not(target_os = "ios"))]
     fn input_latency(&mut self) -> Result<u32> {
-        let user_rate = self.core_stream_data.output_stream_params.rate();
+        let user_rate = self.core_stream_data.input_stream_params.rate();
         let hw_rate = self.core_stream_data.input_hw_rate as u32;
         let frames = self.total_input_latency_frames.load(Ordering::SeqCst);
         if hw_rate == user_rate {
