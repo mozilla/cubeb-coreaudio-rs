@@ -645,10 +645,10 @@ extern "C" fn audiounit_output_callback(
                 );
             }
 
-            let input_samples_needed = buffered_input_frames * input_channels;
+            let input_samples_needed = input_frames_needed * input_channels;
             (
                 input_buffer_manager.get_linear_data(input_samples_needed),
-                buffered_input_frames as i64,
+                input_frames_needed as i64,
             )
         } else {
             (ptr::null_mut::<c_void>(), 0)
