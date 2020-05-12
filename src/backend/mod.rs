@@ -624,7 +624,7 @@ extern "C" fn audiounit_output_callback(
                 cubeb_log!("Dropping {} frames in input buffer.", popped_samples);
             }
 
-            let input_buffer_frames = if input_frames_needed > buffered_input_frames
+            let input_frames = if input_frames_needed > buffered_input_frames
                 && (stm.switching_device.load(Ordering::SeqCst)
                     || stm.frames_read.load(Ordering::SeqCst) == 0)
             {
@@ -648,10 +648,10 @@ extern "C" fn audiounit_output_callback(
                 buffered_input_frames
             };
 
-            let input_samples_needed = input_buffer_frames * input_channels;
+            let input_samples_needed = input_frames * input_channels;
             (
                 input_buffer_manager.get_linear_data(input_samples_needed),
-                input_buffer_frames as i64,
+                input_frames as i64,
             )
         } else {
             (ptr::null_mut::<c_void>(), 0)
