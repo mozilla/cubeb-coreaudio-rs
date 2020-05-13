@@ -2235,7 +2235,7 @@ impl ContextOps for AudioUnitContext {
         let cubeb_stream = unsafe { Stream::from_ptr(Box::into_raw(boxed_stream) as *mut _) };
         cubeb_log!(
             "({:p}) Cubeb stream init successful.",
-            &cubeb_stream as *const Stream
+            cubeb_stream.as_ref()
         );
         Ok(cubeb_stream)
     }
