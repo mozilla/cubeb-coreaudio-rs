@@ -344,9 +344,11 @@ extern "C" fn audiounit_input_callback(
     assert!(!user_ptr.is_null());
     let stm = unsafe { &mut *(user_ptr as *mut AudioUnitStream) };
 
-    let input_latency_frames = compute_input_latency(&stm, unsafe { (*tstamp).mHostTime });
-    stm.total_input_latency_frames
-        .store(input_latency_frames, Ordering::SeqCst);
+    if unsafe { *flags | kAudioTimeStampHostTimeValid } != 0 {
+        let input_latency_frames = compute_input_latency(&stm, unsafe { (*tstamp).mHostTime });
+        stm.total_input_latency_frames
+            .store(input_latency_frames, Ordering::SeqCst);
+    }
 
     if stm.shutdown.load(Ordering::SeqCst) {
         cubeb_log!("({:p}) input shutdown", stm as *const AudioUnitStream);
