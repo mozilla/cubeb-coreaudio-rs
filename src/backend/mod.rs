@@ -494,20 +494,22 @@ fn host_time_to_ns(host_time: u64) -> u64 {
 }
 
 fn compute_output_latency(stm: &AudioUnitStream, host_time: u64) -> u32 {
+    const NS2S: u64 = 1_000_000_000;
+
     let now = host_time_to_ns(unsafe { mach_absolute_time() });
     let audio_output_time = host_time_to_ns(host_time);
-    let output_latency_ns = if audio_output_time < now {
+    let output_hw_rate = stm.core_stream_data.output_hw_rate as u64;
+    let fixed_latency_ns =
+        (stm.current_output_latency_frames.load(Ordering::SeqCst) as u64 * NS2S) / output_hw_rate;
+    let total_output_latency_ns = if audio_output_time < now {
         0
     } else {
-        audio_output_time - now
+        // The total output latency is the timestamp difference + the stream latency + the hardware
+        // latency.
+        (audio_output_time - now) + fixed_latency_ns
     };
 
-    const NS2S: u64 = 1_000_000_000;
-    // The total output latency is the timestamp difference + the stream latency +
-    // the hardware latency.
-    let out_hw_rate = stm.core_stream_data.output_hw_rate as u64;
-    (output_latency_ns * out_hw_rate / NS2S
-        + stm.current_output_latency_frames.load(Ordering::SeqCst) as u64) as u32
+    ((total_output_latency_ns * output_hw_rate) / NS2S) as u32
 }
 
 fn compute_input_latency(stm: &AudioUnitStream, host_time: u64) -> u32 {
@@ -531,7 +533,7 @@ fn compute_input_latency(stm: &AudioUnitStream, host_time: u64) -> u32 {
 
 extern "C" fn audiounit_output_callback(
     user_ptr: *mut c_void,
-    _: *mut AudioUnitRenderActionFlags,
+    flags: *mut AudioUnitRenderActionFlags,
     tstamp: *const AudioTimeStamp,
     bus: u32,
     output_frames: u32,
@@ -551,10 +553,11 @@ extern "C" fn audiounit_output_callback(
         slice::from_raw_parts_mut(ptr, len)
     };
 
-    let output_latency_frames = compute_output_latency(&stm, unsafe { (*tstamp).mHostTime });
-
-    stm.total_output_latency_frames
-        .store(output_latency_frames, Ordering::SeqCst);
+    if unsafe { *flags | kAudioTimeStampHostTimeValid } != 0 {
+        let output_latency_frames = compute_output_latency(&stm, unsafe { (*tstamp).mHostTime });
+        stm.total_output_latency_frames
+            .store(output_latency_frames, Ordering::SeqCst);
+    }
 
     cubeb_logv!(
         "({:p}) output: buffers {}, size {}, channels {}, frames {}.",
