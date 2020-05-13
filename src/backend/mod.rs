@@ -3465,12 +3465,15 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         let current_output_latency_frames =
             u64::from(self.current_output_latency_frames.load(Ordering::SeqCst));
         let frames_played = self.frames_played.load(Ordering::SeqCst);
-        let position = if current_output_latency_frames > frames_played {
-            0
-        } else {
-            frames_played - current_output_latency_frames
-        };
-        Ok(position)
+        if current_output_latency_frames != 0 {
+            let position = if current_output_latency_frames > frames_played {
+                0
+            } else {
+                frames_played - current_output_latency_frames
+            };
+            return Ok(position);
+        }
+        Err(Error::error())
     }
     #[cfg(target_os = "ios")]
     fn latency(&mut self) -> Result<u32> {
@@ -3489,10 +3492,14 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         let user_rate = self.core_stream_data.input_stream_params.rate();
         let hw_rate = self.core_stream_data.input_hw_rate as u32;
         let frames = self.total_input_latency_frames.load(Ordering::SeqCst);
-        if hw_rate == user_rate {
-            Ok(frames)
+        if frames != 0 {
+            if hw_rate == user_rate {
+                Ok(frames)
+            } else {
+                Ok(frames * (user_rate / hw_rate))
+            }
         } else {
-            Ok(frames * (user_rate / hw_rate))
+            Err(Error::error())
         }
     }
     fn set_volume(&mut self, volume: f32) -> Result<()> {
