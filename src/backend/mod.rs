@@ -511,20 +511,22 @@ fn compute_output_latency(stm: &AudioUnitStream, host_time: u64) -> u32 {
 }
 
 fn compute_input_latency(stm: &AudioUnitStream, host_time: u64) -> u32 {
+    const NS2S: u64 = 1_000_000_000;
+
     let now = host_time_to_ns(unsafe { mach_absolute_time() });
     let audio_input_time = host_time_to_ns(host_time);
-    let input_latency_ns = if audio_input_time > now {
+    let input_hw_rate = stm.core_stream_data.input_hw_rate as u64;
+    let fixed_latency_ns =
+        (stm.current_input_latency_frames.load(Ordering::SeqCst) as u64 * NS2S) / input_hw_rate;
+    let total_input_latency_ns = if audio_input_time > now {
         0
     } else {
-        now - audio_input_time
+        // The total input latency is the timestamp difference + the stream latency +
+        // the hardware latency.
+        (now - audio_input_time) + fixed_latency_ns
     };
 
-    const NS2S: u64 = 1_000_000_000;
-    // The total input latency is the timestamp difference + the stream latency +
-    // the hardware latency.
-    let input_hw_rate = stm.core_stream_data.input_hw_rate as u64;
-    (input_latency_ns * input_hw_rate / NS2S
-        + stm.current_input_latency_frames.load(Ordering::SeqCst) as u64) as u32
+    ((total_input_latency_ns * input_hw_rate) / NS2S) as u32
 }
 
 extern "C" fn audiounit_output_callback(
