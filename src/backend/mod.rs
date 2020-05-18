@@ -1147,7 +1147,6 @@ fn get_buffer_size(unit: AudioUnit, devtype: DeviceType) -> std::result::Result<
         &mut size,
     );
     if status == NO_ERR {
-        assert_ne!(frames, 0);
         Ok(frames)
     } else {
         Err(status)
