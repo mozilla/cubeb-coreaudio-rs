@@ -500,7 +500,7 @@ fn compute_output_latency(stm: &AudioUnitStream, host_time: u64) -> u32 {
     let audio_output_time = host_time_to_ns(host_time);
     let output_hw_rate = stm.core_stream_data.output_hw_rate as u64;
     let fixed_latency_ns =
-        (stm.current_output_latency_frames.load(Ordering::SeqCst) as u64 * NS2S) / output_hw_rate;
+        (stm.output_device_latency_frames.load(Ordering::SeqCst) as u64 * NS2S) / output_hw_rate;
     let total_output_latency_ns = if audio_output_time < now {
         0
     } else {
@@ -519,7 +519,7 @@ fn compute_input_latency(stm: &AudioUnitStream, host_time: u64) -> u32 {
     let audio_input_time = host_time_to_ns(host_time);
     let input_hw_rate = stm.core_stream_data.input_hw_rate as u64;
     let fixed_latency_ns =
-        (stm.current_input_latency_frames.load(Ordering::SeqCst) as u64 * NS2S) / input_hw_rate;
+        (stm.input_device_latency_frames.load(Ordering::SeqCst) as u64 * NS2S) / input_hw_rate;
     let total_input_latency_ns = if audio_input_time > now {
         0
     } else {
@@ -2843,7 +2843,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                 return Err(Error::error());
             }
 
-            stream.current_input_latency_frames.store(
+            stream.input_device_latency_frames.store(
                 get_fixed_latency(self.input_device.id, DeviceType::INPUT),
                 Ordering::SeqCst,
             );
@@ -2856,7 +2856,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                 return Err(Error::error());
             }
 
-            stream.current_output_latency_frames.store(
+            stream.output_device_latency_frames.store(
                 get_fixed_latency(self.output_device.id, DeviceType::OUTPUT),
                 Ordering::SeqCst,
             );
@@ -2872,7 +2872,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                 &mut size,
             ) == NO_ERR
             {
-                stream.current_output_latency_frames.fetch_add(
+                stream.output_device_latency_frames.fetch_add(
                     (unit_s * self.output_desc.mSampleRate) as u32,
                     Ordering::SeqCst,
                 );
@@ -3149,8 +3149,10 @@ struct AudioUnitStream<'ctx> {
     destroy_pending: AtomicBool,
     // Latency requested by the user.
     latency_frames: u32,
-    current_output_latency_frames: AtomicU32,
-    current_input_latency_frames: AtomicU32,
+    // Fixed latency, characteristic of the device.
+    output_device_latency_frames: AtomicU32,
+    input_device_latency_frames: AtomicU32,
+    // Total latency: the latency of the device + the OS latency
     total_output_latency_frames: AtomicU32,
     total_input_latency_frames: AtomicU32,
     // This is true if a device change callback is currently running.
@@ -3182,8 +3184,8 @@ impl<'ctx> AudioUnitStream<'ctx> {
             reinit_pending: AtomicBool::new(false),
             destroy_pending: AtomicBool::new(false),
             latency_frames,
-            current_output_latency_frames: AtomicU32::new(0),
-            current_input_latency_frames: AtomicU32::new(0),
+            output_device_latency_frames: AtomicU32::new(0),
+            input_device_latency_frames: AtomicU32::new(0),
             total_output_latency_frames: AtomicU32::new(0),
             total_input_latency_frames: AtomicU32::new(0),
             switching_device: AtomicBool::new(false),
