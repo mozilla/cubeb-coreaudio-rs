@@ -3468,14 +3468,14 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         Err(Error::not_supported())
     }
     fn position(&mut self) -> Result<u64> {
-        let current_output_latency_frames =
-            u64::from(self.current_output_latency_frames.load(Ordering::SeqCst));
+        let total_output_latency_frames =
+            u64::from(self.total_output_latency_frames.load(Ordering::SeqCst));
         let frames_played = self.frames_played.load(Ordering::SeqCst);
-        if current_output_latency_frames != 0 {
-            let position = if current_output_latency_frames > frames_played {
+        if total_output_latency_frames != 0 {
+            let position = if total_output_latency_frames > frames_played {
                 0
             } else {
-                frames_played - current_output_latency_frames
+                frames_played - total_output_latency_frames
             };
             return Ok(position);
         }
