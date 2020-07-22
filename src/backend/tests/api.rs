@@ -790,24 +790,12 @@ fn test_create_stream_description() {
 // ------------------------------------
 #[test]
 fn test_create_default_audiounit() {
-    let flags_list = [
-        device_flags::DEV_UNKNOWN,
-        device_flags::DEV_INPUT,
-        device_flags::DEV_OUTPUT,
-        device_flags::DEV_INPUT | device_flags::DEV_OUTPUT,
-        device_flags::DEV_INPUT | device_flags::DEV_SYSTEM_DEFAULT,
-        device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT,
-        device_flags::DEV_INPUT | device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT,
-    ];
-
-    for flags in flags_list.iter() {
-        let unit = create_default_audiounit(*flags).unwrap();
-        assert!(!unit.is_null());
-        // Destroy the AudioUnits
-        unsafe {
-            AudioUnitUninitialize(unit);
-            AudioComponentInstanceDispose(unit);
-        }
+    let unit = create_default_audiounit().unwrap();
+    assert!(!unit.is_null());
+    // Destroy the AudioUnits
+    unsafe {
+        AudioUnitUninitialize(unit);
+        AudioComponentInstanceDispose(unit);
     }
 }
 
