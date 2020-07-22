@@ -539,7 +539,7 @@ extern "C" fn audiounit_output_callback(
 
     let out_buffer_list_ref = unsafe { &mut (*out_buffer_list) };
     assert_eq!(out_buffer_list_ref.mNumberBuffers, 1);
-    let mut buffers = unsafe {
+    let buffers = unsafe {
         let ptr = out_buffer_list_ref.mBuffers.as_mut_ptr();
         let len = out_buffer_list_ref.mNumberBuffers as usize;
         slice::from_raw_parts_mut(ptr, len)
@@ -576,151 +576,139 @@ extern "C" fn audiounit_output_callback(
         return NO_ERR;
     }
 
-    let handler = |stm: &mut AudioUnitStream,
-                   output_frames: u32,
-                   buffers: &mut [AudioBuffer]|
-     -> (OSStatus, Option<State>) {
-        // Get output buffer
-        let output_buffer = match stm.core_stream_data.mixer.as_mut() {
-            None => buffers[0].mData,
-            Some(mixer) => {
-                // If remixing needs to occur, we can't directly work in our final
-                // destination buffer as data may be overwritten or too small to start with.
-                mixer.update_buffer_size(output_frames as usize);
-                mixer.get_buffer_mut_ptr() as *mut c_void
-            }
-        };
-
-        let prev_frames_written = stm.frames_written.load(Ordering::SeqCst);
-
-        stm.frames_written
-            .fetch_add(output_frames as usize, Ordering::SeqCst);
-
-        // Also get the input buffer if the stream is duplex
-        let (input_buffer, mut input_frames) = if !stm.core_stream_data.input_unit.is_null() {
-            let input_buffer_manager = stm.core_stream_data.input_buffer_manager.as_mut().unwrap();
-            assert_ne!(stm.core_stream_data.input_desc.mChannelsPerFrame, 0);
-            let input_channels = stm.core_stream_data.input_desc.mChannelsPerFrame as usize;
-            // If the output callback came first and this is a duplex stream, we need to
-            // fill in some additional silence in the resampler.
-            // Otherwise, if we had more than expected callbacks in a row, or we're
-            // currently switching, we add some silence as well to compensate for the
-            // fact that we're lacking some input data.
-            let input_frames_needed = minimum_resampling_input_frames(
-                stm.core_stream_data.input_hw_rate,
-                f64::from(stm.core_stream_data.output_stream_params.rate()),
-                output_frames as usize,
-            );
-            let buffered_input_frames = input_buffer_manager.available_samples() / input_channels;
-            // Else if the input has buffered a lot already because the output started late, we
-            // need to trim the input buffer
-            if prev_frames_written == 0 && buffered_input_frames > input_frames_needed as usize {
-                input_buffer_manager.trim(input_frames_needed * input_channels);
-                let popped_frames = buffered_input_frames - input_frames_needed as usize;
-                stm.frames_read.fetch_sub(popped_frames, Ordering::SeqCst);
-
-                cubeb_log!("Dropping {} frames in input buffer.", popped_frames);
-            }
-
-            let input_frames = if input_frames_needed > buffered_input_frames
-                && (stm.switching_device.load(Ordering::SeqCst)
-                    || stm.frames_read.load(Ordering::SeqCst) == 0)
-            {
-                // The silent frames will be inserted in `get_linear_data` below.
-                let silent_frames_to_push = input_frames_needed - buffered_input_frames;
-                stm.frames_read
-                    .fetch_add(input_frames_needed, Ordering::SeqCst);
-                cubeb_log!(
-                    "({:p}) Missing Frames: {} will append {} frames of input silence.",
-                    stm.core_stream_data.stm_ptr,
-                    if stm.frames_read.load(Ordering::SeqCst) == 0 {
-                        "input hasn't started,"
-                    } else {
-                        assert!(stm.switching_device.load(Ordering::SeqCst));
-                        "device switching,"
-                    },
-                    silent_frames_to_push
-                );
-                input_frames_needed
-            } else {
-                buffered_input_frames
-            };
-
-            let input_samples_needed = input_frames * input_channels;
-            (
-                input_buffer_manager.get_linear_data(input_samples_needed),
-                input_frames as i64,
-            )
-        } else {
-            (ptr::null_mut::<c_void>(), 0)
-        };
-
-        let outframes = stm.core_stream_data.resampler.fill(
-            input_buffer,
-            if input_buffer.is_null() {
-                ptr::null_mut()
-            } else {
-                &mut input_frames
-            },
-            output_buffer,
-            i64::from(output_frames),
-        );
-
-        if outframes < 0 || outframes > i64::from(output_frames) {
-            stm.shutdown.store(true, Ordering::SeqCst);
-            stm.core_stream_data.stop_audiounits();
-            audiounit_make_silent(&mut buffers[0]);
-            return (NO_ERR, Some(State::Error));
+    // Get output buffer
+    let output_buffer = match stm.core_stream_data.mixer.as_mut() {
+        None => buffers[0].mData,
+        Some(mixer) => {
+            // If remixing needs to occur, we can't directly work in our final
+            // destination buffer as data may be overwritten or too small to start with.
+            mixer.update_buffer_size(output_frames as usize);
+            mixer.get_buffer_mut_ptr() as *mut c_void
         }
-
-        stm.draining
-            .store(outframes < i64::from(output_frames), Ordering::SeqCst);
-        stm.frames_played
-            .store(stm.frames_queued, atomic::Ordering::SeqCst);
-        stm.frames_queued += outframes as u64;
-
-        // Post process output samples.
-        if stm.draining.load(Ordering::SeqCst) {
-            // Clear missing frames (silence)
-            let frames_to_bytes = |frames: usize| -> usize {
-                let sample_size =
-                    cubeb_sample_size(stm.core_stream_data.output_stream_params.format());
-                let channel_count = stm.core_stream_data.output_stream_params.channels() as usize;
-                frames * sample_size * channel_count
-            };
-            let out_bytes = unsafe {
-                slice::from_raw_parts_mut(
-                    output_buffer as *mut u8,
-                    frames_to_bytes(output_frames as usize),
-                )
-            };
-            let start = frames_to_bytes(outframes as usize);
-            for byte in out_bytes.iter_mut().skip(start) {
-                *byte = 0;
-            }
-        }
-
-        // Mixing
-        if stm.core_stream_data.mixer.is_some() {
-            assert!(
-                buffers[0].mDataByteSize
-                    >= stm.core_stream_data.output_desc.mBytesPerFrame * output_frames
-            );
-            stm.core_stream_data.mixer.as_mut().unwrap().mix(
-                output_frames as usize,
-                buffers[0].mData,
-                buffers[0].mDataByteSize as usize,
-            );
-        }
-
-        (NO_ERR, None)
     };
 
-    let (status, notification) = handler(stm, output_frames, &mut buffers);
-    if let Some(state) = notification {
-        stm.notify_state_changed(state);
+    let prev_frames_written = stm.frames_written.load(Ordering::SeqCst);
+
+    stm.frames_written
+        .fetch_add(output_frames as usize, Ordering::SeqCst);
+
+    // Also get the input buffer if the stream is duplex
+    let (input_buffer, mut input_frames) = if !stm.core_stream_data.input_unit.is_null() {
+        let input_buffer_manager = stm.core_stream_data.input_buffer_manager.as_mut().unwrap();
+        assert_ne!(stm.core_stream_data.input_desc.mChannelsPerFrame, 0);
+        let input_channels = stm.core_stream_data.input_desc.mChannelsPerFrame as usize;
+        // If the output callback came first and this is a duplex stream, we need to
+        // fill in some additional silence in the resampler.
+        // Otherwise, if we had more than expected callbacks in a row, or we're
+        // currently switching, we add some silence as well to compensate for the
+        // fact that we're lacking some input data.
+        let input_frames_needed = minimum_resampling_input_frames(
+            stm.core_stream_data.input_hw_rate,
+            f64::from(stm.core_stream_data.output_stream_params.rate()),
+            output_frames as usize,
+        );
+        let buffered_input_frames = input_buffer_manager.available_samples() / input_channels;
+        // Else if the input has buffered a lot already because the output started late, we
+        // need to trim the input buffer
+        if prev_frames_written == 0 && buffered_input_frames > input_frames_needed as usize {
+            input_buffer_manager.trim(input_frames_needed * input_channels);
+            let popped_frames = buffered_input_frames - input_frames_needed as usize;
+            stm.frames_read.fetch_sub(popped_frames, Ordering::SeqCst);
+
+            cubeb_log!("Dropping {} frames in input buffer.", popped_frames);
+        }
+
+        let input_frames = if input_frames_needed > buffered_input_frames
+            && (stm.switching_device.load(Ordering::SeqCst)
+                || stm.frames_read.load(Ordering::SeqCst) == 0)
+        {
+            // The silent frames will be inserted in `get_linear_data` below.
+            let silent_frames_to_push = input_frames_needed - buffered_input_frames;
+            stm.frames_read
+                .fetch_add(input_frames_needed, Ordering::SeqCst);
+            cubeb_log!(
+                "({:p}) Missing Frames: {} will append {} frames of input silence.",
+                stm.core_stream_data.stm_ptr,
+                if stm.frames_read.load(Ordering::SeqCst) == 0 {
+                    "input hasn't started,"
+                } else {
+                    assert!(stm.switching_device.load(Ordering::SeqCst));
+                    "device switching,"
+                },
+                silent_frames_to_push
+            );
+            input_frames_needed
+        } else {
+            buffered_input_frames
+        };
+
+        let input_samples_needed = input_frames * input_channels;
+        (
+            input_buffer_manager.get_linear_data(input_samples_needed),
+            input_frames as i64,
+        )
+    } else {
+        (ptr::null_mut::<c_void>(), 0)
+    };
+
+    let outframes = stm.core_stream_data.resampler.fill(
+        input_buffer,
+        if input_buffer.is_null() {
+            ptr::null_mut()
+        } else {
+            &mut input_frames
+        },
+        output_buffer,
+        i64::from(output_frames),
+    );
+
+    if outframes < 0 || outframes > i64::from(output_frames) {
+        stm.shutdown.store(true, Ordering::SeqCst);
+        stm.core_stream_data.stop_audiounits();
+        audiounit_make_silent(&mut buffers[0]);
+        stm.notify_state_changed(State::Error);
+        return NO_ERR;
     }
-    status
+
+    stm.draining
+        .store(outframes < i64::from(output_frames), Ordering::SeqCst);
+    stm.frames_played
+        .store(stm.frames_queued, atomic::Ordering::SeqCst);
+    stm.frames_queued += outframes as u64;
+
+    // Post process output samples.
+    if stm.draining.load(Ordering::SeqCst) {
+        // Clear missing frames (silence)
+        let frames_to_bytes = |frames: usize| -> usize {
+            let sample_size = cubeb_sample_size(stm.core_stream_data.output_stream_params.format());
+            let channel_count = stm.core_stream_data.output_stream_params.channels() as usize;
+            frames * sample_size * channel_count
+        };
+        let out_bytes = unsafe {
+            slice::from_raw_parts_mut(
+                output_buffer as *mut u8,
+                frames_to_bytes(output_frames as usize),
+            )
+        };
+        let start = frames_to_bytes(outframes as usize);
+        for byte in out_bytes.iter_mut().skip(start) {
+            *byte = 0;
+        }
+    }
+
+    // Mixing
+    if stm.core_stream_data.mixer.is_some() {
+        assert!(
+            buffers[0].mDataByteSize
+                >= stm.core_stream_data.output_desc.mBytesPerFrame * output_frames
+        );
+        stm.core_stream_data.mixer.as_mut().unwrap().mix(
+            output_frames as usize,
+            buffers[0].mData,
+            buffers[0].mDataByteSize as usize,
+        );
+    }
+    return NO_ERR;
 }
 
 #[allow(clippy::cognitive_complexity)]
