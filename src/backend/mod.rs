@@ -551,6 +551,8 @@ extern "C" fn audiounit_output_callback(
             .store(output_latency_frames, Ordering::SeqCst);
     }
 
+    let now = unsafe { mach_absolute_time() };
+
     cubeb_logv!(
         "({:p}) output: buffers {}, size {}, channels {}, frames {}.",
         stm as *const AudioUnitStream,
@@ -674,6 +676,12 @@ extern "C" fn audiounit_output_callback(
         .store(outframes < i64::from(output_frames), Ordering::SeqCst);
     stm.frames_played
         .store(stm.frames_queued, atomic::Ordering::SeqCst);
+    stm.output_callback_timing_data_write
+        .write(OutputCallbackTimingData {
+            frames_played: stm.frames_queued,
+            timestamp: now,
+        });
+
     stm.frames_queued += outframes as u64;
 
     // Post process output samples.
@@ -708,7 +716,7 @@ extern "C" fn audiounit_output_callback(
             buffers[0].mDataByteSize as usize,
         );
     }
-    return NO_ERR;
+    NO_ERR
 }
 
 #[allow(clippy::cognitive_complexity)]
@@ -3099,6 +3107,12 @@ impl<'ctx> Drop for CoreStreamData<'ctx> {
     }
 }
 
+#[derive(Debug, Clone)]
+struct OutputCallbackTimingData {
+    frames_played: u64,
+    timestamp: u64,
+}
+
 // The fisrt two members of the Cubeb stream must be a pointer to its Cubeb context and a void user
 // defined pointer. The Cubeb interface use this assumption to operate the Cubeb APIs.
 // #[repr(C)] is used to prevent any padding from being added in the beginning of the AudioUnitStream.
@@ -3135,6 +3149,9 @@ struct AudioUnitStream<'ctx> {
     // Total latency: the latency of the device + the OS latency
     total_output_latency_frames: AtomicU32,
     total_input_latency_frames: AtomicU32,
+    output_callback_timing_data_read: triple_buffer::Output<OutputCallbackTimingData>,
+    output_callback_timing_data_write: triple_buffer::Input<OutputCallbackTimingData>,
+    prev_position: u64,
     // This is true if a device change callback is currently running.
     switching_device: AtomicBool,
     core_stream_data: CoreStreamData<'ctx>,
@@ -3148,6 +3165,13 @@ impl<'ctx> AudioUnitStream<'ctx> {
         state_callback: ffi::cubeb_state_callback,
         latency_frames: u32,
     ) -> Self {
+        let output_callback_timing_data =
+            triple_buffer::TripleBuffer::new(OutputCallbackTimingData {
+                frames_played: 0,
+                timestamp: 0,
+            });
+        let (output_callback_timing_data_write, output_callback_timing_data_read) =
+            output_callback_timing_data.split();
         AudioUnitStream {
             context,
             user_ptr,
@@ -3168,6 +3192,9 @@ impl<'ctx> AudioUnitStream<'ctx> {
             input_device_latency_frames: AtomicU32::new(0),
             total_output_latency_frames: AtomicU32::new(0),
             total_input_latency_frames: AtomicU32::new(0),
+            output_callback_timing_data_write,
+            output_callback_timing_data_read,
+            prev_position: 0,
             switching_device: AtomicBool::new(false),
             core_stream_data: CoreStreamData::default(),
         }
@@ -3448,18 +3475,37 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         Err(Error::not_supported())
     }
     fn position(&mut self) -> Result<u64> {
+        let OutputCallbackTimingData {
+            frames_played,
+            timestamp,
+        } = self.output_callback_timing_data_read.read().clone();
         let total_output_latency_frames =
             u64::from(self.total_output_latency_frames.load(Ordering::SeqCst));
-        let frames_played = self.frames_played.load(Ordering::SeqCst);
-        if total_output_latency_frames != 0 {
-            let position = if total_output_latency_frames > frames_played {
+        // If output latency is available, take it into account. Otherwise, use the number of
+        // frames played.
+        let position = if total_output_latency_frames != 0 {
+            if total_output_latency_frames > frames_played {
                 0
             } else {
-                frames_played - total_output_latency_frames
-            };
-            return Ok(position);
+                // Interpolate here to match other cubeb backends. Only return an interpolated time
+                // if we've played enough frames.
+                const NS2S: u64 = 1_000_000_000;
+                let now = unsafe { mach_absolute_time() };
+                let diff = now - timestamp;
+                let interpolated_frames = host_time_to_ns(diff)
+                    * self.core_stream_data.output_stream_params.rate() as u64
+                    / NS2S;
+                (frames_played - total_output_latency_frames) + interpolated_frames
+            }
+        } else {
+            frames_played
+        };
+
+        // Ensure mononicity of the clock even when changing output device.
+        if position > self.prev_position {
+            self.prev_position = position;
         }
-        Ok(frames_played)
+        Ok(self.prev_position)
     }
     #[cfg(target_os = "ios")]
     fn latency(&mut self) -> Result<u32> {
