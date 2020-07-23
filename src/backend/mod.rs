@@ -501,15 +501,11 @@ fn compute_output_latency(stm: &AudioUnitStream, host_time: u64) -> u32 {
     let output_hw_rate = stm.core_stream_data.output_hw_rate as u64;
     let fixed_latency_ns =
         (stm.output_device_latency_frames.load(Ordering::SeqCst) as u64 * NS2S) / output_hw_rate;
-    let total_output_latency_ns = if audio_output_time < now {
-        0
-    } else {
-        // The total output latency is the timestamp difference + the stream latency + the hardware
-        // latency.
-        (audio_output_time - now) + fixed_latency_ns
-    };
+    // The total output latency is the timestamp difference + the stream latency + the hardware
+    // latency.
+    let total_output_latency_ns = fixed_latency_ns + audio_output_time.saturating_sub(now);
 
-    ((total_output_latency_ns * output_hw_rate) / NS2S) as u32
+    (total_output_latency_ns * output_hw_rate / NS2S) as u32
 }
 
 fn compute_input_latency(stm: &AudioUnitStream, host_time: u64) -> u32 {
@@ -520,15 +516,11 @@ fn compute_input_latency(stm: &AudioUnitStream, host_time: u64) -> u32 {
     let input_hw_rate = stm.core_stream_data.input_hw_rate as u64;
     let fixed_latency_ns =
         (stm.input_device_latency_frames.load(Ordering::SeqCst) as u64 * NS2S) / input_hw_rate;
-    let total_input_latency_ns = if audio_input_time > now {
-        0
-    } else {
-        // The total input latency is the timestamp difference + the stream latency +
-        // the hardware latency.
-        (now - audio_input_time) + fixed_latency_ns
-    };
+    // The total input latency is the timestamp difference + the stream latency +
+    // the hardware latency.
+    let total_input_latency_ns = now.saturating_sub(audio_input_time) + fixed_latency_ns;
 
-    ((total_input_latency_ns * input_hw_rate) / NS2S) as u32
+    (total_input_latency_ns * input_hw_rate / NS2S) as u32
 }
 
 extern "C" fn audiounit_output_callback(
