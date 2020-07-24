@@ -589,6 +589,9 @@ extern "C" fn audiounit_output_callback(
 
     let prev_frames_written = stm.frames_written.load(Ordering::SeqCst);
 
+    stm.frames_written
+        .fetch_add(output_frames as usize, Ordering::SeqCst);
+
     // Also get the input buffer if the stream is duplex
     let (input_buffer, mut input_frames) = if !stm.core_stream_data.input_unit.is_null() {
         let input_buffer_manager = stm.core_stream_data.input_buffer_manager.as_mut().unwrap();
@@ -632,7 +635,8 @@ extern "C" fn audiounit_output_callback(
                 },
                 silent_frames_to_push
             );
-            stm.frames_read.fetch_add(input_frames_needed, Ordering::SeqCst);
+            stm.frames_read
+                .fetch_add(input_frames_needed, Ordering::SeqCst);
             input_frames_needed
         } else {
             buffered_input_frames
