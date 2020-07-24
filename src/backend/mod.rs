@@ -43,7 +43,7 @@ use std::mem;
 use std::os::raw::c_void;
 use std::ptr;
 use std::slice;
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 const NO_ERR: OSStatus = 0;
@@ -345,7 +345,8 @@ extern "C" fn audiounit_input_callback(
     let stm = unsafe { &mut *(user_ptr as *mut AudioUnitStream) };
 
     if unsafe { *flags | kAudioTimeStampHostTimeValid } != 0 {
-        let input_latency_frames = compute_input_latency(&stm, unsafe { (*tstamp).mHostTime });
+        let now = unsafe { mach_absolute_time() };
+        let input_latency_frames = compute_input_latency(&stm, unsafe { (*tstamp).mHostTime }, now);
         stm.total_input_latency_frames
             .store(input_latency_frames, Ordering::SeqCst);
     }
@@ -493,10 +494,8 @@ fn host_time_to_ns(host_time: u64) -> u64 {
     rv as u64
 }
 
-fn compute_output_latency(stm: &AudioUnitStream, host_time: u64) -> u32 {
+fn compute_output_latency(stm: &AudioUnitStream, host_time: u64, now: u64) -> u32 {
     const NS2S: u64 = 1_000_000_000;
-
-    let now = host_time_to_ns(unsafe { mach_absolute_time() });
     let audio_output_time = host_time_to_ns(host_time);
     let output_hw_rate = stm.core_stream_data.output_hw_rate as u64;
     let fixed_latency_ns =
@@ -508,10 +507,8 @@ fn compute_output_latency(stm: &AudioUnitStream, host_time: u64) -> u32 {
     (total_output_latency_ns * output_hw_rate / NS2S) as u32
 }
 
-fn compute_input_latency(stm: &AudioUnitStream, host_time: u64) -> u32 {
+fn compute_input_latency(stm: &AudioUnitStream, host_time: u64, now: u64) -> u32 {
     const NS2S: u64 = 1_000_000_000;
-
-    let now = host_time_to_ns(unsafe { mach_absolute_time() });
     let audio_input_time = host_time_to_ns(host_time);
     let input_hw_rate = stm.core_stream_data.input_hw_rate as u64;
     let fixed_latency_ns =
@@ -545,13 +542,14 @@ extern "C" fn audiounit_output_callback(
         slice::from_raw_parts_mut(ptr, len)
     };
 
+    let now = unsafe { mach_absolute_time() };
+
     if unsafe { *flags | kAudioTimeStampHostTimeValid } != 0 {
-        let output_latency_frames = compute_output_latency(&stm, unsafe { (*tstamp).mHostTime });
+        let output_latency_frames =
+            compute_output_latency(&stm, unsafe { (*tstamp).mHostTime }, now);
         stm.total_output_latency_frames
             .store(output_latency_frames, Ordering::SeqCst);
     }
-
-    let now = unsafe { mach_absolute_time() };
 
     cubeb_logv!(
         "({:p}) output: buffers {}, size {}, channels {}, frames {}.",
@@ -674,8 +672,6 @@ extern "C" fn audiounit_output_callback(
 
     stm.draining
         .store(outframes < i64::from(output_frames), Ordering::SeqCst);
-    stm.frames_played
-        .store(stm.frames_queued, atomic::Ordering::SeqCst);
     stm.output_callback_timing_data_write
         .write(OutputCallbackTimingData {
             frames_played: stm.frames_queued,
@@ -3130,7 +3126,6 @@ struct AudioUnitStream<'ctx> {
     state_callback: ffi::cubeb_state_callback,
     device_changed_callback: Mutex<ffi::cubeb_device_changed_callback>,
     // Frame counters
-    frames_played: AtomicU64,
     frames_queued: u64,
     // How many frames got read from the input since the stream started (includes
     // padded silence)
@@ -3179,7 +3174,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
             data_callback,
             state_callback,
             device_changed_callback: Mutex::new(None),
-            frames_played: AtomicU64::new(0),
             frames_queued: 0,
             frames_read: AtomicUsize::new(0),
             frames_written: AtomicUsize::new(0),
