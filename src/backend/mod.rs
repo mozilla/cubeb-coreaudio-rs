@@ -542,6 +542,22 @@ extern "C" fn audiounit_output_callback(
         slice::from_raw_parts_mut(ptr, len)
     };
 
+    if stm.stopped.load(Ordering::SeqCst) {
+        cubeb_log!("({:p}) output stopped.", stm as *const AudioUnitStream);
+        audiounit_make_silent(&mut buffers[0]);
+        return NO_ERR;
+    }
+
+    if stm.draining.load(Ordering::SeqCst) {
+        // Cancel the output callback only. For duplex stream,
+        // the input callback will be cancelled in its own callback.
+        let r = stop_audiounit(stm.core_stream_data.output_unit);
+        assert!(r.is_ok());
+        stm.notify_state_changed(State::Drained);
+        audiounit_make_silent(&mut buffers[0]);
+        return NO_ERR;
+    }
+
     let now = unsafe { mach_absolute_time() };
 
     if unsafe { *flags | kAudioTimeStampHostTimeValid } != 0 {
@@ -559,22 +575,6 @@ extern "C" fn audiounit_output_callback(
         buffers[0].mNumberChannels,
         output_frames
     );
-
-    if stm.stopped.load(Ordering::SeqCst) {
-        cubeb_log!("({:p}) output stopped.", stm as *const AudioUnitStream);
-        audiounit_make_silent(&mut buffers[0]);
-        return NO_ERR;
-    }
-
-    if stm.draining.load(Ordering::SeqCst) {
-        // Cancel the output callback only. For duplex stream,
-        // the input callback will be cancelled in its own callback.
-        let r = stop_audiounit(stm.core_stream_data.output_unit);
-        assert!(r.is_ok());
-        stm.notify_state_changed(State::Drained);
-        audiounit_make_silent(&mut buffers[0]);
-        return NO_ERR;
-    }
 
     // Get output buffer
     let output_buffer = match stm.core_stream_data.mixer.as_mut() {
