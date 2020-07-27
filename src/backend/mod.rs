@@ -351,8 +351,8 @@ extern "C" fn audiounit_input_callback(
             .store(input_latency_frames, Ordering::SeqCst);
     }
 
-    if stm.shutdown.load(Ordering::SeqCst) {
-        cubeb_log!("({:p}) input shutdown", stm as *const AudioUnitStream);
+    if stm.stopped.load(Ordering::SeqCst) {
+        cubeb_log!("({:p}) input stopped", stm as *const AudioUnitStream);
         return NO_ERR;
     }
 
@@ -560,8 +560,8 @@ extern "C" fn audiounit_output_callback(
         output_frames
     );
 
-    if stm.shutdown.load(Ordering::SeqCst) {
-        cubeb_log!("({:p}) output shutdown.", stm as *const AudioUnitStream);
+    if stm.stopped.load(Ordering::SeqCst) {
+        cubeb_log!("({:p}) output stopped.", stm as *const AudioUnitStream);
         audiounit_make_silent(&mut buffers[0]);
         return NO_ERR;
     }
@@ -663,7 +663,7 @@ extern "C" fn audiounit_output_callback(
     );
 
     if outframes < 0 || outframes > i64::from(output_frames) {
-        stm.shutdown.store(true, Ordering::SeqCst);
+        stm.stopped.store(true, Ordering::SeqCst);
         stm.core_stream_data.stop_audiounits();
         audiounit_make_silent(&mut buffers[0]);
         stm.notify_state_changed(State::Error);
@@ -3132,7 +3132,7 @@ struct AudioUnitStream<'ctx> {
     frames_read: AtomicUsize,
     // How many frames got written to the output device since the stream started
     frames_written: AtomicUsize,
-    shutdown: AtomicBool,
+    stopped: AtomicBool,
     draining: AtomicBool,
     reinit_pending: AtomicBool,
     destroy_pending: AtomicBool,
@@ -3177,7 +3177,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             frames_queued: 0,
             frames_read: AtomicUsize::new(0),
             frames_written: AtomicUsize::new(0),
-            shutdown: AtomicBool::new(true),
+            stopped: AtomicBool::new(true),
             draining: AtomicBool::new(false),
             reinit_pending: AtomicBool::new(false),
             destroy_pending: AtomicBool::new(false),
@@ -3231,7 +3231,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
         // which locks a mutex inside CoreAudio framework, then this call will block the current
         // thread until the callback is finished since this call asks to lock a mutex inside
         // CoreAudio framework that is used by the data callback.
-        if !self.shutdown.load(Ordering::SeqCst) {
+        if !self.stopped.load(Ordering::SeqCst) {
             self.core_stream_data.stop_audiounits();
         }
 
@@ -3311,7 +3311,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
         }
 
         // If the stream was running, start it again.
-        if !self.shutdown.load(Ordering::SeqCst) {
+        if !self.stopped.load(Ordering::SeqCst) {
             self.core_stream_data.start_audiounits().map_err(|e| {
                 cubeb_log!(
                     "({:p}) Start audiounit failed.",
@@ -3405,9 +3405,9 @@ impl<'ctx> AudioUnitStream<'ctx> {
             // which locks a mutex inside CoreAudio framework, then this call will block the current
             // thread until the callback is finished since this call asks to lock a mutex inside
             // CoreAudio framework that is used by the data callback.
-            if !self.shutdown.load(Ordering::SeqCst) {
+            if !self.stopped.load(Ordering::SeqCst) {
                 self.core_stream_data.stop_audiounits();
-                self.shutdown.store(true, Ordering::SeqCst);
+                self.stopped.store(true, Ordering::SeqCst);
             }
 
             self.destroy_internal();
@@ -3425,7 +3425,7 @@ impl<'ctx> Drop for AudioUnitStream<'ctx> {
 
 impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     fn start(&mut self) -> Result<()> {
-        self.shutdown.store(false, Ordering::SeqCst);
+        self.stopped.store(false, Ordering::SeqCst);
         self.draining.store(false, Ordering::SeqCst);
 
         // Execute start in serial queue to avoid racing with destroy or reinit.
@@ -3449,7 +3449,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         Ok(())
     }
     fn stop(&mut self) -> Result<()> {
-        self.shutdown.store(true, Ordering::SeqCst);
+        self.stopped.store(true, Ordering::SeqCst);
 
         // Execute stop in serial queue to avoid racing with destroy or reinit.
         let stream = &self;
