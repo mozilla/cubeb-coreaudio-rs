@@ -674,7 +674,7 @@ extern "C" fn audiounit_output_callback(
         .store(outframes < i64::from(output_frames), Ordering::SeqCst);
     stm.output_callback_timing_data_write
         .write(OutputCallbackTimingData {
-            frames_played: stm.frames_queued,
+            frames_queued: stm.frames_queued,
             timestamp: now,
         });
 
@@ -3105,7 +3105,7 @@ impl<'ctx> Drop for CoreStreamData<'ctx> {
 
 #[derive(Debug, Clone)]
 struct OutputCallbackTimingData {
-    frames_played: u64,
+    frames_queued: u64,
     timestamp: u64,
 }
 
@@ -3162,7 +3162,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
     ) -> Self {
         let output_callback_timing_data =
             triple_buffer::TripleBuffer::new(OutputCallbackTimingData {
-                frames_played: 0,
+                frames_queued: 0,
                 timestamp: 0,
             });
         let (output_callback_timing_data_write, output_callback_timing_data_read) =
@@ -3470,7 +3470,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     }
     fn position(&mut self) -> Result<u64> {
         let OutputCallbackTimingData {
-            frames_played,
+            frames_queued,
             timestamp,
         } = self.output_callback_timing_data_read.read().clone();
         let total_output_latency_frames =
@@ -3478,7 +3478,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         // If output latency is available, take it into account. Otherwise, use the number of
         // frames played.
         let position = if total_output_latency_frames != 0 {
-            if total_output_latency_frames > frames_played {
+            if total_output_latency_frames > frames_queued {
                 0
             } else {
                 // Interpolate here to match other cubeb backends. Only return an interpolated time
@@ -3489,10 +3489,10 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
                 let interpolated_frames = host_time_to_ns(diff)
                     * self.core_stream_data.output_stream_params.rate() as u64
                     / NS2S;
-                (frames_played - total_output_latency_frames) + interpolated_frames
+                (frames_queued - total_output_latency_frames) + interpolated_frames
             }
         } else {
-            frames_played
+            frames_queued
         };
 
         // Ensure mononicity of the clock even when changing output device.
