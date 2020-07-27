@@ -676,6 +676,7 @@ extern "C" fn audiounit_output_callback(
         .write(OutputCallbackTimingData {
             frames_queued: stm.frames_queued,
             timestamp: now,
+            buffer_size: outframes as u64,
         });
 
     stm.frames_queued += outframes as u64;
@@ -3107,6 +3108,7 @@ impl<'ctx> Drop for CoreStreamData<'ctx> {
 struct OutputCallbackTimingData {
     frames_queued: u64,
     timestamp: u64,
+    buffer_size: u64,
 }
 
 // The fisrt two members of the Cubeb stream must be a pointer to its Cubeb context and a void user
@@ -3164,6 +3166,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             triple_buffer::TripleBuffer::new(OutputCallbackTimingData {
                 frames_queued: 0,
                 timestamp: 0,
+                buffer_size: 0,
             });
         let (output_callback_timing_data_write, output_callback_timing_data_read) =
             output_callback_timing_data.split();
@@ -3472,6 +3475,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         let OutputCallbackTimingData {
             frames_queued,
             timestamp,
+            buffer_size,
         } = self.output_callback_timing_data_read.read().clone();
         let total_output_latency_frames =
             u64::from(self.total_output_latency_frames.load(Ordering::SeqCst));
@@ -3482,13 +3486,17 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
                 0
             } else {
                 // Interpolate here to match other cubeb backends. Only return an interpolated time
-                // if we've played enough frames.
+                // if we've played enough frames. If the stream is paused, clamp the interpolated
+                // number of frames to the buffer size.
                 const NS2S: u64 = 1_000_000_000;
                 let now = unsafe { mach_absolute_time() };
                 let diff = now - timestamp;
-                let interpolated_frames = host_time_to_ns(diff)
-                    * self.core_stream_data.output_stream_params.rate() as u64
-                    / NS2S;
+                let interpolated_frames = cmp::min(
+                    host_time_to_ns(diff)
+                        * self.core_stream_data.output_stream_params.rate() as u64
+                        / NS2S,
+                    buffer_size,
+                );
                 (frames_queued - total_output_latency_frames) + interpolated_frames
             }
         } else {
