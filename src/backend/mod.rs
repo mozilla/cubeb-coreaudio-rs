@@ -624,8 +624,6 @@ extern "C" fn audiounit_output_callback(
         {
             // The silent frames will be inserted in `get_linear_data` below.
             let silent_frames_to_push = input_frames_needed - buffered_input_frames;
-            stm.frames_read
-                .fetch_add(input_frames_needed, Ordering::SeqCst);
             cubeb_log!(
                 "({:p}) Missing Frames: {} will append {} frames of input silence.",
                 stm.core_stream_data.stm_ptr,
@@ -637,6 +635,8 @@ extern "C" fn audiounit_output_callback(
                 },
                 silent_frames_to_push
             );
+            stm.frames_read
+                .fetch_add(input_frames_needed, Ordering::SeqCst);
             input_frames_needed
         } else {
             buffered_input_frames
