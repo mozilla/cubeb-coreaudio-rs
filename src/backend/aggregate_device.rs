@@ -114,26 +114,23 @@ impl AggregateDevice {
             Property::HardwareDevices,
             DeviceType::INPUT | DeviceType::OUTPUT,
         );
-        assert_eq!(
-            audio_object_add_property_listener(
+
+        let r = audio_object_add_property_listener(
+            kAudioObjectSystemObject,
+            &address,
+            devices_changed_callback,
+            data_ptr as *mut c_void,
+        );
+        assert_eq!(r, NO_ERR);
+
+        let _teardown = finally(|| {
+            let r = audio_object_remove_property_listener(
                 kAudioObjectSystemObject,
                 &address,
                 devices_changed_callback,
                 data_ptr as *mut c_void,
-            ),
-            NO_ERR
-        );
-
-        let _teardown = finally(|| {
-            assert_eq!(
-                audio_object_remove_property_listener(
-                    kAudioObjectSystemObject,
-                    &address,
-                    devices_changed_callback,
-                    data_ptr as *mut c_void,
-                ),
-                NO_ERR
             );
+            assert_eq!(r, NO_ERR);
         });
 
         let device = Self::create_blank_device(plugin_id)?;
@@ -287,15 +284,13 @@ impl AggregateDevice {
         }
 
         let _teardown = finally(|| {
-            assert_eq!(
-                audio_object_remove_property_listener(
-                    device_id,
-                    &address,
-                    devices_changed_callback,
-                    data_ptr as *mut c_void,
-                ),
-                NO_ERR
+            let r = audio_object_remove_property_listener(
+                device_id,
+                &address,
+                devices_changed_callback,
+                data_ptr as *mut c_void,
             );
+            assert_eq!(r, NO_ERR);
         });
 
         Self::set_sub_devices(device_id, input_id, output_id)?;
