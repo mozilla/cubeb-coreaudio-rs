@@ -35,32 +35,25 @@ pub fn cubeb_sample_size(format: fmt) -> usize {
     }
 }
 
-pub struct Finalizer<F: FnOnce()> {
-    func: Option<F>,
-    commit: bool,
-}
+pub struct Finalizer<F: FnOnce()>(Option<F>);
 
 impl<F: FnOnce()> Finalizer<F> {
     pub fn dismiss(&mut self) {
-        self.commit = false;
+        let _ = self.0.take();
+        assert!(self.0.is_none());
     }
 }
 
 impl<F: FnOnce()> Drop for Finalizer<F> {
     fn drop(&mut self) {
-        if let Some(f) = self.func.take() {
-            if self.commit {
-                f();
-            }
+        if let Some(f) = self.0.take() {
+            f();
         }
     }
 }
 
 pub fn finally<F: FnOnce()>(f: F) -> Finalizer<F> {
-    Finalizer {
-        func: Some(f),
-        commit: true,
-    }
+    Finalizer(Some(f))
 }
 
 #[test]
