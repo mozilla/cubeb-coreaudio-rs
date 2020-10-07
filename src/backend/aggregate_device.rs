@@ -36,10 +36,19 @@ impl AggregateDevice {
     ) -> std::result::Result<Self, OSStatus> {
         let plugin_id = Self::get_system_plugin_id()?;
         let device_id = Self::create_blank_device_sync(plugin_id)?;
+
+        let mut cleanup = finally(|| {
+            let r = Self::destroy_device(plugin_id, device_id);
+            assert!(r.is_ok());
+        });
+
         Self::set_sub_devices_sync(device_id, input_id, output_id)?;
         Self::set_master_device(device_id)?;
         Self::activate_clock_drift_compensation(device_id)?;
         Self::workaround_for_airpod(device_id, input_id, output_id)?;
+
+        cleanup.dismiss();
+
         cubeb_log!(
             "Add devices input {} and output {} into an aggregate device {}",
             input_id,
