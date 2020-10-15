@@ -2920,9 +2920,6 @@ impl<'ctx> CoreStreamData<'ctx> {
         let stm = unsafe { &(*self.stm_ptr) };
 
         if !self.output_unit.is_null() {
-            // This event will notify us when the data source on the same device changes,
-            // for example when the user plugs in a normal (non-usb) headset in the
-            // headphone jack.
             assert_ne!(self.output_device.id, kAudioObjectUnknown);
             assert_ne!(self.output_device.id, kAudioObjectSystemObject);
             assert!(
@@ -2930,6 +2927,9 @@ impl<'ctx> CoreStreamData<'ctx> {
                 "register output_source_listener without unregistering the one in use"
             );
 
+            // This event will notify us when the data source on the same device changes,
+            // for example when the user plugs in a normal (non-usb) headset in the
+            // headphone jack.
             self.output_source_listener = Some(device_property_listener::new(
                 self.output_device.id,
                 get_property_address(Property::DeviceSource, DeviceType::OUTPUT),
@@ -2944,7 +2944,6 @@ impl<'ctx> CoreStreamData<'ctx> {
         }
 
         if !self.input_unit.is_null() {
-            // This event will notify us when the data source on the input device changes.
             assert_ne!(self.input_device.id, kAudioObjectUnknown);
             assert_ne!(self.input_device.id, kAudioObjectSystemObject);
             assert!(
@@ -2956,6 +2955,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                 "register input_alive_listener without unregistering the one in use"
             );
 
+            // This event will notify us when the data source on the input device changes.
             self.input_source_listener = Some(device_property_listener::new(
                 self.input_device.id,
                 get_property_address(Property::DeviceSource, DeviceType::INPUT),
