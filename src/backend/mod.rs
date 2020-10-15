@@ -2925,6 +2925,10 @@ impl<'ctx> CoreStreamData<'ctx> {
             // headphone jack.
             assert_ne!(self.output_device.id, kAudioObjectUnknown);
             assert_ne!(self.output_device.id, kAudioObjectSystemObject);
+            assert!(
+                self.output_source_listener.is_none(),
+                "register output_source_listener without unregistering the one in use"
+            );
 
             self.output_source_listener = Some(device_property_listener::new(
                 self.output_device.id,
@@ -2943,6 +2947,14 @@ impl<'ctx> CoreStreamData<'ctx> {
             // This event will notify us when the data source on the input device changes.
             assert_ne!(self.input_device.id, kAudioObjectUnknown);
             assert_ne!(self.input_device.id, kAudioObjectSystemObject);
+            assert!(
+                self.input_source_listener.is_none(),
+                "register input_source_listener without unregistering the one in use"
+            );
+            assert!(
+                self.input_alive_listener.is_none(),
+                "register input_alive_listener without unregistering the one in use"
+            );
 
             self.input_source_listener = Some(device_property_listener::new(
                 self.input_device.id,
@@ -2981,6 +2993,11 @@ impl<'ctx> CoreStreamData<'ctx> {
         let stm = unsafe { &(*self.stm_ptr) };
 
         if !self.output_unit.is_null() {
+            assert!(
+                self.default_output_listener.is_none(),
+                "register default_output_listener without unregistering the one in use"
+            );
+
             // This event will notify us when the default audio device changes,
             // for example when the user plugs in a USB headset and the system chooses it
             // automatically as the default, or when another device is chosen in the
@@ -3002,6 +3019,11 @@ impl<'ctx> CoreStreamData<'ctx> {
         }
 
         if !self.input_unit.is_null() {
+            assert!(
+                self.default_input_listener.is_none(),
+                "register default_input_listener without unregistering the one in use"
+            );
+
             // This event will notify us when the default input device changes.
             self.default_input_listener = Some(device_property_listener::new(
                 kAudioObjectSystemObject,
