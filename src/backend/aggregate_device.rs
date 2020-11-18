@@ -15,7 +15,7 @@ pub struct AggregateDevice {
 pub enum Error {
     OS(OSStatus),
     Timeout(std::time::Duration),
-    LessDevicesThan2(usize),
+    LessThan2Devices(usize),
 }
 
 impl From<OSStatus> for Error {
@@ -32,7 +32,7 @@ impl From<std::time::Duration> for Error {
 
 impl From<usize> for Error {
     fn from(number: usize) -> Self {
-        Error::LessDevicesThan2(number)
+        Error::LessThan2Devices(number)
     }
 }
 
@@ -41,7 +41,7 @@ impl std::fmt::Display for Error {
         match self {
             Error::OS(status) => write!(f, "OSStatus({})", status),
             Error::Timeout(duration) => write!(f, "Timeout({:?})", duration),
-            Error::LessDevicesThan2(number) => write!(f, "LessDevicesThan2({} only)", number),
+            Error::LessThan2Devices(number) => write!(f, "LessThan2Devices({} only)", number),
         }
     }
 }
@@ -523,7 +523,7 @@ impl AggregateDevice {
                 device_id,
                 subdevices_num
             );
-            return Err(Error::LessDevicesThan2(subdevices_num));
+            return Err(Error::LessThan2Devices(subdevices_num));
         }
         let mut sub_devices: Vec<AudioObjectID> = allocate_array(subdevices_num);
         let status = audio_object_get_property_data_with_qualifier(
