@@ -150,22 +150,22 @@ impl AggregateDevice {
             DeviceType::INPUT | DeviceType::OUTPUT,
         );
 
-        let r = audio_object_add_property_listener(
+        let status = audio_object_add_property_listener(
             kAudioObjectSystemObject,
             &address,
             devices_changed_callback,
             data_ptr as *mut c_void,
         );
-        assert_eq!(r, NO_ERR);
+        assert_eq!(status, NO_ERR);
 
         let _teardown = finally(|| {
-            let r = audio_object_remove_property_listener(
+            let status = audio_object_remove_property_listener(
                 kAudioObjectSystemObject,
                 &address,
                 devices_changed_callback,
                 data_ptr as *mut c_void,
             );
-            assert_eq!(r, NO_ERR);
+            assert_eq!(status, NO_ERR);
         });
 
         let device = Self::create_blank_device(plugin_id)?;
@@ -343,10 +343,10 @@ impl AggregateDevice {
                 );
             }
             if *dev != device_id {
-                let r = remove_listener();
+                let status = remove_listener();
                 // If the error is kAudioHardwareBadObjectError, it implies `device_id` is somehow
                 // dead, so its listener should receive nothing. It's ok to leave here.
-                assert!(r == NO_ERR || r == (kAudioHardwareBadObjectError as OSStatus));
+                assert!(status == NO_ERR || status == (kAudioHardwareBadObjectError as OSStatus));
                 // TODO: Destroy the aggregate device immediately if error is not
                 // kAudioHardwareBadObjectError. Otherwise the `devices_changed_callback` is able
                 // to touch the `cloned_condvar_pair` after it's freed.
@@ -368,8 +368,8 @@ impl AggregateDevice {
             NO_ERR
         }
 
-        let r = remove_listener();
-        assert_eq!(r, NO_ERR);
+        let status = remove_listener();
+        assert_eq!(status, NO_ERR);
         Ok(())
     }
 
@@ -429,31 +429,31 @@ impl AggregateDevice {
             mElement: kAudioObjectPropertyElementMaster,
         };
         let mut size: usize = 0;
-        let rv = audio_object_get_property_data_size(device_id, &address, &mut size);
+        let status = audio_object_get_property_data_size(device_id, &address, &mut size);
 
-        if rv == kAudioHardwareUnknownPropertyError as OSStatus {
+        if status == kAudioHardwareUnknownPropertyError as OSStatus {
             // Return a vector containing the device itself if the device has no sub devices.
             sub_devices.push(device_id);
             return Ok(sub_devices);
-        } else if rv != NO_ERR {
-            return Err(Error::from(rv));
+        } else if status != NO_ERR {
+            return Err(Error::from(status));
         }
 
         assert_ne!(size, 0);
 
         let count = size / mem::size_of::<AudioObjectID>();
         sub_devices = allocate_array(count);
-        let rv = audio_object_get_property_data(
+        let status = audio_object_get_property_data(
             device_id,
             &address,
             &mut size,
             sub_devices.as_mut_ptr(),
         );
 
-        if rv == NO_ERR {
+        if status == NO_ERR {
             Ok(sub_devices)
         } else {
-            Err(Error::from(rv))
+            Err(Error::from(status))
         }
     }
 
