@@ -3279,6 +3279,10 @@ impl<'ctx> AudioUnitStream<'ctx> {
 
         self.core_stream_data.close();
 
+        let sleep_time = Duration::from_secs(5);
+        println!("1 Reinit > Sleep for {:?}", sleep_time);
+        std::thread::sleep(sleep_time);
+
         // Reinit occurs in one of the following case:
         // - When the device is not alive any more
         // - When the default system device change.
