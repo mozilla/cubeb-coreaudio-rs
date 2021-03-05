@@ -136,10 +136,10 @@ impl device_property_listener {
 #[derive(Debug, PartialEq)]
 struct CAChannelLabel(AudioChannelLabel);
 
-impl Into<mixer::Channel> for CAChannelLabel {
-    fn into(self) -> mixer::Channel {
+impl From<CAChannelLabel> for mixer::Channel {
+    fn from(label: CAChannelLabel) -> mixer::Channel {
         use self::coreaudio_sys_utils::sys;
-        match self.0 {
+        match label.0 {
             sys::kAudioChannelLabel_Left => mixer::Channel::FrontLeft,
             sys::kAudioChannelLabel_Right => mixer::Channel::FrontRight,
             sys::kAudioChannelLabel_Center | sys::kAudioChannelLabel_Mono => {
@@ -336,7 +336,7 @@ extern "C" fn audiounit_input_callback(
     enum ErrorHandle {
         Return(OSStatus),
         Reinit,
-    };
+    }
 
     assert!(input_frames > 0);
     assert_eq!(bus, AU_IN_BUS);
@@ -1489,8 +1489,10 @@ fn create_cubeb_device_info(
         return Err(Error::error());
     }
 
-    let mut dev_info = ffi::cubeb_device_info::default();
-    dev_info.max_channels = channels;
+    let mut dev_info = ffi::cubeb_device_info {
+        max_channels: channels,
+        ..Default::default()
+    };
 
     assert!(
         mem::size_of::<ffi::cubeb_devid>() >= mem::size_of_val(&devid),
