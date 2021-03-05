@@ -1489,8 +1489,10 @@ fn create_cubeb_device_info(
         return Err(Error::error());
     }
 
-    let mut dev_info = ffi::cubeb_device_info::default();
-    dev_info.max_channels = channels;
+    let mut dev_info = ffi::cubeb_device_info {
+        max_channels: channels,
+        ..Default::default()
+    };
 
     assert!(
         mem::size_of::<ffi::cubeb_devid>() >= mem::size_of_val(&devid),
