@@ -336,7 +336,7 @@ extern "C" fn audiounit_input_callback(
     enum ErrorHandle {
         Return(OSStatus),
         Reinit,
-    };
+    }
 
     assert!(input_frames > 0);
     assert_eq!(bus, AU_IN_BUS);
