@@ -136,10 +136,10 @@ impl device_property_listener {
 #[derive(Debug, PartialEq)]
 struct CAChannelLabel(AudioChannelLabel);
 
-impl Into<mixer::Channel> for CAChannelLabel {
-    fn into(self) -> mixer::Channel {
+impl From<CAChannelLabel> for mixer::Channel {
+    fn from(label: CAChannelLabel) -> mixer::Channel {
         use self::coreaudio_sys_utils::sys;
-        match self.0 {
+        match label.0 {
             sys::kAudioChannelLabel_Left => mixer::Channel::FrontLeft,
             sys::kAudioChannelLabel_Right => mixer::Channel::FrontRight,
             sys::kAudioChannelLabel_Center | sys::kAudioChannelLabel_Mono => {
