@@ -2,7 +2,7 @@
 version: 2.1
 
 jobs:
-  build:
+  regular_test:
     macos:  # indicate that we are using the macOS executor
       xcode: 11.3.0 # indicate our selected version of Xcode
     steps:
@@ -13,3 +13,8 @@ jobs:
       - run: cargo --version
       - run: cargo build --verbose
       - run: sh run_tests.sh
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      - regular_test
