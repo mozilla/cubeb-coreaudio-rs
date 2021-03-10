@@ -24,10 +24,7 @@ jobs:
       run: rustup toolchain install ${{ matrix.rust }} --profile minimal --component rustfmt clippy
         
     - name: Setup
-      env:
-          MATRIX_RUST: ${{ matrix.rust }}
       run: |
-        echo matrix.rust=$MATRIX_RUST
         rustup default ${{ matrix.rust }}
         toolchain=$(rustup default)
         echo "Use Rust toolchain: $toolchain"
