@@ -1632,7 +1632,7 @@ fn is_aggregate_device(device_info: &ffi::cubeb_device_info) -> bool {
         libc::strncmp(
             device_info.friendly_name,
             private_name.as_ptr(),
-            libc::strlen(private_name.as_ptr()),
+            private_name.as_bytes().len(),
         ) == 0
     }
 }
