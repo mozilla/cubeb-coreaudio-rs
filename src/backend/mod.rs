@@ -621,6 +621,7 @@ extern "C" fn audiounit_output_callback(
 
         let input_frames = if input_frames_needed > buffered_input_frames
             && (stm.switching_device.load(Ordering::SeqCst)
+                || stm.reinit_pending.load(Ordering::SeqCst)
                 || stm.frames_read.load(Ordering::SeqCst) == 0)
         {
             // The silent frames will be inserted in `get_linear_data` below.
@@ -630,9 +631,11 @@ extern "C" fn audiounit_output_callback(
                 stm.core_stream_data.stm_ptr,
                 if stm.frames_read.load(Ordering::SeqCst) == 0 {
                     "input hasn't started,"
-                } else {
-                    assert!(stm.switching_device.load(Ordering::SeqCst));
+                } else if stm.switching_device.load(Ordering::SeqCst) {
                     "device switching,"
+                } else {
+                    assert!(stm.reinit_pending.load(Ordering::SeqCst));
+                    "reinit pending,"
                 },
                 silent_frames_to_push
             );
@@ -652,6 +655,9 @@ extern "C" fn audiounit_output_callback(
         (ptr::null_mut::<c_void>(), 0)
     };
 
+    // If `input_buffer` is non-null but `input_frames` is zero and this is the first call to
+    // resampler, then we will hit an assertion in resampler code since no internal buffer will be
+    // allocated in the resampler due to zero `input_frames`
     let outframes = stm.core_stream_data.resampler.fill(
         input_buffer,
         if input_buffer.is_null() {
