@@ -416,11 +416,6 @@ extern "C" fn audiounit_input_callback(
             let elements =
                 (input_frames * stm.core_stream_data.input_desc.mChannelsPerFrame) as usize;
             input_buffer_manager.push_data(input_buffer_list.mBuffers[0].mData, elements);
-
-            // Advance input frame counter.
-            stm.frames_read
-                .fetch_add(input_frames as usize, atomic::Ordering::SeqCst);
-
             ErrorHandle::Return(status)
         };
 
@@ -446,6 +441,8 @@ extern "C" fn audiounit_input_callback(
             / stm.core_stream_data.input_desc.mChannelsPerFrame as usize)
             as i64;
         assert!(input_frames as i64 <= total_input_frames);
+        stm.frames_read
+            .fetch_add(total_input_frames as usize, atomic::Ordering::SeqCst);
         let input_buffer =
             input_buffer_manager.get_linear_data(input_buffer_manager.available_samples());
         let outframes = stm.core_stream_data.resampler.fill(
@@ -615,8 +612,6 @@ extern "C" fn audiounit_output_callback(
         if prev_frames_written == 0 && buffered_input_frames > input_frames_needed as usize {
             input_buffer_manager.trim(input_frames_needed * input_channels);
             let popped_frames = buffered_input_frames - input_frames_needed as usize;
-            stm.frames_read.fetch_sub(popped_frames, Ordering::SeqCst);
-
             cubeb_log!("Dropping {} frames in input buffer.", popped_frames);
         }
 
@@ -637,14 +632,13 @@ extern "C" fn audiounit_output_callback(
                 },
                 silent_frames_to_push
             );
-            stm.frames_read
-                .fetch_add(silent_frames_to_push, Ordering::SeqCst);
             input_frames_needed
         } else {
             buffered_input_frames
         };
 
         let input_samples_needed = input_frames * input_channels;
+        stm.frames_read.fetch_add(input_frames, Ordering::SeqCst);
         (
             input_buffer_manager.get_linear_data(input_samples_needed),
             input_frames as i64,
