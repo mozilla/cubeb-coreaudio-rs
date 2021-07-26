@@ -346,7 +346,7 @@ extern "C" fn audiounit_input_callback(
 
     if unsafe { *flags | kAudioTimeStampHostTimeValid } != 0 {
         let now = unsafe { mach_absolute_time() };
-        let input_latency_frames = compute_input_latency(&stm, unsafe { (*tstamp).mHostTime }, now);
+        let input_latency_frames = compute_input_latency(stm, unsafe { (*tstamp).mHostTime }, now);
         stm.total_input_latency_frames
             .store(input_latency_frames, Ordering::SeqCst);
     }
@@ -562,7 +562,7 @@ extern "C" fn audiounit_output_callback(
 
     if unsafe { *flags | kAudioTimeStampHostTimeValid } != 0 {
         let output_latency_frames =
-            compute_output_latency(&stm, unsafe { (*tstamp).mHostTime }, now);
+            compute_output_latency(stm, unsafe { (*tstamp).mHostTime }, now);
         stm.total_output_latency_frames
             .store(output_latency_frames, Ordering::SeqCst);
     }
@@ -1632,7 +1632,7 @@ fn is_aggregate_device(device_info: &ffi::cubeb_device_info) -> bool {
         libc::strncmp(
             device_info.friendly_name,
             private_name.as_ptr(),
-            libc::strlen(private_name.as_ptr()),
+            private_name.as_bytes().len(),
         ) == 0
     }
 }
