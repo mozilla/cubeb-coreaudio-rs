@@ -416,12 +416,13 @@ extern "C" fn audiounit_input_callback(
             let elements =
                 (input_frames * stm.core_stream_data.input_desc.mChannelsPerFrame) as usize;
             input_buffer_manager.push_data(input_buffer_list.mBuffers[0].mData, elements);
+
+            // Advance input frame counter.
+            stm.frames_read
+                .fetch_add(input_frames as usize, atomic::Ordering::SeqCst);
+
             ErrorHandle::Return(status)
         };
-
-        // Advance input frame counter.
-        stm.frames_read
-            .fetch_add(input_frames as usize, atomic::Ordering::SeqCst);
 
         cubeb_logv!(
             "({:p}) input: buffers {}, size {}, channels {}, rendered frames {}, total frames {}.",
@@ -637,7 +638,7 @@ extern "C" fn audiounit_output_callback(
                 silent_frames_to_push
             );
             stm.frames_read
-                .fetch_add(input_frames_needed, Ordering::SeqCst);
+                .fetch_add(silent_frames_to_push, Ordering::SeqCst);
             input_frames_needed
         } else {
             buffered_input_frames
