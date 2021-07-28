@@ -445,7 +445,8 @@ extern "C" fn audiounit_input_callback(
             / stm.core_stream_data.input_desc.mChannelsPerFrame as usize)
             as i64;
         assert!(input_frames as i64 <= total_input_frames);
-        let input_buffer = input_buffer_manager.get_linear_data(total_input_frames as usize);
+        let input_buffer =
+            input_buffer_manager.get_linear_data(input_buffer_manager.available_samples());
         let outframes = stm.core_stream_data.resampler.fill(
             input_buffer,
             &mut total_input_frames,
