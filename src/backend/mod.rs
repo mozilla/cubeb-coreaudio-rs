@@ -630,7 +630,6 @@ extern "C" fn audiounit_output_callback(
                 } else if stm.switching_device.load(Ordering::SeqCst) {
                     "device switching,"
                 } else {
-                    assert!(stm.reinit_pending.load(Ordering::SeqCst));
                     "reinit pending,"
                 },
                 silent_frames_to_push
