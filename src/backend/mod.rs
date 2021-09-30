@@ -2578,7 +2578,10 @@ impl<'ctx> CoreStreamData<'ctx> {
                 return Err(Error::error());
             }
 
-            self.input_buffer_manager = Some(BufferManager::new(self.input_stream_params.format()));
+            self.input_buffer_manager = Some(BufferManager::new(
+                &self.input_stream_params,
+                stream.latency_frames,
+            ));
 
             let aurcbs_in = AURenderCallbackStruct {
                 inputProc: Some(audiounit_input_callback),
