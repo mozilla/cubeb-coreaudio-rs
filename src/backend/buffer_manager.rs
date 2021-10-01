@@ -88,10 +88,10 @@ impl BufferManager {
     fn pull_data(&mut self, input_data: *mut c_void, needed_samples: usize) {
         match &mut self.consumer {
             IntegerRingBufferConsumer(p) => {
-                let mut input: &mut [i16] = unsafe {
+                let input: &mut [i16] = unsafe {
                     slice::from_raw_parts_mut::<i16>(input_data as *mut i16, needed_samples)
                 };
-                let read = p.pop_slice(&mut input);
+                let read = p.pop_slice(input);
                 if read < needed_samples {
                     for i in 0..(needed_samples - read) {
                         input[read + i] = 0;
@@ -99,10 +99,10 @@ impl BufferManager {
                 }
             }
             FloatRingBufferConsumer(p) => {
-                let mut input: &mut [f32] = unsafe {
+                let input: &mut [f32] = unsafe {
                     slice::from_raw_parts_mut::<f32>(input_data as *mut f32, needed_samples)
                 };
-                let read = p.pop_slice(&mut input);
+                let read = p.pop_slice(input);
                 if read < needed_samples {
                     for i in 0..(needed_samples - read) {
                         input[read + i] = 0.0;
@@ -140,16 +140,16 @@ impl BufferManager {
                 assert!(available >= final_size);
                 let to_pop = available - final_size;
                 let mut buffer = [0_i16; INPUT_BUFFER_CAPACITY];
-                let mut slice_to_pop = buffer.split_at_mut(to_pop);
-                c.pop_slice(&mut slice_to_pop.0);
+                let slice_to_pop = buffer.split_at_mut(to_pop);
+                c.pop_slice(slice_to_pop.0);
             }
             FloatRingBufferConsumer(c) => {
                 let available = c.len();
                 assert!(available >= final_size);
                 let to_pop = available - final_size;
                 let mut buffer = [0 as f32; INPUT_BUFFER_CAPACITY];
-                let mut slice_to_pop = buffer.split_at_mut(to_pop);
-                c.pop_slice(&mut slice_to_pop.0);
+                let slice_to_pop = buffer.split_at_mut(to_pop);
+                c.pop_slice(slice_to_pop.0);
             }
         }
     }
