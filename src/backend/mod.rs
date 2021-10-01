@@ -1834,22 +1834,13 @@ impl Default for DevicesData {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct SharedDevices {
     input: DevicesData,
     output: DevicesData,
 }
 
-impl Default for SharedDevices {
-    fn default() -> Self {
-        Self {
-            input: DevicesData::default(),
-            output: DevicesData::default(),
-        }
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct LatencyController {
     streams: u32,
     latency: Option<u32>,
@@ -1875,15 +1866,6 @@ impl LatencyController {
             self.latency = None;
         }
         self.latency
-    }
-}
-
-impl Default for LatencyController {
-    fn default() -> Self {
-        Self {
-            streams: 0,
-            latency: None,
-        }
     }
 }
 
