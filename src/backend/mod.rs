@@ -55,7 +55,7 @@ const DISPATCH_QUEUE_LABEL: &str = "org.mozilla.cubeb";
 const PRIVATE_AGGREGATE_DEVICE_NAME: &str = "CubebAggregateDevice";
 
 // Testing empirically, some headsets report a minimal latency that is very low,
-// but this does not work in practice. Lie and say the minimum is 256 frames.
+// but this does not work in practice. Lie and say the minimum is 128 frames.
 const SAFE_MIN_LATENCY_FRAMES: u32 = 128;
 const SAFE_MAX_LATENCY_FRAMES: u32 = 512;
 
@@ -2580,7 +2580,7 @@ impl<'ctx> CoreStreamData<'ctx> {
 
             self.input_buffer_manager = Some(BufferManager::new(
                 &self.input_stream_params,
-                stream.latency_frames,
+                SAFE_MAX_LATENCY_FRAMES,
             ));
 
             let aurcbs_in = AURenderCallbackStruct {
