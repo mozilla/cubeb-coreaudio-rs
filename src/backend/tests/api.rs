@@ -1238,6 +1238,7 @@ fn test_get_device_group_id() {
 fn test_get_same_group_id_for_builtin_device_pairs() {
     use std::collections::HashMap;
 
+    // These device sources have custom group id. See `get_custom_group_id`.
     const IMIC: u32 = 0x696D_6963; // "imic"
     const ISPK: u32 = 0x6973_706B; // "ispk"
     const EMIC: u32 = 0x656D_6963; // "emic"
