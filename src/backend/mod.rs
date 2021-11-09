@@ -2260,6 +2260,7 @@ impl Drop for AudioUnitContext {
     }
 }
 
+#[allow(clippy::non_send_fields_in_send_ty)]
 unsafe impl Send for AudioUnitContext {}
 unsafe impl Sync for AudioUnitContext {}
 
@@ -3629,6 +3630,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     }
 }
 
+#[allow(clippy::non_send_fields_in_send_ty)]
 unsafe impl<'ctx> Send for AudioUnitStream<'ctx> {}
 unsafe impl<'ctx> Sync for AudioUnitStream<'ctx> {}
 
