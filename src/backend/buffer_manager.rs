@@ -37,8 +37,9 @@ impl BufferManager {
     pub fn new(params: &StreamParams, input_buffer_size_frames: u32) -> BufferManager {
         let format = params.format();
         let channel_count = params.channels();
-        // Multiply by two for good measure.
-        let buffer_element_count = (channel_count * input_buffer_size_frames * 2) as usize;
+        // 8 times the expected callback size, to handle the input callback being caled multiple
+        //   times in a row correctly.
+        let buffer_element_count = (channel_count * input_buffer_size_frames * 8) as usize;
         if format == SampleFormat::S16LE || format == SampleFormat::S16BE {
             let ring = RingBuffer::<i16>::new(buffer_element_count);
             let (prod, cons) = ring.split();
