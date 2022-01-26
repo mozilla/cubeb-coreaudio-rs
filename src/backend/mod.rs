@@ -2743,6 +2743,8 @@ impl<'ctx> CoreStreamData<'ctx> {
             target_sample_rate,
             stream.data_callback,
             stream.user_ptr,
+            ffi::CUBEB_RESAMPLER_QUALITY_DESKTOP,
+            ffi::CUBEB_RESAMPLER_RECLOCK_NONE
         );
 
         if !self.input_unit.is_null() {
