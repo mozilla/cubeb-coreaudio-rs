@@ -16,7 +16,7 @@ impl Resampler {
         data_callback: ffi::cubeb_data_callback,
         user_ptr: *mut c_void,
         quality: ffi::cubeb_resampler_quality,
-        reclock: ffi::cubeb_resampler_reclock
+        reclock: ffi::cubeb_resampler_reclock,
     ) -> Self {
         let raw_resampler = unsafe {
             let in_params = if input_params.is_some() {
@@ -37,7 +37,7 @@ impl Resampler {
                 data_callback,
                 user_ptr,
                 quality,
-                reclock
+                reclock,
             )
         };
         assert!(!raw_resampler.is_null(), "Failed to create resampler");
