@@ -2361,6 +2361,31 @@ impl<'ctx> CoreStreamData<'ctx> {
             && self.input_device.id != self.output_device.id
             && !is_device_a_type_of(self.input_device.id, DeviceType::OUTPUT)
             && !is_device_a_type_of(self.output_device.id, DeviceType::INPUT)
+            && false
+    }
+
+    fn same_clock_domain(&self) -> bool {
+        // If not setting up a duplex stream, there is only one device,
+        // no reclocking necessary.
+        if !(self.has_input() && self.has_output()) {
+            return true;
+        }
+        let input_domain = match get_clock_domain(self.input_device.id, DeviceType::INPUT) {
+            Ok(clock_domain) => clock_domain,
+            Err(_) => {
+                cubeb_log!("Coudn't determine clock domains for input.");
+                return false;
+            }
+        };
+
+        let output_domain = match get_clock_domain(self.output_device.id, DeviceType::OUTPUT) {
+            Ok(clock_domain) => clock_domain,
+            Err(_) => {
+                cubeb_log!("Coudn't determine clock domains for input.");
+                return false;
+            }
+        };
+        input_domain == output_domain
     }
 
     #[allow(clippy::cognitive_complexity)] // TODO: Refactoring.
@@ -2380,6 +2405,7 @@ impl<'ctx> CoreStreamData<'ctx> {
 
         let mut in_dev_info = self.input_device.clone();
         let mut out_dev_info = self.output_device.clone();
+        let same_clock_domain = self.same_clock_domain();
 
         if self.should_use_aggregate_device() {
             match AggregateDevice::new(in_dev_info.id, out_dev_info.id) {
@@ -2404,6 +2430,8 @@ impl<'ctx> CoreStreamData<'ctx> {
                     );
                 }
             }
+        } else {
+            cubeb_log!("Not using an aggregate device");
         }
 
         assert!(!self.stm_ptr.is_null());
@@ -2736,6 +2764,19 @@ impl<'ctx> CoreStreamData<'ctx> {
             None
         };
 
+        // Only reclock if there is an input and we couldn't use an aggregate device, and the
+        // devices are not part of the same clock domain.
+        let reclock_policy = if self.aggregate_device.is_none() && !same_clock_domain {
+            cubeb_log!(
+                "Reclocking duplex steam using_aggregate_device={} same_clock_domain={}",
+                self.aggregate_device.is_some(),
+                same_clock_domain
+            );
+            ffi::CUBEB_RESAMPLER_RECLOCK_INPUT
+        } else {
+            ffi::CUBEB_RESAMPLER_RECLOCK_NONE
+        };
+
         self.resampler = Resampler::new(
             self.stm_ptr as *mut ffi::cubeb_stream,
             resampler_input_params,
@@ -2744,7 +2785,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             stream.data_callback,
             stream.user_ptr,
             ffi::CUBEB_RESAMPLER_QUALITY_DESKTOP,
-            ffi::CUBEB_RESAMPLER_RECLOCK_NONE
+            reclock_policy,
         );
 
         if !self.input_unit.is_null() {
