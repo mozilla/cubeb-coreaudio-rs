@@ -330,13 +330,13 @@ fn test_print_devices_in_scope(devices: &Vec<AudioObjectID>, scope: Scope) {
 }
 
 #[derive(Debug)]
-struct TestDeviceInfo {
+pub struct TestDeviceInfo {
     id: AudioObjectID,
-    label: String,
-    uid: String,
+    pub label: String,
+    pub uid: String,
 }
 impl TestDeviceInfo {
-    fn new(id: AudioObjectID, scope: Scope) -> Self {
+    pub fn new(id: AudioObjectID, scope: Scope) -> Self {
         Self {
             id,
             label: Self::get_label(id, scope.clone()),
