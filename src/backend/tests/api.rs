@@ -3,7 +3,7 @@ use super::utils::{
     test_device_channels_in_scope, test_device_in_scope, test_get_all_devices,
     test_get_default_audiounit, test_get_default_device, test_get_default_raw_stream,
     test_get_default_source_name, test_get_devices_in_scope, test_get_raw_context,
-    ComponentSubType, PropertyScope, Scope,
+    ComponentSubType, DeviceFilter, PropertyScope, Scope,
 };
 use super::*;
 
@@ -1523,7 +1523,7 @@ fn test_get_devices_of_type() {
     let input_devices = audiounit_get_devices_of_type(DeviceType::INPUT);
     let output_devices = audiounit_get_devices_of_type(DeviceType::OUTPUT);
 
-    let mut expected_all = test_get_all_devices();
+    let mut expected_all = test_get_all_devices(DeviceFilter::ExcludeCubebAggregate);
     expected_all.sort();
     assert_eq!(all_devices, expected_all);
     for device in all_devices.iter() {
