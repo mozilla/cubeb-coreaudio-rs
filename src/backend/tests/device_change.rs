@@ -319,23 +319,29 @@ fn test_register_device_changed_callback_to_check_default_device_changed_duplex(
 fn test_register_device_changed_callback_to_check_default_device_changed(stm_type: StreamType) {
     println!("NOTICE: The test will hang if the default input or output is an aggregate device.\nWe will fix this later.");
 
-    let input_devices = test_get_devices_in_scope(Scope::Input).len();
-    let output_devices = test_get_devices_in_scope(Scope::Output).len();
-
-    let input_available = input_devices >= 2;
-    let output_available = output_devices >= 2;
-
-    let run_available = match stm_type {
-        StreamType::INPUT => input_available,
-        StreamType::OUTPUT => output_available,
-        StreamType::DUPLEX => input_available | output_available,
-        _ => {
-            println!("Only test input, output, or duplex stream!");
-            return;
+    let inputs = if stm_type.contains(StreamType::INPUT) {
+        let devices = test_get_devices_in_scope(Scope::Input).len();
+        if devices >= 2 {
+            Some(devices)
+        } else {
+            None
         }
+    } else {
+        None
     };
 
-    if !run_available {
+    let outputs = if stm_type.contains(StreamType::OUTPUT) {
+        let devices = test_get_devices_in_scope(Scope::Output).len();
+        if devices >= 2 {
+            Some(devices)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    if inputs.is_none() && outputs.is_none() {
         println!("No enough devices to run the test!");
         return;
     }
@@ -343,20 +349,6 @@ fn test_register_device_changed_callback_to_check_default_device_changed(stm_typ
     let changed_count = Arc::new(Mutex::new(0u32));
     let also_changed_count = Arc::clone(&changed_count);
     let mtx_ptr = also_changed_count.as_ref() as *const Mutex<u32>;
-
-    let input_count = if stm_type.contains(StreamType::INPUT) {
-        input_devices
-    } else {
-        0
-    };
-    let output_count = if stm_type.contains(StreamType::OUTPUT) {
-        output_devices
-    } else {
-        0
-    };
-
-    let mut input_device_switcher = TestDeviceSwitcher::new(Scope::Input);
-    let mut output_device_switcher = TestDeviceSwitcher::new(Scope::Output);
 
     test_get_stream_with_device_changed_callback(
         "stream: test callback for default device changed",
@@ -374,22 +366,28 @@ fn test_register_device_changed_callback_to_check_default_device_changed(stm_typ
 
             let mut changed_watcher = Watcher::new(&changed_count);
 
-            for _ in 0..input_count {
-                // While the stream is re-initializing for the default device switch,
-                // switching for the default device again will be ignored.
-                while stream.switching_device.load(atomic::Ordering::SeqCst) {}
-                changed_watcher.prepare();
-                input_device_switcher.next();
-                changed_watcher.wait_for_change();
+            if let Some(devices) = inputs {
+                let mut device_switcher = TestDeviceSwitcher::new(Scope::Input);
+                for _ in 0..devices {
+                    // While the stream is re-initializing for the default device switch,
+                    // switching for the default device again will be ignored.
+                    while stream.switching_device.load(atomic::Ordering::SeqCst) {}
+                    changed_watcher.prepare();
+                    device_switcher.next();
+                    changed_watcher.wait_for_change();
+                }
             }
 
-            for _ in 0..output_count {
-                // While the stream is re-initializing for the default device switch,
-                // switching for the default device again will be ignored.
-                while stream.switching_device.load(atomic::Ordering::SeqCst) {}
-                changed_watcher.prepare();
-                output_device_switcher.next();
-                changed_watcher.wait_for_change();
+            if let Some(devices) = outputs {
+                let mut device_switcher = TestDeviceSwitcher::new(Scope::Output);
+                for _ in 0..devices {
+                    // While the stream is re-initializing for the default device switch,
+                    // switching for the default device again will be ignored.
+                    while stream.switching_device.load(atomic::Ordering::SeqCst) {}
+                    changed_watcher.prepare();
+                    device_switcher.next();
+                    changed_watcher.wait_for_change();
+                }
             }
         },
     );

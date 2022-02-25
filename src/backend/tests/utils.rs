@@ -243,7 +243,11 @@ fn u32_to_string(data: u32) -> String {
     String::from_utf8_lossy(&buffer).to_string()
 }
 
-pub fn test_get_all_devices() -> Vec<AudioObjectID> {
+pub enum DeviceFilter {
+    ExcludeCubebAggregate,
+    IncludeCubebAggregate,
+}
+pub fn test_get_all_devices(filter: DeviceFilter) -> Vec<AudioObjectID> {
     let mut devices = Vec::new();
     let address = AudioObjectPropertyAddress {
         mSelector: kAudioHardwarePropertyDevices,
@@ -284,11 +288,26 @@ pub fn test_get_all_devices() -> Vec<AudioObjectID> {
     for device in devices.iter() {
         assert_ne!(*device, kAudioObjectUnknown);
     }
+
+    match filter {
+        DeviceFilter::ExcludeCubebAggregate => {
+            devices.retain(|&device| {
+                if let Ok(uid) = get_device_global_uid(device) {
+                    let uid = uid.into_string();
+                    !uid.contains(PRIVATE_AGGREGATE_DEVICE_NAME)
+                } else {
+                    true
+                }
+            });
+        }
+        _ => {}
+    }
+
     devices
 }
 
 pub fn test_get_devices_in_scope(scope: Scope) -> Vec<AudioObjectID> {
-    let mut devices = test_get_all_devices();
+    let mut devices = test_get_all_devices(DeviceFilter::ExcludeCubebAggregate);
     devices.retain(|device| test_device_in_scope(*device, scope.clone()));
     devices
 }
