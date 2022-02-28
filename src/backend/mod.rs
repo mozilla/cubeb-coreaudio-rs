@@ -739,6 +739,30 @@ extern "C" fn audiounit_property_listener_callback(
     }
     stm.switching_device.store(true, Ordering::SeqCst);
 
+    let should_input_device_change = stm.core_stream_data.has_input()
+        && !stm
+            .core_stream_data
+            .input_stream_params
+            .prefs()
+            .contains(StreamPrefs::DISABLE_DEVICE_SWITCHING)
+        && stm
+            .core_stream_data
+            .input_device
+            .flags
+            .contains(device_flags::DEV_SELECTED_DEFAULT);
+
+    let should_output_device_change = stm.core_stream_data.has_output()
+        && !stm
+            .core_stream_data
+            .output_stream_params
+            .prefs()
+            .contains(StreamPrefs::DISABLE_DEVICE_SWITCHING)
+        && stm
+            .core_stream_data
+            .output_device
+            .flags
+            .contains(device_flags::DEV_SELECTED_DEFAULT);
+
     cubeb_log!(
         "({:p}) Audio device changed, {} events.",
         stm as *const AudioUnitStream,
@@ -752,6 +776,28 @@ extern "C" fn audiounit_property_listener_callback(
                     i,
                     id
                 );
+                if !should_output_device_change {
+                    cubeb_log!("Output device should not change, ignore the event");
+                    stm.switching_device.store(false, Ordering::SeqCst);
+                    return NO_ERR;
+                }
+                // When a device needs to be updated it always goes to the default one. Thus the
+                // output device is set to null. The re-init process will replace it with the current
+                // default device later.
+                stm.core_stream_data.output_device.id = kAudioObjectUnknown;
+                // In case of a duplex call the output device info is filled. That will signal to the
+                // re-init process that an explicit chosen device is selected. However, if the
+                // user had selected the implicit default device (null deviceId) for the input device
+                // has to be cleaned in order to signal to reinit process that the implicit default
+                // device is being used (DEV_SELECTED_DEFAULT is the implicit defaut device).
+                if stm
+                    .core_stream_data
+                    .input_device
+                    .flags
+                    .contains(device_flags::DEV_SELECTED_DEFAULT)
+                {
+                    stm.core_stream_data.input_device.id = kAudioObjectUnknown;
+                }
             }
             sys::kAudioHardwarePropertyDefaultInputDevice => {
                 cubeb_log!(
@@ -759,6 +805,21 @@ extern "C" fn audiounit_property_listener_callback(
                     i,
                     id
                 );
+                // See the comments above for default output case. The code is symmetrical.
+                if !should_input_device_change {
+                    cubeb_log!("Input device should not change, ignore the event");
+                    stm.switching_device.store(false, Ordering::SeqCst);
+                    return NO_ERR;
+                }
+                stm.core_stream_data.input_device.id = kAudioObjectUnknown;
+                if stm
+                    .core_stream_data
+                    .output_device
+                    .flags
+                    .contains(device_flags::DEV_SELECTED_DEFAULT)
+                {
+                    stm.core_stream_data.output_device.id = kAudioObjectUnknown;
+                }
             }
             sys::kAudioDevicePropertyDeviceIsAlive => {
                 cubeb_log!(
@@ -766,17 +827,77 @@ extern "C" fn audiounit_property_listener_callback(
                     i,
                     id
                 );
-                // If this is the default input device ignore the event,
-                // kAudioHardwarePropertyDefaultInputDevice will take care of the switch
-                if stm
-                    .core_stream_data
-                    .input_device
-                    .flags
-                    .contains(device_flags::DEV_SYSTEM_DEFAULT)
+
+                // The same (removed) device is used for input and output, for example a headset.
+                if stm.core_stream_data.input_device.id == id
+                    && stm.core_stream_data.output_device.id == id
+                    && (!should_input_device_change || !should_output_device_change)
                 {
-                    cubeb_log!("It's the default input device, ignore the event");
-                    stm.switching_device.store(false, Ordering::SeqCst);
+                    cubeb_log!("Duplex device should not change, ignore the event");
+                    stm.report_error_async();
                     return NO_ERR;
+                }
+
+                if stm.core_stream_data.input_device.id == id {
+                    // Keep that first because it is required to return an error callback if the
+                    // device is removed but we don't have the option to change it.
+                    if !should_input_device_change {
+                        cubeb_log!("Input device should not change, ignore the event");
+                        stm.report_error_async();
+                        return NO_ERR;
+                    }
+
+                    // Since the device will change let default event do so, if that's the case.
+                    if stm
+                        .core_stream_data
+                        .input_device
+                        .flags
+                        .contains(device_flags::DEV_SYSTEM_DEFAULT)
+                    {
+                        cubeb_log!("It's the default input device, ignore the event");
+                        stm.switching_device.store(false, Ordering::SeqCst);
+                        return NO_ERR;
+                    }
+
+                    // The device is not the default, update it.
+                    stm.core_stream_data.input_device.id = kAudioObjectUnknown;
+                    if stm
+                        .core_stream_data
+                        .output_device
+                        .flags
+                        .contains(device_flags::DEV_SELECTED_DEFAULT)
+                    {
+                        stm.core_stream_data.output_device.id = kAudioObjectUnknown;
+                    }
+                }
+
+                if stm.core_stream_data.output_device.id == id {
+                    if !should_output_device_change {
+                        cubeb_log!("Output device should not change, ignore the event");
+                        stm.report_error_async();
+                        return NO_ERR;
+                    }
+
+                    if stm
+                        .core_stream_data
+                        .input_device
+                        .flags
+                        .contains(device_flags::DEV_SYSTEM_DEFAULT)
+                    {
+                        cubeb_log!("It's the default input device, ignore the event");
+                        stm.switching_device.store(false, Ordering::SeqCst);
+                        return NO_ERR;
+                    }
+
+                    stm.core_stream_data.output_device.id = kAudioObjectUnknown;
+                    if stm
+                        .core_stream_data
+                        .input_device
+                        .flags
+                        .contains(device_flags::DEV_SELECTED_DEFAULT)
+                    {
+                        stm.core_stream_data.input_device.id = kAudioObjectUnknown;
+                    }
                 }
             }
             sys::kAudioDevicePropertyDataSource => {
@@ -970,7 +1091,7 @@ fn create_audiounit(device: &device_info) -> Result<AudioUnit> {
         .flags
         .contains(device_flags::DEV_INPUT | device_flags::DEV_OUTPUT));
 
-    let unit = create_default_audiounit(device.flags)?;
+    let unit = create_default_audiounit()?;
     if device
         .flags
         .contains(device_flags::DEV_SYSTEM_DEFAULT | device_flags::DEV_OUTPUT)
@@ -1066,26 +1187,16 @@ fn set_device_to_audiounit(
     }
 }
 
-fn create_default_audiounit(flags: device_flags) -> Result<AudioUnit> {
-    let desc = get_audiounit_description(flags);
+fn create_default_audiounit() -> Result<AudioUnit> {
+    let desc = get_audiounit_description();
     create_audiounit_by_description(desc)
 }
 
-fn get_audiounit_description(flags: device_flags) -> AudioComponentDescription {
+fn get_audiounit_description() -> AudioComponentDescription {
     AudioComponentDescription {
         componentType: kAudioUnitType_Output,
-        // Use the DefaultOutputUnit for output when no device is specified
-        // so we retain automatic output device switching when the default
-        // changes. Once we have complete support for device notifications
-        // and switching, we can use the AUHAL for everything.
         #[cfg(not(target_os = "ios"))]
-        componentSubType: if flags
-            .contains(device_flags::DEV_SYSTEM_DEFAULT | device_flags::DEV_OUTPUT)
-        {
-            kAudioUnitSubType_DefaultOutput
-        } else {
-            kAudioUnitSubType_HALOutput
-        },
+        componentSubType: kAudioUnitSubType_HALOutput,
         #[cfg(target_os = "ios")]
         componentSubType: kAudioUnitSubType_RemoteIO,
         componentManufacturer: kAudioUnitManufacturer_Apple,
@@ -2292,6 +2403,7 @@ struct CoreStreamData<'ctx> {
     default_input_listener: Option<device_property_listener>,
     default_output_listener: Option<device_property_listener>,
     input_alive_listener: Option<device_property_listener>,
+    output_alive_listener: Option<device_property_listener>,
     input_source_listener: Option<device_property_listener>,
     output_source_listener: Option<device_property_listener>,
 }
@@ -2330,6 +2442,7 @@ impl<'ctx> Default for CoreStreamData<'ctx> {
             default_input_listener: None,
             default_output_listener: None,
             input_alive_listener: None,
+            output_alive_listener: None,
             input_source_listener: None,
             output_source_listener: None,
         }
@@ -2375,6 +2488,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             default_input_listener: None,
             default_output_listener: None,
             input_alive_listener: None,
+            output_alive_listener: None,
             input_source_listener: None,
             output_source_listener: None,
         }
@@ -2930,6 +3044,22 @@ impl<'ctx> CoreStreamData<'ctx> {
                 cubeb_log!("AudioObjectAddPropertyListener/output/kAudioDevicePropertyDataSource rv={}, device id={}", rv, self.output_device.id);
                 return Err(Error::error());
             }
+
+            // Event to notify when the input is going away.
+            self.output_alive_listener = Some(device_property_listener::new(
+                self.output_device.id,
+                get_property_address(
+                    Property::DeviceIsAlive,
+                    DeviceType::INPUT | DeviceType::OUTPUT,
+                ),
+                audiounit_property_listener_callback,
+            ));
+            let rv = stm.add_device_listener(self.output_alive_listener.as_ref().unwrap());
+            if rv != NO_ERR {
+                self.output_alive_listener = None;
+                cubeb_log!("AudioObjectAddPropertyListener/output/kAudioDevicePropertyDeviceIsAlive rv={}, device id ={}", rv, self.input_device.id);
+                return Err(Error::error());
+            }
         }
 
         if !self.input_unit.is_null() {
@@ -2957,20 +3087,24 @@ impl<'ctx> CoreStreamData<'ctx> {
                 return Err(Error::error());
             }
 
-            // Event to notify when the input is going away.
-            self.input_alive_listener = Some(device_property_listener::new(
-                self.input_device.id,
-                get_property_address(
-                    Property::DeviceIsAlive,
-                    DeviceType::INPUT | DeviceType::OUTPUT,
-                ),
-                audiounit_property_listener_callback,
-            ));
-            let rv = stm.add_device_listener(self.input_alive_listener.as_ref().unwrap());
-            if rv != NO_ERR {
-                self.input_alive_listener = None;
-                cubeb_log!("AudioObjectAddPropertyListener/input/kAudioDevicePropertyDeviceIsAlive rv={}, device id ={}", rv, self.input_device.id);
-                return Err(Error::error());
+            // If the event is registered for the output device, it cannot be re-registered to the
+            // same device (it will return an 'nope' error).
+            if self.input_device.id != self.output_device.id {
+                // Event to notify when the input is going away.
+                self.input_alive_listener = Some(device_property_listener::new(
+                    self.input_device.id,
+                    get_property_address(
+                        Property::DeviceIsAlive,
+                        DeviceType::INPUT | DeviceType::OUTPUT,
+                    ),
+                    audiounit_property_listener_callback,
+                ));
+                let rv = stm.add_device_listener(self.input_alive_listener.as_ref().unwrap());
+                if rv != NO_ERR {
+                    self.input_alive_listener = None;
+                    cubeb_log!("AudioObjectAddPropertyListener/input/kAudioDevicePropertyDeviceIsAlive rv={}, device id ={}", rv, self.input_device.id);
+                    return Err(Error::error());
+                }
             }
         }
 
@@ -3039,6 +3173,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                 self.output_source_listener.is_none()
                     && self.input_source_listener.is_none()
                     && self.input_alive_listener.is_none()
+                    && self.output_alive_listener.is_none()
             );
             return Ok(());
         }
@@ -3055,6 +3190,15 @@ impl<'ctx> CoreStreamData<'ctx> {
                 r = Err(Error::error());
             }
             self.output_source_listener = None;
+        }
+
+        if self.output_alive_listener.is_some() {
+            let rv = stm.remove_device_listener(self.output_alive_listener.as_ref().unwrap());
+            if rv != NO_ERR {
+                cubeb_log!("AudioObjectRemovePropertyListener/output/kAudioDevicePropertyDeviceIsAlive rv={}, device id={}", rv, self.input_device.id);
+                r = Err(Error::error());
+            }
+            self.output_alive_listener = None;
         }
 
         if self.input_source_listener.is_some() {
@@ -3266,6 +3410,13 @@ impl<'ctx> AudioUnitStream<'ctx> {
             kAudioObjectUnknown
         };
 
+        let has_output = !self.core_stream_data.output_unit.is_null();
+        let output_device = if has_output {
+            self.core_stream_data.output_device.id
+        } else {
+            kAudioObjectUnknown
+        };
+
         self.core_stream_data.close();
 
         // Reinit occurs in one of the following case:
@@ -3287,13 +3438,15 @@ impl<'ctx> AudioUnitStream<'ctx> {
         // Always use the default output on reinit. This is not correct in every
         // case but it is sufficient for Firefox and prevent reinit from reporting
         // failures. It will change soon when reinit mechanism will be updated.
-        self.core_stream_data.output_device = create_device_info(kAudioObjectUnknown, DeviceType::OUTPUT).map_err(|e| {
-            cubeb_log!(
-                "({:p}) Create output device info failed. This can happen when last media device is unplugged",
-                self.core_stream_data.stm_ptr
-            );
-            e
-        })?;
+        if has_output {
+            self.core_stream_data.output_device = create_device_info(output_device, DeviceType::OUTPUT).map_err(|e| {
+                cubeb_log!(
+                    "({:p}) Create output device info failed. This can happen when last media device is unplugged",
+                    self.core_stream_data.stm_ptr
+                );
+                e
+            })?;
+        }
 
         if let Err(setup_err) = self.core_stream_data.setup() {
             cubeb_log!(
@@ -3340,6 +3493,36 @@ impl<'ctx> AudioUnitStream<'ctx> {
         }
 
         Ok(())
+    }
+
+    // Stop (and destroy) the stream and fire an error state changed callback in a new thread.
+    fn report_error_async(&mut self) {
+        let queue = self.queue.clone();
+        let mutexed_stm = Arc::new(Mutex::new(self));
+        let also_mutexed_stm = Arc::clone(&mutexed_stm);
+        queue.run_async(move || {
+            let mut stm_guard = also_mutexed_stm.lock().unwrap();
+            let stm_ptr = *stm_guard as *const AudioUnitStream;
+            if stm_guard.destroy_pending.load(Ordering::SeqCst) {
+                cubeb_log!(
+                    "({:p}) stream pending destroy, cancelling error report",
+                    stm_ptr
+                );
+                return;
+            }
+
+            if !stm_guard.shutdown.load(Ordering::SeqCst) {
+                stm_guard.core_stream_data.stop_audiounits();
+            }
+            debug_assert!(
+                !stm_guard.core_stream_data.input_unit.is_null()
+                    || !stm_guard.core_stream_data.output_unit.is_null()
+            );
+            stm_guard.core_stream_data.close();
+            stm_guard.notify_state_changed(State::Error);
+
+            stm_guard.switching_device.store(false, Ordering::SeqCst);
+        });
     }
 
     fn reinit_async(&mut self) {
