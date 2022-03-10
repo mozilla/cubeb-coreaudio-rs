@@ -787,13 +787,7 @@ extern "C" fn audiounit_property_listener_callback(
                 );
             }
             _ => {
-                cubeb_log!(
-                    "Event[{}] - mSelector == Unexpected Event id {}, return",
-                    i,
-                    addr.mSelector
-                );
-                stm.switching_device.store(false, Ordering::SeqCst);
-                return NO_ERR;
+                panic!("Receive unexpected event");
             }
         }
     }
