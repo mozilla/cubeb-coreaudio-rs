@@ -728,7 +728,7 @@ extern "C" fn audiounit_property_listener_callback(
 
     let stm = unsafe { &mut *(user as *mut AudioUnitStream) };
     let addrs = unsafe { slice::from_raw_parts(addresses, address_count as usize) };
-    let property_selector = PropertySelector::new(addrs[0].mSelector);
+    let property_selector = PropertySelector::from(addrs[0].mSelector);
     if stm.switching_device.load(Ordering::SeqCst) {
         cubeb_log!(
             "Switching is already taking place. Skip Event {} for id={}",
