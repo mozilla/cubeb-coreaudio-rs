@@ -112,26 +112,38 @@ pub fn audio_object_remove_property_listener<T>(
 }
 
 #[derive(Debug)]
-pub struct PropertySelector(AudioObjectPropertySelector);
+pub enum PropertySelector {
+    DefaultOutputDevice,
+    DefaultInputDevice,
+    DeviceIsAlive,
+    DataSource,
+    Unknown,
+}
 
-impl PropertySelector {
-    pub fn new(selector: AudioObjectPropertySelector) -> Self {
-        Self(selector)
+impl From<AudioObjectPropertySelector> for PropertySelector {
+    fn from(p: AudioObjectPropertySelector) -> Self {
+        use coreaudio_sys as sys;
+        match p {
+            sys::kAudioHardwarePropertyDefaultOutputDevice => Self::DefaultOutputDevice,
+            sys::kAudioHardwarePropertyDefaultInputDevice => Self::DefaultInputDevice,
+            sys::kAudioDevicePropertyDeviceIsAlive => Self::DeviceIsAlive,
+            sys::kAudioDevicePropertyDataSource => Self::DataSource,
+            _ => Self::Unknown
+        }
     }
 }
 
 impl fmt::Display for PropertySelector {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use coreaudio_sys as sys;
-        let s = match self.0 {
-            sys::kAudioHardwarePropertyDefaultOutputDevice => {
+        let s = match self {
+            Self::DefaultOutputDevice => {
                 "kAudioHardwarePropertyDefaultOutputDevice"
             }
-            sys::kAudioHardwarePropertyDefaultInputDevice => {
+            Self::DefaultInputDevice => {
                 "kAudioHardwarePropertyDefaultInputDevice"
             }
-            sys::kAudioDevicePropertyDeviceIsAlive => "kAudioDevicePropertyDeviceIsAlive",
-            sys::kAudioDevicePropertyDataSource => "kAudioDevicePropertyDataSource",
+            Self::DeviceIsAlive => "kAudioDevicePropertyDeviceIsAlive",
+            Self::DataSource => "kAudioDevicePropertyDataSource",
             _ => "Unknown",
         };
         write!(f, "{}", s)
