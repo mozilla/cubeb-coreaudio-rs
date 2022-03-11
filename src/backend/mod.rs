@@ -750,23 +750,20 @@ extern "C" fn audiounit_property_listener_callback(
 
     // Handle the events
 
-    for addr in addrs {
-        let p = PropertySelector::from(addr.mSelector);
-        assert_ne!(p, PropertySelector::Unknown);
-
-        // If this is the default input device ignore the event,
-        // kAudioHardwarePropertyDefaultInputDevice will take care of the switch
-        if p == PropertySelector::DeviceIsAlive
-            && stm
-                .core_stream_data
-                .input_device
-                .flags
-                .contains(device_flags::DEV_SYSTEM_DEFAULT)
-        {
-            cubeb_log!("It's the default input device, ignore the event");
-            stm.switching_device.store(false, Ordering::SeqCst);
-            return NO_ERR;
-        }
+    // If this is the default input device ignore the event,
+    // kAudioHardwarePropertyDefaultInputDevice will take care of the switch
+    if addrs.len() == 1
+        && PropertySelector::from(addrs.first().unwrap().mSelector)
+            == PropertySelector::DeviceIsAlive
+        && stm
+            .core_stream_data
+            .input_device
+            .flags
+            .contains(device_flags::DEV_SYSTEM_DEFAULT)
+    {
+        cubeb_log!("It's the default input device, ignore the event");
+        stm.switching_device.store(false, Ordering::SeqCst);
+        return NO_ERR;
     }
 
     for _addr in addrs.iter() {
