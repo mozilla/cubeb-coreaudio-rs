@@ -654,6 +654,7 @@ impl<T: Clone + PartialEq> Watcher<T> {
             if self.current_result() != self.current.clone().unwrap() {
                 break;
             }
+            thread::sleep(Duration::from_millis(1));
         }
     }
 
