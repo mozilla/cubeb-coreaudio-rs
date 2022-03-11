@@ -589,7 +589,7 @@ extern "C" fn audiounit_output_callback(
     let (input_buffer, mut input_frames) = if !stm.core_stream_data.input_unit.is_null() {
         let input_buffer_manager = stm.core_stream_data.input_buffer_manager.as_mut().unwrap();
         assert_ne!(stm.core_stream_data.input_desc.mChannelsPerFrame, 0);
-        let input_channels = stm.core_stream_data.input_desc.mChannelsPerFrame as usize;
+        let input_channels = stm.core_stream_data.input_stream_params.channels() as usize;
         // If the output callback came first and this is a duplex stream, we need to
         // fill in some additional silence in the resampler.
         // Otherwise, if we had more than expected callbacks in a row, or we're
@@ -2204,6 +2204,9 @@ struct CoreStreamData<'ctx> {
     stm_ptr: *const AudioUnitStream<'ctx>,
     aggregate_device: Option<AggregateDevice>,
     mixer: Option<Mixer>,
+    // The input channels to ignore. They are always first in the list of channels, because of the
+    // way the aggregate device is setup.
+    input_channels_to_ignore: u32,
     resampler: Resampler,
     // Stream creation parameters.
     input_stream_params: StreamParams,
@@ -2237,6 +2240,7 @@ impl<'ctx> Default for CoreStreamData<'ctx> {
             stm_ptr: ptr::null(),
             aggregate_device: None,
             mixer: None,
+            input_channels_to_ignore: 0,
             resampler: Resampler::default(),
             input_stream_params: StreamParams::from(ffi::cubeb_stream_params {
                 format: ffi::CUBEB_SAMPLE_FLOAT32NE,
@@ -2294,6 +2298,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             stm_ptr: stm,
             aggregate_device: None,
             mixer: None,
+            input_channels_to_ignore: 0,
             resampler: Resampler::default(),
             input_stream_params: in_stm_params,
             output_stream_params: out_stm_params,
@@ -2410,6 +2415,16 @@ impl<'ctx> CoreStreamData<'ctx> {
         if self.should_use_aggregate_device() {
             match AggregateDevice::new(in_dev_info.id, out_dev_info.id) {
                 Ok(device) => {
+                    if let Ok(format) = get_device_stream_format(out_dev_info.id, DeviceType::INPUT)
+                    {
+                        self.input_channels_to_ignore = format.mChannelsPerFrame;
+                        cubeb_log!(
+                            "Ignoring first {} input channels of the output device",
+                            self.input_channels_to_ignore
+                        );
+                    } else {
+                        cubeb_log!("Device used as output doesn't have input channels.");
+                    }
                     in_dev_info.id = device.get_device_id();
                     out_dev_info.id = device.get_device_id();
                     in_dev_info.flags = device_flags::DEV_INPUT;
@@ -2500,6 +2515,19 @@ impl<'ctx> CoreStreamData<'ctx> {
                     );
                     e
                 })?;
+            // We're using an aggregate device with the output device having input channels.
+            // It's necessary to ignore those input channels, and then to remix the remaining
+            // input channels into the format requested. In anycase, all channels should be in
+            // use here.
+            if self.input_channels_to_ignore != 0 {
+                if let Ok(count) = get_channel_count(in_dev_info.id, DeviceType::INPUT) {
+                    self.input_desc.mChannelsPerFrame = count;
+                    self.input_desc.mBytesPerFrame =
+                        (self.input_desc.mBitsPerChannel / 8) * self.input_desc.mChannelsPerFrame;
+                    self.input_desc.mBytesPerPacket =
+                        self.input_desc.mBytesPerFrame * self.input_desc.mFramesPerPacket;
+                }
+            }
 
             // Use latency to set buffer size
             assert_ne!(stream.latency_frames, 0);
