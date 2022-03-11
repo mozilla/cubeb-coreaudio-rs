@@ -724,71 +724,48 @@ extern "C" fn audiounit_property_listener_callback(
     addresses: *const AudioObjectPropertyAddress,
     user: *mut c_void,
 ) -> OSStatus {
-    use self::coreaudio_sys_utils::sys;
-
     let stm = unsafe { &mut *(user as *mut AudioUnitStream) };
     let addrs = unsafe { slice::from_raw_parts(addresses, address_count as usize) };
-    let property_selector = PropertySelector::from(addrs[0].mSelector);
     if stm.switching_device.load(Ordering::SeqCst) {
         cubeb_log!(
-            "Switching is already taking place. Skip Event {} for id={}",
-            property_selector,
+            "Switching is already taking place. Skip Events for device {}",
             id
         );
         return NO_ERR;
     }
     stm.switching_device.store(true, Ordering::SeqCst);
 
+    // Log the events
     cubeb_log!(
-        "({:p}) Audio device changed, {} events.",
+        "({:p}) Handle {} device changed events for device {}",
         stm as *const AudioUnitStream,
-        address_count
+        address_count,
+        id
     );
     for (i, addr) in addrs.iter().enumerate() {
-        match addr.mSelector {
-            sys::kAudioHardwarePropertyDefaultOutputDevice => {
-                cubeb_log!(
-                    "Event[{}] - mSelector == kAudioHardwarePropertyDefaultOutputDevice for id={}",
-                    i,
-                    id
-                );
-            }
-            sys::kAudioHardwarePropertyDefaultInputDevice => {
-                cubeb_log!(
-                    "Event[{}] - mSelector == kAudioHardwarePropertyDefaultInputDevice for id={}",
-                    i,
-                    id
-                );
-            }
-            sys::kAudioDevicePropertyDeviceIsAlive => {
-                cubeb_log!(
-                    "Event[{}] - mSelector == kAudioDevicePropertyDeviceIsAlive for id={}",
-                    i,
-                    id
-                );
-                // If this is the default input device ignore the event,
-                // kAudioHardwarePropertyDefaultInputDevice will take care of the switch
-                if stm
-                    .core_stream_data
-                    .input_device
-                    .flags
-                    .contains(device_flags::DEV_SYSTEM_DEFAULT)
-                {
-                    cubeb_log!("It's the default input device, ignore the event");
-                    stm.switching_device.store(false, Ordering::SeqCst);
-                    return NO_ERR;
-                }
-            }
-            sys::kAudioDevicePropertyDataSource => {
-                cubeb_log!(
-                    "Event[{}] - mSelector == kAudioDevicePropertyDataSource for id={}",
-                    i,
-                    id
-                );
-            }
-            _ => {
-                panic!("Receive unexpected event");
-            }
+        let p = PropertySelector::from(addr.mSelector);
+        assert_ne!(p, PropertySelector::Unknown);
+        cubeb_log!("Event #{}: {}", i, p);
+    }
+
+    // Handle the events
+
+    for addr in addrs {
+        let p = PropertySelector::from(addr.mSelector);
+        assert_ne!(p, PropertySelector::Unknown);
+
+        // If this is the default input device ignore the event,
+        // kAudioHardwarePropertyDefaultInputDevice will take care of the switch
+        if p == PropertySelector::DeviceIsAlive
+            && stm
+                .core_stream_data
+                .input_device
+                .flags
+                .contains(device_flags::DEV_SYSTEM_DEFAULT)
+        {
+            cubeb_log!("It's the default input device, ignore the event");
+            stm.switching_device.store(false, Ordering::SeqCst);
+            return NO_ERR;
         }
     }
 
