@@ -2355,19 +2355,8 @@ impl<'ctx> CoreStreamData<'ctx> {
     }
 
     fn should_use_aggregate_device(&self) -> bool {
-        // Only using aggregate device when the input is a mic-only device and the output is a
-        // speaker-only device. Otherwise, the mic on the output device may become the main
-        // microphone of the aggregate device for this duplex stream.
-        self.has_input()
-            && self.has_output()
-            && self.input_device.id != kAudioObjectUnknown
-            && self.input_device.flags.contains(device_flags::DEV_INPUT)
-            && self.output_device.id != kAudioObjectUnknown
-            && self.output_device.flags.contains(device_flags::DEV_OUTPUT)
-            && self.input_device.id != self.output_device.id
-            && !is_device_a_type_of(self.input_device.id, DeviceType::OUTPUT)
-            && !is_device_a_type_of(self.output_device.id, DeviceType::INPUT)
-            && false
+        // Only use an aggregate device when the device are different.
+        self.has_input() && self.has_output() && self.input_device.id != self.output_device.id
     }
 
     fn same_clock_domain(&self) -> bool {
