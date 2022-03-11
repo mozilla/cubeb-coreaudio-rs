@@ -111,7 +111,7 @@ pub fn audio_object_remove_property_listener<T>(
     unsafe { AudioObjectRemovePropertyListener(id, address, Some(listener), data as *mut c_void) }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum PropertySelector {
     DefaultOutputDevice,
     DefaultInputDevice,
@@ -128,7 +128,7 @@ impl From<AudioObjectPropertySelector> for PropertySelector {
             sys::kAudioHardwarePropertyDefaultInputDevice => Self::DefaultInputDevice,
             sys::kAudioDevicePropertyDeviceIsAlive => Self::DeviceIsAlive,
             sys::kAudioDevicePropertyDataSource => Self::DataSource,
-            _ => Self::Unknown
+            _ => Self::Unknown,
         }
     }
 }
@@ -136,12 +136,8 @@ impl From<AudioObjectPropertySelector> for PropertySelector {
 impl fmt::Display for PropertySelector {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let s = match self {
-            Self::DefaultOutputDevice => {
-                "kAudioHardwarePropertyDefaultOutputDevice"
-            }
-            Self::DefaultInputDevice => {
-                "kAudioHardwarePropertyDefaultInputDevice"
-            }
+            Self::DefaultOutputDevice => "kAudioHardwarePropertyDefaultOutputDevice",
+            Self::DefaultInputDevice => "kAudioHardwarePropertyDefaultInputDevice",
             Self::DeviceIsAlive => "kAudioDevicePropertyDeviceIsAlive",
             Self::DataSource => "kAudioDevicePropertyDataSource",
             _ => "Unknown",
