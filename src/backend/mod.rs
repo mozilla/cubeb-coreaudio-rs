@@ -2486,6 +2486,11 @@ impl<'ctx> CoreStreamData<'ctx> {
             );
             self.input_hw_rate = input_hw_desc.mSampleRate;
 
+            // Can't open a stream with more input channels than the device has
+            if input_hw_desc.mChannelsPerFrame < self.input_stream_params.channels() {
+                return Err(Error::error());
+            }
+
             // Set format description according to the input params.
             self.input_desc =
                 create_stream_description(&self.input_stream_params).map_err(|e| {
