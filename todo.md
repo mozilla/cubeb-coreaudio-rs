@@ -122,3 +122,4 @@ and create a new one. It's easier than the current implementation.
   - Add tests for capturing/recording, output, duplex streams
 - Update the manual tests
   - Those tests are created in the middle of the development. Thay might be not outdated now.
+- Add in-out support for `TestDevicePlugger`

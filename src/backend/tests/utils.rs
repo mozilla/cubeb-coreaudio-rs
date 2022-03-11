@@ -1157,11 +1157,12 @@ fn test_get_raw_stream<F>(
     operation(&mut stream);
 }
 
-pub fn test_get_stream_with_default_callbacks_by_type<F>(
+pub fn test_get_stream_with_default_data_callback_by_type<F>(
     name: &'static str,
     stm_type: StreamType,
     input_device: Option<AudioObjectID>,
     output_device: Option<AudioObjectID>,
+    state_callback: extern "C" fn(*mut ffi::cubeb_stream, *mut c_void, ffi::cubeb_state),
     data: *mut c_void,
     operation: F,
 ) where
@@ -1191,12 +1192,13 @@ pub fn test_get_stream_with_default_callbacks_by_type<F>(
         ptr::null_mut()
     };
 
-    test_ops_stream_operation_with_default_callbacks(
+    test_ops_stream_operation_with_default_data_callback(
         name,
         in_device,
         in_params,
         out_device,
         out_params,
+        state_callback,
         data,
         |stream| {
             let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
@@ -1232,12 +1234,13 @@ fn get_dummy_stream_params(scope: Scope) -> ffi::cubeb_stream_params {
     stream_params
 }
 
-fn test_ops_stream_operation_with_default_callbacks<F>(
+fn test_ops_stream_operation_with_default_data_callback<F>(
     name: &'static str,
     input_device: ffi::cubeb_devid,
     input_stream_params: *mut ffi::cubeb_stream_params,
     output_device: ffi::cubeb_devid,
     output_stream_params: *mut ffi::cubeb_stream_params,
+    state_callback: extern "C" fn(*mut ffi::cubeb_stream, *mut c_void, ffi::cubeb_state),
     data: *mut c_void,
     operation: F,
 ) where
@@ -1255,15 +1258,6 @@ fn test_ops_stream_operation_with_default_callbacks<F>(
         data,
         operation,
     );
-
-    extern "C" fn state_callback(
-        stream: *mut ffi::cubeb_stream,
-        _user_ptr: *mut c_void,
-        state: ffi::cubeb_state,
-    ) {
-        assert!(!stream.is_null());
-        assert_ne!(state, ffi::CUBEB_STATE_ERROR);
-    }
 
     extern "C" fn data_callback(
         stream: *mut ffi::cubeb_stream,
