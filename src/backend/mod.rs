@@ -406,10 +406,11 @@ extern "C" fn audiounit_input_callback(
             ErrorHandle::Reinit
         } else {
             assert_eq!(status, NO_ERR);
-            // Copy input data in linear buffer.
-            let elements =
-                (input_frames * stm.core_stream_data.input_desc.mChannelsPerFrame) as usize;
-            input_buffer_manager.push_data(input_buffer_list.mBuffers[0].mData, elements);
+            input_buffer_manager.push_data(
+                input_buffer_list.mBuffers[0].mData,
+                input_frames as usize,
+                stm.core_stream_data.input_desc.mChannelsPerFrame as usize,
+            );
             ErrorHandle::Return(status)
         };
 
