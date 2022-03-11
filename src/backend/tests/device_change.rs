@@ -24,6 +24,8 @@ use super::*;
 use std::fmt::Debug;
 use std::thread;
 
+// Switch default devices used by the active streams, to test stream reinitialization
+// ================================================================================================
 #[ignore]
 #[test]
 fn test_switch_device() {
@@ -176,6 +178,8 @@ where
     );
 }
 
+// Plug and unplug devices, to test device collection changed callback
+// ================================================================================================
 #[ignore]
 #[test]
 fn test_plug_and_unplug_device() {
@@ -298,6 +302,8 @@ fn test_plug_and_unplug_device_in_scope(scope: Scope) {
     }
 }
 
+// Switch default devices used by the active streams, to test device changed callback
+// ================================================================================================
 #[ignore]
 #[test]
 fn test_register_device_changed_callback_to_check_default_device_changed_input() {
@@ -402,6 +408,10 @@ fn test_register_device_changed_callback_to_check_default_device_changed(stm_typ
     }
 }
 
+// Unplug the devices used by the active streams, to test
+// 1) device changed callback
+// 2) stream reinitialization that may race with stream destroying
+// ================================================================================================
 #[ignore]
 #[test]
 fn test_destroy_input_stream_after_unplugging_a_nondefault_input_device() {

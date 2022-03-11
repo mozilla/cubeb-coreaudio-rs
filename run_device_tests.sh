@@ -9,8 +9,9 @@ fi
 echo "RUST_BACKTRACE is set to ${RUST_BACKTRACE}\n"
 
 cargo test test_switch_device -- --ignored --nocapture
+
 cargo test test_plug_and_unplug_device -- --ignored --nocapture
-# cargo test test_register_device_changed_callback -- --ignored --nocapture --test-threads=1
+
 cargo test test_register_device_changed_callback_to_check_default_device_changed_input -- --ignored --nocapture
 cargo test test_register_device_changed_callback_to_check_default_device_changed_output -- --ignored --nocapture
 cargo test test_register_device_changed_callback_to_check_default_device_changed_duplex -- --ignored --nocapture
