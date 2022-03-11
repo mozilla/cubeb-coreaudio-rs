@@ -777,7 +777,7 @@ extern "C" fn audiounit_property_listener_callback(
         }
     }
 
-    for _addr in addrs.iter() {
+    {
         let callback = stm.device_changed_callback.lock().unwrap();
         if let Some(device_changed_callback) = *callback {
             unsafe {
