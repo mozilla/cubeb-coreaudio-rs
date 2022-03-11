@@ -603,12 +603,17 @@ fn test_unplug_a_device_on_an_active_stream(
             let dev = plugger.get_device_id();
             assert!(plugger.unplug().is_ok());
             changed_watcher.wait_for_change();
-            // Wait for stream re-initialization or destroy stream directly.
             if wait_for_reinit_millis > 0 {
+                println!(
+                    "Wait {} ms for stream re-initialization",
+                    wait_for_reinit_millis
+                );
                 thread::sleep(Duration::from_millis(wait_for_reinit_millis));
+            } else {
+                println!("Destroy the stream immediately. Stream re-initialization may run at the same time when stream is being destroyed");
             }
             println!(
-                "Device {} for {:?} is unplugged. The default {:?} device now is {}",
+                "Device {} for {:?} has been unplugged. The default {:?} device now is {}",
                 dev,
                 device_scope,
                 device_scope,
