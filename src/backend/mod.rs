@@ -724,6 +724,8 @@ extern "C" fn audiounit_property_listener_callback(
     addresses: *const AudioObjectPropertyAddress,
     user: *mut c_void,
 ) -> OSStatus {
+    assert_ne!(address_count, 0);
+
     let stm = unsafe { &mut *(user as *mut AudioUnitStream) };
     let addrs = unsafe { slice::from_raw_parts(addresses, address_count as usize) };
     if stm.switching_device.load(Ordering::SeqCst) {
@@ -735,6 +737,8 @@ extern "C" fn audiounit_property_listener_callback(
     }
     stm.switching_device.store(true, Ordering::SeqCst);
 
+    let mut input_device_dead = false;
+
     // Log the events
     cubeb_log!(
         "({:p}) Handle {} device changed events for device {}",
@@ -744,26 +748,33 @@ extern "C" fn audiounit_property_listener_callback(
     );
     for (i, addr) in addrs.iter().enumerate() {
         let p = PropertySelector::from(addr.mSelector);
-        assert_ne!(p, PropertySelector::Unknown);
         cubeb_log!("Event #{}: {}", i, p);
+        assert_ne!(p, PropertySelector::Unknown);
+        if p == PropertySelector::DeviceIsAlive {
+            input_device_dead = true;
+        }
     }
 
     // Handle the events
 
-    // If this is the default input device ignore the event,
-    // kAudioHardwarePropertyDefaultInputDevice will take care of the switch
-    if addrs.len() == 1
-        && PropertySelector::from(addrs.first().unwrap().mSelector)
-            == PropertySelector::DeviceIsAlive
-        && stm
+    if input_device_dead {
+        if !stm
             .core_stream_data
             .input_device
             .flags
-            .contains(device_flags::DEV_SYSTEM_DEFAULT)
-    {
-        cubeb_log!("It's the default input device, ignore the event");
-        stm.switching_device.store(false, Ordering::SeqCst);
-        return NO_ERR;
+            .contains(device_flags::DEV_SELECTED_DEFAULT)
+        {
+            cubeb_log!("The user-selected input device is dead, enter error state");
+            stm.notify_state_changed(State::Error);
+            stm.switching_device.store(false, Ordering::SeqCst);
+            return NO_ERR;
+        } else if addrs.len() == 1 {
+            // If this is the default input device ignore the event,
+            // kAudioHardwarePropertyDefaultInputDevice will take care of the switch
+            cubeb_log!("It's the default input device, ignore the event");
+            stm.switching_device.store(false, Ordering::SeqCst);
+            return NO_ERR;
+        }
     }
 
     for _addr in addrs.iter() {

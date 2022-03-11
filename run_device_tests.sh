@@ -19,23 +19,29 @@ cargo test test_register_device_changed_callback_to_check_input_alive_changed_in
 cargo test test_register_device_changed_callback_to_check_input_alive_changed_duplex -- --ignored --nocapture
 
 cargo test test_destroy_input_stream_after_unplugging_a_nondefault_input_device -- --ignored --nocapture
-cargo test test_destroy_input_stream_after_unplugging_a_default_input_device -- --ignored --nocapture
-# FIXME: The following test will hang since we don't monitor the alive status of the output device
-# cargo test test_destroy_output_stream_after_unplugging_a_nondefault_output_device -- --ignored --nocapture
-cargo test test_destroy_output_stream_after_unplugging_a_default_output_device -- --ignored --nocapture
-cargo test test_destroy_duplex_stream_after_unplugging_a_nondefault_input_device -- --ignored --nocapture
-cargo test test_destroy_duplex_stream_after_unplugging_a_default_input_device -- --ignored --nocapture
-# FIXME: The following test will hang since we don't monitor the alive status of the output device
-# cargo test test_destroy_duplex_stream_after_unplugging_a_nondefault_output_device -- --ignored --nocapture
-cargo test test_destroy_duplex_stream_after_unplugging_a_default_output_device -- --ignored --nocapture
+cargo test test_suspend_input_stream_by_unplugging_a_nondefault_input_device -- --ignored --nocapture
 
-cargo test test_reinit_input_stream_by_unplugging_a_nondefault_input_device -- --ignored --nocapture
+cargo test test_destroy_input_stream_after_unplugging_a_default_input_device -- --ignored --nocapture
 cargo test test_reinit_input_stream_by_unplugging_a_default_input_device -- --ignored --nocapture
-# FIXME: The following test will hang since we don't monitor the alive status of the output device
-# cargo test test_reinit_output_stream_by_unplugging_a_nondefault_output_device -- --ignored --nocapture
+
+# FIXME: We don't monitor the alive-status for output device currently
+# cargo test test_destroy_output_stream_after_unplugging_a_nondefault_output_device -- --ignored --nocapture
+# FIXME: We don't monitor the alive-status for output device currently
+# cargo test test_suspend_output_stream_by_unplugging_a_nondefault_output_device -- --ignored --nocapture
+
+cargo test test_destroy_output_stream_after_unplugging_a_default_output_device -- --ignored --nocapture
 cargo test test_reinit_output_stream_by_unplugging_a_default_output_device -- --ignored --nocapture
-cargo test test_reinit_duplex_stream_by_unplugging_a_nondefault_input_device -- --ignored --nocapture
+
+cargo test test_destroy_duplex_stream_after_unplugging_a_nondefault_input_device -- --ignored --nocapture
+cargo test test_suspend_duplex_stream_by_unplugging_a_nondefault_input_device
+
+# FIXME: We don't monitor the alive-status for output device currently
+# cargo test test_destroy_duplex_stream_after_unplugging_a_nondefault_output_device -- --ignored --nocapture
+# FIXME: We don't monitor the alive-status for output device currently
+# cargo test test_suspend_duplex_stream_by_unplugging_a_nondefault_output_device -- --ignored --nocapture
+
+cargo test test_destroy_duplex_stream_after_unplugging_a_default_input_device -- --ignored --nocapture
 cargo test test_reinit_duplex_stream_by_unplugging_a_default_input_device -- --ignored --nocapture
-# FIXME: The following test will hang since we don't monitor the alive status of the output device
-# cargo test test_reinit_duplex_stream_by_unplugging_a_nondefault_output_device -- --ignored --nocapture
+
+cargo test test_destroy_duplex_stream_after_unplugging_a_default_output_device -- --ignored --nocapture
 cargo test test_reinit_duplex_stream_by_unplugging_a_default_output_device -- --ignored --nocapture
