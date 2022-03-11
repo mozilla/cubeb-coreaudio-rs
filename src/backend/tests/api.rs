@@ -190,7 +190,7 @@ fn test_set_device_info_to_system_output_device() {
     let _device = create_device_info(kAudioObjectSystemObject, DeviceType::OUTPUT);
 }
 
-// FIXIT: Is it ok to set input device to a nonexistent device ?
+// FIXME: Is it ok to set input device to a nonexistent device ?
 #[ignore]
 #[test]
 #[should_panic]
@@ -199,7 +199,7 @@ fn test_set_device_info_to_nonexistent_input_device() {
     let _device = create_device_info(nonexistent_id, DeviceType::INPUT);
 }
 
-// FIXIT: Is it ok to set output device to a nonexistent device ?
+// FIXME: Is it ok to set output device to a nonexistent device ?
 #[ignore]
 #[test]
 #[should_panic]
@@ -1408,7 +1408,7 @@ fn test_create_cubeb_device_info() {
         // TODO: Hit a kAudioHardwareUnknownPropertyError for AirPods
         // assert!(!info.vendor_name.is_null());
 
-        // FIXIT: The device is defined to input-only or output-only, but some device is in-out!
+        // FIXME: The device is defined to input-only or output-only, but some device is in-out!
         assert_eq!(info.device_type, DeviceType::from(scope.clone()).bits());
         assert_eq!(info.state, ffi::CUBEB_DEVICE_STATE_ENABLED);
         // TODO: The preference is set when the device is default input/output device if the device

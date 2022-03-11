@@ -3,7 +3,7 @@
 ## General
 
 - Resolve the [issues](https://github.com/mozilla/cubeb-coreaudio-rs/issues)
-- Some of bugs are found when adding tests. Search *FIXIT* to find them.
+- Some of bugs are found when adding tests. Search *FIXME* to find them.
 - Remove `#[allow(non_camel_case_types)]`, `#![allow(unused_assignments)]`, `#![allow(unused_must_use)]`
 - Use `ErrorChain`
 - Centralize the error log in one place
