@@ -517,7 +517,7 @@ fn test_unplug_a_device_on_an_active_stream(
     }
 
     if stream_type.contains(StreamType::OUTPUT) && !has_output {
-        println!("No output device for ouput or duplex stream.");
+        println!("No output device for output or duplex stream.");
         return;
     }
 
