@@ -424,7 +424,7 @@ fn test_destroy_input_stream_after_unplugging_a_default_input_device() {
     test_unplug_a_device_on_an_active_stream(StreamType::INPUT, Scope::Input, true, 0);
 }
 
-// FIXIT: The following test will hang since we don't monitor the alive status of the output device
+// FIXME: The following test will hang since we don't monitor the alive status of the output device
 #[ignore]
 #[test]
 fn test_destroy_output_stream_after_unplugging_a_nondefault_output_device() {
@@ -449,7 +449,7 @@ fn test_destroy_duplex_stream_after_unplugging_a_default_input_device() {
     test_unplug_a_device_on_an_active_stream(StreamType::DUPLEX, Scope::Input, true, 0);
 }
 
-// FIXIT: The following test will hang since we don't monitor the alive status of the output device
+// FIXME: The following test will hang since we don't monitor the alive status of the output device
 #[ignore]
 #[test]
 fn test_destroy_duplex_stream_after_unplugging_a_nondefault_output_device() {
@@ -474,7 +474,7 @@ fn test_reinit_input_stream_by_unplugging_a_default_input_device() {
     test_unplug_a_device_on_an_active_stream(StreamType::INPUT, Scope::Input, true, 500);
 }
 
-// FIXIT: The following test will hang since we don't monitor the alive status of the output device
+// FIXME: The following test will hang since we don't monitor the alive status of the output device
 #[ignore]
 #[test]
 fn test_reinit_output_stream_by_unplugging_a_nondefault_output_device() {
@@ -499,7 +499,7 @@ fn test_reinit_duplex_stream_by_unplugging_a_default_input_device() {
     test_unplug_a_device_on_an_active_stream(StreamType::DUPLEX, Scope::Input, true, 500);
 }
 
-// FIXIT: The following test will hang since we don't monitor the alive status of the output device
+// FIXME: The following test will hang since we don't monitor the alive status of the output device
 #[ignore]
 #[test]
 fn test_reinit_duplex_stream_by_unplugging_a_nondefault_output_device() {
