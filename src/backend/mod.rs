@@ -1244,6 +1244,7 @@ fn audiounit_get_default_datasource_string(devtype: DeviceType) -> Result<CStrin
     Ok(convert_uint32_into_string(data))
 }
 
+#[cfg(test)]
 fn is_device_a_type_of(devid: AudioObjectID, devtype: DeviceType) -> bool {
     assert_ne!(devid, kAudioObjectUnknown);
     get_channel_count(devid, devtype).unwrap_or(0) > 0
