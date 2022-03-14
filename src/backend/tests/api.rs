@@ -894,7 +894,7 @@ fn test_for_create_audiounit() {
                     test_audiounit_scope_is_enabled(unit, Scope::Input)
                 );
 
-                // Destroy the audioUnit.
+                // Destroy the AudioUnit.
                 unsafe {
                     AudioUnitUninitialize(unit);
                     AudioComponentInstanceDispose(unit);
@@ -902,7 +902,7 @@ fn test_for_create_audiounit() {
                 continue;
             }
 
-            // Destroy the audioUnit.
+            // Destroy the AudioUnit.
             unsafe {
                 AudioUnitUninitialize(unit);
                 AudioComponentInstanceDispose(unit);
@@ -916,7 +916,7 @@ fn test_for_create_audiounit() {
             let unit = create_audiounit(&device).unwrap();
             assert!(!unit.is_null());
             assert!(test_audiounit_scope_is_enabled(unit, Scope::Input));
-            // Destroy the audioUnit.
+            // Destroy the AudioUnit.
             unsafe {
                 AudioUnitUninitialize(unit);
                 AudioComponentInstanceDispose(unit);
