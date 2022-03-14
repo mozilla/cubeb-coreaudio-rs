@@ -65,8 +65,7 @@ bitflags! {
         const DEV_UNKNOWN           = 0b0000_0000; // Unknown
         const DEV_INPUT             = 0b0000_0001; // Record device like mic
         const DEV_OUTPUT            = 0b0000_0010; // Playback device like speakers
-        const DEV_SYSTEM_DEFAULT    = 0b0000_0100; // System default device
-        const DEV_SELECTED_DEFAULT  = 0b0000_1000; // User selected to use the system default device
+        const DEV_SELECTED_DEFAULT  = 0b0000_0100; // User selected to use the system default device
     }
 }
 
@@ -212,11 +211,6 @@ fn create_device_info(id: AudioDeviceID, devtype: DeviceType) -> Result<device_i
         info.id = default_device_id;
         cubeb_log!("Creating a default device info.");
         info.flags |= device_flags::DEV_SELECTED_DEFAULT;
-    }
-
-    if info.id == default_device_id {
-        cubeb_log!("Requesting default system device.");
-        info.flags |= device_flags::DEV_SYSTEM_DEFAULT;
     }
 
     Ok(info)

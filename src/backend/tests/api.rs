@@ -153,9 +153,7 @@ fn test_create_device_info_from_unknown_input_device() {
         assert_eq!(default_device.id, default_device_id);
         assert_eq!(
             default_device.flags,
-            device_flags::DEV_INPUT
-                | device_flags::DEV_SELECTED_DEFAULT
-                | device_flags::DEV_SYSTEM_DEFAULT
+            device_flags::DEV_INPUT | device_flags::DEV_SELECTED_DEFAULT
         );
     } else {
         println!("No input device to perform test.");
@@ -169,9 +167,7 @@ fn test_create_device_info_from_unknown_output_device() {
         assert_eq!(default_device.id, default_device_id);
         assert_eq!(
             default_device.flags,
-            device_flags::DEV_OUTPUT
-                | device_flags::DEV_SELECTED_DEFAULT
-                | device_flags::DEV_SYSTEM_DEFAULT
+            device_flags::DEV_OUTPUT | device_flags::DEV_SELECTED_DEFAULT
         );
     } else {
         println!("No output device to perform test.");
@@ -849,12 +845,7 @@ fn test_enable_audiounit_scope_with_null_unit() {
 // ------------------------------------
 #[test]
 fn test_for_create_audiounit() {
-    let flags_list = [
-        device_flags::DEV_INPUT,
-        device_flags::DEV_OUTPUT,
-        device_flags::DEV_INPUT | device_flags::DEV_SYSTEM_DEFAULT,
-        device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT,
-    ];
+    let flags_list = [device_flags::DEV_INPUT, device_flags::DEV_OUTPUT];
 
     let default_input = test_get_default_device(Scope::Input);
     let default_output = test_get_default_device(Scope::Output);
@@ -865,30 +856,10 @@ fn test_for_create_audiounit() {
 
         // Check the output scope is enabled.
         if device.flags.contains(device_flags::DEV_OUTPUT) && default_output.is_some() {
-            let device_id = default_output.clone().unwrap();
-            device.id = device_id;
+            device.id = default_output.clone().unwrap();
             let unit = create_audiounit(&device).unwrap();
             assert!(!unit.is_null());
             assert!(test_audiounit_scope_is_enabled(unit, Scope::Output));
-
-            // For default output device, the input scope is enabled
-            // if it's also a input device. Otherwise, it's disabled.
-            if device
-                .flags
-                .contains(device_flags::DEV_INPUT | device_flags::DEV_SYSTEM_DEFAULT)
-            {
-                assert_eq!(
-                    test_device_in_scope(device_id, Scope::Input),
-                    test_audiounit_scope_is_enabled(unit, Scope::Input)
-                );
-
-                // Destroy the AudioUnit.
-                unsafe {
-                    AudioUnitUninitialize(unit);
-                    AudioComponentInstanceDispose(unit);
-                }
-                continue;
-            }
 
             // Destroy the AudioUnit.
             unsafe {
