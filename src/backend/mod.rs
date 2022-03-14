@@ -949,13 +949,7 @@ fn create_audiounit(device: &device_info) -> Result<AudioUnit> {
         .flags
         .contains(device_flags::DEV_INPUT | device_flags::DEV_OUTPUT));
 
-    let unit = create_default_audiounit(device.flags)?;
-    if device
-        .flags
-        .contains(device_flags::DEV_SYSTEM_DEFAULT | device_flags::DEV_OUTPUT)
-    {
-        return Ok(unit);
-    }
+    let unit = create_blank_audiounit()?;
 
     if device.flags.contains(device_flags::DEV_INPUT) {
         // Input only.
@@ -1045,35 +1039,18 @@ fn set_device_to_audiounit(
     }
 }
 
-fn create_default_audiounit(flags: device_flags) -> Result<AudioUnit> {
-    let desc = get_audiounit_description(flags);
-    create_audiounit_by_description(desc)
-}
-
-fn get_audiounit_description(flags: device_flags) -> AudioComponentDescription {
-    AudioComponentDescription {
+fn create_blank_audiounit() -> Result<AudioUnit> {
+    let desc = AudioComponentDescription {
         componentType: kAudioUnitType_Output,
-        // Use the DefaultOutputUnit for output when no device is specified
-        // so we retain automatic output device switching when the default
-        // changes. Once we have complete support for device notifications
-        // and switching, we can use the AUHAL for everything.
         #[cfg(not(target_os = "ios"))]
-        componentSubType: if flags
-            .contains(device_flags::DEV_SYSTEM_DEFAULT | device_flags::DEV_OUTPUT)
-        {
-            kAudioUnitSubType_DefaultOutput
-        } else {
-            kAudioUnitSubType_HALOutput
-        },
+        componentSubType: kAudioUnitSubType_HALOutput,
         #[cfg(target_os = "ios")]
         componentSubType: kAudioUnitSubType_RemoteIO,
         componentManufacturer: kAudioUnitManufacturer_Apple,
         componentFlags: 0,
         componentFlagsMask: 0,
-    }
-}
+    };
 
-fn create_audiounit_by_description(desc: AudioComponentDescription) -> Result<AudioUnit> {
     let comp = unsafe { AudioComponentFindNext(ptr::null_mut(), &desc) };
     if comp.is_null() {
         cubeb_log!("Could not find matching audio hardware.");

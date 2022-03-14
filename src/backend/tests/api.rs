@@ -786,28 +786,16 @@ fn test_create_stream_description() {
     }
 }
 
-// create_default_audiounit
+// create_blank_audiounit
 // ------------------------------------
 #[test]
-fn test_create_default_audiounit() {
-    let flags_list = [
-        device_flags::DEV_UNKNOWN,
-        device_flags::DEV_INPUT,
-        device_flags::DEV_OUTPUT,
-        device_flags::DEV_INPUT | device_flags::DEV_OUTPUT,
-        device_flags::DEV_INPUT | device_flags::DEV_SYSTEM_DEFAULT,
-        device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT,
-        device_flags::DEV_INPUT | device_flags::DEV_OUTPUT | device_flags::DEV_SYSTEM_DEFAULT,
-    ];
-
-    for flags in flags_list.iter() {
-        let unit = create_default_audiounit(*flags).unwrap();
-        assert!(!unit.is_null());
-        // Destroy the AudioUnits
-        unsafe {
-            AudioUnitUninitialize(unit);
-            AudioComponentInstanceDispose(unit);
-        }
+fn test_create_blank_audiounit() {
+    let unit = create_blank_audiounit().unwrap();
+    assert!(!unit.is_null());
+    // Destroy the AudioUnit
+    unsafe {
+        AudioUnitUninitialize(unit);
+        AudioComponentInstanceDispose(unit);
     }
 }
 
