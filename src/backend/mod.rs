@@ -750,27 +750,12 @@ extern "C" fn audiounit_property_listener_callback(
     }
 
     // Handle the events
-
     if input_device_dead {
-        if !stm
-            .core_stream_data
-            .input_device
-            .flags
-            .contains(device_flags::DEV_SELECTED_DEFAULT)
-        {
-            cubeb_log!("The user-selected input device is dead, enter error state");
-            stm.notify_state_changed(State::Error);
-            stm.switching_device.store(false, Ordering::SeqCst);
-            return NO_ERR;
-        } else if addrs.len() == 1 {
-            // If this is the default input device ignore the event,
-            // kAudioHardwarePropertyDefaultInputDevice will take care of the switch
-            cubeb_log!("It's the default input device, ignore the event");
-            stm.switching_device.store(false, Ordering::SeqCst);
-            return NO_ERR;
-        }
+        cubeb_log!("The user-selected input device is dead, enter error state");
+        stm.notify_state_changed(State::Error);
+        stm.switching_device.store(false, Ordering::SeqCst);
+        return NO_ERR;
     }
-
     {
         let callback = stm.device_changed_callback.lock().unwrap();
         if let Some(device_changed_callback) = *callback {
@@ -779,7 +764,6 @@ extern "C" fn audiounit_property_listener_callback(
             }
         }
     }
-
     stm.reinit_async();
 
     NO_ERR
@@ -2819,6 +2803,15 @@ impl<'ctx> CoreStreamData<'ctx> {
             return Err(r);
         }
 
+        // We have either default_input_listener or input_alive_listener.
+        // We cannot have both of them at the same time.
+        assert!(
+            !self.has_input()
+                || ((self.default_input_listener.is_some() != self.input_alive_listener.is_some())
+                    && (self.default_input_listener.is_some()
+                        || self.input_alive_listener.is_some()))
+        );
+
         Ok(())
     }
 
@@ -2907,20 +2900,27 @@ impl<'ctx> CoreStreamData<'ctx> {
                 return Err(Error::error());
             }
 
-            // Get the notification when the input device is going away.
-            self.input_alive_listener = Some(device_property_listener::new(
-                self.input_device.id,
-                get_property_address(
-                    Property::DeviceIsAlive,
-                    DeviceType::INPUT | DeviceType::OUTPUT,
-                ),
-                audiounit_property_listener_callback,
-            ));
-            let rv = stm.add_device_listener(self.input_alive_listener.as_ref().unwrap());
-            if rv != NO_ERR {
-                self.input_alive_listener = None;
-                cubeb_log!("AudioObjectAddPropertyListener/input/kAudioDevicePropertyDeviceIsAlive rv={}, device id ={}", rv, self.input_device.id);
-                return Err(Error::error());
+            // Get the notification when the input device is going away
+            // if the input doesn't follow the system default.
+            if !self
+                .input_device
+                .flags
+                .contains(device_flags::DEV_SELECTED_DEFAULT)
+            {
+                self.input_alive_listener = Some(device_property_listener::new(
+                    self.input_device.id,
+                    get_property_address(
+                        Property::DeviceIsAlive,
+                        DeviceType::INPUT | DeviceType::OUTPUT,
+                    ),
+                    audiounit_property_listener_callback,
+                ));
+                let rv = stm.add_device_listener(self.input_alive_listener.as_ref().unwrap());
+                if rv != NO_ERR {
+                    self.input_alive_listener = None;
+                    cubeb_log!("AudioObjectAddPropertyListener/input/kAudioDevicePropertyDeviceIsAlive rv={}, device id ={}", rv, self.input_device.id);
+                    return Err(Error::error());
+                }
             }
         }
 
@@ -2956,7 +2956,12 @@ impl<'ctx> CoreStreamData<'ctx> {
             }
         }
 
-        if !self.input_unit.is_null() {
+        if !self.input_unit.is_null()
+            && self
+                .input_device
+                .flags
+                .contains(device_flags::DEV_SELECTED_DEFAULT)
+        {
             assert!(
                 self.default_input_listener.is_none(),
                 "register default_input_listener without unregistering the one in use"
@@ -3210,69 +3215,12 @@ impl<'ctx> AudioUnitStream<'ctx> {
             get_volume(self.core_stream_data.output_unit)
         };
 
-        let has_input = !self.core_stream_data.input_unit.is_null();
-        let input_device = if has_input {
-            self.core_stream_data.input_device.id
-        } else {
-            kAudioObjectUnknown
-        };
-
         self.core_stream_data.close();
 
-        // Reinit occurs in one of the following case:
-        // - When the default system device change.
-        // - The bluetooth device changed from A2DP to/from HFP/HSP profile
-        // We first attempt to re-use the same device id, should that fail we will
-        // default to the (potentially new) default device.
-        if has_input {
-            self.core_stream_data.input_device = create_device_info(input_device, DeviceType::INPUT).map_err(|e| {
-                cubeb_log!(
-                    "({:p}) Create input device info failed. This can happen when last media device is unplugged",
-                    self.core_stream_data.stm_ptr
-                );
-                e
-            })?;
-        }
-
-        // Always use the default output on reinit. This is not correct in every
-        // case but it is sufficient for Firefox and prevent reinit from reporting
-        // failures. It will change soon when reinit mechanism will be updated.
-        self.core_stream_data.output_device = create_device_info(kAudioObjectUnknown, DeviceType::OUTPUT).map_err(|e| {
-            cubeb_log!(
-                "({:p}) Create output device info failed. This can happen when last media device is unplugged",
-                self.core_stream_data.stm_ptr
-            );
+        self.core_stream_data.setup().map_err(|e| {
+            cubeb_log!("({:p}) Setup failed.", self.core_stream_data.stm_ptr);
             e
         })?;
-
-        if let Err(setup_err) = self.core_stream_data.setup() {
-            cubeb_log!(
-                "({:p}) Stream reinit failed.",
-                self.core_stream_data.stm_ptr
-            );
-            self.core_stream_data.close();
-            if has_input && input_device != kAudioObjectUnknown {
-                // Attempt to re-use the same device-id failed, so attempt again with
-                // default input device.
-                self.core_stream_data.input_device = create_device_info(kAudioObjectUnknown, DeviceType::INPUT).map_err(|e| {
-                    cubeb_log!(
-                        "({:p}) Create input device info failed. This can happen when last media device is unplugged",
-                        self.core_stream_data.stm_ptr
-                    );
-                    e
-                })?;
-                self.core_stream_data.setup().map_err(|e| {
-                    cubeb_log!(
-                        "({:p}) Second stream reinit failed.",
-                        self.core_stream_data.stm_ptr
-                    );
-                    e
-                })?;
-            } else {
-                cubeb_log!("({:p}) Setup failed.", self.core_stream_data.stm_ptr);
-                return Err(setup_err);
-            }
-        }
 
         if let Ok(volume) = vol_rv {
             set_volume(self.core_stream_data.output_unit, volume);
