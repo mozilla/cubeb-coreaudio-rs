@@ -3248,7 +3248,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
         self.core_stream_data.close();
 
         // Reinit occurs in one of the following case:
-        // - When the device is not alive any more
         // - When the default system device change.
         // - The bluetooth device changed from A2DP to/from HFP/HSP profile
         // We first attempt to re-use the same device id, should that fail we will
