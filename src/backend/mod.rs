@@ -2866,9 +2866,8 @@ impl<'ctx> CoreStreamData<'ctx> {
                 "register output_source_listener without unregistering the one in use"
             );
 
-            // This event will notify us when the data source on the same device changes,
-            // for example when the user plugs in a normal (non-usb) headset in the
-            // headphone jack.
+            // Get the notification when the data source on the same device changes,
+            // e.g., when the user plugs in a TRRS headset into the headphone jack.
             self.output_source_listener = Some(device_property_listener::new(
                 self.output_device.id,
                 get_property_address(Property::DeviceSource, DeviceType::OUTPUT),
@@ -2894,7 +2893,8 @@ impl<'ctx> CoreStreamData<'ctx> {
                 "register input_alive_listener without unregistering the one in use"
             );
 
-            // This event will notify us when the data source on the input device changes.
+            // Get the notification when the data source on the same device changes,
+            // e.g., when the user plugs in a TRRS mic into the headphone jack.
             self.input_source_listener = Some(device_property_listener::new(
                 self.input_device.id,
                 get_property_address(Property::DeviceSource, DeviceType::INPUT),
@@ -2907,7 +2907,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                 return Err(Error::error());
             }
 
-            // Event to notify when the input is going away.
+            // Get the notification when the input device is going away.
             self.input_alive_listener = Some(device_property_listener::new(
                 self.input_device.id,
                 get_property_address(
@@ -2937,10 +2937,9 @@ impl<'ctx> CoreStreamData<'ctx> {
                 "register default_output_listener without unregistering the one in use"
             );
 
-            // This event will notify us when the default audio device changes,
-            // for example when the user plugs in a USB headset and the system chooses it
-            // automatically as the default, or when another device is chosen in the
-            // dropdown list.
+            // Get the notification when the default output audio changes, e.g.,
+            // when the user plugs in a USB headset and the system chooses it automatically as the default,
+            // or when another device is chosen in the dropdown list.
             self.default_output_listener = Some(device_property_listener::new(
                 kAudioObjectSystemObject,
                 get_property_address(
@@ -2963,7 +2962,9 @@ impl<'ctx> CoreStreamData<'ctx> {
                 "register default_input_listener without unregistering the one in use"
             );
 
-            // This event will notify us when the default input device changes.
+            // Get the notification when the default intput audio changes, e.g.,
+            // when the user plugs in a USB mic and the system chooses it automatically as the default,
+            // or when another device is chosen in the system preference.
             self.default_input_listener = Some(device_property_listener::new(
                 kAudioObjectSystemObject,
                 get_property_address(
