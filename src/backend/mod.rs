@@ -2202,7 +2202,7 @@ unsafe impl Sync for AudioUnitContext {}
 #[derive(Debug)]
 struct CoreStreamData<'ctx> {
     stm_ptr: *const AudioUnitStream<'ctx>,
-    aggregate_device: AggregateDevice,
+    aggregate_device: Option<AggregateDevice>,
     mixer: Option<Mixer>,
     resampler: Resampler,
     // Stream creation parameters.
@@ -2235,7 +2235,7 @@ impl<'ctx> Default for CoreStreamData<'ctx> {
     fn default() -> Self {
         Self {
             stm_ptr: ptr::null(),
-            aggregate_device: AggregateDevice::default(),
+            aggregate_device: None,
             mixer: None,
             resampler: Resampler::default(),
             input_stream_params: StreamParams::from(ffi::cubeb_stream_params {
@@ -2292,7 +2292,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             .unwrap_or((get_default_sttream_params(), device_info::default()));
         Self {
             stm_ptr: stm,
-            aggregate_device: AggregateDevice::default(),
+            aggregate_device: None,
             mixer: None,
             resampler: Resampler::default(),
             input_stream_params: in_stm_params,
@@ -2388,11 +2388,11 @@ impl<'ctx> CoreStreamData<'ctx> {
                     out_dev_info.id = device.get_device_id();
                     in_dev_info.flags = device_flags::DEV_INPUT;
                     out_dev_info.flags = device_flags::DEV_OUTPUT;
-                    self.aggregate_device = device;
+                    self.aggregate_device = Some(device);
                     cubeb_log!(
                         "({:p}) Use aggregate device {} for input and output.",
                         self.stm_ptr,
-                        self.aggregate_device.get_device_id()
+                        self.aggregate_device.as_ref().unwrap().get_device_id()
                     );
                 }
                 Err(e) => {
@@ -2833,7 +2833,7 @@ impl<'ctx> CoreStreamData<'ctx> {
 
         self.resampler.destroy();
         self.mixer = None;
-        self.aggregate_device = AggregateDevice::default();
+        self.aggregate_device = None;
 
         if self.uninstall_system_changed_callback().is_err() {
             cubeb_log!(
