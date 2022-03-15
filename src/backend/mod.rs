@@ -79,6 +79,18 @@ lazy_static! {
     };
 }
 
+fn fill_audiostreambasicdescription_channel_info(
+    desc: &mut AudioStreamBasicDescription,
+    channel_count: u32,
+) {
+    // The struct must have the format part initialized already
+    assert_ne!(desc.mBitsPerChannel, 0);
+    desc.mChannelsPerFrame = channel_count;
+    desc.mBytesPerFrame = (desc.mBitsPerChannel / 8) * channel_count;
+    desc.mFramesPerPacket = 1;
+    desc.mBytesPerPacket = desc.mBytesPerFrame * desc.mFramesPerPacket;
+}
+
 fn make_sized_audio_channel_layout(sz: usize) -> AutoRelease<AudioChannelLayout> {
     assert!(sz >= mem::size_of::<AudioChannelLayout>());
     assert_eq!(
@@ -247,11 +259,7 @@ fn create_stream_description(stream_params: &StreamParams) -> Result<AudioStream
     desc.mFormatID = kAudioFormatLinearPCM;
     desc.mFormatFlags |= kLinearPCMFormatFlagIsPacked;
     desc.mSampleRate = f64::from(stream_params.rate());
-    desc.mChannelsPerFrame = stream_params.channels();
-
-    desc.mBytesPerFrame = (desc.mBitsPerChannel / 8) * desc.mChannelsPerFrame;
-    desc.mFramesPerPacket = 1;
-    desc.mBytesPerPacket = desc.mBytesPerFrame * desc.mFramesPerPacket;
+    fill_audiostreambasicdescription_channel_info(&mut desc, stream_params.channels());
 
     desc.mReserved = 0;
 
@@ -2512,11 +2520,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             // use here.
             if self.input_channels_to_ignore != 0 {
                 if let Ok(count) = get_channel_count(in_dev_info.id, DeviceType::INPUT) {
-                    self.input_desc.mChannelsPerFrame = count;
-                    self.input_desc.mBytesPerFrame =
-                        (self.input_desc.mBitsPerChannel / 8) * self.input_desc.mChannelsPerFrame;
-                    self.input_desc.mBytesPerPacket =
-                        self.input_desc.mBytesPerFrame * self.input_desc.mFramesPerPacket;
+                    fill_audiostreambasicdescription_channel_info(&mut self.input_desc, count);
                 }
             }
 
@@ -2676,11 +2680,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                 // We will be remixing the data before it reaches the output device.
                 // We need to adjust the number of channels and other
                 // AudioStreamDescription details.
-                self.output_desc.mChannelsPerFrame = hw_channels;
-                self.output_desc.mBytesPerFrame =
-                    (self.output_desc.mBitsPerChannel / 8) * self.output_desc.mChannelsPerFrame;
-                self.output_desc.mBytesPerPacket =
-                    self.output_desc.mBytesPerFrame * self.output_desc.mFramesPerPacket;
+                fill_audiostreambasicdescription_channel_info(&mut self.output_desc, hw_channels);
                 Some(Mixer::new(
                     self.output_stream_params.format(),
                     self.output_stream_params.channels() as usize,
