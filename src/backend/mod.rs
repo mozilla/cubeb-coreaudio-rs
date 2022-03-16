@@ -511,7 +511,7 @@ fn compute_output_latency(stm: &AudioUnitStream, audio_output_time: u64, now: u6
 
 fn compute_input_latency(stm: &AudioUnitStream, audio_input_time: u64, now: u64) -> u32 {
     const NS2S: u64 = 1_000_000_000;
-    let input_hw_rate = stm.core_stream_data.input_hw_rate as u64;
+    let input_hw_rate = stm.core_stream_data.input_desc.mSampleRate as u64;
     let fixed_latency_ns =
         (stm.input_device_latency_frames.load(Ordering::SeqCst) as u64 * NS2S) / input_hw_rate;
     // The total input latency is the timestamp difference + the stream latency +
@@ -605,7 +605,7 @@ extern "C" fn audiounit_output_callback(
         // currently switching, we add some silence as well to compensate for the
         // fact that we're lacking some input data.
         let input_frames_needed = minimum_resampling_input_frames(
-            stm.core_stream_data.input_hw_rate,
+            stm.core_stream_data.input_desc.mSampleRate,
             f64::from(stm.core_stream_data.output_stream_params.rate()),
             output_frames as usize,
         );
@@ -2208,9 +2208,6 @@ struct CoreStreamData<'ctx> {
     stm_ptr: *const AudioUnitStream<'ctx>,
     aggregate_device: Option<AggregateDevice>,
     mixer: Option<Mixer>,
-    // The input channels to ignore. They are always first in the list of channels, because of the
-    // way the aggregate device is setup.
-    input_channels_to_ignore: u32,
     resampler: Resampler,
     // Stream creation parameters.
     input_stream_params: StreamParams,
@@ -2225,7 +2222,6 @@ struct CoreStreamData<'ctx> {
     input_device: device_info,
     output_device: device_info,
     // Sample rates of the I/O devices.
-    input_hw_rate: f64,
     output_hw_rate: f64,
     // Channel layout of the output AudioUnit.
     device_layout: Vec<mixer::Channel>,
@@ -2244,7 +2240,6 @@ impl<'ctx> Default for CoreStreamData<'ctx> {
             stm_ptr: ptr::null(),
             aggregate_device: None,
             mixer: None,
-            input_channels_to_ignore: 0,
             resampler: Resampler::default(),
             input_stream_params: StreamParams::from(ffi::cubeb_stream_params {
                 format: ffi::CUBEB_SAMPLE_FLOAT32NE,
@@ -2266,7 +2261,6 @@ impl<'ctx> Default for CoreStreamData<'ctx> {
             output_unit: ptr::null_mut(),
             input_device: device_info::default(),
             output_device: device_info::default(),
-            input_hw_rate: 0_f64,
             output_hw_rate: 0_f64,
             device_layout: Vec::new(),
             input_buffer_manager: None,
@@ -2302,7 +2296,6 @@ impl<'ctx> CoreStreamData<'ctx> {
             stm_ptr: stm,
             aggregate_device: None,
             mixer: None,
-            input_channels_to_ignore: 0,
             resampler: Resampler::default(),
             input_stream_params: in_stm_params,
             output_stream_params: out_stm_params,
@@ -2312,7 +2305,6 @@ impl<'ctx> CoreStreamData<'ctx> {
             output_unit: ptr::null_mut(),
             input_device: in_dev,
             output_device: out_dev,
-            input_hw_rate: 0_f64,
             output_hw_rate: 0_f64,
             device_layout: Vec::new(),
             input_buffer_manager: None,
@@ -2408,16 +2400,6 @@ impl<'ctx> CoreStreamData<'ctx> {
         if self.should_use_aggregate_device() {
             match AggregateDevice::new(in_dev_info.id, out_dev_info.id) {
                 Ok(device) => {
-                    if let Ok(format) = get_device_stream_format(out_dev_info.id, DeviceType::INPUT)
-                    {
-                        self.input_channels_to_ignore = format.mChannelsPerFrame;
-                        cubeb_log!(
-                            "Ignoring first {} input channels of the output device",
-                            self.input_channels_to_ignore
-                        );
-                    } else {
-                        cubeb_log!("Device used as output doesn't have input channels.");
-                    }
                     in_dev_info.id = device.get_device_id();
                     out_dev_info.id = device.get_device_id();
                     in_dev_info.flags = device_flags::DEV_INPUT;
@@ -2492,31 +2474,36 @@ impl<'ctx> CoreStreamData<'ctx> {
                 self.stm_ptr,
                 input_hw_desc
             );
-            self.input_hw_rate = input_hw_desc.mSampleRate;
 
             // Can't open a stream with more input channels than the device has
             if input_hw_desc.mChannelsPerFrame < self.input_stream_params.channels() {
                 return Err(Error::error());
             }
 
-            // Set format description according to the input params.
-            self.input_desc =
-                create_stream_description(&self.input_stream_params).map_err(|e| {
-                    cubeb_log!(
-                        "({:p}) Setting format description for input failed.",
-                        self.stm_ptr
-                    );
-                    e
-                })?;
-            // We're using an aggregate device with the output device having input channels.
-            // It's necessary to ignore those input channels, and then to remix the remaining
-            // input channels into the format requested. In anycase, all channels should be in
-            // use here.
-            if self.input_channels_to_ignore != 0 {
-                if let Ok(count) = get_channel_count(in_dev_info.id, DeviceType::INPUT) {
-                    fill_audiostreambasicdescription_channel_info(&mut self.input_desc, count);
-                }
-            }
+            let device_input_channels = get_channel_count(in_dev_info.id, DeviceType::INPUT)
+                .unwrap_or_else(|_| self.input_stream_params.channels());
+
+            // Always request all the input channels of the device, and only pass the correct
+            // channels to the audio callback.
+            let params = unsafe {
+                let mut p = *self.input_stream_params.as_ptr();
+                p.channels = device_input_channels;
+                // Input AudioUnit must be configured with device's sample rate.
+                // we will resample inside input callback.
+                p.rate = input_hw_desc.mSampleRate as _;
+                StreamParams::from(p)
+            };
+
+            self.input_desc = create_stream_description(&params).map_err(|e| {
+                cubeb_log!(
+                    "({:p}) Setting format description for input failed.",
+                    self.stm_ptr
+                );
+                e
+            })?;
+
+            assert_eq!(self.input_desc.mSampleRate, input_hw_desc.mSampleRate);
+            assert_eq!(self.input_desc.mChannelsPerFrame, device_input_channels);
 
             // Use latency to set buffer size
             assert_ne!(stream.latency_frames, 0);
@@ -2527,16 +2514,12 @@ impl<'ctx> CoreStreamData<'ctx> {
                 return Err(r);
             }
 
-            let mut src_desc = self.input_desc;
-            // Input AudioUnit must be configured with device's sample rate.
-            // we will resample inside input callback.
-            src_desc.mSampleRate = self.input_hw_rate;
             let r = audio_unit_set_property(
                 self.input_unit,
                 kAudioUnitProperty_StreamFormat,
                 kAudioUnitScope_Output,
                 AU_IN_BUS,
-                &src_desc,
+                &self.input_desc,
                 mem::size_of::<AudioStreamBasicDescription>(),
             );
             if r != NO_ERR {
@@ -2564,8 +2547,27 @@ impl<'ctx> CoreStreamData<'ctx> {
                 return Err(Error::error());
             }
 
+            let input_channels_to_ignore = if self.has_output() {
+                if let Ok(format) =
+                    get_device_stream_format(self.output_device.id, DeviceType::INPUT)
+                {
+                    let to_ignore = format.mChannelsPerFrame;
+                    cubeb_log!(
+                        "Ignoring first {} input channels of the output device",
+                        to_ignore
+                    );
+                    to_ignore
+                } else {
+                    cubeb_log!("Device used as output doesn't have input channels.");
+                    0
+                }
+            } else {
+                0
+            };
+
             self.input_buffer_manager = Some(BufferManager::new(
                 &self.input_stream_params,
+                input_channels_to_ignore,
                 SAFE_MAX_LATENCY_FRAMES,
             ));
 
@@ -2770,7 +2772,7 @@ impl<'ctx> CoreStreamData<'ctx> {
 
         let resampler_input_params = if self.has_input() {
             let mut params = unsafe { *(self.input_stream_params.as_ptr()) };
-            params.rate = self.input_hw_rate as u32;
+            params.rate = self.input_desc.mSampleRate as u32;
             Some(params)
         } else {
             None
@@ -3513,7 +3515,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     #[cfg(not(target_os = "ios"))]
     fn input_latency(&mut self) -> Result<u32> {
         let user_rate = self.core_stream_data.input_stream_params.rate();
-        let hw_rate = self.core_stream_data.input_hw_rate as u32;
+        let hw_rate = self.core_stream_data.input_desc.mSampleRate as u32;
         let frames = self.total_input_latency_frames.load(Ordering::SeqCst);
         if frames != 0 {
             if hw_rate == user_rate {
