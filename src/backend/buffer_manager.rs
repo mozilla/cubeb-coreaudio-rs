@@ -79,24 +79,25 @@ fn process_input<T: Copy + std::ops::Add<Output = T>>(
     input_data: *mut c_void,
     frame_count: usize,
     input_channel_count: usize,
-    input_channels_needed: usize,
+    input_channels_to_ignore: usize,
+    final_input_channels: usize,
 ) -> &'static [T] {
-    assert!(input_channel_count >= input_channels_needed);
+    assert!(input_channel_count >= input_channels_to_ignore);
     let input_slice = unsafe {
         slice::from_raw_parts_mut::<T>(input_data as *mut T, frame_count * input_channel_count)
     };
-    if input_channel_count == input_channels_needed {
+    if input_channels_to_ignore == 0 {
         input_slice
     } else {
         drop_first_n_channels_in_place(
-            input_channel_count - input_channels_needed,
+            input_channels_to_ignore,
             input_slice,
             frame_count,
             input_channel_count,
         );
         let new_count_remixed = remix_or_drop_channels(
-            input_channel_count,
-            input_channels_needed,
+            input_channel_count - input_channels_to_ignore,
+            final_input_channels,
             input_slice,
             frame_count,
         );
@@ -123,11 +124,19 @@ pub struct BufferManager {
     consumer: RingBufferConsumer,
     producer: RingBufferProducer,
     linear_input_buffer: LinearInputBuffer,
+    // Number of input channels that will be appended to the ring buffer, i.e. the number of
+    // channels that will be presented to the user callback.
     input_channels: usize,
+    // Number of input channels that needs to be ignored, coming in.
+    input_channels_to_ignore: usize,
 }
 
 impl BufferManager {
-    pub fn new(params: &StreamParams, input_buffer_size_frames: u32) -> BufferManager {
+    pub fn new(
+        params: &StreamParams,
+        input_channels_to_ignore: u32,
+        input_buffer_size_frames: u32,
+    ) -> BufferManager {
         let format = params.format();
         let input_channels = params.channels() as usize;
         // 8 times the expected callback size, to handle the input callback being caled multiple
@@ -143,6 +152,7 @@ impl BufferManager {
                     buffer_element_count,
                 )),
                 input_channels,
+                input_channels_to_ignore: input_channels_to_ignore as usize,
             }
         } else {
             let ring = RingBuffer::<f32>::new(buffer_element_count);
@@ -154,6 +164,7 @@ impl BufferManager {
                     buffer_element_count,
                 )),
                 input_channels,
+                input_channels_to_ignore: input_channels_to_ignore as usize,
             }
         }
     }
@@ -161,13 +172,23 @@ impl BufferManager {
         let to_push = frame_count * self.input_channels;
         let pushed = match &mut self.producer {
             RingBufferProducer::FloatRingBufferProducer(p) => {
-                let processed_input =
-                    process_input(input_data, frame_count, channel_count, self.input_channels);
+                let processed_input = process_input(
+                    input_data,
+                    frame_count,
+                    channel_count,
+                    self.input_channels_to_ignore,
+                    self.input_channels,
+                );
                 p.push_slice(processed_input)
             }
             RingBufferProducer::IntegerRingBufferProducer(p) => {
-                let processed_input =
-                    process_input(input_data, frame_count, channel_count, self.input_channels);
+                let processed_input = process_input(
+                    input_data,
+                    frame_count,
+                    channel_count,
+                    self.input_channels_to_ignore,
+                    self.input_channels,
+                );
                 p.push_slice(processed_input)
             }
         };
