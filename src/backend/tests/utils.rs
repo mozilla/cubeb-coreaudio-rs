@@ -312,26 +312,31 @@ pub fn test_get_devices_in_scope(scope: Scope) -> Vec<AudioObjectID> {
     devices
 }
 
-fn test_print_devices_in_scope(devices: &Vec<AudioObjectID>, scope: Scope) {
+pub fn get_devices_info_in_scope(scope: Scope) -> Vec<TestDeviceInfo> {
+    fn print_info(info: &TestDeviceInfo) {
+        println!("{:>4}: {}\n\tuid: {}", info.id, info.label, info.uid);
+    }
+
     println!(
         "\n{:?} devices\n\
          --------------------",
         scope
     );
+
+    let mut infos = vec![];
+    let devices = test_get_devices_in_scope(scope.clone());
     for device in devices {
-        let info = TestDeviceInfo::new(*device, scope.clone());
-        print_info(&info);
+        infos.push(TestDeviceInfo::new(device, scope.clone()));
+        print_info(infos.last().unwrap());
     }
     println!("");
 
-    fn print_info(info: &TestDeviceInfo) {
-        println!("{:>4}: {}\n\tuid: {}", info.id, info.label, info.uid);
-    }
+    infos
 }
 
 #[derive(Debug)]
 pub struct TestDeviceInfo {
-    id: AudioObjectID,
+    pub id: AudioObjectID,
     pub label: String,
     pub uid: String,
 }
@@ -621,13 +626,13 @@ pub struct TestDeviceSwitcher {
 
 impl TestDeviceSwitcher {
     pub fn new(scope: Scope) -> Self {
-        let devices = test_get_devices_in_scope(scope.clone());
+        let infos = get_devices_info_in_scope(scope.clone());
+        let devices: Vec<AudioObjectID> = infos.into_iter().map(|info| info.id).collect();
         let current = test_get_default_device(scope.clone()).unwrap();
         let index = devices
             .iter()
             .position(|device| *device == current)
             .unwrap();
-        test_print_devices_in_scope(&devices, scope.clone());
         Self {
             scope: scope,
             devices: devices,
