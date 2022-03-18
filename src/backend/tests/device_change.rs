@@ -645,6 +645,11 @@ fn test_unplug_a_device_on_an_active_stream(
 
     // Ignore the return devices' info since we only need to print them.
     let _ = get_devices_info_in_scope(device_scope.clone());
+    println!(
+        "Current default {:?} device is {}",
+        device_scope,
+        test_get_default_device(device_scope.clone()).unwrap()
+    );
 
     let (input_device, output_device) = match device_scope {
         Scope::Input => (
