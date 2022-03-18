@@ -752,8 +752,9 @@ extern "C" fn audiounit_property_listener_callback(
     // Handle the events
     if input_device_dead {
         cubeb_log!("The user-selected input device is dead, enter error state");
-        stm.notify_state_changed(State::Error);
-        stm.switching_device.store(false, Ordering::SeqCst);
+        stm.stopped.store(true, Ordering::SeqCst);
+        stm.core_stream_data.stop_audiounits();
+        stm.close_on_error();
         return NO_ERR;
     }
     {
@@ -3276,6 +3277,25 @@ impl<'ctx> AudioUnitStream<'ctx> {
             }
             stm_guard.switching_device.store(false, Ordering::SeqCst);
             stm_guard.reinit_pending.store(false, Ordering::SeqCst);
+        });
+    }
+
+    fn close_on_error(&mut self) {
+        let queue = self.queue.clone();
+        let mutexed_stm = Arc::new(Mutex::new(self));
+        let also_mutexed_stm = Arc::clone(&mutexed_stm);
+
+        // Use a new thread, through the queue, to avoid deadlock when calling
+        // Get/SetProperties method from inside notify callback
+        queue.run_async(move || {
+            let mut stm_guard = also_mutexed_stm.lock().unwrap();
+            let stm_ptr = *stm_guard as *const AudioUnitStream;
+
+            stm_guard.core_stream_data.close();
+            stm_guard.notify_state_changed(State::Error);
+            cubeb_log!("({:p}) Close the stream due to an error.", stm_ptr);
+
+            stm_guard.switching_device.store(false, Ordering::SeqCst);
         });
     }
 
