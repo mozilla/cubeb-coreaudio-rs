@@ -15,10 +15,10 @@
 // in the run_tests.sh script and marked by `ignore` by default.
 
 use super::utils::{
-    test_create_device_change_listener, test_device_in_scope, test_get_default_device,
-    test_get_devices_in_scope, test_get_stream_with_default_data_callback_by_type,
-    test_ops_stream_operation, test_set_default_device, Scope, StreamType, TestDevicePlugger,
-    TestDeviceSwitcher,
+    get_devices_info_in_scope, test_create_device_change_listener, test_device_in_scope,
+    test_get_default_device, test_get_devices_in_scope,
+    test_get_stream_with_default_data_callback_by_type, test_ops_stream_operation,
+    test_set_default_device, Scope, StreamType, TestDevicePlugger, TestDeviceSwitcher,
 };
 use super::*;
 use std::fmt::Debug;
@@ -642,6 +642,9 @@ fn test_unplug_a_device_on_an_active_stream(
             assert_eq!(prev_def_dev, default_device_after_plugging);
         }
     }
+
+    // Ignore the return devices' info since we only need to print them.
+    let _ = get_devices_info_in_scope(device_scope.clone());
 
     let (input_device, output_device) = match device_scope {
         Scope::Input => (
