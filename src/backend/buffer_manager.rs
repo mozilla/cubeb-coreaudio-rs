@@ -2,11 +2,11 @@ use std::fmt;
 use std::os::raw::c_void;
 use std::slice;
 
-use cubeb_backend::{SampleFormat, StreamParams};
+use cubeb_backend::SampleFormat;
 
 use super::ringbuf::RingBuffer;
 
-use self::LinearInputBuffer::*;
+use self::LinearBuffer::*;
 use self::RingBufferConsumer::*;
 use self::RingBufferProducer::*;
 
@@ -75,16 +75,16 @@ fn remix_or_drop_channels<T: Copy + std::ops::Add<Output = T>>(
     output_channels * frame_count
 }
 
-fn process_input<T: Copy + std::ops::Add<Output = T>>(
-    input_data: *mut c_void,
+fn process_data<T: Copy + std::ops::Add<Output = T>>(
+    data: *mut c_void,
     frame_count: usize,
     input_channel_count: usize,
     input_channels_to_ignore: usize,
-    final_input_channels: usize,
+    output_channel_count: usize,
 ) -> &'static [T] {
-    assert!(input_channel_count >= input_channels_to_ignore);
+    assert!(input_channel_count >= input_channels_to_ignore + output_channel_count); // Only support downmix.
     let input_slice = unsafe {
-        slice::from_raw_parts_mut::<T>(input_data as *mut T, frame_count * input_channel_count)
+        slice::from_raw_parts_mut::<T>(data as *mut T, frame_count * input_channel_count)
     };
     if input_channels_to_ignore == 0 {
         input_slice
@@ -97,11 +97,11 @@ fn process_input<T: Copy + std::ops::Add<Output = T>>(
         );
         let new_count_remixed = remix_or_drop_channels(
             input_channel_count - input_channels_to_ignore,
-            final_input_channels,
+            output_channel_count,
             input_slice,
             frame_count,
         );
-        unsafe { slice::from_raw_parts_mut::<T>(input_data as *mut T, new_count_remixed) }
+        unsafe { slice::from_raw_parts_mut::<T>(data as *mut T, new_count_remixed) }
     }
 }
 
@@ -115,79 +115,90 @@ pub enum RingBufferProducer {
     FloatRingBufferProducer(ringbuf::Producer<f32>),
 }
 
-pub enum LinearInputBuffer {
-    IntegerLinearInputBuffer(Vec<i16>),
-    FloatLinearInputBuffer(Vec<f32>),
+pub enum LinearBuffer {
+    IntegerLinearBuffer(Vec<i16>),
+    FloatLinearBuffer(Vec<f32>),
 }
 
 pub struct BufferManager {
     consumer: RingBufferConsumer,
     producer: RingBufferProducer,
-    linear_input_buffer: LinearInputBuffer,
-    // Number of input channels that will be appended to the ring buffer, i.e. the number of
-    // channels that will be presented to the user callback.
-    input_channels: usize,
-    // Number of input channels that needs to be ignored, coming in.
+    linear_buffer: LinearBuffer,
+    // The number of channels in the interleaved data given to push_data
+    input_channel_count: usize,
+    // The number of channels that needs to be skipped in the beginning of input_channel_count
     input_channels_to_ignore: usize,
+    // The number of channels we actually needs, which is also the channel count of the
+    // processed data stored in the internal ring buffer.
+    output_channel_count: usize,
 }
 
 impl BufferManager {
     pub fn new(
-        params: &StreamParams,
-        input_channels_to_ignore: u32,
-        input_buffer_size_frames: u32,
-    ) -> BufferManager {
-        let format = params.format();
-        let input_channels = params.channels() as usize;
+        format: SampleFormat,
+        buffer_size_frames: usize,
+        input_channel_count: usize,
+        input_channels_to_ignore: usize,
+        output_channel_count: usize,
+    ) -> Self {
+        assert!(input_channel_count >= input_channels_to_ignore + output_channel_count);
         // 8 times the expected callback size, to handle the input callback being caled multiple
         //   times in a row correctly.
-        let buffer_element_count = input_channels * input_buffer_size_frames as usize * 8;
-        if format == SampleFormat::S16LE || format == SampleFormat::S16BE {
-            let ring = RingBuffer::<i16>::new(buffer_element_count);
-            let (prod, cons) = ring.split();
-            BufferManager {
-                producer: IntegerRingBufferProducer(prod),
-                consumer: IntegerRingBufferConsumer(cons),
-                linear_input_buffer: IntegerLinearInputBuffer(Vec::<i16>::with_capacity(
-                    buffer_element_count,
-                )),
-                input_channels,
-                input_channels_to_ignore: input_channels_to_ignore as usize,
+        let buffer_element_count = output_channel_count * buffer_size_frames as usize * 8;
+        match format {
+            SampleFormat::S16LE | SampleFormat::S16BE | SampleFormat::S16NE => {
+                let ring = RingBuffer::<i16>::new(buffer_element_count);
+                let (prod, cons) = ring.split();
+                Self {
+                    producer: IntegerRingBufferProducer(prod),
+                    consumer: IntegerRingBufferConsumer(cons),
+                    linear_buffer: IntegerLinearBuffer(Vec::<i16>::with_capacity(
+                        buffer_element_count,
+                    )),
+                    input_channel_count,
+                    input_channels_to_ignore,
+                    output_channel_count,
+                }
             }
-        } else {
-            let ring = RingBuffer::<f32>::new(buffer_element_count);
-            let (prod, cons) = ring.split();
-            BufferManager {
-                producer: FloatRingBufferProducer(prod),
-                consumer: FloatRingBufferConsumer(cons),
-                linear_input_buffer: FloatLinearInputBuffer(Vec::<f32>::with_capacity(
-                    buffer_element_count,
-                )),
-                input_channels,
-                input_channels_to_ignore: input_channels_to_ignore as usize,
+            SampleFormat::Float32LE | SampleFormat::Float32BE | SampleFormat::Float32NE => {
+                let ring = RingBuffer::<f32>::new(buffer_element_count);
+                let (prod, cons) = ring.split();
+                Self {
+                    producer: FloatRingBufferProducer(prod),
+                    consumer: FloatRingBufferConsumer(cons),
+                    linear_buffer: FloatLinearBuffer(Vec::<f32>::with_capacity(
+                        buffer_element_count,
+                    )),
+                    input_channel_count,
+                    input_channels_to_ignore,
+                    output_channel_count,
+                }
             }
         }
     }
-    pub fn push_data(&mut self, input_data: *mut c_void, frame_count: usize, channel_count: usize) {
-        let to_push = frame_count * self.input_channels;
+    pub fn channel_count(&self) -> usize {
+        self.output_channel_count
+    }
+    pub fn push_data(&mut self, data: *mut c_void, frame_count: usize) {
+        let to_push = frame_count * self.output_channel_count;
         let pushed = match &mut self.producer {
             RingBufferProducer::FloatRingBufferProducer(p) => {
-                let processed_input = process_input(
-                    input_data,
+                let processed_input = process_data(
+                    data,
                     frame_count,
-                    channel_count,
+                    self.input_channel_count,
                     self.input_channels_to_ignore,
-                    self.input_channels,
+                    self.output_channel_count,
                 );
                 p.push_slice(processed_input)
             }
             RingBufferProducer::IntegerRingBufferProducer(p) => {
-                let processed_input = process_input(
-                    input_data,
+                let processed_input = process_data(
+                    data,
                     frame_count,
-                    channel_count,
+                    self.input_channel_count,
                     self.input_channels_to_ignore,
-                    self.input_channels,
+                    self.output_channel_count,
                 );
                 p.push_slice(processed_input)
             }
@@ -200,12 +211,11 @@ impl BufferManager {
             );
         }
     }
-    fn pull_data(&mut self, input_data: *mut c_void, needed_samples: usize) {
+    fn pull_data(&mut self, data: *mut c_void, needed_samples: usize) {
         match &mut self.consumer {
             IntegerRingBufferConsumer(p) => {
-                let input: &mut [i16] = unsafe {
-                    slice::from_raw_parts_mut::<i16>(input_data as *mut i16, needed_samples)
-                };
+                let input: &mut [i16] =
+                    unsafe { slice::from_raw_parts_mut::<i16>(data as *mut i16, needed_samples) };
                 let read = p.pop_slice(input);
                 if read < needed_samples {
                     for i in 0..(needed_samples - read) {
@@ -214,9 +224,8 @@ impl BufferManager {
                 }
             }
             FloatRingBufferConsumer(p) => {
-                let input: &mut [f32] = unsafe {
-                    slice::from_raw_parts_mut::<f32>(input_data as *mut f32, needed_samples)
-                };
+                let input: &mut [f32] =
+                    unsafe { slice::from_raw_parts_mut::<f32>(data as *mut f32, needed_samples) };
                 let read = p.pop_slice(input);
                 if read < needed_samples {
                     for i in 0..(needed_samples - read) {
@@ -227,12 +236,12 @@ impl BufferManager {
         }
     }
     pub fn get_linear_data(&mut self, nsamples: usize) -> *mut c_void {
-        let p = match &mut self.linear_input_buffer {
-            LinearInputBuffer::IntegerLinearInputBuffer(b) => {
+        let p = match &mut self.linear_buffer {
+            LinearBuffer::IntegerLinearBuffer(b) => {
                 b.resize(nsamples, 0);
                 b.as_mut_ptr() as *mut c_void
             }
-            LinearInputBuffer::FloatLinearInputBuffer(b) => {
+            LinearBuffer::FloatLinearBuffer(b) => {
                 b.resize(nsamples, 0.);
                 b.as_mut_ptr() as *mut c_void
             }
