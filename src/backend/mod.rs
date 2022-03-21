@@ -1318,17 +1318,16 @@ fn get_fixed_latency(devid: AudioObjectID, devtype: DeviceType) -> u32 {
     device_latency + stream_latency
 }
 
+#[allow(non_upper_case_globals)]
 fn get_device_group_id(
     id: AudioDeviceID,
     devtype: DeviceType,
 ) -> std::result::Result<CString, OSStatus> {
-    const BLTN: u32 = 0x626C_746E; // "bltn" (builtin)
-
     match get_device_transport_type(id, devtype) {
-        Ok(BLTN) => {
+        Ok(kAudioDeviceTransportTypeBuiltIn) => {
             cubeb_log!(
                 "The transport type is {:?}",
-                convert_uint32_into_string(BLTN)
+                convert_uint32_into_string(kAudioDeviceTransportTypeBuiltIn)
             );
             match get_custom_group_id(id, devtype) {
                 Some(id) => return Ok(id),
