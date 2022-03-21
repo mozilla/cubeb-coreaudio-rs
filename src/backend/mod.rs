@@ -3285,7 +3285,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
         let mutexed_stm = Arc::new(Mutex::new(self));
         let also_mutexed_stm = Arc::clone(&mutexed_stm);
 
-        // Use a new thread, through the queue, to avoid deadlock when calling
+        // Use a different thread, through the queue, to avoid deadlock when calling
         // Get/SetProperties method from inside notify callback
         queue.run_async(move || {
             let mut stm_guard = also_mutexed_stm.lock().unwrap();
