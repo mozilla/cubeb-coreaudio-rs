@@ -34,7 +34,6 @@ pub fn get_device_model_uid(
     }
 }
 
-#[allow(dead_code)] // `pub` for running test
 pub fn get_device_transport_type(
     id: AudioDeviceID,
     devtype: DeviceType,

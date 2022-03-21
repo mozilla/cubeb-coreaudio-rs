@@ -2331,8 +2331,26 @@ impl<'ctx> CoreStreamData<'ctx> {
     }
 
     fn should_use_aggregate_device(&self) -> bool {
+        // It's impossible to create an aggregate device from an aggregate device, and it's
+        // unnecessary to create an aggregate device when opening the same device input/output. In
+        // all other cases, use an aggregate device.
+
+        let mut either_already_aggregate = false;
+        if self.has_input() {
+            either_already_aggregate |=
+                get_device_transport_type(self.input_device.id, DeviceType::INPUT).unwrap_or(0)
+                    == kAudioDeviceTransportTypeAggregate;
+        }
+        if self.has_output() {
+            either_already_aggregate |=
+                get_device_transport_type(self.output_device.id, DeviceType::OUTPUT).unwrap_or(0)
+                    == kAudioDeviceTransportTypeAggregate;
+        }
         // Only use an aggregate device when the device are different.
-        self.has_input() && self.has_output() && self.input_device.id != self.output_device.id
+        self.has_input()
+            && self.has_output()
+            && self.input_device.id != self.output_device.id
+            && !either_already_aggregate
     }
 
     fn same_clock_domain(&self) -> bool {
