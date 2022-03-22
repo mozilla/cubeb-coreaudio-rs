@@ -2614,12 +2614,6 @@ impl<'ctx> CoreStreamData<'ctx> {
                 out_dev_info
             );
 
-            let device_channel_count =
-                get_device_channel_count(self.output_device.id, DeviceType::OUTPUT).unwrap_or(0);
-            if device_channel_count < self.output_stream_params.channels() {
-                return Err(Error::invalid_parameter());
-            }
-
             self.output_unit = create_audiounit(&out_dev_info).map_err(|e| {
                 cubeb_log!("({:p}) AudioUnit creation for output failed.", self.stm_ptr);
                 e
@@ -2659,12 +2653,10 @@ impl<'ctx> CoreStreamData<'ctx> {
                 self.stm_ptr,
                 output_hw_desc
             );
-            assert!(output_hw_desc.mChannelsPerFrame >= device_channel_count);
             // Notice: when we are using aggregate device, the output_hw_desc.mChannelsPerFrame is
             // the total of all the output channel count of the devices added in the aggregate device.
             // Due to our aggregate device settings, the data recorded by the input device's output
             // channels will be appended at the end of the raw data given by the output callback.
-
             let params = unsafe {
                 let mut p = *self.output_stream_params.as_ptr();
                 p.channels = output_hw_desc.mChannelsPerFrame;
