@@ -34,6 +34,7 @@ impl Resampler {
                 data_callback,
                 user_ptr,
                 ffi::CUBEB_RESAMPLER_QUALITY_DESKTOP,
+                ffi::CUBEB_RESAMPLER_RECLOCK_NONE,
             )
         };
         assert!(!raw_resampler.is_null(), "Failed to create resampler");
