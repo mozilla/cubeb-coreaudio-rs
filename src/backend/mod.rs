@@ -3526,7 +3526,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
             if hw_rate == user_rate {
                 Ok(frames)
             } else {
-                Ok(frames * (user_rate / hw_rate))
+                Ok((frames * user_rate) / hw_rate)
             }
         } else {
             Err(Error::error())
