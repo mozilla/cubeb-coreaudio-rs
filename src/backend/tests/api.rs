@@ -321,14 +321,14 @@ fn test_remove_listener_unknown_device() {
 fn test_get_default_device_id() {
     if test_get_default_device(Scope::Input).is_some() {
         assert_ne!(
-            audiounit_get_default_device_id(DeviceType::INPUT),
+            audiounit_get_default_device_id(DeviceType::INPUT).unwrap(),
             kAudioObjectUnknown,
         );
     }
 
     if test_get_default_device(Scope::Output).is_some() {
         assert_ne!(
-            audiounit_get_default_device_id(DeviceType::OUTPUT),
+            audiounit_get_default_device_id(DeviceType::OUTPUT).unwrap(),
             kAudioObjectUnknown,
         );
     }
@@ -337,19 +337,13 @@ fn test_get_default_device_id() {
 #[test]
 #[should_panic]
 fn test_get_default_device_id_with_unknown_type() {
-    assert_eq!(
-        audiounit_get_default_device_id(DeviceType::UNKNOWN),
-        kAudioObjectUnknown,
-    );
+    assert!(audiounit_get_default_device_id(DeviceType::UNKNOWN).is_err());
 }
 
 #[test]
 #[should_panic]
 fn test_get_default_device_id_with_inout_type() {
-    assert_eq!(
-        audiounit_get_default_device_id(DeviceType::INPUT | DeviceType::OUTPUT),
-        kAudioObjectUnknown,
-    );
+    assert!(audiounit_get_default_device_id(DeviceType::INPUT | DeviceType::OUTPUT).is_err());
 }
 
 // convert_channel_layout
