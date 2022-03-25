@@ -2660,7 +2660,6 @@ impl<'ctx> CoreStreamData<'ctx> {
             let params = unsafe {
                 let mut p = *self.output_stream_params.as_ptr();
                 p.channels = output_hw_desc.mChannelsPerFrame;
-                p.rate = output_hw_desc.mSampleRate as _;
                 StreamParams::from(p)
             };
 
