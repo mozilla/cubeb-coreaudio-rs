@@ -77,8 +77,6 @@ and create a new one. It's easier than the current implementation.
 
 ### Setting master device
 
-- We always set the master device to the first subdevice of the default output device
-  but the output device (forming the aggregate device) may not be the default output device
 - Check if the first subdevice of the default output device is in the list of
   sub devices list of the aggregate device
 - Check the `name: CFStringRef` of the master device is not `NULL`
