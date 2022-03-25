@@ -3303,7 +3303,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             })?;
         }
 
-        // Likewise, for the input seid
+        // Likewise, for the input side
         if self.core_stream_data.has_input()
             && self
                 .core_stream_data
