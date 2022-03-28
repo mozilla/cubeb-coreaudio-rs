@@ -1050,10 +1050,7 @@ fn test_get_channel_count_of_output_for_a_input_only_deivce() {
 #[test]
 #[should_panic]
 fn test_get_channel_count_of_unknown_device() {
-    assert_eq!(
-        get_channel_count(kAudioObjectUnknown, DeviceType::OUTPUT).unwrap_err(),
-        Error::error()
-    );
+    assert!(get_channel_count(kAudioObjectUnknown, DeviceType::OUTPUT).is_err());
 }
 
 #[test]
@@ -1064,9 +1061,8 @@ fn test_get_channel_count_of_inout_type() {
     fn test_channel_count(scope: Scope) {
         if let Some(device) = test_get_default_device(scope.clone()) {
             assert_eq!(
-                // Get a kAudioHardwareUnknownPropertyError in get_channel_count actually.
                 get_channel_count(device, DeviceType::INPUT | DeviceType::OUTPUT).unwrap_err(),
-                Error::error()
+                kAudioHardwareUnknownPropertyError as OSStatus
             );
         } else {
             println!("No device for {:?}.", scope);
@@ -1082,10 +1078,7 @@ fn test_get_channel_count_of_unknwon_type() {
 
     fn test_channel_count(scope: Scope) {
         if let Some(device) = test_get_default_device(scope.clone()) {
-            assert_eq!(
-                get_channel_count(device, DeviceType::UNKNOWN).unwrap_err(),
-                Error::error()
-            );
+            assert!(get_channel_count(device, DeviceType::UNKNOWN).is_err());
         } else {
             panic!("Panic by default: No device for {:?}.", scope);
         }
