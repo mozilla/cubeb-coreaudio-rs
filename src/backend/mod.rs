@@ -204,7 +204,7 @@ fn create_device_info(
     let id = if devid == kAudioObjectUnknown {
         cubeb_log!("Use the system default device");
         flags |= device_flags::DEV_SELECTED_DEFAULT;
-        audiounit_get_default_device_id(devtype)?
+        get_default_device_id(devtype)?
     } else {
         devid
     };
@@ -764,9 +764,7 @@ extern "C" fn audiounit_property_listener_callback(
     NO_ERR
 }
 
-fn audiounit_get_default_device_id(
-    devtype: DeviceType,
-) -> std::result::Result<AudioObjectID, OSStatus> {
+fn get_default_device_id(devtype: DeviceType) -> std::result::Result<AudioObjectID, OSStatus> {
     let address = get_property_address(
         match devtype {
             DeviceType::INPUT => Property::HardwareDefaultInputDevice,
@@ -1233,7 +1231,7 @@ fn convert_uint32_into_string(data: u32) -> CString {
 fn audiounit_get_default_datasource_string(
     devtype: DeviceType,
 ) -> std::result::Result<CString, OSStatus> {
-    let id = audiounit_get_default_device_id(devtype)?;
+    let id = get_default_device_id(devtype)?;
     let data = get_device_source(id, devtype)?;
     Ok(convert_uint32_into_string(data))
 }
@@ -1490,7 +1488,7 @@ fn create_cubeb_device_info(
     };
 
     dev_info.state = ffi::CUBEB_DEVICE_STATE_ENABLED;
-    dev_info.preferred = match audiounit_get_default_device_id(devtype) {
+    dev_info.preferred = match get_default_device_id(devtype) {
         Ok(id) if id == devid => ffi::CUBEB_DEVICE_PREF_ALL,
         _ => ffi::CUBEB_DEVICE_PREF_NONE,
     };
@@ -1956,7 +1954,7 @@ impl ContextOps for AudioUnitContext {
     }
     #[cfg(not(target_os = "ios"))]
     fn max_channel_count(&mut self) -> Result<u32> {
-        let device = audiounit_get_default_device_id(DeviceType::OUTPUT).map_err(|e| {
+        let device = get_default_device_id(DeviceType::OUTPUT).map_err(|e| {
             cubeb_log!("Cannot get the default output device. Error: {}", e);
             Error::error()
         })?;
@@ -1976,7 +1974,7 @@ impl ContextOps for AudioUnitContext {
     }
     #[cfg(not(target_os = "ios"))]
     fn min_latency(&mut self, _params: StreamParams) -> Result<u32> {
-        let device = audiounit_get_default_device_id(DeviceType::OUTPUT).map_err(|e| {
+        let device = get_default_device_id(DeviceType::OUTPUT).map_err(|e| {
             cubeb_log!("Could not get default output device id. Error: {}", e);
             Error::error()
         })?;
@@ -1994,7 +1992,7 @@ impl ContextOps for AudioUnitContext {
     }
     #[cfg(not(target_os = "ios"))]
     fn preferred_sample_rate(&mut self) -> Result<u32> {
-        let device = audiounit_get_default_device_id(DeviceType::OUTPUT).map_err(|e| {
+        let device = get_default_device_id(DeviceType::OUTPUT).map_err(|e| {
             cubeb_log!("Could not get default output device id. Error: {}", e);
             Error::error()
         })?;
@@ -3288,7 +3286,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 .flags
                 .contains(device_flags::DEV_SELECTED_DEFAULT)
         {
-            self.core_stream_data.output_device.id = audiounit_get_default_device_id(DeviceType::OUTPUT).map_err(|e| {
+            self.core_stream_data.output_device.id = get_default_device_id(DeviceType::OUTPUT).map_err(|e| {
                 cubeb_log!(
                     "({:p}) Cannot get default output device. Error: {}. This can happen when last media device is unplugged",
                     self.core_stream_data.stm_ptr, e
@@ -3305,7 +3303,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 .flags
                 .contains(device_flags::DEV_SELECTED_DEFAULT)
         {
-            self.core_stream_data.input_device.id = audiounit_get_default_device_id(DeviceType::INPUT).map_err(|e| {
+            self.core_stream_data.input_device.id = get_default_device_id(DeviceType::INPUT).map_err(|e| {
                 cubeb_log!(
                     "({:p}) Cannot get default input device. Error: {}. This can happen when last media device is unplugged",
                     self.core_stream_data.stm_ptr, e
