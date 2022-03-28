@@ -1970,15 +1970,7 @@ impl ContextOps for AudioUnitContext {
             }
             Some(id) => id,
         };
-
-        let format = get_device_stream_format(device, DeviceType::OUTPUT).map_err(|e| {
-            cubeb_log!(
-                "Cannot get the stream format of the default output device. Error: {}",
-                e
-            );
-            Error::error()
-        })?;
-        Ok(format.mChannelsPerFrame)
+        get_channel_count(device, DeviceType::OUTPUT)
     }
     #[cfg(target_os = "ios")]
     fn min_latency(&mut self, _params: StreamParams) -> Result<u32> {
