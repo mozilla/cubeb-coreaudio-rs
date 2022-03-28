@@ -189,31 +189,27 @@ fn clamp_latency(latency_frames: u32) -> u32 {
     )
 }
 
-fn create_device_info(id: AudioDeviceID, devtype: DeviceType) -> Result<device_info> {
-    assert_ne!(id, kAudioObjectSystemObject);
+fn create_device_info(
+    devid: AudioDeviceID,
+    devtype: DeviceType,
+) -> std::result::Result<device_info, OSStatus> {
+    assert_ne!(devid, kAudioObjectSystemObject);
 
-    let mut info = device_info {
-        id,
-        flags: match devtype {
-            DeviceType::INPUT => device_flags::DEV_INPUT,
-            DeviceType::OUTPUT => device_flags::DEV_OUTPUT,
-            _ => panic!("Only accept input or output type"),
-        },
+    let mut flags = match devtype {
+        DeviceType::INPUT => device_flags::DEV_INPUT,
+        DeviceType::OUTPUT => device_flags::DEV_OUTPUT,
+        _ => panic!("Only accept input or output type"),
     };
 
-    let default_device_id = audiounit_get_default_device_id(devtype);
-    if default_device_id == kAudioObjectUnknown {
-        cubeb_log!("Could not find default audio device for {:?}", devtype);
-        return Err(Error::error());
-    }
+    let id = if devid == kAudioObjectUnknown {
+        cubeb_log!("Use the system default device");
+        flags |= device_flags::DEV_SELECTED_DEFAULT;
+        audiounit_get_default_device_id(devtype)?
+    } else {
+        devid
+    };
 
-    if id == kAudioObjectUnknown {
-        info.id = default_device_id;
-        cubeb_log!("Creating a default device info.");
-        info.flags |= device_flags::DEV_SELECTED_DEFAULT;
-    }
-
-    Ok(info)
+    Ok(device_info { id, flags })
 }
 
 fn create_stream_description(stream_params: &StreamParams) -> Result<AudioStreamBasicDescription> {
@@ -768,7 +764,9 @@ extern "C" fn audiounit_property_listener_callback(
     NO_ERR
 }
 
-fn audiounit_get_default_device_id(devtype: DeviceType) -> AudioObjectID {
+fn audiounit_get_default_device_id(
+    devtype: DeviceType,
+) -> std::result::Result<AudioObjectID, OSStatus> {
     let address = get_property_address(
         match devtype {
             DeviceType::INPUT => Property::HardwareDefaultInputDevice,
@@ -780,13 +778,13 @@ fn audiounit_get_default_device_id(devtype: DeviceType) -> AudioObjectID {
 
     let mut devid: AudioDeviceID = kAudioObjectUnknown;
     let mut size = mem::size_of::<AudioDeviceID>();
-    if audio_object_get_property_data(kAudioObjectSystemObject, &address, &mut size, &mut devid)
-        != NO_ERR
-    {
-        return kAudioObjectUnknown;
+    let status =
+        audio_object_get_property_data(kAudioObjectSystemObject, &address, &mut size, &mut devid);
+    if status == NO_ERR {
+        Ok(devid)
+    } else {
+        Err(status)
     }
-
-    devid
 }
 
 fn audiounit_convert_channel_layout(layout: &AudioChannelLayout) -> Vec<mixer::Channel> {
@@ -1232,12 +1230,11 @@ fn convert_uint32_into_string(data: u32) -> CString {
     CString::new(buffer).unwrap_or(empty)
 }
 
-fn audiounit_get_default_datasource_string(devtype: DeviceType) -> Result<CString> {
-    let id = audiounit_get_default_device_id(devtype);
-    if id == kAudioObjectUnknown {
-        return Err(Error::error());
-    }
-    let data = get_device_source(id, devtype).unwrap_or(0);
+fn audiounit_get_default_datasource_string(
+    devtype: DeviceType,
+) -> std::result::Result<CString, OSStatus> {
+    let id = audiounit_get_default_device_id(devtype)?;
+    let data = get_device_source(id, devtype)?;
     Ok(convert_uint32_into_string(data))
 }
 
@@ -1493,10 +1490,9 @@ fn create_cubeb_device_info(
     };
 
     dev_info.state = ffi::CUBEB_DEVICE_STATE_ENABLED;
-    dev_info.preferred = if devid == audiounit_get_default_device_id(devtype) {
-        ffi::CUBEB_DEVICE_PREF_ALL
-    } else {
-        ffi::CUBEB_DEVICE_PREF_NONE
+    dev_info.preferred = match audiounit_get_default_device_id(devtype) {
+        Ok(id) if id == devid => ffi::CUBEB_DEVICE_PREF_ALL,
+        _ => ffi::CUBEB_DEVICE_PREF_NONE,
     };
 
     dev_info.format = ffi::CUBEB_DEVICE_FMT_ALL;
@@ -1960,10 +1956,10 @@ impl ContextOps for AudioUnitContext {
     }
     #[cfg(not(target_os = "ios"))]
     fn max_channel_count(&mut self) -> Result<u32> {
-        let device = audiounit_get_default_device_id(DeviceType::OUTPUT);
-        if device == kAudioObjectUnknown {
-            return Err(Error::error());
-        }
+        let device = audiounit_get_default_device_id(DeviceType::OUTPUT).map_err(|e| {
+            cubeb_log!("Cannot get the default output device. Error: {}", e);
+            Error::error()
+        })?;
 
         let format = get_device_stream_format(device, DeviceType::OUTPUT).map_err(|e| {
             cubeb_log!(
@@ -1980,12 +1976,10 @@ impl ContextOps for AudioUnitContext {
     }
     #[cfg(not(target_os = "ios"))]
     fn min_latency(&mut self, _params: StreamParams) -> Result<u32> {
-        let device = audiounit_get_default_device_id(DeviceType::OUTPUT);
-        if device == kAudioObjectUnknown {
-            cubeb_log!("Could not get default output device id.");
-            return Err(Error::error());
-        }
-
+        let device = audiounit_get_default_device_id(DeviceType::OUTPUT).map_err(|e| {
+            cubeb_log!("Could not get default output device id. Error: {}", e);
+            Error::error()
+        })?;
         let range =
             get_device_buffer_frame_size_range(device, DeviceType::OUTPUT).map_err(|e| {
                 cubeb_log!("Could not get acceptable latency range. Error: {}", e);
@@ -2000,10 +1994,10 @@ impl ContextOps for AudioUnitContext {
     }
     #[cfg(not(target_os = "ios"))]
     fn preferred_sample_rate(&mut self) -> Result<u32> {
-        let device = audiounit_get_default_device_id(DeviceType::OUTPUT);
-        if device == kAudioObjectUnknown {
-            return Err(Error::error());
-        }
+        let device = audiounit_get_default_device_id(DeviceType::OUTPUT).map_err(|e| {
+            cubeb_log!("Could not get default output device id. Error: {}", e);
+            Error::error()
+        })?;
         let rate = get_device_sample_rate(device, DeviceType::OUTPUT).map_err(|e| {
             cubeb_log!(
                 "Cannot get the sample rate of the default output device. Error: {}",
@@ -2093,8 +2087,8 @@ impl ContextOps for AudioUnitContext {
         let in_stm_settings = if let Some(params) = input_stream_params {
             let in_device = create_device_info(input_device as AudioDeviceID, DeviceType::INPUT)
                 .map_err(|e| {
-                    cubeb_log!("Fail to create device info for input.");
-                    e
+                    cubeb_log!("Fail to create device info for input. Error: {}", e);
+                    Error::error()
                 })?;
             let stm_params = StreamParams::from(unsafe { *params.as_ptr() });
             Some((stm_params, in_device))
@@ -2105,8 +2099,8 @@ impl ContextOps for AudioUnitContext {
         let out_stm_settings = if let Some(params) = output_stream_params {
             let out_device = create_device_info(output_device as AudioDeviceID, DeviceType::OUTPUT)
                 .map_err(|e| {
-                    cubeb_log!("Fail to create device info for output.");
-                    e
+                    cubeb_log!("Fail to create device info for output. Error: {}", e);
+                    Error::error()
                 })?;
             let stm_params = StreamParams::from(unsafe { *params.as_ptr() });
             Some((stm_params, out_device))
@@ -3294,16 +3288,16 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 .flags
                 .contains(device_flags::DEV_SELECTED_DEFAULT)
         {
-            self.core_stream_data.output_device = create_device_info(kAudioObjectUnknown, DeviceType::OUTPUT).map_err(|e| {
+            self.core_stream_data.output_device.id = audiounit_get_default_device_id(DeviceType::OUTPUT).map_err(|e| {
                 cubeb_log!(
-                    "({:p}) Create output device info failed. This can happen when last media device is unplugged",
-                    self.core_stream_data.stm_ptr
+                    "({:p}) Cannot get default output device. Error: {}. This can happen when last media device is unplugged",
+                    self.core_stream_data.stm_ptr, e
                 );
-                e
+                Error::error()
             })?;
         }
 
-        // Likewise, for the input seid
+        // Likewise, for the input side
         if self.core_stream_data.has_input()
             && self
                 .core_stream_data
@@ -3311,12 +3305,12 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 .flags
                 .contains(device_flags::DEV_SELECTED_DEFAULT)
         {
-            self.core_stream_data.input_device = create_device_info(kAudioObjectUnknown, DeviceType::INPUT).map_err(|e| {
+            self.core_stream_data.input_device.id = audiounit_get_default_device_id(DeviceType::INPUT).map_err(|e| {
                 cubeb_log!(
-                    "({:p}) Create input device info failed. This can happen when last media device is unplugged",
-                    self.core_stream_data.stm_ptr
+                    "({:p}) Cannot get default input device. Error: {}. This can happen when last media device is unplugged",
+                    self.core_stream_data.stm_ptr, e
                 );
-                e
+                Error::error()
             })?;
         }
 
