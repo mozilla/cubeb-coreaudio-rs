@@ -434,6 +434,12 @@ extern "C" fn audiounit_input_callback(
             ptr::null_mut(),
             0,
         );
+        if outframes < 0 {
+            stm.stopped.store(true, Ordering::SeqCst);
+            stm.core_stream_data.stop_audiounits();
+            stm.notify_state_changed(State::Error);
+            return handle;
+        }
         if outframes < total_input_frames {
             stm.draining.store(true, Ordering::SeqCst);
         }
