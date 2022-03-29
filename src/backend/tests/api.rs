@@ -2,8 +2,8 @@ use super::utils::{
     test_audiounit_get_buffer_frame_size, test_audiounit_scope_is_enabled, test_create_audiounit,
     test_device_channels_in_scope, test_device_in_scope, test_get_all_devices,
     test_get_default_audiounit, test_get_default_device, test_get_default_raw_stream,
-    test_get_default_source_name, test_get_devices_in_scope, test_get_raw_context,
-    ComponentSubType, DeviceFilter, PropertyScope, Scope,
+    test_get_devices_in_scope, test_get_raw_context, test_get_source_name, ComponentSubType,
+    DeviceFilter, PropertyScope, Scope,
 };
 use super::*;
 
@@ -321,14 +321,14 @@ fn test_remove_listener_unknown_device() {
 fn test_get_default_device_id() {
     if test_get_default_device(Scope::Input).is_some() {
         assert_ne!(
-            audiounit_get_default_device_id(DeviceType::INPUT).unwrap(),
+            get_default_device_id(DeviceType::INPUT).unwrap(),
             kAudioObjectUnknown,
         );
     }
 
     if test_get_default_device(Scope::Output).is_some() {
         assert_ne!(
-            audiounit_get_default_device_id(DeviceType::OUTPUT).unwrap(),
+            get_default_device_id(DeviceType::OUTPUT).unwrap(),
             kAudioObjectUnknown,
         );
     }
@@ -337,13 +337,13 @@ fn test_get_default_device_id() {
 #[test]
 #[should_panic]
 fn test_get_default_device_id_with_unknown_type() {
-    assert!(audiounit_get_default_device_id(DeviceType::UNKNOWN).is_err());
+    assert!(get_default_device_id(DeviceType::UNKNOWN).is_err());
 }
 
 #[test]
 #[should_panic]
 fn test_get_default_device_id_with_inout_type() {
-    assert!(audiounit_get_default_device_id(DeviceType::INPUT | DeviceType::OUTPUT).is_err());
+    assert!(get_default_device_id(DeviceType::INPUT | DeviceType::OUTPUT).is_err());
 }
 
 // convert_channel_layout
@@ -976,22 +976,26 @@ fn test_convert_uint32_into_string() {
     assert_eq!(data_string, CString::new("RUST").unwrap());
 }
 
-// get_default_datasource_string
+// get_device_source_string
 // ------------------------------------
 #[test]
-fn test_get_default_device_name() {
-    test_get_default_device_name_in_scope(Scope::Input);
-    test_get_default_device_name_in_scope(Scope::Output);
+fn test_get_device_source_string() {
+    test_get_source_name_in_scope(Scope::Input);
+    test_get_source_name_in_scope(Scope::Output);
 
-    fn test_get_default_device_name_in_scope(scope: Scope) {
-        if let Some(name) = test_get_default_source_name(scope.clone()) {
-            let source = audiounit_get_default_datasource_string(scope.into())
-                .unwrap()
-                .into_string()
-                .unwrap();
-            assert_eq!(name, source);
+    fn test_get_source_name_in_scope(scope: Scope) {
+        if let Some(dev) = test_get_default_device(scope.clone()) {
+            if let Some(name) = test_get_source_name(dev, scope.clone()) {
+                let source = get_device_source_string(dev, scope.into())
+                    .unwrap()
+                    .into_string()
+                    .unwrap();
+                assert_eq!(name, source);
+            } else {
+                println!("No source name for default {:?} device ", scope);
+            }
         } else {
-            println!("No source name for {:?}", scope);
+            println!("No default {:?} device", scope);
         }
     }
 }

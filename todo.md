@@ -100,6 +100,7 @@ and create a new one. It's easier than the current implementation.
 
 ## [Cubeb Interface][cubeb-rs]
 
+- `current_device` should be the in-use device of the current stream rather than default input and output device.
 - Implement `From` trait for `enum cubeb_device_type` so we can use `devtype.into()` to get `ffi::CUBEB_DEVICE_TYPE_*`.
 - Implement `to_owned` in [`StreamParamsRef`][cubeb-rs-stmparamsref]
 - Check the passed parameters like what [cubeb.c does][cubeb-stm-check]!
