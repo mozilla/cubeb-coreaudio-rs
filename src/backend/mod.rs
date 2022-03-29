@@ -1245,14 +1245,13 @@ fn get_device_source_string(
     Ok(convert_uint32_into_string(data))
 }
 
-fn get_channel_count(devid: AudioObjectID, devtype: DeviceType) -> Result<u32> {
+fn get_channel_count(
+    devid: AudioObjectID,
+    devtype: DeviceType,
+) -> std::result::Result<u32, OSStatus> {
     assert_ne!(devid, kAudioObjectUnknown);
 
-    let buffers = get_device_stream_configuration(devid, devtype).map_err(|e| {
-        cubeb_log!("Cannot get the stream configuration. Error: {}", e);
-        Error::error()
-    })?;
-
+    let buffers = get_device_stream_configuration(devid, devtype)?;
     let mut count = 0;
     for buffer in buffers {
         count += buffer.mNumberChannels;
@@ -1415,7 +1414,10 @@ fn create_cubeb_device_info(
     devid: AudioObjectID,
     devtype: DeviceType,
 ) -> Result<ffi::cubeb_device_info> {
-    let channels = get_channel_count(devid, devtype)?;
+    let channels = get_channel_count(devid, devtype).map_err(|e| {
+        cubeb_log!("Cannot get the channel count. Error: {}", e);
+        Error::error()
+    })?;
     if channels == 0 {
         // Invalid type for this device.
         return Err(Error::error());
@@ -1970,15 +1972,10 @@ impl ContextOps for AudioUnitContext {
             }
             Some(id) => id,
         };
-
-        let format = get_device_stream_format(device, DeviceType::OUTPUT).map_err(|e| {
-            cubeb_log!(
-                "Cannot get the stream format of the default output device. Error: {}",
-                e
-            );
+        get_channel_count(device, DeviceType::OUTPUT).map_err(|e| {
+            cubeb_log!("Cannot get the channel count. Error: {}", e);
             Error::error()
-        })?;
-        Ok(format.mChannelsPerFrame)
+        })
     }
     #[cfg(target_os = "ios")]
     fn min_latency(&mut self, _params: StreamParams) -> Result<u32> {
