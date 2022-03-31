@@ -2876,14 +2876,6 @@ impl<'ctx> CoreStreamData<'ctx> {
             }
         }
 
-        if let Err(r) = self.install_system_changed_callback() {
-            cubeb_log!(
-                "({:p}) Could not install the device change callback.",
-                self.stm_ptr
-            );
-            return Err(r);
-        }
-
         if let Err(r) = self.install_device_changed_callback() {
             cubeb_log!(
                 "({:p}) Could not install all device change callback.",
@@ -2921,13 +2913,6 @@ impl<'ctx> CoreStreamData<'ctx> {
         self.mixer = None;
         self.aggregate_device = None;
 
-        if self.uninstall_system_changed_callback().is_err() {
-            cubeb_log!(
-                "({:p}) Could not uninstall the system changed callback",
-                self.stm_ptr
-            );
-        }
-
         if self.uninstall_device_changed_callback().is_err() {
             cubeb_log!(
                 "({:p}) Could not uninstall all device change listeners",
@@ -2961,6 +2946,29 @@ impl<'ctx> CoreStreamData<'ctx> {
                 cubeb_log!("AudioObjectAddPropertyListener/output/kAudioDevicePropertyDataSource rv={}, device id={}", rv, self.output_device.id);
                 return Err(Error::error());
             }
+
+            assert!(
+                self.default_output_listener.is_none(),
+                "register default_output_listener without unregistering the one in use"
+            );
+
+            // Get the notification when the default output audio changes, e.g., when the user
+            // plugs in a USB headset and the system chooses it automatically as the default, or
+            // when another device is chosen in the dropdown list.
+            self.default_output_listener = Some(device_property_listener::new(
+                kAudioObjectSystemObject,
+                get_property_address(
+                    Property::HardwareDefaultOutputDevice,
+                    DeviceType::INPUT | DeviceType::OUTPUT,
+                ),
+                audiounit_property_listener_callback,
+            ));
+            let rv = stm.add_device_listener(self.default_output_listener.as_ref().unwrap());
+            if rv != NO_ERR {
+                self.default_output_listener = None;
+                cubeb_log!("AudioObjectAddPropertyListener/output/kAudioHardwarePropertyDefaultOutputDevice rv={}", rv);
+                return Err(Error::error());
+            }
         }
 
         if !self.input_unit.is_null() {
@@ -2989,13 +2997,36 @@ impl<'ctx> CoreStreamData<'ctx> {
                 return Err(Error::error());
             }
 
-            // Get the notification when the input device is going away
-            // if the input doesn't follow the system default.
-            if !self
+            if self
                 .input_device
                 .flags
                 .contains(device_flags::DEV_SELECTED_DEFAULT)
             {
+                assert!(
+                    self.default_input_listener.is_none(),
+                    "register default_input_listener without unregistering the one in use"
+                );
+
+                // Get the notification when the default intput audio changes, e.g., when the user
+                // plugs in a USB mic and the system chooses it automatically as the default, or
+                // when another device is chosen in the system preference.
+                self.default_input_listener = Some(device_property_listener::new(
+                    kAudioObjectSystemObject,
+                    get_property_address(
+                        Property::HardwareDefaultInputDevice,
+                        DeviceType::INPUT | DeviceType::OUTPUT,
+                    ),
+                    audiounit_property_listener_callback,
+                ));
+                let rv = stm.add_device_listener(self.default_input_listener.as_ref().unwrap());
+                if rv != NO_ERR {
+                    self.default_input_listener = None;
+                    cubeb_log!("AudioObjectAddPropertyListener/input/kAudioHardwarePropertyDefaultInputDevice rv={}", rv);
+                    return Err(Error::error());
+                }
+            } else {
+                // Get the notification when the input device is going away
+                // if the input doesn't follow the system default.
                 self.input_alive_listener = Some(device_property_listener::new(
                     self.input_device.id,
                     get_property_address(
@@ -3016,68 +3047,6 @@ impl<'ctx> CoreStreamData<'ctx> {
         Ok(())
     }
 
-    fn install_system_changed_callback(&mut self) -> Result<()> {
-        assert!(!self.stm_ptr.is_null());
-        let stm = unsafe { &(*self.stm_ptr) };
-
-        if !self.output_unit.is_null() {
-            assert!(
-                self.default_output_listener.is_none(),
-                "register default_output_listener without unregistering the one in use"
-            );
-
-            // Get the notification when the default output audio changes, e.g.,
-            // when the user plugs in a USB headset and the system chooses it automatically as the default,
-            // or when another device is chosen in the dropdown list.
-            self.default_output_listener = Some(device_property_listener::new(
-                kAudioObjectSystemObject,
-                get_property_address(
-                    Property::HardwareDefaultOutputDevice,
-                    DeviceType::INPUT | DeviceType::OUTPUT,
-                ),
-                audiounit_property_listener_callback,
-            ));
-            let r = stm.add_device_listener(self.default_output_listener.as_ref().unwrap());
-            if r != NO_ERR {
-                self.default_output_listener = None;
-                cubeb_log!("AudioObjectAddPropertyListener/output/kAudioHardwarePropertyDefaultOutputDevice rv={}", r);
-                return Err(Error::error());
-            }
-        }
-
-        if !self.input_unit.is_null()
-            && self
-                .input_device
-                .flags
-                .contains(device_flags::DEV_SELECTED_DEFAULT)
-        {
-            assert!(
-                self.default_input_listener.is_none(),
-                "register default_input_listener without unregistering the one in use"
-            );
-
-            // Get the notification when the default intput audio changes, e.g.,
-            // when the user plugs in a USB mic and the system chooses it automatically as the default,
-            // or when another device is chosen in the system preference.
-            self.default_input_listener = Some(device_property_listener::new(
-                kAudioObjectSystemObject,
-                get_property_address(
-                    Property::HardwareDefaultInputDevice,
-                    DeviceType::INPUT | DeviceType::OUTPUT,
-                ),
-                audiounit_property_listener_callback,
-            ));
-            let r = stm.add_device_listener(self.default_input_listener.as_ref().unwrap());
-            if r != NO_ERR {
-                self.default_input_listener = None;
-                cubeb_log!("AudioObjectAddPropertyListener/input/kAudioHardwarePropertyDefaultInputDevice rv={}", r);
-                return Err(Error::error());
-            }
-        }
-
-        Ok(())
-    }
-
     fn uninstall_device_changed_callback(&mut self) -> Result<()> {
         if self.stm_ptr.is_null() {
             assert!(
@@ -3092,6 +3061,22 @@ impl<'ctx> CoreStreamData<'ctx> {
 
         // Failing to uninstall listeners is not a fatal error.
         let mut r = Ok(());
+
+        if self.default_input_listener.is_some() {
+            let rv = stm.remove_device_listener(self.default_input_listener.as_ref().unwrap());
+            if rv != NO_ERR {
+                r = Err(Error::error());
+            }
+            self.default_input_listener = None;
+        }
+
+        if self.default_output_listener.is_some() {
+            let rv = stm.remove_device_listener(self.default_output_listener.as_ref().unwrap());
+            if rv != NO_ERR {
+                r = Err(Error::error());
+            }
+            self.default_output_listener = None;
+        }
 
         if self.output_source_listener.is_some() {
             let rv = stm.remove_device_listener(self.output_source_listener.as_ref().unwrap());
@@ -3121,35 +3106,6 @@ impl<'ctx> CoreStreamData<'ctx> {
         }
 
         r
-    }
-
-    fn uninstall_system_changed_callback(&mut self) -> Result<()> {
-        if self.stm_ptr.is_null() {
-            assert!(
-                self.default_output_listener.is_none() && self.default_input_listener.is_none()
-            );
-            return Ok(());
-        }
-
-        let stm = unsafe { &(*self.stm_ptr) };
-
-        if self.default_output_listener.is_some() {
-            let r = stm.remove_device_listener(self.default_output_listener.as_ref().unwrap());
-            if r != NO_ERR {
-                return Err(Error::error());
-            }
-            self.default_output_listener = None;
-        }
-
-        if self.default_input_listener.is_some() {
-            let r = stm.remove_device_listener(self.default_input_listener.as_ref().unwrap());
-            if r != NO_ERR {
-                return Err(Error::error());
-            }
-            self.default_input_listener = None;
-        }
-
-        Ok(())
     }
 }
 
@@ -3428,17 +3384,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
     }
 
     fn destroy(&mut self) {
-        if self
-            .core_stream_data
-            .uninstall_system_changed_callback()
-            .is_err()
-        {
-            cubeb_log!(
-                "({:p}) Could not uninstall the system changed callback",
-                self as *const AudioUnitStream
-            );
-        }
-
         if self
             .core_stream_data
             .uninstall_device_changed_callback()
