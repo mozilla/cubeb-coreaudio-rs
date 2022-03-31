@@ -2942,8 +2942,13 @@ impl<'ctx> CoreStreamData<'ctx> {
             ));
             let rv = stm.add_device_listener(self.output_source_listener.as_ref().unwrap());
             if rv != NO_ERR {
+                cubeb_log!(
+                    "({:p}) Failed to monitor data source of output device {}. Error: {}",
+                    self.stm_ptr,
+                    self.output_source_listener.as_ref().unwrap().device,
+                    rv
+                );
                 self.output_source_listener = None;
-                cubeb_log!("AudioObjectAddPropertyListener/output/kAudioDevicePropertyDataSource rv={}, device id={}", rv, self.output_device.id);
                 return Err(Error::error());
             }
 
@@ -2965,8 +2970,12 @@ impl<'ctx> CoreStreamData<'ctx> {
             ));
             let rv = stm.add_device_listener(self.default_output_listener.as_ref().unwrap());
             if rv != NO_ERR {
+                cubeb_log!(
+                    "({:p}) Failed to monitor default output device. Error: {}",
+                    self.stm_ptr,
+                    rv
+                );
                 self.default_output_listener = None;
-                cubeb_log!("AudioObjectAddPropertyListener/output/kAudioHardwarePropertyDefaultOutputDevice rv={}", rv);
                 return Err(Error::error());
             }
         }
@@ -2992,8 +3001,13 @@ impl<'ctx> CoreStreamData<'ctx> {
             ));
             let rv = stm.add_device_listener(self.input_source_listener.as_ref().unwrap());
             if rv != NO_ERR {
+                cubeb_log!(
+                    "({:p}) Failed to monitor data source of input device {}. Error: {}",
+                    self.stm_ptr,
+                    self.input_source_listener.as_ref().unwrap().device,
+                    rv
+                );
                 self.input_source_listener = None;
-                cubeb_log!("AudioObjectAddPropertyListener/input/kAudioDevicePropertyDataSource rv={}, device id={}", rv, self.input_device.id);
                 return Err(Error::error());
             }
 
@@ -3020,8 +3034,12 @@ impl<'ctx> CoreStreamData<'ctx> {
                 ));
                 let rv = stm.add_device_listener(self.default_input_listener.as_ref().unwrap());
                 if rv != NO_ERR {
+                    cubeb_log!(
+                        "({:p}) Failed to monitor default input device. Error: {}",
+                        self.stm_ptr,
+                        rv
+                    );
                     self.default_input_listener = None;
-                    cubeb_log!("AudioObjectAddPropertyListener/input/kAudioHardwarePropertyDefaultInputDevice rv={}", rv);
                     return Err(Error::error());
                 }
             } else {
@@ -3037,8 +3055,13 @@ impl<'ctx> CoreStreamData<'ctx> {
                 ));
                 let rv = stm.add_device_listener(self.input_alive_listener.as_ref().unwrap());
                 if rv != NO_ERR {
+                    cubeb_log!(
+                        "({:p}) Failed to monitor alive status of input device {}. Error: {}",
+                        self.stm_ptr,
+                        self.input_alive_listener.as_ref().unwrap().device,
+                        rv
+                    );
                     self.input_alive_listener = None;
-                    cubeb_log!("AudioObjectAddPropertyListener/input/kAudioDevicePropertyDeviceIsAlive rv={}, device id ={}", rv, self.input_device.id);
                     return Err(Error::error());
                 }
             }
@@ -3065,6 +3088,11 @@ impl<'ctx> CoreStreamData<'ctx> {
         if self.default_input_listener.is_some() {
             let rv = stm.remove_device_listener(self.default_input_listener.as_ref().unwrap());
             if rv != NO_ERR {
+                cubeb_log!(
+                    "({:p}) Failed to cancel monitoring default input device. Error: {}",
+                    self.stm_ptr,
+                    rv
+                );
                 r = Err(Error::error());
             }
             self.default_input_listener = None;
@@ -3073,6 +3101,11 @@ impl<'ctx> CoreStreamData<'ctx> {
         if self.default_output_listener.is_some() {
             let rv = stm.remove_device_listener(self.default_output_listener.as_ref().unwrap());
             if rv != NO_ERR {
+                cubeb_log!(
+                    "({:p}) Failed to cancel monitoring default output device. Error: {}",
+                    self.stm_ptr,
+                    rv
+                );
                 r = Err(Error::error());
             }
             self.default_output_listener = None;
@@ -3081,7 +3114,12 @@ impl<'ctx> CoreStreamData<'ctx> {
         if self.output_source_listener.is_some() {
             let rv = stm.remove_device_listener(self.output_source_listener.as_ref().unwrap());
             if rv != NO_ERR {
-                cubeb_log!("AudioObjectRemovePropertyListener/output/kAudioDevicePropertyDataSource rv={}, device id={}", rv, self.output_device.id);
+                cubeb_log!(
+                    "({:p}) Failed to cancel monitoring data source of output device {}. Error: {}",
+                    self.stm_ptr,
+                    self.output_source_listener.as_ref().unwrap().device,
+                    rv
+                );
                 r = Err(Error::error());
             }
             self.output_source_listener = None;
@@ -3090,7 +3128,12 @@ impl<'ctx> CoreStreamData<'ctx> {
         if self.input_source_listener.is_some() {
             let rv = stm.remove_device_listener(self.input_source_listener.as_ref().unwrap());
             if rv != NO_ERR {
-                cubeb_log!("AudioObjectRemovePropertyListener/input/kAudioDevicePropertyDataSource rv={}, device id={}", rv, self.input_device.id);
+                cubeb_log!(
+                    "({:p}) Failed to cancel monitoring data source of input device {}. Error: {}",
+                    self.stm_ptr,
+                    self.input_source_listener.as_ref().unwrap().device,
+                    rv
+                );
                 r = Err(Error::error());
             }
             self.input_source_listener = None;
@@ -3099,7 +3142,12 @@ impl<'ctx> CoreStreamData<'ctx> {
         if self.input_alive_listener.is_some() {
             let rv = stm.remove_device_listener(self.input_alive_listener.as_ref().unwrap());
             if rv != NO_ERR {
-                cubeb_log!("AudioObjectRemovePropertyListener/input/kAudioDevicePropertyDeviceIsAlive rv={}, device id={}", rv, self.input_device.id);
+                cubeb_log!(
+                    "({:p}) Failed to cancel monitoring alive status of input device {}. Error: {}",
+                    self.stm_ptr,
+                    self.input_alive_listener.as_ref().unwrap().device,
+                    rv
+                );
                 r = Err(Error::error());
             }
             self.input_alive_listener = None;
