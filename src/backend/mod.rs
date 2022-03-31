@@ -2888,9 +2888,7 @@ impl<'ctx> CoreStreamData<'ctx> {
         // We cannot have both of them at the same time.
         assert!(
             !self.has_input()
-                || ((self.default_input_listener.is_some() != self.input_alive_listener.is_some())
-                    && (self.default_input_listener.is_some()
-                        || self.input_alive_listener.is_some()))
+                || (self.default_input_listener.is_some() != self.input_alive_listener.is_some())
         );
 
         Ok(())
