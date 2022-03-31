@@ -38,6 +38,7 @@ use cubeb_backend::{
 };
 use mach::mach_time::{mach_absolute_time, mach_timebase_info};
 use std::cmp;
+use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::mem;
 use std::os::raw::c_void;
@@ -726,7 +727,7 @@ extern "C" fn audiounit_property_listener_callback(
     }
     stm.switching_device.store(true, Ordering::SeqCst);
 
-    let mut input_device_dead = false;
+    let mut device_dead = false;
 
     // Log the events
     cubeb_log!(
@@ -740,13 +741,13 @@ extern "C" fn audiounit_property_listener_callback(
         cubeb_log!("Event #{}: {}", i, p);
         assert_ne!(p, PropertySelector::Unknown);
         if p == PropertySelector::DeviceIsAlive {
-            input_device_dead = true;
+            device_dead = true;
         }
     }
 
     // Handle the events
-    if input_device_dead {
-        cubeb_log!("The user-selected input device is dead, enter error state");
+    if device_dead {
+        cubeb_log!("The user-selected device {} is dead, enter error state", id);
         stm.stopped.store(true, Ordering::SeqCst);
         stm.core_stream_data.stop_audiounits();
         stm.close_on_error();
@@ -2233,9 +2234,9 @@ struct CoreStreamData<'ctx> {
     // Listeners indicating what system events are monitored.
     default_input_listener: Option<device_property_listener>,
     default_output_listener: Option<device_property_listener>,
-    input_alive_listener: Option<device_property_listener>,
     input_source_listener: Option<device_property_listener>,
     output_source_listener: Option<device_property_listener>,
+    device_alive_listeners: HashMap<AudioDeviceID, device_property_listener>,
 }
 
 impl<'ctx> Default for CoreStreamData<'ctx> {
@@ -2268,9 +2269,9 @@ impl<'ctx> Default for CoreStreamData<'ctx> {
             input_buffer_manager: None,
             default_input_listener: None,
             default_output_listener: None,
-            input_alive_listener: None,
             input_source_listener: None,
             output_source_listener: None,
+            device_alive_listeners: HashMap::new(),
         }
     }
 }
@@ -2310,9 +2311,9 @@ impl<'ctx> CoreStreamData<'ctx> {
             input_buffer_manager: None,
             default_input_listener: None,
             default_output_listener: None,
-            input_alive_listener: None,
             input_source_listener: None,
             output_source_listener: None,
+            device_alive_listeners: HashMap::new(),
         }
     }
 
@@ -2884,11 +2885,25 @@ impl<'ctx> CoreStreamData<'ctx> {
             return Err(r);
         }
 
-        // We have either default_input_listener or input_alive_listener.
+        // We have either default_*put_listener or the device_alive_listener on *put side.
         // We cannot have both of them at the same time.
         assert!(
+            !self.has_output()
+                || (self.default_output_listener.is_some()
+                    != self
+                        .device_alive_listeners
+                        .contains_key(&self.output_device.id))
+        );
+        assert!(
             !self.has_input()
-                || (self.default_input_listener.is_some() != self.input_alive_listener.is_some())
+                || ((self.output_device.id == self.input_device.id
+                    && self
+                        .device_alive_listeners
+                        .contains_key(&self.output_device.id))
+                    || self.default_input_listener.is_some()
+                        != self
+                            .device_alive_listeners
+                            .contains_key(&self.input_device.id))
         );
 
         Ok(())
@@ -2950,31 +2965,67 @@ impl<'ctx> CoreStreamData<'ctx> {
                 return Err(Error::error());
             }
 
-            assert!(
-                self.default_output_listener.is_none(),
-                "register default_output_listener without unregistering the one in use"
-            );
-
-            // Get the notification when the default output audio changes, e.g., when the user
-            // plugs in a USB headset and the system chooses it automatically as the default, or
-            // when another device is chosen in the dropdown list.
-            self.default_output_listener = Some(device_property_listener::new(
-                kAudioObjectSystemObject,
-                get_property_address(
-                    Property::HardwareDefaultOutputDevice,
-                    DeviceType::INPUT | DeviceType::OUTPUT,
-                ),
-                audiounit_property_listener_callback,
-            ));
-            let rv = stm.add_device_listener(self.default_output_listener.as_ref().unwrap());
-            if rv != NO_ERR {
-                cubeb_log!(
-                    "({:p}) Failed to monitor default output device. Error: {}",
-                    self.stm_ptr,
-                    rv
+            if self
+                .output_device
+                .flags
+                .contains(device_flags::DEV_SELECTED_DEFAULT)
+            {
+                assert!(
+                    self.default_output_listener.is_none(),
+                    "register default_output_listener without unregistering the one in use"
                 );
-                self.default_output_listener = None;
-                return Err(Error::error());
+
+                // Get the notification when the default output audio changes, e.g., when the user
+                // plugs in a USB headset and the system chooses it automatically as the default, or
+                // when another device is chosen in the dropdown list.
+                self.default_output_listener = Some(device_property_listener::new(
+                    kAudioObjectSystemObject,
+                    get_property_address(
+                        Property::HardwareDefaultOutputDevice,
+                        DeviceType::INPUT | DeviceType::OUTPUT,
+                    ),
+                    audiounit_property_listener_callback,
+                ));
+                let rv = stm.add_device_listener(self.default_output_listener.as_ref().unwrap());
+                if rv != NO_ERR {
+                    cubeb_log!(
+                        "({:p}) Failed to monitor default output device. Error: {}",
+                        self.stm_ptr,
+                        rv
+                    );
+                    self.default_output_listener = None;
+                    return Err(Error::error());
+                }
+            } else {
+                assert!(
+                    !self
+                        .device_alive_listeners
+                        .contains_key(&self.output_device.id),
+                    "register output alive listener without unregistering the one in use"
+                );
+
+                // Get the notification when the output device is going away
+                // if the output doesn't follow the system default.
+                let listener = device_property_listener::new(
+                    self.output_device.id,
+                    get_property_address(
+                        Property::DeviceIsAlive,
+                        DeviceType::INPUT | DeviceType::OUTPUT,
+                    ),
+                    audiounit_property_listener_callback,
+                );
+                let rv = stm.add_device_listener(&listener);
+                if rv != NO_ERR {
+                    cubeb_log!(
+                        "({:p}) Failed to monitor alive status of output device {}. Error: {}",
+                        self.stm_ptr,
+                        listener.device,
+                        rv
+                    );
+                    return Err(Error::error());
+                }
+                self.device_alive_listeners
+                    .insert(self.output_device.id, listener);
             }
         }
 
@@ -2984,10 +3035,6 @@ impl<'ctx> CoreStreamData<'ctx> {
             assert!(
                 self.input_source_listener.is_none(),
                 "register input_source_listener without unregistering the one in use"
-            );
-            assert!(
-                self.input_alive_listener.is_none(),
-                "register input_alive_listener without unregistering the one in use"
             );
 
             // Get the notification when the data source on the same device changes,
@@ -3040,28 +3087,41 @@ impl<'ctx> CoreStreamData<'ctx> {
                     self.default_input_listener = None;
                     return Err(Error::error());
                 }
+            } else if self.input_device.id == self.output_device.id {
+                assert!(self
+                    .device_alive_listeners
+                    .contains_key(&self.input_device.id));
+                cubeb_log!("({:p}) Same device for input and output. We've monitor the alive status for device {}", self.stm_ptr, self.input_device.id);
             } else {
+                assert!(
+                    !self
+                        .device_alive_listeners
+                        .contains_key(&self.input_device.id),
+                    "register input alive listener without unregistering the one in use"
+                );
+
                 // Get the notification when the input device is going away
                 // if the input doesn't follow the system default.
-                self.input_alive_listener = Some(device_property_listener::new(
+                let listener = device_property_listener::new(
                     self.input_device.id,
                     get_property_address(
                         Property::DeviceIsAlive,
                         DeviceType::INPUT | DeviceType::OUTPUT,
                     ),
                     audiounit_property_listener_callback,
-                ));
-                let rv = stm.add_device_listener(self.input_alive_listener.as_ref().unwrap());
+                );
+                let rv = stm.add_device_listener(&listener);
                 if rv != NO_ERR {
                     cubeb_log!(
                         "({:p}) Failed to monitor alive status of input device {}. Error: {}",
                         self.stm_ptr,
-                        self.input_alive_listener.as_ref().unwrap().device,
+                        listener.device,
                         rv
                     );
-                    self.input_alive_listener = None;
                     return Err(Error::error());
                 }
+                self.device_alive_listeners
+                    .insert(self.input_device.id, listener);
             }
         }
 
@@ -3073,7 +3133,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             assert!(
                 self.output_source_listener.is_none()
                     && self.input_source_listener.is_none()
-                    && self.input_alive_listener.is_none()
+                    && self.device_alive_listeners.is_empty()
             );
             return Ok(());
         }
@@ -3137,19 +3197,19 @@ impl<'ctx> CoreStreamData<'ctx> {
             self.input_source_listener = None;
         }
 
-        if self.input_alive_listener.is_some() {
-            let rv = stm.remove_device_listener(self.input_alive_listener.as_ref().unwrap());
+        for listener in self.device_alive_listeners.values() {
+            let rv = stm.remove_device_listener(listener);
             if rv != NO_ERR {
                 cubeb_log!(
-                    "({:p}) Failed to cancel monitoring alive status of input device {}. Error: {}",
+                    "({:p}) Failed to cancel monitoring alive status of device {}. Error: {}",
                     self.stm_ptr,
-                    self.input_alive_listener.as_ref().unwrap().device,
+                    listener.device,
                     rv
                 );
                 r = Err(Error::error());
             }
-            self.input_alive_listener = None;
         }
+        self.device_alive_listeners.clear();
 
         r
     }
