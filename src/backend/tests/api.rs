@@ -1044,6 +1044,7 @@ fn test_get_channel_count_of_output_for_a_input_only_deivce() {
 }
 
 #[test]
+#[should_panic]
 fn test_get_channel_count_of_unknown_device() {
     assert!(get_channel_count(kAudioObjectUnknown, DeviceType::OUTPUT).is_err());
 }
@@ -1220,6 +1221,7 @@ fn test_get_same_group_id_for_builtin_device_pairs() {
 }
 
 #[test]
+#[should_panic]
 fn test_get_device_group_id_by_unknown_device() {
     assert!(get_device_group_id(kAudioObjectUnknown, DeviceType::INPUT).is_err());
 }
@@ -1244,6 +1246,7 @@ fn test_get_device_label() {
 }
 
 #[test]
+#[should_panic]
 fn test_get_device_label_by_unknown_device() {
     assert!(get_device_label(kAudioObjectUnknown, DeviceType::INPUT).is_err());
 }
@@ -1268,6 +1271,7 @@ fn test_get_device_global_uid() {
 }
 
 #[test]
+#[should_panic]
 fn test_get_device_global_uid_by_unknwon_device() {
     // Unknown device.
     assert!(get_device_global_uid(kAudioObjectUnknown).is_err());
@@ -1366,6 +1370,7 @@ fn test_create_cubeb_device_info() {
 }
 
 #[test]
+#[should_panic]
 fn test_create_device_info_by_unknown_device() {
     assert!(create_cubeb_device_info(kAudioObjectUnknown, DeviceType::OUTPUT).is_err());
 }

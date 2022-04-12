@@ -1248,6 +1248,8 @@ fn get_channel_count(
     devid: AudioObjectID,
     devtype: DeviceType,
 ) -> std::result::Result<u32, OSStatus> {
+    assert_ne!(devid, kAudioObjectUnknown);
+
     let buffers = get_device_stream_configuration(devid, devtype)?;
     let mut count = 0;
     for buffer in buffers {
