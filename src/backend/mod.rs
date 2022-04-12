@@ -3284,7 +3284,6 @@ impl<'ctx> AudioUnitStream<'ctx> {
 
         self.core_stream_data.close();
 
-        // Use the new default device if this stream was set to follow the output device.
         if self.core_stream_data.has_output()
             && self
                 .core_stream_data
@@ -3292,13 +3291,14 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 .flags
                 .contains(device_flags::DEV_SELECTED_DEFAULT)
         {
-            self.core_stream_data.output_device.id = audiounit_get_default_device_id(DeviceType::OUTPUT).map_err(|e| {
-                cubeb_log!(
-                    "({:p}) Cannot get default output device. Error: {}. This can happen when last media device is unplugged",
-                    self.core_stream_data.stm_ptr, e
-                );
-                Error::error()
-            })?;
+            self.core_stream_data.output_device =
+                match create_device_info(kAudioObjectUnknown, DeviceType::OUTPUT) {
+                    Err(e) => {
+                        cubeb_log!("Fail to create device info for output: {:?}", e);
+                        return Err(Error::error());
+                    }
+                    Ok(d) => d,
+                };
         }
 
         // Likewise, for the input side
@@ -3309,13 +3309,14 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 .flags
                 .contains(device_flags::DEV_SELECTED_DEFAULT)
         {
-            self.core_stream_data.input_device.id = audiounit_get_default_device_id(DeviceType::INPUT).map_err(|e| {
-                cubeb_log!(
-                    "({:p}) Cannot get default input device. Error: {}. This can happen when last media device is unplugged",
-                    self.core_stream_data.stm_ptr, e
-                );
-                Error::error()
-            })?;
+            self.core_stream_data.input_device =
+                match create_device_info(kAudioObjectUnknown, DeviceType::INPUT) {
+                    Err(e) => {
+                        cubeb_log!("Fail to create device info for input: {:?}", e);
+                        return Err(Error::error());
+                    }
+                    Ok(d) => d,
+                };
         }
 
         self.core_stream_data.setup().map_err(|e| {
