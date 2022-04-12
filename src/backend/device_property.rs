@@ -4,8 +4,6 @@ pub fn get_device_uid(
     id: AudioDeviceID,
     devtype: DeviceType,
 ) -> std::result::Result<StringRef, OSStatus> {
-    assert_ne!(id, kAudioObjectUnknown);
-
     let address = get_property_address(Property::DeviceUID, devtype);
     let mut size = mem::size_of::<CFStringRef>();
     let mut uid: CFStringRef = ptr::null();
@@ -21,8 +19,6 @@ pub fn get_device_model_uid(
     id: AudioDeviceID,
     devtype: DeviceType,
 ) -> std::result::Result<StringRef, OSStatus> {
-    assert_ne!(id, kAudioObjectUnknown);
-
     let address = get_property_address(Property::ModelUID, devtype);
     let mut size = mem::size_of::<CFStringRef>();
     let mut uid: CFStringRef = ptr::null();
@@ -38,8 +34,6 @@ pub fn get_device_transport_type(
     id: AudioDeviceID,
     devtype: DeviceType,
 ) -> std::result::Result<u32, OSStatus> {
-    assert_ne!(id, kAudioObjectUnknown);
-
     let address = get_property_address(Property::TransportType, devtype);
     let mut size = mem::size_of::<u32>();
     let mut transport: u32 = 0;
@@ -55,8 +49,6 @@ pub fn get_device_source(
     id: AudioDeviceID,
     devtype: DeviceType,
 ) -> std::result::Result<u32, OSStatus> {
-    assert_ne!(id, kAudioObjectUnknown);
-
     let address = get_property_address(Property::DeviceSource, devtype);
     let mut size = mem::size_of::<u32>();
     let mut source: u32 = 0;
@@ -72,8 +64,6 @@ pub fn get_device_source_name(
     id: AudioDeviceID,
     devtype: DeviceType,
 ) -> std::result::Result<StringRef, OSStatus> {
-    assert_ne!(id, kAudioObjectUnknown);
-
     let mut source: u32 = get_device_source(id, devtype)?;
     let address = get_property_address(Property::DeviceSourceName, devtype);
     let mut size = mem::size_of::<AudioValueTranslation>();
@@ -96,8 +86,6 @@ pub fn get_device_name(
     id: AudioDeviceID,
     devtype: DeviceType,
 ) -> std::result::Result<StringRef, OSStatus> {
-    assert_ne!(id, kAudioObjectUnknown);
-
     let address = get_property_address(Property::DeviceName, devtype);
     let mut size = mem::size_of::<CFStringRef>();
     let mut name: CFStringRef = ptr::null();
@@ -113,8 +101,6 @@ pub fn get_device_manufacturer(
     id: AudioDeviceID,
     devtype: DeviceType,
 ) -> std::result::Result<StringRef, OSStatus> {
-    assert_ne!(id, kAudioObjectUnknown);
-
     let address = get_property_address(Property::DeviceManufacturer, devtype);
     let mut size = mem::size_of::<CFStringRef>();
     let mut manufacturer: CFStringRef = ptr::null();
@@ -130,8 +116,6 @@ pub fn get_device_buffer_frame_size_range(
     id: AudioDeviceID,
     devtype: DeviceType,
 ) -> std::result::Result<AudioValueRange, OSStatus> {
-    assert_ne!(id, kAudioObjectUnknown);
-
     let address = get_property_address(Property::DeviceBufferFrameSizeRange, devtype);
     let mut size = mem::size_of::<AudioValueRange>();
     let mut range = AudioValueRange::default();
@@ -147,8 +131,6 @@ pub fn get_device_latency(
     id: AudioDeviceID,
     devtype: DeviceType,
 ) -> std::result::Result<u32, OSStatus> {
-    assert_ne!(id, kAudioObjectUnknown);
-
     let address = get_property_address(Property::DeviceLatency, devtype);
     let mut size = mem::size_of::<u32>();
     let mut latency: u32 = 0;
@@ -164,8 +146,6 @@ pub fn get_device_streams(
     id: AudioDeviceID,
     devtype: DeviceType,
 ) -> std::result::Result<Vec<AudioStreamID>, OSStatus> {
-    assert_ne!(id, kAudioObjectUnknown);
-
     let address = get_property_address(Property::DeviceStreams, devtype);
 
     let mut size: usize = 0;
@@ -187,8 +167,6 @@ pub fn get_device_sample_rate(
     id: AudioDeviceID,
     devtype: DeviceType,
 ) -> std::result::Result<f64, OSStatus> {
-    assert_ne!(id, kAudioObjectUnknown);
-
     let address = get_property_address(Property::DeviceSampleRate, devtype);
     let mut size = mem::size_of::<f64>();
     let mut rate: f64 = 0.0;
@@ -204,8 +182,6 @@ pub fn get_ranges_of_device_sample_rate(
     id: AudioDeviceID,
     devtype: DeviceType,
 ) -> std::result::Result<Vec<AudioValueRange>, OSStatus> {
-    assert_ne!(id, kAudioObjectUnknown);
-
     let address = get_property_address(Property::DeviceSampleRates, devtype);
 
     let mut size: usize = 0;
@@ -227,8 +203,6 @@ pub fn get_device_stream_format(
     id: AudioDeviceID,
     devtype: DeviceType,
 ) -> std::result::Result<AudioStreamBasicDescription, OSStatus> {
-    assert_ne!(id, kAudioObjectUnknown);
-
     let address = get_property_address(Property::DeviceStreamFormat, devtype);
     let mut size = mem::size_of::<AudioStreamBasicDescription>();
     let mut format = AudioStreamBasicDescription::default();
@@ -245,8 +219,6 @@ pub fn get_device_stream_configuration(
     id: AudioDeviceID,
     devtype: DeviceType,
 ) -> std::result::Result<Vec<AudioBuffer>, OSStatus> {
-    assert_ne!(id, kAudioObjectUnknown);
-
     let address = get_property_address(Property::DeviceStreamConfiguration, devtype);
     let mut size: usize = 0;
     let err = audio_object_get_property_data_size(id, &address, &mut size);
@@ -272,8 +244,6 @@ pub fn get_stream_latency(
     id: AudioStreamID,
     devtype: DeviceType,
 ) -> std::result::Result<u32, OSStatus> {
-    assert_ne!(id, kAudioObjectUnknown);
-
     let address = get_property_address(Property::StreamLatency, devtype);
     let mut size = mem::size_of::<u32>();
     let mut latency: u32 = 0;
@@ -289,8 +259,6 @@ pub fn get_clock_domain(
     id: AudioStreamID,
     devtype: DeviceType,
 ) -> std::result::Result<u32, OSStatus> {
-    assert_ne!(id, kAudioObjectUnknown);
-
     let address = get_property_address(Property::ClockDomain, devtype);
     let mut size = mem::size_of::<u32>();
     let mut clock_domain: u32 = 0;
