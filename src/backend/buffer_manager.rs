@@ -86,15 +86,18 @@ fn process_data<T: Copy + std::ops::Add<Output = T>>(
     let input_slice = unsafe {
         slice::from_raw_parts_mut::<T>(data as *mut T, frame_count * input_channel_count)
     };
-    if input_channels_to_ignore == 0 {
+    if input_channel_count == output_channel_count {
+        assert_eq!(input_channels_to_ignore, 0);
         input_slice
     } else {
-        drop_first_n_channels_in_place(
-            input_channels_to_ignore,
-            input_slice,
-            frame_count,
-            input_channel_count,
-        );
+        if input_channels_to_ignore > 0 {
+            drop_first_n_channels_in_place(
+                input_channels_to_ignore,
+                input_slice,
+                frame_count,
+                input_channel_count,
+            );
+        }
         let new_count_remixed = remix_or_drop_channels(
             input_channel_count - input_channels_to_ignore,
             output_channel_count,
@@ -203,6 +206,7 @@ impl BufferManager {
                 p.push_slice(processed_input)
             }
         };
+        assert!(pushed <= to_push, "We don't support upmix");
         if pushed != to_push {
             cubeb_log!(
                 "Input ringbuffer full, could only push {} instead of {}",
@@ -255,6 +259,10 @@ impl BufferManager {
             IntegerRingBufferConsumer(p) => p.len(),
             FloatRingBufferConsumer(p) => p.len(),
         }
+    }
+    pub fn available_frames(&self) -> usize {
+        assert_ne!(self.channel_count(), 0);
+        self.available_samples() / self.channel_count()
     }
     pub fn trim(&mut self, final_size: usize) {
         match &mut self.consumer {

@@ -409,8 +409,7 @@ extern "C" fn audiounit_input_callback(
             input_buffer_list.mBuffers[0].mDataByteSize,
             input_buffer_list.mBuffers[0].mNumberChannels,
             input_frames,
-            input_buffer_manager.available_samples()
-                / stm.core_stream_data.input_dev_desc.mChannelsPerFrame as usize
+            input_buffer_manager.available_frames()
         );
 
         // Full Duplex. We'll call data_callback in the AudioUnit output callback.
@@ -420,12 +419,12 @@ extern "C" fn audiounit_input_callback(
 
         // Input only. Call the user callback through resampler.
         // Resampler will deliver input buffer in the correct rate.
-        let mut total_input_frames = (input_buffer_manager.available_samples()
-            / stm.core_stream_data.input_dev_desc.mChannelsPerFrame as usize)
-            as i64;
-        assert!(input_frames as i64 <= total_input_frames);
-        stm.frames_read
-            .fetch_add(total_input_frames as usize, atomic::Ordering::SeqCst);
+        assert!(input_frames as usize <= input_buffer_manager.available_frames());
+        stm.frames_read.fetch_add(
+            input_buffer_manager.available_frames(),
+            atomic::Ordering::SeqCst,
+        );
+        let mut total_input_frames = input_buffer_manager.available_frames() as i64;
         let input_buffer =
             input_buffer_manager.get_linear_data(input_buffer_manager.available_samples());
         let outframes = stm.core_stream_data.resampler.fill(
