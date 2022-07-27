@@ -467,14 +467,12 @@ fn test_reinit_input_stream_by_unplugging_a_default_input_device() {
 
 // Unplug the non-default output device for an output stream
 // ------------------------------------------------------------------------------------------------
-// FIXME: We don't monitor the alive-status for output device currently
 #[ignore]
 #[test]
 fn test_destroy_output_stream_after_unplugging_a_nondefault_output_device() {
     test_unplug_a_device_on_an_active_stream(StreamType::OUTPUT, Scope::Output, false, 0);
 }
 
-// FIXME: We don't monitor the alive-status for output device currently
 #[ignore]
 #[test]
 fn test_suspend_output_stream_by_unplugging_a_nondefault_output_device() {
@@ -524,14 +522,12 @@ fn test_suspend_duplex_stream_by_unplugging_a_nondefault_input_device() {
 // Unplug the non-default output device for a duplex stream
 // ------------------------------------------------------------------------------------------------
 
-// FIXME: We don't monitor the alive-status for output device currently
 #[ignore]
 #[test]
 fn test_destroy_duplex_stream_after_unplugging_a_nondefault_output_device() {
     test_unplug_a_device_on_an_active_stream(StreamType::DUPLEX, Scope::Output, false, 0);
 }
 
-// FIXME: We don't monitor the alive-status for output device currently
 #[ignore]
 #[test]
 fn test_suspend_duplex_stream_by_unplugging_a_nondefault_output_device() {
