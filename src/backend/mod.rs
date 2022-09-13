@@ -978,7 +978,7 @@ fn enable_audiounit_scope(
 ) -> std::result::Result<(), OSStatus> {
     assert!(!unit.is_null());
 
-    let enable: u32 = if enable_io { 1 } else { 0 };
+    let enable = u32::from(enable_io);
     let (scope, element) = match devtype {
         DeviceType::INPUT => (kAudioUnitScope_Input, AU_IN_BUS),
         DeviceType::OUTPUT => (kAudioUnitScope_Output, AU_OUT_BUS),
