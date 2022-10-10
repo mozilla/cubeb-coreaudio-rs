@@ -166,24 +166,6 @@ impl From<CAChannelLabel> for mixer::Channel {
     }
 }
 
-fn set_notification_runloop() {
-    let address = AudioObjectPropertyAddress {
-        mSelector: kAudioHardwarePropertyRunLoop,
-        mScope: kAudioObjectPropertyScopeGlobal,
-        mElement: kAudioObjectPropertyElementMaster,
-    };
-
-    // Ask HAL to manage its own thread for notification by setting the run_loop to NULL.
-    // Otherwise HAL may use main thread to fire notifications.
-    let run_loop: CFRunLoopRef = ptr::null_mut();
-    let size = mem::size_of::<CFRunLoopRef>();
-    let status =
-        audio_object_set_property_data(kAudioObjectSystemObject, &address, size, &run_loop);
-    if status != NO_ERR {
-        cubeb_log!("Could not make global CoreAudio notifications use their own thread.");
-    }
-}
-
 fn clamp_latency(latency_frames: u32) -> u32 {
     cmp::max(
         cmp::min(latency_frames, SAFE_MAX_LATENCY_FRAMES),
@@ -1980,7 +1962,6 @@ impl AudioUnitContext {
 
 impl ContextOps for AudioUnitContext {
     fn init(_context_name: Option<&CStr>) -> Result<Context> {
-        set_notification_runloop();
         let ctx = Box::new(AudioUnitContext::new());
         Ok(unsafe { Context::from_ptr(Box::into_raw(ctx) as *mut _) })
     }
