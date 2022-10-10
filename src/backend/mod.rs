@@ -184,13 +184,6 @@ fn set_notification_runloop() {
     }
 }
 
-fn clamp_latency(latency_frames: u32) -> u32 {
-    cmp::max(
-        cmp::min(latency_frames, SAFE_MAX_LATENCY_FRAMES),
-        SAFE_MIN_LATENCY_FRAMES,
-    )
-}
-
 fn create_device_info(devid: AudioDeviceID, devtype: DeviceType) -> Option<device_info> {
     assert_ne!(devid, kAudioObjectSystemObject);
 
@@ -612,9 +605,9 @@ extern "C" fn audiounit_output_callback(
         let buffered_input_frames = input_buffer_manager.available_frames();
         // Else if the input has buffered a lot already because the output started late, we
         // need to trim the input buffer
-        if prev_frames_written == 0 && buffered_input_frames > input_frames_needed as usize {
+        if prev_frames_written == 0 && buffered_input_frames > input_frames_needed {
             input_buffer_manager.trim(input_frames_needed);
-            let popped_frames = buffered_input_frames - input_frames_needed as usize;
+            let popped_frames = buffered_input_frames - input_frames_needed;
             cubeb_alog!("Dropping {} frames in input buffer.", popped_frames);
         }
 
@@ -1815,7 +1808,7 @@ impl LatencyController {
             assert!(self.latency.is_none());
             // Silently clamp the latency down to the platform default, because we
             // synthetize the clock from the callbacks, and we want the clock to update often.
-            self.latency = Some(clamp_latency(latency));
+            self.latency = Some(latency.clamp(SAFE_MIN_LATENCY_FRAMES, SAFE_MAX_LATENCY_FRAMES));
         }
         self.latency
     }
@@ -3749,7 +3742,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
                 Error::error()
             })?;
 
-        let mut device: Box<ffi::cubeb_device> = Box::new(ffi::cubeb_device::default());
+        let mut device: Box<ffi::cubeb_device> = Box::default();
 
         device.input_name = input_name.into_raw();
         device.output_name = output_name.into_raw();
