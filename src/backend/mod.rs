@@ -439,8 +439,16 @@ extern "C" fn audiounit_input_callback(
         );
         if outframes < 0 {
             stm.stopped.store(true, Ordering::SeqCst);
-            stm.core_stream_data.stop_audiounits();
             stm.notify_state_changed(State::Error);
+            let queue = stm.queue.clone();
+            let mutexed_stm = Arc::new(Mutex::new(stm));
+            let also_mutexed_stm = Arc::clone(&mutexed_stm);
+            // Use a new thread, through the queue, to avoid deadlock when calling
+            // AudioOutputUnitStop method from inside render callback
+            queue.run_async(move || {
+                let stm_guard = also_mutexed_stm.lock().unwrap();
+                stm_guard.core_stream_data.stop_audiounits();
+            });
             return handle;
         }
         if outframes < total_input_frames {
@@ -669,9 +677,17 @@ extern "C" fn audiounit_output_callback(
 
     if outframes < 0 || outframes > i64::from(output_frames) {
         stm.stopped.store(true, Ordering::SeqCst);
-        stm.core_stream_data.stop_audiounits();
-        audiounit_make_silent(&mut buffers[0]);
         stm.notify_state_changed(State::Error);
+        let queue = stm.queue.clone();
+        let mutexed_stm = Arc::new(Mutex::new(stm));
+        let also_mutexed_stm = Arc::clone(&mutexed_stm);
+        // Use a new thread, through the queue, to avoid deadlock when calling
+        // AudioOutputUnitStop method from inside render callback
+        queue.run_async(move || {
+            let stm_guard = also_mutexed_stm.lock().unwrap();
+            stm_guard.core_stream_data.stop_audiounits();
+        });
+        audiounit_make_silent(&mut buffers[0]);
         return NO_ERR;
     }
 
