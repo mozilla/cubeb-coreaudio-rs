@@ -441,13 +441,10 @@ extern "C" fn audiounit_input_callback(
             stm.stopped.store(true, Ordering::SeqCst);
             stm.notify_state_changed(State::Error);
             let queue = stm.queue.clone();
-            let mutexed_stm = Arc::new(Mutex::new(stm));
-            let also_mutexed_stm = Arc::clone(&mutexed_stm);
             // Use a new thread, through the queue, to avoid deadlock when calling
             // AudioOutputUnitStop method from inside render callback
             queue.run_async(move || {
-                let stm_guard = also_mutexed_stm.lock().unwrap();
-                stm_guard.core_stream_data.stop_audiounits();
+                stm.core_stream_data.stop_audiounits();
             });
             return handle;
         }
@@ -679,13 +676,10 @@ extern "C" fn audiounit_output_callback(
         stm.stopped.store(true, Ordering::SeqCst);
         stm.notify_state_changed(State::Error);
         let queue = stm.queue.clone();
-        let mutexed_stm = Arc::new(Mutex::new(stm));
-        let also_mutexed_stm = Arc::clone(&mutexed_stm);
         // Use a new thread, through the queue, to avoid deadlock when calling
         // AudioOutputUnitStop method from inside render callback
         queue.run_async(move || {
-            let stm_guard = also_mutexed_stm.lock().unwrap();
-            stm_guard.core_stream_data.stop_audiounits();
+            stm.core_stream_data.stop_audiounits();
         });
         audiounit_make_silent(&mut buffers[0]);
         return NO_ERR;
@@ -1713,15 +1707,12 @@ extern "C" fn audiounit_collection_changed_callback(
     let context = unsafe { &mut *(in_client_data as *mut AudioUnitContext) };
 
     let queue = context.serial_queue.clone();
-    let mutexed_context = Arc::new(Mutex::new(context));
-    let also_mutexed_context = Arc::clone(&mutexed_context);
 
     // This can be called from inside an AudioUnit function, dispatch to another queue.
     queue.run_async(move || {
-        let ctx_guard = also_mutexed_context.lock().unwrap();
-        let ctx_ptr = *ctx_guard as *const AudioUnitContext;
+        let ctx_ptr = context as *const AudioUnitContext;
 
-        let mut devices = ctx_guard.devices.lock().unwrap();
+        let mut devices = context.devices.lock().unwrap();
 
         if devices.input.changed_callback.is_none() && devices.output.changed_callback.is_none() {
             return;
@@ -3487,14 +3478,11 @@ impl<'ctx> AudioUnitStream<'ctx> {
         }
 
         let queue = self.queue.clone();
-        let mutexed_stm = Arc::new(Mutex::new(self));
-        let also_mutexed_stm = Arc::clone(&mutexed_stm);
         // Use a new thread, through the queue, to avoid deadlock when calling
         // Get/SetProperties method from inside notify callback
         queue.run_async(move || {
-            let mut stm_guard = also_mutexed_stm.lock().unwrap();
-            let stm_ptr = *stm_guard as *const AudioUnitStream;
-            if stm_guard.destroy_pending.load(Ordering::SeqCst) {
+            let stm_ptr = self as *const AudioUnitStream;
+            if self.destroy_pending.load(Ordering::SeqCst) {
                 cubeb_log!(
                     "({:p}) stream pending destroy, cancelling reinit task",
                     stm_ptr
@@ -3502,35 +3490,32 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 return;
             }
 
-            if stm_guard.reinit().is_err() {
-                stm_guard.core_stream_data.close();
-                stm_guard.notify_state_changed(State::Error);
+            if self.reinit().is_err() {
+                self.core_stream_data.close();
+                self.notify_state_changed(State::Error);
                 cubeb_log!(
                     "({:p}) Could not reopen the stream after switching.",
                     stm_ptr
                 );
             }
-            stm_guard.switching_device.store(false, Ordering::SeqCst);
-            stm_guard.reinit_pending.store(false, Ordering::SeqCst);
+            self.switching_device.store(false, Ordering::SeqCst);
+            self.reinit_pending.store(false, Ordering::SeqCst);
         });
     }
 
     fn close_on_error(&mut self) {
         let queue = self.queue.clone();
-        let mutexed_stm = Arc::new(Mutex::new(self));
-        let also_mutexed_stm = Arc::clone(&mutexed_stm);
 
         // Use a different thread, through the queue, to avoid deadlock when calling
         // Get/SetProperties method from inside notify callback
         queue.run_async(move || {
-            let mut stm_guard = also_mutexed_stm.lock().unwrap();
-            let stm_ptr = *stm_guard as *const AudioUnitStream;
+            let stm_ptr = self as *const AudioUnitStream;
 
-            stm_guard.core_stream_data.close();
-            stm_guard.notify_state_changed(State::Error);
+            self.core_stream_data.close();
+            self.notify_state_changed(State::Error);
             cubeb_log!("({:p}) Close the stream due to an error.", stm_ptr);
 
-            stm_guard.switching_device.store(false, Ordering::SeqCst);
+            self.switching_device.store(false, Ordering::SeqCst);
         });
     }
 
