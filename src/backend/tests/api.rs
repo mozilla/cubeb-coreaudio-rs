@@ -45,8 +45,8 @@ fn test_increase_and_decrease_context_streams() {
     for i in 0..STREAMS {
         join_handles.push(thread::spawn(move || {
             let context = unsafe { &*(context_ptr_value as *const AudioUnitContext) };
-            let global_latency = context.update_latency_by_adding_stream(i);
-            global_latency
+            
+            context.update_latency_by_adding_stream(i)
         }));
     }
     let mut latencies = vec![];
@@ -850,7 +850,7 @@ fn test_for_create_audiounit() {
 
         // Check the output scope is enabled.
         if device.flags.contains(device_flags::DEV_OUTPUT) && default_output.is_some() {
-            device.id = default_output.clone().unwrap();
+            device.id = default_output.unwrap();
             let unit = create_audiounit(&device).unwrap();
             assert!(!unit.is_null());
             assert!(test_audiounit_scope_is_enabled(unit, Scope::Output));
@@ -864,7 +864,7 @@ fn test_for_create_audiounit() {
 
         // Check the input scope is enabled.
         if device.flags.contains(device_flags::DEV_INPUT) && default_input.is_some() {
-            let device_id = default_input.clone().unwrap();
+            let device_id = default_input.unwrap();
             device.id = device_id;
             let unit = create_audiounit(&device).unwrap();
             assert!(!unit.is_null());

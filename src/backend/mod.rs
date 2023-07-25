@@ -1194,7 +1194,7 @@ fn set_buffer_size_sync(unit: AudioUnit, devtype: DeviceType, frames: u32) -> Re
         Error::error()
     })?;
 
-    let &(ref lock, ref cvar) = &*pair;
+    let (lock, cvar) = &*pair;
     let changed = lock.lock().unwrap();
     if !*changed {
         let (chg, timeout_res) = cvar.wait_timeout(changed, waiting_time).unwrap();
@@ -1240,7 +1240,7 @@ fn set_buffer_size_sync(unit: AudioUnit, devtype: DeviceType, frames: u32) -> Re
         assert!(in_element == AU_IN_BUS || in_element == AU_OUT_BUS);
         assert_eq!(in_property_id, kAudioDevicePropertyBufferFrameSize);
         let pair = unsafe { &mut *(in_client_data as *mut Arc<(Mutex<bool>, Condvar)>) };
-        let &(ref lock, ref cvar) = &**pair;
+        let (lock, cvar) = &**pair;
         let mut changed = lock.lock().unwrap();
         *changed = true;
         cvar.notify_one();
