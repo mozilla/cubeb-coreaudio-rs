@@ -1208,9 +1208,9 @@ pub fn test_get_stream_with_default_data_callback_by_type<F>(
 
 bitflags! {
     pub struct StreamType: u8 {
-        const INPUT = 0b01;
-        const OUTPUT = 0b10;
-        const DUPLEX = Self::INPUT.bits | Self::OUTPUT.bits;
+        const INPUT = 0x01;
+        const OUTPUT = 0x02;
+        const DUPLEX = 0x03;
     }
 }
 

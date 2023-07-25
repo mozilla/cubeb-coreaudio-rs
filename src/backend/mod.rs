@@ -63,6 +63,7 @@ const SAFE_MAX_LATENCY_FRAMES: u32 = 512;
 
 bitflags! {
     #[allow(non_camel_case_types)]
+    #[derive(Clone, Debug, PartialEq, Copy)]
     struct device_flags: u32 {
         const DEV_UNKNOWN           = 0b0000_0000; // Unknown
         const DEV_INPUT             = 0b0000_0001; // Record device like mic
