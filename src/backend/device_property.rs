@@ -262,7 +262,7 @@ pub fn get_device_stream_configuration(
     }
 
     let list = unsafe { &(*ptr) };
-    let ptr = list.mBuffers.as_ptr() as *const AudioBuffer;
+    let ptr = list.mBuffers.as_ptr();
     let len = list.mNumberBuffers as usize;
     let buffers = unsafe { slice::from_raw_parts(ptr, len) };
     Ok(buffers.to_vec())
