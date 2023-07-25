@@ -45,7 +45,7 @@ fn test_increase_and_decrease_context_streams() {
     for i in 0..STREAMS {
         join_handles.push(thread::spawn(move || {
             let context = unsafe { &*(context_ptr_value as *const AudioUnitContext) };
-            
+
             context.update_latency_by_adding_stream(i)
         }));
     }
