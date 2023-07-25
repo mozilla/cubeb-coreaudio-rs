@@ -294,7 +294,7 @@ fn minimum_resampling_input_frames(
     (input_rate * output_frames as f64 / output_rate).ceil() as usize
 }
 
-fn audiounit_make_silent(io_data: &mut AudioBuffer) {
+fn audiounit_make_silent(io_data: &AudioBuffer) {
     assert!(!io_data.mData.is_null());
     let bytes = unsafe {
         let ptr = io_data.mData as *mut u8;
@@ -541,7 +541,7 @@ extern "C" fn audiounit_output_callback(
 
     if stm.stopped.load(Ordering::SeqCst) {
         cubeb_alog!("({:p}) output stopped.", stm as *const AudioUnitStream);
-        audiounit_make_silent(&mut buffers[0]);
+        audiounit_make_silent(&buffers[0]);
         return NO_ERR;
     }
 
@@ -551,7 +551,7 @@ extern "C" fn audiounit_output_callback(
         let r = stop_audiounit(stm.core_stream_data.output_unit);
         assert!(r.is_ok());
         stm.notify_state_changed(State::Drained);
-        audiounit_make_silent(&mut buffers[0]);
+        audiounit_make_silent(&buffers[0]);
         return NO_ERR;
     }
 
@@ -682,7 +682,7 @@ extern "C" fn audiounit_output_callback(
         queue.run_async(move || {
             stm.core_stream_data.stop_audiounits();
         });
-        audiounit_make_silent(&mut buffers[0]);
+        audiounit_make_silent(&buffers[0]);
         return NO_ERR;
     }
 
