@@ -378,7 +378,9 @@ fn test_register_device_changed_callback_to_check_default_device_changed(stm_typ
                 for _ in 0..devices {
                     // While the stream is re-initializing for the default device switch,
                     // switching for the default device again will be ignored.
-                    while stream.switching_device.load(atomic::Ordering::SeqCst) {}
+                    while stream.switching_device.load(atomic::Ordering::SeqCst) {
+                        std::hint::spin_loop()
+                    }
                     changed_watcher.prepare();
                     device_switcher.next();
                     changed_watcher.wait_for_change();
@@ -390,7 +392,9 @@ fn test_register_device_changed_callback_to_check_default_device_changed(stm_typ
                 for _ in 0..devices {
                     // While the stream is re-initializing for the default device switch,
                     // switching for the default device again will be ignored.
-                    while stream.switching_device.load(atomic::Ordering::SeqCst) {}
+                    while stream.switching_device.load(atomic::Ordering::SeqCst) {
+                        std::hint::spin_loop()
+                    }
                     changed_watcher.prepare();
                     device_switcher.next();
                     changed_watcher.wait_for_change();

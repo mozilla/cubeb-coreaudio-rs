@@ -189,11 +189,7 @@ fn test_enable_audiounit_in_scope(
 }
 
 pub fn test_get_source_name(device: AudioObjectID, scope: Scope) -> Option<String> {
-    if let Some(source) = test_get_source_data(device, scope) {
-        Some(u32_to_string(source))
-    } else {
-        None
-    }
+    test_get_source_data(device, scope).map(u32_to_string)
 }
 
 pub fn test_get_source_data(device: AudioObjectID, scope: Scope) -> Option<u32> {
@@ -323,7 +319,7 @@ pub fn get_devices_info_in_scope(scope: Scope) -> Vec<TestDeviceInfo> {
         infos.push(TestDeviceInfo::new(device, scope.clone()));
         print_info(infos.last().unwrap());
     }
-    println!("");
+    println!();
 
     infos
 }
@@ -628,8 +624,8 @@ impl TestDeviceSwitcher {
             .position(|device| *device == current)
             .unwrap();
         Self {
-            scope: scope,
-            devices: devices,
+            scope,
+            devices,
             current_device_index: index,
         }
     }
@@ -1003,9 +999,7 @@ impl TestDevicePlugger {
     //       AggregateDevice::get_sub_devices and audiounit_set_aggregate_sub_device_list.
     fn get_sub_devices(scope: Scope) -> Option<CFArrayRef> {
         let device = test_get_default_device(scope);
-        if device.is_none() {
-            return None;
-        }
+        device?;
         let device = device.unwrap();
         let uid = get_device_global_uid(device);
         if uid.is_err() {
@@ -1208,9 +1202,9 @@ pub fn test_get_stream_with_default_data_callback_by_type<F>(
 
 bitflags! {
     pub struct StreamType: u8 {
-        const INPUT = 0b01;
-        const OUTPUT = 0b10;
-        const DUPLEX = Self::INPUT.bits | Self::OUTPUT.bits;
+        const INPUT = 0x01;
+        const OUTPUT = 0x02;
+        const DUPLEX = 0x03;
     }
 }
 

@@ -63,6 +63,7 @@ const SAFE_MAX_LATENCY_FRAMES: u32 = 512;
 
 bitflags! {
     #[allow(non_camel_case_types)]
+    #[derive(Clone, Debug, PartialEq, Copy)]
     struct device_flags: u32 {
         const DEV_UNKNOWN           = 0b0000_0000; // Unknown
         const DEV_INPUT             = 0b0000_0001; // Record device like mic
@@ -293,7 +294,7 @@ fn minimum_resampling_input_frames(
     (input_rate * output_frames as f64 / output_rate).ceil() as usize
 }
 
-fn audiounit_make_silent(io_data: &mut AudioBuffer) {
+fn audiounit_make_silent(io_data: &AudioBuffer) {
     assert!(!io_data.mData.is_null());
     let bytes = unsafe {
         let ptr = io_data.mData as *mut u8;
@@ -540,7 +541,7 @@ extern "C" fn audiounit_output_callback(
 
     if stm.stopped.load(Ordering::SeqCst) {
         cubeb_alog!("({:p}) output stopped.", stm as *const AudioUnitStream);
-        audiounit_make_silent(&mut buffers[0]);
+        audiounit_make_silent(&buffers[0]);
         return NO_ERR;
     }
 
@@ -550,7 +551,7 @@ extern "C" fn audiounit_output_callback(
         let r = stop_audiounit(stm.core_stream_data.output_unit);
         assert!(r.is_ok());
         stm.notify_state_changed(State::Drained);
-        audiounit_make_silent(&mut buffers[0]);
+        audiounit_make_silent(&buffers[0]);
         return NO_ERR;
     }
 
@@ -681,7 +682,7 @@ extern "C" fn audiounit_output_callback(
         queue.run_async(move || {
             stm.core_stream_data.stop_audiounits();
         });
-        audiounit_make_silent(&mut buffers[0]);
+        audiounit_make_silent(&buffers[0]);
         return NO_ERR;
     }
 
@@ -1193,7 +1194,7 @@ fn set_buffer_size_sync(unit: AudioUnit, devtype: DeviceType, frames: u32) -> Re
         Error::error()
     })?;
 
-    let &(ref lock, ref cvar) = &*pair;
+    let (lock, cvar) = &*pair;
     let changed = lock.lock().unwrap();
     if !*changed {
         let (chg, timeout_res) = cvar.wait_timeout(changed, waiting_time).unwrap();
@@ -1239,7 +1240,7 @@ fn set_buffer_size_sync(unit: AudioUnit, devtype: DeviceType, frames: u32) -> Re
         assert!(in_element == AU_IN_BUS || in_element == AU_OUT_BUS);
         assert_eq!(in_property_id, kAudioDevicePropertyBufferFrameSize);
         let pair = unsafe { &mut *(in_client_data as *mut Arc<(Mutex<bool>, Condvar)>) };
-        let &(ref lock, ref cvar) = &**pair;
+        let (lock, cvar) = &**pair;
         let mut changed = lock.lock().unwrap();
         *changed = true;
         cvar.notify_one();
