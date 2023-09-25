@@ -33,6 +33,7 @@ use self::resampler::*;
 use self::utils::*;
 use atomic;
 use backend::ringbuf::RingBuffer;
+use cubeb_backend::ffi::cubeb_audio_dump_stream_t;
 use cubeb_backend::{
     ffi, Context, ContextOps, DeviceCollectionRef, DeviceId, DeviceRef, DeviceType, Error, Ops,
     Result, SampleFormat, State, Stream, StreamOps, StreamParams, StreamParamsRef, StreamPrefs,
@@ -379,6 +380,7 @@ extern "C" fn audiounit_input_callback(
         {
             return ErrorHandle::Return(status);
         }
+
         let handle = if status == kAudioUnitErr_CannotDoInCurrentContext {
             assert!(!stm.core_stream_data.output_unit.is_null());
             // kAudioUnitErr_CannotDoInCurrentContext is returned when using a BT
@@ -389,6 +391,18 @@ extern "C" fn audiounit_input_callback(
             ErrorHandle::Reinit
         } else {
             assert_eq!(status, NO_ERR);
+
+            unsafe {
+                let rv = ffi::cubeb_audio_dump_write(
+                    stm.core_stream_data.audio_dump_input,
+                    input_buffer_list.mBuffers[0].mData,
+                    input_frames * stm.core_stream_data.input_stream_params.channels(),
+                );
+                if rv != 0 {
+                    cubeb_alog!("Error dump input data");
+                }
+            }
+
             input_buffer_manager
                 .push_data(input_buffer_list.mBuffers[0].mData, input_frames as usize);
             ErrorHandle::Return(status)
@@ -672,6 +686,17 @@ extern "C" fn audiounit_output_callback(
         output_buffer,
         i64::from(output_frames),
     );
+
+    unsafe {
+        let rv = ffi::cubeb_audio_dump_write(
+            stm.core_stream_data.audio_dump_output,
+            output_buffer,
+            output_frames * stm.core_stream_data.output_stream_params.channels(),
+        );
+        if rv != 0 {
+            cubeb_alog!("Error dump input data");
+        }
+    }
 
     if outframes < 0 || outframes > i64::from(output_frames) {
         stm.stopped.store(true, Ordering::SeqCst);
@@ -1844,6 +1869,7 @@ pub struct AudioUnitContext {
     serial_queue: Queue,
     latency_controller: Mutex<LatencyController>,
     devices: Mutex<SharedDevices>,
+    audio_dump_session: ffi::cubeb_audio_dump_session_t,
 }
 
 impl AudioUnitContext {
@@ -1853,6 +1879,7 @@ impl AudioUnitContext {
             serial_queue: Queue::new(DISPATCH_QUEUE_LABEL),
             latency_controller: Mutex::new(LatencyController::default()),
             devices: Mutex::new(SharedDevices::default()),
+            audio_dump_session: ptr::null_mut(),
         }
     }
 
@@ -1982,7 +2009,10 @@ impl AudioUnitContext {
 impl ContextOps for AudioUnitContext {
     fn init(_context_name: Option<&CStr>) -> Result<Context> {
         set_notification_runloop();
-        let ctx = Box::new(AudioUnitContext::new());
+        let mut ctx = Box::new(AudioUnitContext::new());
+        unsafe {
+            ffi::cubeb_audio_dump_init(&mut ctx.audio_dump_session);
+        };
         Ok(unsafe { Context::from_ptr(Box::into_raw(ctx) as *mut _) })
     }
 
@@ -2181,6 +2211,35 @@ impl ContextOps for AudioUnitContext {
             return Err(r);
         }
 
+        unsafe {
+            if boxed_stream.core_stream_data.has_input() {
+                let name = CString::new("input.wav").expect("OK");
+                let rv = ffi::cubeb_audio_dump_stream_init(
+                    boxed_stream.context.audio_dump_session,
+                    &mut boxed_stream.core_stream_data.audio_dump_input,
+                    *boxed_stream.core_stream_data.input_stream_params.as_ptr(),
+                    name.as_ptr(),
+                );
+                if rv != 0 {
+                    cubeb_log!("Failed to init audio dump for input");
+                }
+            }
+            if boxed_stream.core_stream_data.has_output() {
+                println!(" has out put ");
+                let name = CString::new("output.wav").expect("OK");
+                let rv = ffi::cubeb_audio_dump_stream_init(
+                    boxed_stream.context.audio_dump_session,
+                    &mut boxed_stream.core_stream_data.audio_dump_output,
+                    *boxed_stream.core_stream_data.output_stream_params.as_ptr(),
+                    name.as_ptr(),
+                );
+                if rv != 0 {
+                    cubeb_log!("Failed to init audio dump for input");
+                }
+            }
+        }
+
+
         let cubeb_stream = unsafe { Stream::from_ptr(Box::into_raw(boxed_stream) as *mut _) };
         cubeb_log!(
             "({:p}) Cubeb stream init successful.",
@@ -2218,6 +2277,9 @@ impl Drop for AudioUnitContext {
                     controller.streams
                 );
             }
+            unsafe {
+                ffi::cubeb_audio_dump_shutdown(self.audio_dump_session);
+            };
         }
 
         // Make sure all the pending (device-collection-changed-callback) tasks
@@ -2305,6 +2367,8 @@ struct CoreStreamData<'ctx> {
     input_source_listener: Option<device_property_listener>,
     output_source_listener: Option<device_property_listener>,
     input_logging: Option<InputCallbackLogger>,
+    audio_dump_input: cubeb_audio_dump_stream_t,
+    audio_dump_output: cubeb_audio_dump_stream_t,
 }
 
 impl<'ctx> Default for CoreStreamData<'ctx> {
@@ -2341,6 +2405,8 @@ impl<'ctx> Default for CoreStreamData<'ctx> {
             input_source_listener: None,
             output_source_listener: None,
             input_logging: None,
+            audio_dump_input: ptr::null_mut(),
+            audio_dump_output: ptr::null_mut(),
         }
     }
 }
@@ -2384,6 +2450,8 @@ impl<'ctx> CoreStreamData<'ctx> {
             input_source_listener: None,
             output_source_listener: None,
             input_logging: None,
+            audio_dump_input: ptr::null_mut(),
+            audio_dump_output: ptr::null_mut(),
         }
     }
 
@@ -3445,6 +3513,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 }
         }
 
+
         self.core_stream_data.setup().map_err(|e| {
             cubeb_log!("({:p}) Setup failed.", self.core_stream_data.stm_ptr);
             e
@@ -3585,6 +3654,10 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         self.stopped.store(false, Ordering::SeqCst);
         self.draining.store(false, Ordering::SeqCst);
 
+        unsafe {
+            ffi::cubeb_audio_dump_start(self.context.audio_dump_session);
+        };
+
         // Execute start in serial queue to avoid racing with destroy or reinit.
         let mut result = Err(Error::error());
         let started = &mut result;
@@ -3605,6 +3678,10 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     }
     fn stop(&mut self) -> Result<()> {
         self.stopped.store(true, Ordering::SeqCst);
+
+        unsafe {
+            ffi::cubeb_audio_dump_stop(self.context.audio_dump_session);
+        };
 
         // Execute stop in serial queue to avoid racing with destroy or reinit.
         let stream = &self;
