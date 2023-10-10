@@ -257,8 +257,8 @@ fn u32_to_string(data: u32) -> String {
 }
 
 pub enum DeviceFilter {
-    ExcludeCubebAggregate,
-    IncludeCubebAggregate,
+    ExcludeCubebAggregateAndVPIO,
+    IncludeAll,
 }
 pub fn test_get_all_devices(filter: DeviceFilter) -> Vec<AudioObjectID> {
     let mut devices = Vec::new();
@@ -303,11 +303,12 @@ pub fn test_get_all_devices(filter: DeviceFilter) -> Vec<AudioObjectID> {
     }
 
     match filter {
-        DeviceFilter::ExcludeCubebAggregate => {
+        DeviceFilter::ExcludeCubebAggregateAndVPIO => {
             devices.retain(|&device| {
                 if let Ok(uid) = get_device_global_uid(device) {
                     let uid = uid.into_string();
                     !uid.contains(PRIVATE_AGGREGATE_DEVICE_NAME)
+                        && !uid.contains(VOICEPROCESSING_AGGREGATE_DEVICE_NAME)
                 } else {
                     true
                 }
@@ -320,7 +321,7 @@ pub fn test_get_all_devices(filter: DeviceFilter) -> Vec<AudioObjectID> {
 }
 
 pub fn test_get_devices_in_scope(scope: Scope) -> Vec<AudioObjectID> {
-    let mut devices = test_get_all_devices(DeviceFilter::ExcludeCubebAggregate);
+    let mut devices = test_get_all_devices(DeviceFilter::ExcludeCubebAggregateAndVPIO);
     devices.retain(|device| test_device_in_scope(*device, scope.clone()));
     devices
 }
