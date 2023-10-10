@@ -2225,7 +2225,6 @@ impl ContextOps for AudioUnitContext {
                 }
             }
             if boxed_stream.core_stream_data.has_output() {
-                println!(" has out put ");
                 let name = CString::new("output.wav").expect("OK");
                 let rv = ffi::cubeb_audio_dump_stream_init(
                     boxed_stream.context.audio_dump_session,
@@ -3590,6 +3589,26 @@ impl<'ctx> AudioUnitStream<'ctx> {
     }
 
     fn destroy_internal(&mut self) {
+        unsafe {
+            if !self.core_stream_data.audio_dump_input.is_null() {
+                let rv = ffi::cubeb_audio_dump_stream_shutdown(
+                    self.context.audio_dump_session,
+                    self.core_stream_data.audio_dump_input,
+                );
+                if rv != 0 {
+                    cubeb_log!("Failed to shutdown audio dump for input");
+                }
+            }
+            if !self.core_stream_data.audio_dump_output.is_null() {
+                let rv = ffi::cubeb_audio_dump_stream_shutdown(
+                    self.context.audio_dump_session,
+                    self.core_stream_data.audio_dump_output,
+                );
+                if rv != 0 {
+                    cubeb_log!("Failed to shutdown audio dump for output");
+                }
+            }
+        }
         self.core_stream_data.close();
         assert!(self.context.active_streams() >= 1);
         self.context.update_latency_by_removing_stream();
