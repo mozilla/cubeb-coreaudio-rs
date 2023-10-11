@@ -325,6 +325,7 @@ extern "C" fn audiounit_input_callback(
 
     assert!(!user_ptr.is_null());
     let stm = unsafe { &mut *(user_ptr as *mut AudioUnitStream) };
+    let using_voice_processing_unit = stm.core_stream_data.using_voice_processing_unit();
 
     if unsafe { *flags | kAudioTimeStampHostTimeValid } != 0 {
         let now = unsafe { mach_absolute_time() };
@@ -467,9 +468,7 @@ extern "C" fn audiounit_input_callback(
     // If the input (input-only stream) or the output is drained (duplex stream),
     // cancel this callback. Note that for voice processing cases (a single unit),
     // the output callback handles stopping the unit and notifying of state.
-    if stm.core_stream_data.input_unit != stm.core_stream_data.output_unit
-        && stm.draining.load(Ordering::SeqCst)
-    {
+    if !using_voice_processing_unit && stm.draining.load(Ordering::SeqCst) {
         let r = stop_audiounit(stm.core_stream_data.input_unit);
         assert!(r.is_ok());
         // Only fire state-changed callback for input-only stream.
@@ -834,14 +833,14 @@ fn get_default_device_id(devtype: DeviceType) -> std::result::Result<AudioObject
     }
 }
 
-fn audiounit_convert_channel_layout(layout: &AudioChannelLayout) -> Vec<mixer::Channel> {
+fn audiounit_convert_channel_layout(layout: &AudioChannelLayout) -> Result<Vec<mixer::Channel>> {
     if layout.mChannelLayoutTag != kAudioChannelLayoutTag_UseChannelDescriptions {
         // kAudioChannelLayoutTag_UseChannelBitmap
         // kAudioChannelLayoutTag_Mono
         // kAudioChannelLayoutTag_Stereo
         // ....
         cubeb_log!("Only handling UseChannelDescriptions for now.\n");
-        return Vec::new();
+        return Err(Error::error());
     }
 
     let channel_descriptions = unsafe {
@@ -857,10 +856,10 @@ fn audiounit_convert_channel_layout(layout: &AudioChannelLayout) -> Vec<mixer::C
         channels.push(label.into());
     }
 
-    channels
+    Ok(channels)
 }
 
-fn audiounit_get_preferred_channel_layout(output_unit: AudioUnit) -> Vec<mixer::Channel> {
+fn audiounit_get_preferred_channel_layout(output_unit: AudioUnit) -> Result<Vec<mixer::Channel>> {
     let mut rv = NO_ERR;
     let mut size: usize = 0;
     rv = audio_unit_get_property_info(
@@ -876,7 +875,7 @@ fn audiounit_get_preferred_channel_layout(output_unit: AudioUnit) -> Vec<mixer::
             "AudioUnitGetPropertyInfo/kAudioDevicePropertyPreferredChannelLayout rv={}",
             rv
         );
-        return Vec::new();
+        return Err(Error::error());
     }
     debug_assert!(size > 0);
 
@@ -894,7 +893,7 @@ fn audiounit_get_preferred_channel_layout(output_unit: AudioUnit) -> Vec<mixer::
             "AudioUnitGetProperty/kAudioDevicePropertyPreferredChannelLayout rv={}",
             rv
         );
-        return Vec::new();
+        return Err(Error::error());
     }
 
     audiounit_convert_channel_layout(layout.as_ref())
@@ -902,7 +901,7 @@ fn audiounit_get_preferred_channel_layout(output_unit: AudioUnit) -> Vec<mixer::
 
 // This is for output AudioUnit only. Calling this by input-only AudioUnit is prone
 // to crash intermittently.
-fn audiounit_get_current_channel_layout(output_unit: AudioUnit) -> Vec<mixer::Channel> {
+fn audiounit_get_current_channel_layout(output_unit: AudioUnit) -> Result<Vec<mixer::Channel>> {
     let mut rv = NO_ERR;
     let mut size: usize = 0;
     rv = audio_unit_get_property_info(
@@ -918,8 +917,7 @@ fn audiounit_get_current_channel_layout(output_unit: AudioUnit) -> Vec<mixer::Ch
             "AudioUnitGetPropertyInfo/kAudioUnitProperty_AudioChannelLayout rv={}",
             rv
         );
-        // This property isn't known before macOS 10.12, attempt another method.
-        return audiounit_get_preferred_channel_layout(output_unit);
+        return Err(Error::error());
     }
     debug_assert!(size > 0);
 
@@ -937,10 +935,23 @@ fn audiounit_get_current_channel_layout(output_unit: AudioUnit) -> Vec<mixer::Ch
             "AudioUnitGetProperty/kAudioUnitProperty_AudioChannelLayout rv={}",
             rv
         );
-        return Vec::new();
+        return Err(Error::error());
     }
 
     audiounit_convert_channel_layout(layout.as_ref())
+}
+
+fn get_channel_layout(output_unit: AudioUnit) -> Result<Vec<mixer::Channel>> {
+    audiounit_get_current_channel_layout(output_unit)
+        .or_else(|_| {
+            // The kAudioUnitProperty_AudioChannelLayout property isn't known before
+            // macOS 10.12, attempt another method.
+            cubeb_log!(
+                "Cannot get current channel layout for audiounit @ {:p}. Trying preferred channel layout.",
+                output_unit
+            );
+            audiounit_get_preferred_channel_layout(output_unit)
+        })
 }
 
 fn start_audiounit(unit: AudioUnit) -> Result<()> {
@@ -3050,20 +3061,22 @@ impl<'ctx> CoreStreamData<'ctx> {
                 e
             })?;
 
-            // XXX
-            let device_layout = if using_voice_processing_unit {
-                let mut channels = Vec::with_capacity(output_hw_desc.mChannelsPerFrame as usize);
-                match output_hw_desc.mChannelsPerFrame {
-                    1 => channels.push(mixer::Channel::FrontCenter),
-                    _ => {
-                        channels.push(mixer::Channel::FrontLeft);
-                        channels.push(mixer::Channel::FrontRight);
-                    }
-                }
-                channels
-            } else {
-                audiounit_get_current_channel_layout(self.output_unit)
-            };
+            let device_layout = self
+                .get_output_channel_layout()
+                .map_err(|e| {
+                    cubeb_log!(
+                        "({:p}) Could not get any channel layout. Defaulting to no channels.",
+                        self.stm_ptr
+                    );
+                    e
+                })
+                .unwrap_or_default();
+
+            cubeb_log!(
+                "({:p} Using output device channel layout {:?}",
+                self.stm_ptr,
+                device_layout
+            );
 
             // The mixer will be set up when
             // 1. using aggregate device whose input device has output channels
@@ -3603,6 +3616,28 @@ impl<'ctx> CoreStreamData<'ctx> {
         }
 
         Ok(())
+    }
+
+    fn get_output_channel_layout(&self) -> Result<Vec<mixer::Channel>> {
+        self.debug_assert_is_on_stream_queue();
+        assert!(!self.output_unit.is_null());
+        if !self.using_voice_processing_unit() {
+            return get_channel_layout(self.output_unit);
+        }
+
+        // The VoiceProcessingIO unit (as tried on MacOS 14) is known to not support
+        // kAudioUnitProperty_AudioChannelLayout queries, and to lie about
+        // kAudioDevicePropertyPreferredChannelLayout. If we're using
+        // VoiceProcessingIO, try standing up a regular AudioUnit and query that.
+        cubeb_log!(
+            "({:p}) get_output_channel_layout with a VoiceProcessingIO output unit. Trying a dedicated unit.",
+            self.stm_ptr
+        );
+        let mut dedicated_unit = create_audiounit(&self.output_device)?;
+        let res = get_channel_layout(dedicated_unit);
+        dispose_audio_unit(dedicated_unit);
+        dedicated_unit = ptr::null_mut();
+        res
     }
 }
 
