@@ -884,8 +884,9 @@ impl TestDevicePlugger {
             );
             CFRelease(device_uid as *const c_void);
 
-            // This device is private to the process creating it.
-            let private_value: i32 = 1;
+            // Make this device NOT private to the process creating it.
+            // On MacOS 14 devicechange events are not triggered when it is private.
+            let private_value: i32 = 0;
             let device_private_key = CFNumberCreate(
                 kCFAllocatorDefault,
                 i64::from(kCFNumberIntType),
