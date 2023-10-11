@@ -713,7 +713,7 @@ fn test_convert_channel_layout() {
         }
         let layout_ref = unsafe { &(*(&layout as *const TestLayout as *const AudioChannelLayout)) };
         assert_eq!(
-            &audiounit_convert_channel_layout(layout_ref),
+            &audiounit_convert_channel_layout(layout_ref).unwrap(),
             expected_layout
         );
     }
@@ -724,7 +724,9 @@ fn test_convert_channel_layout() {
 #[test]
 fn test_get_preferred_channel_layout_output() {
     match test_get_default_audiounit(Scope::Output) {
-        Some(unit) => assert!(!audiounit_get_preferred_channel_layout(unit.get_inner()).is_empty()),
+        Some(unit) => assert!(!audiounit_get_preferred_channel_layout(unit.get_inner())
+            .unwrap()
+            .is_empty()),
         None => println!("No output audiounit for test."),
     }
 }
@@ -734,7 +736,9 @@ fn test_get_preferred_channel_layout_output() {
 #[test]
 fn test_get_current_channel_layout_output() {
     match test_get_default_audiounit(Scope::Output) {
-        Some(unit) => assert!(!audiounit_get_current_channel_layout(unit.get_inner()).is_empty()),
+        Some(unit) => assert!(!audiounit_get_current_channel_layout(unit.get_inner())
+            .unwrap()
+            .is_empty()),
         None => println!("No output audiounit for test."),
     }
 }
