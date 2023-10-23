@@ -966,36 +966,41 @@ fn create_audiounit(device: &device_info) -> Result<AudioUnit> {
 
     if device.flags.contains(device_flags::DEV_INPUT) {
         // Input only.
-        enable_audiounit_scope(unit, DeviceType::INPUT, true).map_err(|e| {
-            cubeb_log!("Fail to enable audiounit input scope. Error: {}", e);
-            Error::error()
-        })?;
-        enable_audiounit_scope(unit, DeviceType::OUTPUT, false).map_err(|e| {
-            cubeb_log!("Fail to disable audiounit output scope. Error: {}", e);
-            Error::error()
-        })?;
+        if let Err(e) = enable_audiounit_scope(unit, DeviceType::INPUT, true) {
+            cubeb_log!("Failed to enable audiounit input scope. Error: {}", e);
+            dispose_audio_unit(unit);
+            return Err(Error::error());
+        }
+        if let Err(e) = enable_audiounit_scope(unit, DeviceType::OUTPUT, false) {
+            cubeb_log!("Failed to disable audiounit output scope. Error: {}", e);
+            dispose_audio_unit(unit);
+            return Err(Error::error());
+        }
     }
 
     if device.flags.contains(device_flags::DEV_OUTPUT) {
         // Output only.
-        enable_audiounit_scope(unit, DeviceType::OUTPUT, true).map_err(|e| {
-            cubeb_log!("Fail to enable audiounit output scope. Error: {}", e);
-            Error::error()
-        })?;
-        enable_audiounit_scope(unit, DeviceType::INPUT, false).map_err(|e| {
-            cubeb_log!("Fail to disable audiounit input scope. Error: {}", e);
-            Error::error()
-        })?;
+        if let Err(e) = enable_audiounit_scope(unit, DeviceType::OUTPUT, true) {
+            cubeb_log!("Failed to enable audiounit output scope. Error: {}", e);
+            dispose_audio_unit(unit);
+            return Err(Error::error());
+        }
+        if let Err(e) = enable_audiounit_scope(unit, DeviceType::INPUT, false) {
+            cubeb_log!("Failed to disable audiounit input scope. Error: {}", e);
+            dispose_audio_unit(unit);
+            return Err(Error::error());
+        }
     }
 
-    set_device_to_audiounit(unit, device.id).map_err(|e| {
+    if let Err(e) = set_device_to_audiounit(unit, device.id) {
         cubeb_log!(
             "Failed to set device {} to the created audiounit. Error: {}",
             device.id,
             e
         );
-        Error::error()
-    })?;
+        dispose_audio_unit(unit);
+        return Err(Error::error());
+    }
 
     Ok(unit)
 }
