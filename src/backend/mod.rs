@@ -2134,6 +2134,16 @@ impl ContextOps for AudioUnitContext {
             return Err(Error::invalid_parameter());
         }
 
+        if input_stream_params.is_none() && output_stream_params.is_none() {
+            cubeb_log!("Cannot init a stream without any stream params");
+            return Err(Error::invalid_parameter());
+        }
+
+        if data_callback.is_none() {
+            cubeb_log!("Cannot init a stream without a data callback");
+            return Err(Error::invalid_parameter());
+        }
+
         // Latency cannot change if another stream is operating in parallel. In this case
         // latency is set to the other stream value.
         let global_latency_frames = self
