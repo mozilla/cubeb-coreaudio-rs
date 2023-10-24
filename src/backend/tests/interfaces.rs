@@ -1,5 +1,6 @@
 use super::utils::{
-    test_get_default_device, test_ops_context_operation, test_ops_stream_operation, Scope,
+    noop_data_callback, test_get_default_device, test_ops_context_operation,
+    test_ops_stream_operation, Scope,
 };
 use super::*;
 
@@ -449,6 +450,136 @@ fn test_ops_context_register_device_collection_changed_manual() {
     );
 }
 
+#[test]
+fn test_ops_context_stream_init_no_stream_params() {
+    let name = "context: stream_init with no stream params";
+    test_ops_context_operation(name, |context_ptr| {
+        let mut stream: *mut ffi::cubeb_stream = ptr::null_mut();
+        let stream_name = CString::new(name).expect("Failed to create stream name");
+        assert_eq!(
+            unsafe {
+                OPS.stream_init.unwrap()(
+                    context_ptr,
+                    &mut stream,
+                    stream_name.as_ptr(),
+                    ptr::null_mut(), // Use default input device.
+                    ptr::null_mut(), // No input parameters.
+                    ptr::null_mut(), // Use default output device.
+                    ptr::null_mut(), // No output parameters.
+                    4096,            // TODO: Get latency by get_min_latency instead ?
+                    Some(noop_data_callback),
+                    None,            // No state callback.
+                    ptr::null_mut(), // No user data pointer.
+                )
+            },
+            ffi::CUBEB_ERROR_INVALID_PARAMETER
+        );
+        assert!(stream.is_null());
+    });
+}
+
+#[test]
+fn test_ops_context_stream_init_no_input_stream_params() {
+    let name = "context: stream_init with no input stream params";
+    let input_device = test_get_default_device(Scope::Input);
+    if input_device.is_none() {
+        println!("No input device to perform input tests for \"{}\".", name);
+        return;
+    }
+    test_ops_context_operation(name, |context_ptr| {
+        let mut stream: *mut ffi::cubeb_stream = ptr::null_mut();
+        let stream_name = CString::new(name).expect("Failed to create stream name");
+        assert_eq!(
+            unsafe {
+                OPS.stream_init.unwrap()(
+                    context_ptr,
+                    &mut stream,
+                    stream_name.as_ptr(),
+                    input_device.unwrap() as ffi::cubeb_devid,
+                    ptr::null_mut(), // No input parameters.
+                    ptr::null_mut(), // Use default output device.
+                    ptr::null_mut(), // No output parameters.
+                    4096,            // TODO: Get latency by get_min_latency instead ?
+                    Some(noop_data_callback),
+                    None,            // No state callback.
+                    ptr::null_mut(), // No user data pointer.
+                )
+            },
+            ffi::CUBEB_ERROR_INVALID_PARAMETER
+        );
+        assert!(stream.is_null());
+    });
+}
+
+#[test]
+fn test_ops_context_stream_init_no_output_stream_params() {
+    let name = "context: stream_init with no output stream params";
+    let output_device = test_get_default_device(Scope::Output);
+    if output_device.is_none() {
+        println!("No output device to perform output tests for \"{}\".", name);
+        return;
+    }
+    test_ops_context_operation(name, |context_ptr| {
+        let mut stream: *mut ffi::cubeb_stream = ptr::null_mut();
+        let stream_name = CString::new(name).expect("Failed to create stream name");
+        assert_eq!(
+            unsafe {
+                OPS.stream_init.unwrap()(
+                    context_ptr,
+                    &mut stream,
+                    stream_name.as_ptr(),
+                    ptr::null_mut(), // Use default input device.
+                    ptr::null_mut(), // No input parameters.
+                    output_device.unwrap() as ffi::cubeb_devid,
+                    ptr::null_mut(), // No output parameters.
+                    4096,            // TODO: Get latency by get_min_latency instead ?
+                    Some(noop_data_callback),
+                    None,            // No state callback.
+                    ptr::null_mut(), // No user data pointer.
+                )
+            },
+            ffi::CUBEB_ERROR_INVALID_PARAMETER
+        );
+        assert!(stream.is_null());
+    });
+}
+
+#[test]
+fn test_ops_context_stream_init_no_data_callback() {
+    let name = "context: stream_init with no data callback";
+    test_ops_context_operation(name, |context_ptr| {
+        let mut stream: *mut ffi::cubeb_stream = ptr::null_mut();
+        let stream_name = CString::new(name).expect("Failed to create stream name");
+
+        let mut output_params = ffi::cubeb_stream_params::default();
+        output_params.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
+        output_params.rate = 44100;
+        output_params.channels = 2;
+        output_params.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
+        output_params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
+
+        assert_eq!(
+            unsafe {
+                OPS.stream_init.unwrap()(
+                    context_ptr,
+                    &mut stream,
+                    stream_name.as_ptr(),
+                    ptr::null_mut(), // Use default input device.
+                    ptr::null_mut(), // No input parameters.
+                    ptr::null_mut(), // Use default output device.
+                    &mut output_params,
+                    4096,            // TODO: Get latency by get_min_latency instead ?
+                    None,            // No data callback.
+                    None,            // No state callback.
+                    ptr::null_mut(), // No user data pointer.
+                )
+            },
+            ffi::CUBEB_ERROR_INVALID_PARAMETER
+        );
+        assert!(stream.is_null());
+    });
+}
+
 // Stream Operations
 // ------------------------------------------------------------------------------------------------
 fn test_default_output_stream_operation<F>(name: &'static str, operation: F)
@@ -470,8 +601,8 @@ where
         ptr::null_mut(), // No input parameters.
         ptr::null_mut(), // Use default output device.
         &mut output_params,
-        4096,            // TODO: Get latency by get_min_latency instead ?
-        None,            // No data callback.
+        4096, // TODO: Get latency by get_min_latency instead ?
+        Some(noop_data_callback),
         None,            // No state callback.
         ptr::null_mut(), // No user data pointer.
         operation,
@@ -504,8 +635,8 @@ where
         &mut input_params,
         ptr::null_mut(), // Use default output device.
         &mut output_params,
-        4096,            // TODO: Get latency by get_min_latency instead ?
-        None,            // No data callback.
+        4096, // TODO: Get latency by get_min_latency instead ?
+        Some(noop_data_callback),
         None,            // No state callback.
         ptr::null_mut(), // No user data pointer.
         operation,
