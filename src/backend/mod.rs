@@ -2116,6 +2116,8 @@ impl ContextOps for AudioUnitContext {
     ) -> Result<Stream> {
         if (!input_device.is_null() && input_stream_params.is_none())
             || (!output_device.is_null() && output_stream_params.is_none())
+            || (input_stream_params.is_none() && output_stream_params.is_none())
+            || data_callback.is_none()
         {
             return Err(Error::invalid_parameter());
         }
