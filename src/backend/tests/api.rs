@@ -1447,7 +1447,7 @@ fn test_get_devices_of_type() {
     let input_devices = audiounit_get_devices_of_type(DeviceType::INPUT);
     let output_devices = audiounit_get_devices_of_type(DeviceType::OUTPUT);
 
-    let mut expected_all = test_get_all_devices(DeviceFilter::ExcludeCubebAggregate);
+    let mut expected_all = test_get_all_devices(DeviceFilter::ExcludeCubebAggregateAndVPIO);
     expected_all.sort();
     assert_eq!(all_devices, expected_all);
     for device in all_devices.iter() {

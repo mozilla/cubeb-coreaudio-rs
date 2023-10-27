@@ -14,9 +14,7 @@ cargo test test_plug_and_unplug_device -- --ignored --nocapture
 
 cargo test test_register_device_changed_callback_to_check_default_device_changed_input -- --ignored --nocapture
 cargo test test_register_device_changed_callback_to_check_default_device_changed_output -- --ignored --nocapture
-
-# FIXME: The test will hang if the default input or output is an aggregate device (and VoiceProcessingIO is)
-# cargo test test_register_device_changed_callback_to_check_default_device_changed_duplex -- --ignored --nocapture
+cargo test test_register_device_changed_callback_to_check_default_device_changed_duplex -- --ignored --nocapture
 
 cargo test test_register_device_changed_callback_to_check_input_alive_changed_input -- --ignored --nocapture
 cargo test test_register_device_changed_callback_to_check_input_alive_changed_duplex -- --ignored --nocapture
