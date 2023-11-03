@@ -227,10 +227,11 @@ fn test_add_listener_unknown_device() {
             ),
             callback,
         );
-        assert_eq!(
-            stream.add_device_listener(&listener),
-            kAudioHardwareBadObjectError as OSStatus
-        );
+        let mut res: OSStatus = 0;
+        stream
+            .queue
+            .run_sync(|| res = stream.add_device_listener(&listener));
+        assert_eq!(res, kAudioHardwareBadObjectError as OSStatus);
     });
 }
 
@@ -257,8 +258,15 @@ fn test_add_listener_then_remove_system_device() {
             ),
             callback,
         );
-        assert_eq!(stream.add_device_listener(&listener), NO_ERR);
-        assert_eq!(stream.remove_device_listener(&listener), NO_ERR);
+        let mut res: OSStatus = 0;
+        stream
+            .queue
+            .run_sync(|| res = stream.add_device_listener(&listener));
+        assert_eq!(res, NO_ERR);
+        stream
+            .queue
+            .run_sync(|| res = stream.remove_device_listener(&listener));
+        assert_eq!(res, NO_ERR);
     });
 }
 
@@ -283,7 +291,11 @@ fn test_remove_listener_without_adding_any_listener_before_system_device() {
             ),
             callback,
         );
-        assert_eq!(stream.remove_device_listener(&listener), NO_ERR);
+        let mut res: OSStatus = 0;
+        stream
+            .queue
+            .run_sync(|| res = stream.remove_device_listener(&listener));
+        assert_eq!(res, NO_ERR);
     });
 }
 
@@ -308,10 +320,11 @@ fn test_remove_listener_unknown_device() {
             ),
             callback,
         );
-        assert_eq!(
-            stream.remove_device_listener(&listener),
-            kAudioHardwareBadObjectError as OSStatus
-        );
+        let mut res: OSStatus = 0;
+        stream
+            .queue
+            .run_sync(|| res = stream.remove_device_listener(&listener));
+        assert_eq!(res, kAudioHardwareBadObjectError as OSStatus);
     });
 }
 

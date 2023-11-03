@@ -773,8 +773,13 @@ extern "C" fn audiounit_property_listener_callback(
     if explicit_device_dead {
         cubeb_log!("The user-selected input or output device is dead, entering error state");
         stm.stopped.store(true, Ordering::SeqCst);
-        stm.core_stream_data.stop_audiounits();
-        stm.close_on_error();
+
+        // Use a different thread, through the queue, to avoid deadlock when calling
+        // Get/SetProperties method from inside notify callback
+        stm.queue.clone().run_async(move || {
+            stm.core_stream_data.stop_audiounits();
+            stm.close_on_error();
+        });
         return NO_ERR;
     }
     {
@@ -2173,7 +2178,11 @@ impl ContextOps for AudioUnitContext {
         boxed_stream.core_stream_data =
             CoreStreamData::new(boxed_stream.as_ref(), in_stm_settings, out_stm_settings);
 
-        if let Err(r) = boxed_stream.core_stream_data.setup() {
+        let mut result = Ok(());
+        boxed_stream.queue.clone().run_sync(|| {
+            result = boxed_stream.core_stream_data.setup();
+        });
+        if let Err(r) = result {
             cubeb_log!(
                 "({:p}) Could not setup the audiounit stream.",
                 boxed_stream.as_ref()
@@ -2390,7 +2399,16 @@ impl<'ctx> CoreStreamData<'ctx> {
         }
     }
 
+    fn debug_assert_is_on_stream_queue(&self) {
+        if self.stm_ptr.is_null() {
+            return;
+        }
+        let stm = unsafe { &*self.stm_ptr };
+        stm.queue.debug_assert_is_current();
+    }
+
     fn start_audiounits(&self) -> Result<()> {
+        self.debug_assert_is_on_stream_queue();
         // Only allowed to be called after the stream is initialized
         // and before the stream is destroyed.
         debug_assert!(!self.input_unit.is_null() || !self.output_unit.is_null());
@@ -2405,6 +2423,7 @@ impl<'ctx> CoreStreamData<'ctx> {
     }
 
     fn stop_audiounits(&self) {
+        self.debug_assert_is_on_stream_queue();
         if !self.input_unit.is_null() {
             let r = stop_audiounit(self.input_unit);
             assert!(r.is_ok());
@@ -2424,6 +2443,7 @@ impl<'ctx> CoreStreamData<'ctx> {
     }
 
     fn should_use_aggregate_device(&self) -> bool {
+        self.debug_assert_is_on_stream_queue();
         // It's impossible to create an aggregate device from an aggregate device, and it's
         // unnecessary to create an aggregate device when opening the same device input/output. In
         // all other cases, use an aggregate device.
@@ -2462,6 +2482,7 @@ impl<'ctx> CoreStreamData<'ctx> {
     }
 
     fn same_clock_domain(&self) -> bool {
+        self.debug_assert_is_on_stream_queue();
         // If not setting up a duplex stream, there is only one device,
         // no reclocking necessary.
         if !(self.has_input() && self.has_output()) {
@@ -2487,6 +2508,7 @@ impl<'ctx> CoreStreamData<'ctx> {
 
     #[allow(clippy::cognitive_complexity)] // TODO: Refactoring.
     fn setup(&mut self) -> Result<()> {
+        self.debug_assert_is_on_stream_queue();
         fn get_device_channel_count(id: AudioDeviceID, devtype: DeviceType) -> Option<u32> {
             get_channel_count(id, devtype)
                 .or_else(|e| {
@@ -3021,6 +3043,7 @@ impl<'ctx> CoreStreamData<'ctx> {
     }
 
     fn close(&mut self) {
+        self.debug_assert_is_on_stream_queue();
         if !self.input_unit.is_null() {
             audio_unit_uninitialize(self.input_unit);
 
@@ -3059,6 +3082,7 @@ impl<'ctx> CoreStreamData<'ctx> {
     }
 
     fn install_device_changed_callback(&mut self) -> Result<()> {
+        self.debug_assert_is_on_stream_queue();
         assert!(!self.stm_ptr.is_null());
         let stm = unsafe { &(*self.stm_ptr) };
 
@@ -3166,6 +3190,7 @@ impl<'ctx> CoreStreamData<'ctx> {
     }
 
     fn install_system_changed_callback(&mut self) -> Result<()> {
+        self.debug_assert_is_on_stream_queue();
         assert!(!self.stm_ptr.is_null());
         let stm = unsafe { &(*self.stm_ptr) };
 
@@ -3233,6 +3258,7 @@ impl<'ctx> CoreStreamData<'ctx> {
     }
 
     fn uninstall_device_changed_callback(&mut self) -> Result<()> {
+        self.debug_assert_is_on_stream_queue();
         if self.stm_ptr.is_null() {
             assert!(
                 self.output_source_listener.is_none()
@@ -3288,6 +3314,7 @@ impl<'ctx> CoreStreamData<'ctx> {
     }
 
     fn uninstall_system_changed_callback(&mut self) -> Result<()> {
+        self.debug_assert_is_on_stream_queue();
         if self.stm_ptr.is_null() {
             assert!(
                 self.default_output_listener.is_none() && self.default_input_listener.is_none()
@@ -3319,6 +3346,7 @@ impl<'ctx> CoreStreamData<'ctx> {
 
 impl<'ctx> Drop for CoreStreamData<'ctx> {
     fn drop(&mut self) {
+        self.debug_assert_is_on_stream_queue();
         self.stop_audiounits();
         self.close();
     }
@@ -3418,6 +3446,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
     }
 
     fn add_device_listener(&self, listener: &device_property_listener) -> OSStatus {
+        self.queue.debug_assert_is_current();
         audio_object_add_property_listener(
             listener.device,
             &listener.property,
@@ -3427,6 +3456,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
     }
 
     fn remove_device_listener(&self, listener: &device_property_listener) -> OSStatus {
+        self.queue.debug_assert_is_current();
         audio_object_remove_property_listener(
             listener.device,
             &listener.property,
@@ -3450,6 +3480,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
     }
 
     fn reinit(&mut self) -> Result<()> {
+        self.queue.debug_assert_is_current();
         // Call stop_audiounits to avoid potential data race. If there is a running data callback,
         // which locks a mutex inside CoreAudio framework, then this call will block the current
         // thread until the callback is finished since this call asks to lock a mutex inside
@@ -3566,28 +3597,25 @@ impl<'ctx> AudioUnitStream<'ctx> {
     }
 
     fn close_on_error(&mut self) {
-        let queue = self.queue.clone();
+        self.queue.debug_assert_is_current();
+        let stm_ptr = self as *const AudioUnitStream;
 
-        // Use a different thread, through the queue, to avoid deadlock when calling
-        // Get/SetProperties method from inside notify callback
-        queue.run_async(move || {
-            let stm_ptr = self as *const AudioUnitStream;
+        self.core_stream_data.close();
+        self.notify_state_changed(State::Error);
+        cubeb_log!("({:p}) Close the stream due to an error.", stm_ptr);
 
-            self.core_stream_data.close();
-            self.notify_state_changed(State::Error);
-            cubeb_log!("({:p}) Close the stream due to an error.", stm_ptr);
-
-            self.switching_device.store(false, Ordering::SeqCst);
-        });
+        self.switching_device.store(false, Ordering::SeqCst);
     }
 
     fn destroy_internal(&mut self) {
+        self.queue.debug_assert_is_current();
         self.core_stream_data.close();
         assert!(self.context.active_streams() >= 1);
         self.context.update_latency_by_removing_stream();
     }
 
     fn destroy(&mut self) {
+        self.queue.debug_assert_is_current();
         if self
             .core_stream_data
             .uninstall_system_changed_callback()
@@ -3613,31 +3641,31 @@ impl<'ctx> AudioUnitStream<'ctx> {
         // Execute the stream destroy work.
         self.destroy_pending.store(true, Ordering::SeqCst);
 
-        let queue = self.queue.clone();
+        // Call stop_audiounits to avoid potential data race. If there is a running data callback,
+        // which locks a mutex inside CoreAudio framework, then this call will block the current
+        // thread until the callback is finished since this call asks to lock a mutex inside
+        // CoreAudio framework that is used by the data callback.
+        if !self.stopped.load(Ordering::SeqCst) {
+            self.core_stream_data.stop_audiounits();
+            self.stopped.store(true, Ordering::SeqCst);
+        }
 
-        let stream_ptr = self as *const AudioUnitStream;
-        // Execute close in serial queue to avoid collision
-        // with reinit when un/plug devices
-        queue.run_final(move || {
-            // Call stop_audiounits to avoid potential data race. If there is a running data callback,
-            // which locks a mutex inside CoreAudio framework, then this call will block the current
-            // thread until the callback is finished since this call asks to lock a mutex inside
-            // CoreAudio framework that is used by the data callback.
-            if !self.stopped.load(Ordering::SeqCst) {
-                self.core_stream_data.stop_audiounits();
-                self.stopped.store(true, Ordering::SeqCst);
-            }
+        self.destroy_internal();
 
-            self.destroy_internal();
-        });
-
-        cubeb_log!("Cubeb stream ({:p}) destroyed successful.", stream_ptr);
+        cubeb_log!(
+            "Cubeb stream ({:p}) destroyed successful.",
+            self as *const AudioUnitStream
+        );
     }
 }
 
 impl<'ctx> Drop for AudioUnitStream<'ctx> {
     fn drop(&mut self) {
-        self.destroy();
+        // Execute destroy in serial queue to avoid collision with reinit when un/plug devices
+        self.queue.clone().run_final(move || {
+            self.destroy();
+            self.core_stream_data = CoreStreamData::default();
+        });
     }
 }
 
