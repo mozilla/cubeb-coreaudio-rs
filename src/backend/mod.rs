@@ -1711,19 +1711,6 @@ fn create_cubeb_device_info(
     Ok(dev_info)
 }
 
-fn is_aggregate_device(device_info: &ffi::cubeb_device_info) -> bool {
-    assert!(!device_info.friendly_name.is_null());
-    let private_name =
-        CString::new(PRIVATE_AGGREGATE_DEVICE_NAME).expect("Fail to create a private name");
-    unsafe {
-        libc::strncmp(
-            device_info.friendly_name,
-            private_name.as_ptr(),
-            private_name.as_bytes().len(),
-        ) == 0
-    }
-}
-
 fn destroy_cubeb_device_info(device: &mut ffi::cubeb_device_info) {
     // This should be mapped to the memory allocation in `create_cubeb_device_info`.
     // The `device_id`, `group_id`, `vendor_name` can be null pointer if the queries
@@ -2189,9 +2176,7 @@ impl ContextOps for AudioUnitContext {
             let devices = audiounit_get_devices_of_type(*dev_type);
             for device in devices {
                 if let Ok(info) = create_cubeb_device_info(device, *dev_type) {
-                    if !is_aggregate_device(&info) {
-                        device_infos.push(info);
-                    }
+                    device_infos.push(info);
                 }
             }
         }
