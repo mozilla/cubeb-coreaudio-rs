@@ -601,7 +601,10 @@ pub fn test_set_default_device(
             &device as *const AudioObjectID as *const c_void,
         )
     };
-    if status == NO_ERR {
+    let new_default = test_get_default_device(scope.clone()).unwrap();
+    if new_default == default {
+        Err(-1)
+    } else if status == NO_ERR {
         Ok(default)
     } else {
         Err(status)
@@ -638,9 +641,19 @@ impl TestDeviceSwitcher {
             "Switch device for {:?}: {} -> {}",
             self.scope, current, next
         );
-        let prev = self.set_device(next).unwrap();
-        assert_eq!(prev, current);
-        self.current_device_index = next_index;
+        match self.set_device(next) {
+            Ok(prev) => {
+                assert_eq!(prev, current);
+                self.current_device_index = next_index;
+            }
+            _ => {
+                self.devices.remove(next_index);
+                if next_index < self.current_device_index {
+                    self.current_device_index -= 1;
+                }
+                self.next();
+            }
+        }
     }
 
     fn set_device(&self, device: AudioObjectID) -> std::result::Result<AudioObjectID, OSStatus> {
