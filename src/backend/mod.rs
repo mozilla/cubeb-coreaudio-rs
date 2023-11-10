@@ -3023,14 +3023,20 @@ impl<'ctx> CoreStreamData<'ctx> {
     fn close(&mut self) {
         if !self.input_unit.is_null() {
             audio_unit_uninitialize(self.input_unit);
-            dispose_audio_unit(self.input_unit);
-            self.input_unit = ptr::null_mut();
+
+            // Cannot unset self.input_unit yet, since the output callback might be live
+            // and reading it.
         }
 
         if !self.output_unit.is_null() {
             audio_unit_uninitialize(self.output_unit);
             dispose_audio_unit(self.output_unit);
             self.output_unit = ptr::null_mut();
+        }
+
+        if !self.input_unit.is_null() {
+            dispose_audio_unit(self.input_unit);
+            self.input_unit = ptr::null_mut();
         }
 
         self.resampler.destroy();
