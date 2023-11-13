@@ -1287,10 +1287,12 @@ fn get_channel_count(
 ) -> std::result::Result<u32, OSStatus> {
     assert_ne!(devid, kAudioObjectUnknown);
 
-    let buffers = get_device_stream_configuration(devid, devtype)?;
+    let streams = get_device_streams(devid, devtype)?;
     let mut count = 0;
-    for buffer in buffers {
-        count += buffer.mNumberChannels;
+    for stream in streams {
+        if let Ok(format) = get_stream_virtual_format(stream) {
+            count += format.mChannelsPerFrame;
+        }
     }
     Ok(count)
 }
@@ -1450,6 +1452,9 @@ fn create_cubeb_device_info(
     devid: AudioObjectID,
     devtype: DeviceType,
 ) -> Result<ffi::cubeb_device_info> {
+    if devtype != DeviceType::INPUT && devtype != DeviceType::OUTPUT {
+        return Err(Error::error());
+    }
     let channels = get_channel_count(devid, devtype).map_err(|e| {
         cubeb_log!("Cannot get the channel count. Error: {}", e);
         Error::error()
@@ -2509,22 +2514,6 @@ impl<'ctx> CoreStreamData<'ctx> {
     #[allow(clippy::cognitive_complexity)] // TODO: Refactoring.
     fn setup(&mut self) -> Result<()> {
         self.debug_assert_is_on_stream_queue();
-        fn get_device_channel_count(id: AudioDeviceID, devtype: DeviceType) -> Option<u32> {
-            get_channel_count(id, devtype)
-                .or_else(|e| {
-                    cubeb_log!("Fail to get channel count for device {}. Error: {}", id, e);
-                    get_device_stream_format(id, devtype).map(|f| f.mChannelsPerFrame)
-                })
-                .map_err(|e| {
-                    cubeb_log!(
-                        "Fail to get channel info from stream format for device {}. Error: {}",
-                        id,
-                        e
-                    );
-                })
-                .ok()
-        }
-
         if self
             .input_stream_params
             .prefs()
@@ -2581,8 +2570,14 @@ impl<'ctx> CoreStreamData<'ctx> {
             );
 
             let device_channel_count =
-                get_device_channel_count(self.input_device.id, DeviceType::INPUT).unwrap_or(0);
+                get_channel_count(self.input_device.id, DeviceType::INPUT).unwrap_or(0);
             if device_channel_count < self.input_stream_params.channels() {
+                cubeb_log!(
+                    "({:p}) Invalid input channel count; device={}, params={}",
+                    self.stm_ptr,
+                    device_channel_count,
+                    self.input_stream_params.channels()
+                );
                 return Err(Error::invalid_parameter());
             }
 
@@ -2744,6 +2739,18 @@ impl<'ctx> CoreStreamData<'ctx> {
                 self.stm_ptr,
                 out_dev_info
             );
+
+            let device_channel_count =
+                get_channel_count(self.output_device.id, DeviceType::OUTPUT).unwrap_or(0);
+            if device_channel_count < self.output_stream_params.channels() {
+                cubeb_log!(
+                    "({:p}) Invalid output channel count; device={}, params={}",
+                    self.stm_ptr,
+                    device_channel_count,
+                    self.output_stream_params.channels()
+                );
+                return Err(Error::invalid_parameter());
+            }
 
             self.output_unit = create_audiounit(&out_dev_info).map_err(|e| {
                 cubeb_log!("({:p}) AudioUnit creation for output failed.", self.stm_ptr);

@@ -1060,8 +1060,12 @@ fn test_get_channel_count_of_inout_type() {
     fn test_channel_count(scope: Scope) {
         if let Some(device) = test_get_default_device(scope.clone()) {
             assert_eq!(
-                get_channel_count(device, DeviceType::INPUT | DeviceType::OUTPUT).unwrap_err(),
-                kAudioHardwareUnknownPropertyError as OSStatus
+                get_channel_count(device, DeviceType::INPUT | DeviceType::OUTPUT),
+                get_channel_count(device, DeviceType::INPUT).map(|c| c + get_channel_count(
+                    device,
+                    DeviceType::OUTPUT
+                )
+                .unwrap_or(0))
             );
         } else {
             println!("No device for {:?}.", scope);
@@ -1379,7 +1383,6 @@ fn test_create_device_info_by_unknown_device() {
 }
 
 #[test]
-#[should_panic]
 fn test_create_device_info_with_unknown_type() {
     test_create_device_info_with_unknown_type_by_scope(Scope::Input);
     test_create_device_info_with_unknown_type_by_scope(Scope::Output);
@@ -1387,8 +1390,6 @@ fn test_create_device_info_with_unknown_type() {
     fn test_create_device_info_with_unknown_type_by_scope(scope: Scope) {
         if let Some(device) = test_get_default_device(scope.clone()) {
             assert!(create_cubeb_device_info(device, DeviceType::UNKNOWN).is_err());
-        } else {
-            panic!("Panic by default: No device for {:?}.", scope);
         }
     }
 }
