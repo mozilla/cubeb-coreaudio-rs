@@ -417,3 +417,57 @@ fn test_get_stream_virtual_format() {
 fn test_get_stream_virtual_format_by_unknown_stream() {
     assert!(get_stream_virtual_format(kAudioObjectUnknown).is_err());
 }
+
+// get_stream_terminal_type
+// ------------------------------------
+
+#[test]
+fn test_get_stream_terminal_type() {
+    fn terminal_type_to_device_type(terminal_type: u32) -> Option<DeviceType> {
+        #[allow(non_upper_case_globals)]
+        match terminal_type {
+            kAudioStreamTerminalTypeMicrophone
+            | kAudioStreamTerminalTypeHeadsetMicrophone
+            | kAudioStreamTerminalTypeReceiverMicrophone => Some(DeviceType::INPUT),
+            kAudioStreamTerminalTypeSpeaker
+            | kAudioStreamTerminalTypeHeadphones
+            | kAudioStreamTerminalTypeLFESpeaker
+            | kAudioStreamTerminalTypeReceiverSpeaker => Some(DeviceType::OUTPUT),
+            t if t > INPUT_UNDEFINED && t < OUTPUT_UNDEFINED => Some(DeviceType::INPUT),
+            t if t > OUTPUT_UNDEFINED && t < BIDIRECTIONAL_UNDEFINED => Some(DeviceType::OUTPUT),
+            t => {
+                println!("UNKNOWN TerminalType {:#06x}", t);
+                None
+            }
+        }
+    }
+    if let Some(device) = test_get_default_device(Scope::Input) {
+        let streams = get_device_streams(device, DeviceType::INPUT).unwrap();
+        for stream in streams {
+            assert_eq!(
+                terminal_type_to_device_type(get_stream_terminal_type(stream).unwrap()),
+                Some(DeviceType::INPUT)
+            );
+        }
+    } else {
+        println!("No input device.");
+    }
+
+    if let Some(device) = test_get_default_device(Scope::Output) {
+        let streams = get_device_streams(device, DeviceType::OUTPUT).unwrap();
+        for stream in streams {
+            assert_eq!(
+                terminal_type_to_device_type(get_stream_terminal_type(stream).unwrap()),
+                Some(DeviceType::OUTPUT)
+            );
+        }
+    } else {
+        println!("No output device.");
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_get_stream_terminal_type_by_unknown_stream() {
+    assert!(get_stream_terminal_type(kAudioObjectUnknown).is_err());
+}
