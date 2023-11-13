@@ -409,7 +409,7 @@ fn test_get_stream_latency() {
     if let Some(device) = test_get_default_device(Scope::Input) {
         let streams = get_device_streams(device, DeviceType::INPUT).unwrap();
         for stream in streams {
-            let latency = get_stream_latency(stream, DeviceType::INPUT).unwrap();
+            let latency = get_stream_latency(stream).unwrap();
             println!("latency of the input stream {} is {}", stream, latency);
         }
     } else {
@@ -419,7 +419,7 @@ fn test_get_stream_latency() {
     if let Some(device) = test_get_default_device(Scope::Output) {
         let streams = get_device_streams(device, DeviceType::OUTPUT).unwrap();
         for stream in streams {
-            let latency = get_stream_latency(stream, DeviceType::OUTPUT).unwrap();
+            let latency = get_stream_latency(stream).unwrap();
             println!("latency of the output stream {} is {}", stream, latency);
         }
     } else {
@@ -430,5 +430,5 @@ fn test_get_stream_latency() {
 #[test]
 #[should_panic]
 fn test_get_stream_latency_by_unknown_device() {
-    assert!(get_stream_latency(kAudioObjectUnknown, DeviceType::INPUT).is_err());
+    assert!(get_stream_latency(kAudioObjectUnknown).is_err());
 }

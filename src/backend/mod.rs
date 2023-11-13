@@ -1342,7 +1342,7 @@ fn get_fixed_latency(devid: AudioObjectID, devtype: DeviceType) -> u32 {
             );
             Ok(0) // default stream latency
         } else {
-            get_stream_latency(streams[0], devtype)
+            get_stream_latency(streams[0])
         }
     }).map_err(|e| {
         cubeb_log!(
