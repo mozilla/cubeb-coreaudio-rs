@@ -2851,7 +2851,9 @@ impl<'ctx> CoreStreamData<'ctx> {
                 self.stm_ptr,
                 input_hw_desc
             );
-            assert!(input_hw_desc.mChannelsPerFrame >= device_channel_count);
+            // In some cases with VPIO the stream format's mChannelsPerFrame is higher than
+            // expected. Use get_channel_count as source of truth.
+            input_hw_desc.mChannelsPerFrame = device_channel_count;
             // Notice: when we are using aggregate device, the input_hw_desc.mChannelsPerFrame is
             // the total of all the input channel count of the devices added in the aggregate device.
             // Due to our aggregate device settings, the data captured by the output device's input
@@ -3028,6 +3030,10 @@ impl<'ctx> CoreStreamData<'ctx> {
                 self.stm_ptr,
                 output_hw_desc
             );
+
+            // In some cases with VPIO the stream format's mChannelsPerFrame is higher than
+            // expected. Use get_channel_count as source of truth.
+            output_hw_desc.mChannelsPerFrame = device_channel_count;
 
             // This has been observed in the wild.
             if output_hw_desc.mChannelsPerFrame == 0 {
