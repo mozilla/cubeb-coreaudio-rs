@@ -268,13 +268,13 @@ pub fn get_device_stream_configuration(
     Ok(buffers.to_vec())
 }
 
-pub fn get_stream_latency(
-    id: AudioStreamID,
-    devtype: DeviceType,
-) -> std::result::Result<u32, OSStatus> {
+pub fn get_stream_latency(id: AudioStreamID) -> std::result::Result<u32, OSStatus> {
     assert_ne!(id, kAudioObjectUnknown);
 
-    let address = get_property_address(Property::StreamLatency, devtype);
+    let address = get_property_address(
+        Property::StreamLatency,
+        DeviceType::INPUT | DeviceType::OUTPUT,
+    );
     let mut size = mem::size_of::<u32>();
     let mut latency: u32 = 0;
     let err = audio_object_get_property_data(id, &address, &mut size, &mut latency);
