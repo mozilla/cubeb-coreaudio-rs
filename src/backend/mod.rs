@@ -1353,7 +1353,43 @@ fn get_channel_count(
 ) -> std::result::Result<u32, OSStatus> {
     assert_ne!(devid, kAudioObjectUnknown);
 
-    let streams = get_device_streams(devid, devtype)?;
+    let mut streams = get_device_streams(devid, devtype)?;
+
+    if devtype == DeviceType::INPUT {
+        // With VPIO, output devices will/may get a Tap that appears as input channels on the
+        // output device id. One could check for whether the output device has a tap enabled,
+        // but it is impossible to distinguish an output-only device from an input+output
+        // device. There have also been corner cases observed, where the device does NOT have
+        // a Tap enabled, but it still has the extra input channels from the Tap.
+        // We can check the terminal type of the input stream instead -- if it is
+        // INPUT_UNDEFINED (reported to be the VPIO type according to Chromium) or any
+        // non-input-only terminal type, we ignore it when counting channels (and thereby
+        // determining whether we are dealing with an input device).
+        streams.retain(|stream| {
+            let terminal_type = get_stream_terminal_type(*stream);
+            if terminal_type.is_err() {
+                return true;
+            }
+
+            #[allow(non_upper_case_globals)]
+            match terminal_type.unwrap() {
+                kAudioStreamTerminalTypeMicrophone
+                | kAudioStreamTerminalTypeHeadsetMicrophone
+                | kAudioStreamTerminalTypeReceiverMicrophone => true,
+                t if t > INPUT_UNDEFINED && t < OUTPUT_UNDEFINED => true,
+                t if t > BIDIRECTIONAL_UNDEFINED && t < TELEPHONY_UNDEFINED => true,
+                t if t > TELEPHONY_UNDEFINED && t < EXTERNAL_UNDEFINED => true,
+                t => {
+                    cubeb_log!(
+                        "Unexpected TerminalType {:06X} for input stream. Ignoring its channels.",
+                        t
+                    );
+                    false
+                }
+            }
+        });
+    }
+
     let mut count = 0;
     for stream in streams {
         if let Ok(format) = get_stream_virtual_format(stream) {

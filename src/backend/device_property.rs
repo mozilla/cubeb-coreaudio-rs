@@ -240,6 +240,23 @@ pub fn get_stream_latency(id: AudioStreamID) -> std::result::Result<u32, OSStatu
     }
 }
 
+pub fn get_stream_terminal_type(id: AudioStreamID) -> std::result::Result<u32, OSStatus> {
+    assert_ne!(id, kAudioObjectUnknown);
+
+    let address = get_property_address(
+        Property::StreamTerminalType,
+        DeviceType::INPUT | DeviceType::OUTPUT,
+    );
+    let mut size = mem::size_of::<u32>();
+    let mut terminal_type: u32 = 0;
+    let err = audio_object_get_property_data(id, &address, &mut size, &mut terminal_type);
+    if err == NO_ERR {
+        Ok(terminal_type)
+    } else {
+        Err(err)
+    }
+}
+
 pub fn get_stream_virtual_format(
     id: AudioStreamID,
 ) -> std::result::Result<AudioStreamBasicDescription, OSStatus> {
@@ -293,6 +310,7 @@ pub enum Property {
     HardwareDevices,
     ModelUID,
     StreamLatency,
+    StreamTerminalType,
     StreamVirtualFormat,
     TransportType,
     ClockDomain,
@@ -317,6 +335,7 @@ impl From<Property> for AudioObjectPropertySelector {
             Property::HardwareDevices => kAudioHardwarePropertyDevices,
             Property::ModelUID => kAudioDevicePropertyModelUID,
             Property::StreamLatency => kAudioStreamPropertyLatency,
+            Property::StreamTerminalType => kAudioStreamPropertyTerminalType,
             Property::StreamVirtualFormat => kAudioStreamPropertyVirtualFormat,
             Property::TransportType => kAudioDevicePropertyTransportType,
             Property::ClockDomain => kAudioDevicePropertyClockDomain,
