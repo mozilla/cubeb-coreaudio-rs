@@ -282,6 +282,7 @@ fn test_get_device_streams() {
     if let Some(device) = test_get_default_device(Scope::Input) {
         let streams = get_device_streams(device, DeviceType::INPUT).unwrap();
         println!("streams on the input device: {:?}", streams);
+        assert!(!streams.is_empty());
     } else {
         println!("No input device.");
     }
@@ -289,6 +290,7 @@ fn test_get_device_streams() {
     if let Some(device) = test_get_default_device(Scope::Output) {
         let streams = get_device_streams(device, DeviceType::OUTPUT).unwrap();
         println!("streams on the output device: {:?}", streams);
+        assert!(!streams.is_empty());
     } else {
         println!("No output device.");
     }
