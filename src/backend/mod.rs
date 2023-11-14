@@ -2124,9 +2124,13 @@ impl ContextOps for AudioUnitContext {
         state_callback: ffi::cubeb_state_callback,
         user_ptr: *mut c_void,
     ) -> Result<Stream> {
-        if (!input_device.is_null() && input_stream_params.is_none())
-            || (!output_device.is_null() && output_stream_params.is_none())
-        {
+        if !input_device.is_null() && input_stream_params.is_none() {
+            cubeb_log!("Cannot init an input device without input stream params");
+            return Err(Error::invalid_parameter());
+        }
+
+        if !output_device.is_null() && output_stream_params.is_none() {
+            cubeb_log!("Cannot init an output device without output stream params");
             return Err(Error::invalid_parameter());
         }
 
