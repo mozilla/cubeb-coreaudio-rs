@@ -19,3 +19,6 @@ mach = "0.3"
 audio-mixer = "0.1"
 ringbuf = "0.2.6"
 triple_buffer = "5.0.5"
+
+[dev-dependencies]
+itertools = "0.11"
