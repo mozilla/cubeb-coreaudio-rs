@@ -2970,15 +2970,6 @@ impl<'ctx> CoreStreamData<'ctx> {
 
             let device_channel_count =
                 get_channel_count(self.output_device.id, DeviceType::OUTPUT).unwrap_or(0);
-            if device_channel_count < self.output_stream_params.channels() {
-                cubeb_log!(
-                    "({:p}) Invalid output channel count; device={}, params={}",
-                    self.stm_ptr,
-                    device_channel_count,
-                    self.output_stream_params.channels()
-                );
-                return Err(Error::invalid_parameter());
-            }
 
             cubeb_log!(
                 "({:p}) Opening output side: rate {}, channels {}, format {:?}, layout {:?}, prefs {:?}, latency in frames {}, voice processing {}.",
