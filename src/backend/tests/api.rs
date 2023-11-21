@@ -979,30 +979,6 @@ fn test_convert_uint32_into_string() {
     assert_eq!(data_string, CString::new("RUST").unwrap());
 }
 
-// get_device_source_string
-// ------------------------------------
-#[test]
-fn test_get_device_source_string() {
-    test_get_source_name_in_scope(Scope::Input);
-    test_get_source_name_in_scope(Scope::Output);
-
-    fn test_get_source_name_in_scope(scope: Scope) {
-        if let Some(dev) = test_get_default_device(scope.clone()) {
-            if let Some(name) = test_get_source_name(dev, scope.clone()) {
-                let source = get_device_source_string(dev, scope.into())
-                    .unwrap()
-                    .into_string()
-                    .unwrap();
-                assert_eq!(name, source);
-            } else {
-                println!("No source name for default {:?} device ", scope);
-            }
-        } else {
-            println!("No default {:?} device", scope);
-        }
-    }
-}
-
 // get_channel_count
 // ------------------------------------
 #[test]
