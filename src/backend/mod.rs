@@ -2334,6 +2334,14 @@ impl ContextOps for AudioUnitContext {
 
 impl Drop for AudioUnitContext {
     fn drop(&mut self) {
+        if cfg!(debug_assertions) {
+            let devices = self.devices.lock().unwrap();
+            assert!(
+                devices.input.changed_callback.is_none()
+                    && devices.output.changed_callback.is_none()
+            );
+        }
+
         {
             let controller = self.latency_controller.lock().unwrap();
             // Disabling this assert for bug 1083664 -- we seem to leak a stream
@@ -2346,15 +2354,10 @@ impl Drop for AudioUnitContext {
                 );
             }
         }
-
         // Make sure all the pending (device-collection-changed-callback) tasks
         // in queue are done, and cancel all the tasks appended after `drop` is executed.
         let queue = self.serial_queue.clone();
-        queue.run_final(|| {
-            // Unregister the callback if necessary.
-            self.remove_devices_changed_listener(DeviceType::INPUT);
-            self.remove_devices_changed_listener(DeviceType::OUTPUT);
-        });
+        queue.run_final(|| {});
     }
 }
 
