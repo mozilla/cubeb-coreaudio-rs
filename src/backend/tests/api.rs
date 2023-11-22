@@ -2,8 +2,8 @@ use super::utils::{
     test_audiounit_get_buffer_frame_size, test_audiounit_scope_is_enabled, test_create_audiounit,
     test_device_channels_in_scope, test_device_in_scope, test_get_all_devices,
     test_get_default_audiounit, test_get_default_device, test_get_default_raw_stream,
-    test_get_devices_in_scope, test_get_raw_context, test_get_source_name, ComponentSubType,
-    DeviceFilter, PropertyScope, Scope,
+    test_get_devices_in_scope, test_get_raw_context, ComponentSubType, DeviceFilter, PropertyScope,
+    Scope,
 };
 use super::*;
 
