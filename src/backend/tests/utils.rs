@@ -14,6 +14,12 @@ pub fn test_enable_log(level: ffi::cubeb_log_level) {
     }
 }
 
+pub fn test_disable_log() {
+    unsafe {
+        ffi::cubeb_set_log_callback(ffi::CUBEB_LOG_DISABLED, None);
+    }
+}
+
 pub extern "C" fn noop_data_callback(
     stream: *mut ffi::cubeb_stream,
     _user_ptr: *mut c_void,
