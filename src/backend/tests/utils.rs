@@ -14,6 +14,12 @@ pub fn test_enable_log(level: ffi::cubeb_log_level) {
     }
 }
 
+pub fn test_disable_log() {
+    unsafe {
+        ffi::cubeb_set_log_callback(ffi::CUBEB_LOG_DISABLED, None);
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Scope {
     Input,
