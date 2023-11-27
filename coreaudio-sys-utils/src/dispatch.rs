@@ -6,26 +6,45 @@ use std::os::raw::c_void;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-// Queue: A wrapper around `dispatch_queue_t`.
+// Queue: A wrapper around `dispatch_queue_t` that is always serial.
 // ------------------------------------------------------------------------------------------------
 #[derive(Debug)]
-pub struct Queue(dispatch_queue_t);
+pub struct Queue {
+    queue: dispatch_queue_t,
+    owned: bool,
+}
 
 impl Queue {
-    pub fn new(label: &str) -> Self {
+    pub fn new_with_target(label: &str, target: &Queue) -> Self {
         const DISPATCH_QUEUE_SERIAL: dispatch_queue_attr_t =
             ptr::null_mut::<dispatch_queue_attr_s>();
         let label = CString::new(label).unwrap();
         let c_string = label.as_ptr();
-        let queue = Self(unsafe { dispatch_queue_create(c_string, DISPATCH_QUEUE_SERIAL) });
+        let queue = Self {
+            queue: unsafe {
+                dispatch_queue_create_with_target(c_string, DISPATCH_QUEUE_SERIAL, target.queue)
+            },
+            owned: true,
+        };
         queue.set_should_cancel(Box::new(AtomicBool::new(false)));
         queue
+    }
+
+    pub fn new(label: &str) -> Self {
+        Queue::new_with_target(label, &Queue::get_global_queue())
+    }
+
+    pub fn get_global_queue() -> Self {
+        Self {
+            queue: unsafe { dispatch_get_global_queue(QOS_CLASS_DEFAULT as isize, 0) },
+            owned: false,
+        }
     }
 
     #[cfg(debug_assertions)]
     pub fn debug_assert_is_current(&self) {
         unsafe {
-            dispatch_assert_queue(self.0);
+            dispatch_assert_queue(self.queue);
         }
     }
 
@@ -44,7 +63,7 @@ impl Queue {
             work();
         });
         unsafe {
-            dispatch_async_f(self.0, closure, executor);
+            dispatch_async_f(self.queue, closure, executor);
         }
     }
 
@@ -60,7 +79,7 @@ impl Queue {
             work();
         });
         unsafe {
-            dispatch_sync_f(self.0, closure, executor);
+            dispatch_sync_f(self.queue, closure, executor);
         }
     }
 
@@ -68,6 +87,7 @@ impl Queue {
     where
         F: Send + FnOnce(),
     {
+        assert!(self.owned, "Doesn't make sense to finalize global queue");
         let should_cancel = self.get_should_cancel();
         debug_assert!(
             should_cancel.is_some(),
@@ -80,22 +100,26 @@ impl Queue {
                 .store(true, Ordering::SeqCst);
         });
         unsafe {
-            dispatch_sync_f(self.0, closure, executor);
+            dispatch_sync_f(self.queue, closure, executor);
         }
     }
 
     fn get_should_cancel(&self) -> Option<&mut AtomicBool> {
+        if !self.owned {
+            return None;
+        }
         unsafe {
             let context = dispatch_get_context(
-                mem::transmute::<dispatch_queue_t, dispatch_object_t>(self.0),
+                mem::transmute::<dispatch_queue_t, dispatch_object_t>(self.queue),
             ) as *mut AtomicBool;
             context.as_mut()
         }
     }
 
     fn set_should_cancel(&self, context: Box<AtomicBool>) {
+        assert!(self.owned);
         unsafe {
-            let queue = mem::transmute::<dispatch_queue_t, dispatch_object_t>(self.0);
+            let queue = mem::transmute::<dispatch_queue_t, dispatch_object_t>(self.queue);
             // Leak the context from Box.
             dispatch_set_context(queue, Box::into_raw(context) as *mut c_void);
 
@@ -115,7 +139,7 @@ impl Queue {
             // TODO: It's incredibly unsafe to call `transmute` directly.
             //       Find another way to release the queue.
             dispatch_release(mem::transmute::<dispatch_queue_t, dispatch_object_t>(
-                self.0,
+                self.queue,
             ));
         }
     }
@@ -147,7 +171,9 @@ impl Queue {
 
 impl Drop for Queue {
     fn drop(&mut self) {
-        self.release();
+        if self.owned {
+            self.release();
+        }
     }
 }
 
@@ -157,10 +183,13 @@ impl Clone for Queue {
         //       Find another way to release the queue.
         unsafe {
             dispatch_retain(mem::transmute::<dispatch_queue_t, dispatch_object_t>(
-                self.0,
+                self.queue,
             ));
         }
-        Self(self.0)
+        Self {
+            queue: self.queue,
+            owned: true,
+        }
     }
 }
 
