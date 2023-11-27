@@ -3,6 +3,7 @@ use coreaudio_sys::*;
 use std::ffi::CString;
 use std::mem;
 use std::os::raw::c_void;
+use std::panic;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
@@ -12,6 +13,27 @@ pub const DISPATCH_QUEUE_LABEL: &str = "org.mozilla.cubeb";
 pub fn get_serial_queue_singleton() -> &'static Queue {
     static SERIAL_QUEUE: OnceLock<Queue> = OnceLock::new();
     SERIAL_QUEUE.get_or_init(|| Queue::new(DISPATCH_QUEUE_LABEL))
+}
+
+pub fn debug_assert_running_serially() {
+    get_serial_queue_singleton().debug_assert_is_current();
+}
+
+pub fn run_serially<F, B>(work: F) -> B
+where
+    F: FnOnce() -> B,
+{
+    get_serial_queue_singleton().run_sync(|| work()).unwrap()
+}
+
+pub fn run_serially_forward_panics<F, B>(work: F) -> B
+where
+    F: panic::UnwindSafe + FnOnce() -> B,
+{
+    match run_serially(|| panic::catch_unwind(|| work())) {
+        Ok(res) => res,
+        Err(e) => panic::resume_unwind(e),
+    }
 }
 
 // Queue: A wrapper around `dispatch_queue_t` that is always serial.

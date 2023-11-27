@@ -69,6 +69,7 @@ impl AggregateDevice {
         input_id: AudioObjectID,
         output_id: AudioObjectID,
     ) -> std::result::Result<Self, Error> {
+        debug_assert_running_serially();
         let plugin_id = Self::get_system_plugin_id()?;
         let device_id = Self::create_blank_device_sync(plugin_id)?;
 
@@ -671,6 +672,7 @@ impl Default for AggregateDevice {
 
 impl Drop for AggregateDevice {
     fn drop(&mut self) {
+        debug_assert_running_serially();
         if self.plugin_id != kAudioObjectUnknown && self.device_id != kAudioObjectUnknown {
             if let Err(r) = Self::destroy_device(self.plugin_id, self.device_id) {
                 cubeb_log!(

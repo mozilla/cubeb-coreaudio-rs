@@ -869,29 +869,29 @@ fn test_for_create_audiounit() {
         // Check the output scope is enabled.
         if device.flags.contains(device_flags::DEV_OUTPUT) && default_output.is_some() {
             device.id = default_output.unwrap();
-            let unit = create_audiounit(&device).unwrap();
+            let unit = run_serially(|| create_audiounit(&device).unwrap());
             assert!(!unit.is_null());
             assert!(test_audiounit_scope_is_enabled(unit, Scope::Output));
 
             // Destroy the AudioUnit.
-            unsafe {
+            run_serially(|| unsafe {
                 AudioUnitUninitialize(unit);
                 AudioComponentInstanceDispose(unit);
-            }
+            });
         }
 
         // Check the input scope is enabled.
         if device.flags.contains(device_flags::DEV_INPUT) && default_input.is_some() {
             let device_id = default_input.unwrap();
             device.id = device_id;
-            let unit = create_audiounit(&device).unwrap();
+            let unit = run_serially(|| create_audiounit(&device).unwrap());
             assert!(!unit.is_null());
             assert!(test_audiounit_scope_is_enabled(unit, Scope::Input));
             // Destroy the AudioUnit.
-            unsafe {
+            run_serially(|| unsafe {
                 AudioUnitUninitialize(unit);
                 AudioComponentInstanceDispose(unit);
-            }
+            });
         }
     }
 }
