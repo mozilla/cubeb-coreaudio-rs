@@ -190,6 +190,7 @@ fn set_notification_runloop() {
 
 fn create_device_info(devid: AudioDeviceID, devtype: DeviceType) -> Option<device_info> {
     assert_ne!(devid, kAudioObjectSystemObject);
+    debug_assert_running_serially();
 
     let mut flags = match devtype {
         DeviceType::INPUT => device_flags::DEV_INPUT,
@@ -456,7 +457,6 @@ extern "C" fn audiounit_input_callback(
 
     assert!(!user_ptr.is_null());
     let stm = unsafe { &mut *(user_ptr as *mut AudioUnitStream) };
-    let using_voice_processing_unit = stm.core_stream_data.using_voice_processing_unit();
 
     if unsafe { *flags | kAudioTimeStampHostTimeValid } != 0 {
         let now = unsafe { mach_absolute_time() };
@@ -596,17 +596,20 @@ extern "C" fn audiounit_input_callback(
         ErrorHandle::Return(NO_ERR)
     };
 
-    // If the input (input-only stream) or the output is drained (duplex stream),
-    // cancel this callback. Note that for voice processing cases (a single unit),
-    // the output callback handles stopping the unit and notifying of state.
-    if !using_voice_processing_unit && stm.draining.load(Ordering::SeqCst) {
-        let r = stop_audiounit(stm.core_stream_data.input_unit);
-        assert!(r.is_ok());
-        // Only fire state-changed callback for input-only stream.
-        // The state-changed callback for the duplex stream is fired in the output callback.
-        if stm.core_stream_data.output_unit.is_null() {
-            stm.notify_state_changed(State::Drained);
-        }
+    // If the input (input-only stream) is drained, cancel this callback. Whenever an output
+    // is involved, the output callback handles stopping all units and notifying of state.
+    if stm.core_stream_data.output_unit.is_null() && stm.draining.load(Ordering::SeqCst) {
+        stm.stopped.store(true, Ordering::SeqCst);
+        cubeb_alog!("({:p}) Input-only drained.", stm as *const AudioUnitStream);
+        stm.notify_state_changed(State::Drained);
+        let queue = stm.queue.clone();
+        // Use a new thread, through the queue, to avoid deadlock when calling
+        // AudioOutputUnitStop method from inside render callback
+        let stm_ptr = user_ptr as usize;
+        queue.run_async(move || {
+            let stm = unsafe { &mut *(stm_ptr as *mut AudioUnitStream) };
+            stm.core_stream_data.stop_audiounits();
+        });
     }
 
     match handle {
@@ -680,11 +683,17 @@ extern "C" fn audiounit_output_callback(
     }
 
     if stm.draining.load(Ordering::SeqCst) {
-        // Cancel the output callback only. For duplex stream,
-        // the input callback will be cancelled in its own callback.
-        let r = stop_audiounit(stm.core_stream_data.output_unit);
-        assert!(r.is_ok());
+        // Cancel all callbacks. For input-only streams, the input callback handles
+        // cancelling itself.
+        stm.stopped.store(true, Ordering::SeqCst);
+        cubeb_alog!("({:p}) output drained.", stm as *const AudioUnitStream);
         stm.notify_state_changed(State::Drained);
+        let queue = stm.queue.clone();
+        // Use a new thread, through the queue, to avoid deadlock when calling
+        // AudioOutputUnitStop method from inside render callback
+        queue.run_async(move || {
+            stm.core_stream_data.stop_audiounits();
+        });
         audiounit_make_silent(&buffers[0]);
         return NO_ERR;
     }
@@ -2094,9 +2103,12 @@ pub struct AudioUnitContext {
 
 impl AudioUnitContext {
     fn new() -> Self {
+        let queue_label = format!("{}.context", DISPATCH_QUEUE_LABEL);
+        let serial_queue =
+            Queue::new_with_target(queue_label.as_str(), get_serial_queue_singleton());
         Self {
             _ops: &OPS as *const _,
-            serial_queue: Queue::new(DISPATCH_QUEUE_LABEL),
+            serial_queue,
             latency_controller: Mutex::new(LatencyController::default()),
             devices: Mutex::new(SharedDevices::default()),
         }
@@ -2227,8 +2239,11 @@ impl AudioUnitContext {
 
 impl ContextOps for AudioUnitContext {
     fn init(_context_name: Option<&CStr>) -> Result<Context> {
-        set_notification_runloop();
-        let ctx = Box::new(AudioUnitContext::new());
+        run_serially(set_notification_runloop);
+        let mut ctx = Box::new(AudioUnitContext::new());
+        let queue_label = format!("{}.context.{:p}", DISPATCH_QUEUE_LABEL, ctx.as_ref());
+        ctx.serial_queue =
+            Queue::new_with_target(queue_label.as_str(), get_serial_queue_singleton());
         Ok(unsafe { Context::from_ptr(Box::into_raw(ctx) as *mut _) })
     }
 
@@ -2392,14 +2407,17 @@ impl ContextOps for AudioUnitContext {
         }
 
         let in_stm_settings = if let Some(params) = input_stream_params {
-            let in_device =
-                match create_device_info(input_device as AudioDeviceID, DeviceType::INPUT) {
-                    None => {
-                        cubeb_log!("Fail to create device info for input");
-                        return Err(Error::error());
-                    }
-                    Some(d) => d,
-                };
+            let in_device = match self
+                .serial_queue
+                .run_sync(|| create_device_info(input_device as AudioDeviceID, DeviceType::INPUT))
+                .unwrap()
+            {
+                None => {
+                    cubeb_log!("Fail to create device info for input");
+                    return Err(Error::error());
+                }
+                Some(d) => d,
+            };
             let stm_params = StreamParams::from(unsafe { *params.as_ptr() });
             Some((stm_params, in_device))
         } else {
@@ -2407,14 +2425,17 @@ impl ContextOps for AudioUnitContext {
         };
 
         let out_stm_settings = if let Some(params) = output_stream_params {
-            let out_device =
-                match create_device_info(output_device as AudioDeviceID, DeviceType::OUTPUT) {
-                    None => {
-                        cubeb_log!("Fail to create device info for output");
-                        return Err(Error::error());
-                    }
-                    Some(d) => d,
-                };
+            let out_device = match self
+                .serial_queue
+                .run_sync(|| create_device_info(output_device as AudioDeviceID, DeviceType::OUTPUT))
+                .unwrap()
+            {
+                None => {
+                    cubeb_log!("Fail to create device info for output");
+                    return Err(Error::error());
+                }
+                Some(d) => d,
+            };
             let stm_params = StreamParams::from(unsafe { *params.as_ptr() });
             Some((stm_params, out_device))
         } else {
@@ -2430,8 +2451,12 @@ impl ContextOps for AudioUnitContext {
         ));
 
         // Rename the task queue to be an unique label.
-        let queue_label = format!("{}.{:p}", DISPATCH_QUEUE_LABEL, boxed_stream.as_ref());
-        boxed_stream.queue = Queue::new(queue_label.as_str());
+        let queue_label = format!(
+            "{}.stream.{:p}",
+            DISPATCH_QUEUE_LABEL,
+            boxed_stream.as_ref()
+        );
+        boxed_stream.queue = Queue::new_with_target(queue_label.as_str(), &boxed_stream.queue);
 
         boxed_stream.core_stream_data =
             CoreStreamData::new(boxed_stream.as_ref(), in_stm_settings, out_stm_settings);
@@ -2465,11 +2490,20 @@ impl ContextOps for AudioUnitContext {
         if devtype == DeviceType::UNKNOWN {
             return Err(Error::invalid_parameter());
         }
-        if collection_changed_callback.is_some() {
-            self.add_devices_changed_listener(devtype, collection_changed_callback, user_ptr)
-        } else {
-            self.remove_devices_changed_listener(devtype)
-        }
+        self.serial_queue
+            .clone()
+            .run_sync(|| {
+                if collection_changed_callback.is_some() {
+                    self.add_devices_changed_listener(
+                        devtype,
+                        collection_changed_callback,
+                        user_ptr,
+                    )
+                } else {
+                    self.remove_devices_changed_listener(devtype)
+                }
+            })
+            .unwrap()
     }
 }
 
@@ -3927,10 +3961,11 @@ impl<'ctx> AudioUnitStream<'ctx> {
             });
         let (output_callback_timing_data_write, output_callback_timing_data_read) =
             output_callback_timing_data.split();
+        let queue = context.serial_queue.clone();
         AudioUnitStream {
             context,
             user_ptr,
-            queue: Queue::new(DISPATCH_QUEUE_LABEL),
+            queue,
             data_callback,
             state_callback,
             device_changed_callback: Mutex::new(None),
