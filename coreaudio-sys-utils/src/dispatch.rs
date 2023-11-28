@@ -69,6 +69,10 @@ impl Queue {
         F: Send + FnOnce(),
     {
         let should_cancel = self.get_should_cancel();
+        debug_assert!(
+            should_cancel.is_some(),
+            "dispatch context should be allocated!"
+        );
         let (closure, executor) = Self::create_closure_and_executor(|| {
             work();
             should_cancel
