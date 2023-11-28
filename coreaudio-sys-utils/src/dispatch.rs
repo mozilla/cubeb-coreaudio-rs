@@ -67,34 +67,37 @@ impl Queue {
         }
     }
 
-    pub fn run_sync<F>(&self, work: F)
+    pub fn run_sync<F, B>(&self, work: F) -> Option<B>
     where
-        F: Send + FnOnce(),
+        F: Send + FnOnce() -> B,
     {
+        let mut res: Option<B> = None;
         let should_cancel = self.get_should_cancel();
         let (closure, executor) = Self::create_closure_and_executor(|| {
             if should_cancel.map_or(false, |v| v.load(Ordering::SeqCst)) {
                 return;
             }
-            work();
+            res = Some(work());
         });
         unsafe {
             dispatch_sync_f(self.queue, closure, executor);
         }
+        res
     }
 
-    pub fn run_final<F>(&self, work: F)
+    pub fn run_final<F, B>(&self, work: F) -> Option<B>
     where
-        F: Send + FnOnce(),
+        F: Send + FnOnce() -> B,
     {
         assert!(self.owned, "Doesn't make sense to finalize global queue");
+        let mut res: Option<B> = None;
         let should_cancel = self.get_should_cancel();
         debug_assert!(
             should_cancel.is_some(),
             "dispatch context should be allocated!"
         );
         let (closure, executor) = Self::create_closure_and_executor(|| {
-            work();
+            res = Some(work());
             should_cancel
                 .expect("dispatch context should be allocated!")
                 .store(true, Ordering::SeqCst);
@@ -102,6 +105,7 @@ impl Queue {
         unsafe {
             dispatch_sync_f(self.queue, closure, executor);
         }
+        res
     }
 
     fn get_should_cancel(&self) -> Option<&mut AtomicBool> {
@@ -209,12 +213,12 @@ fn run_tasks_in_order() {
 
     let queue = Queue::new("Run tasks in order");
 
-    queue.run_sync(move || visit(1, ptr));
-    queue.run_sync(move || visit(2, ptr));
-    queue.run_async(move || visit(3, ptr));
-    queue.run_async(move || visit(4, ptr));
+    queue.run_sync(|| visit(1, ptr));
+    queue.run_sync(|| visit(2, ptr));
+    queue.run_async(|| visit(3, ptr));
+    queue.run_async(|| visit(4, ptr));
     // Call sync here to block the current thread and make sure all the tasks are done.
-    queue.run_sync(move || visit(5, ptr));
+    queue.run_sync(|| visit(5, ptr));
 
     assert_eq!(visited, vec![1, 2, 3, 4, 5]);
 }
@@ -236,14 +240,22 @@ fn run_final_task() {
 
         let queue = Queue::new("Task after run_final will be cancelled");
 
-        queue.run_sync(move || visit(1, ptr));
-        queue.run_async(move || visit(2, ptr));
-        queue.run_final(move || visit(3, ptr));
-        queue.run_async(move || visit(4, ptr));
-        queue.run_sync(move || visit(5, ptr));
+        queue.run_sync(|| visit(1, ptr));
+        queue.run_async(|| visit(2, ptr));
+        queue.run_final(|| visit(3, ptr));
+        queue.run_async(|| visit(4, ptr));
+        queue.run_sync(|| visit(5, ptr));
     }
     // `queue` will be dropped asynchronously and then the `finalizer` of the `queue`
     // should be fired to clean up the `context` set in the `queue`.
 
     assert_eq!(visited, vec![1, 2, 3]);
+}
+
+#[test]
+fn sync_return_value() {
+    let q = Queue::new("Test queue");
+    assert_eq!(q.run_sync(|| 42), Some(42));
+    assert_eq!(q.run_final(|| "foo"), Some("foo"));
+    assert_eq!(q.run_sync(|| Ok::<(), u32>(())), None);
 }

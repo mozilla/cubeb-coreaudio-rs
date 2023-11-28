@@ -227,10 +227,10 @@ fn test_add_listener_unknown_device() {
             ),
             callback,
         );
-        let mut res: OSStatus = 0;
-        stream
+        let res = stream
             .queue
-            .run_sync(|| res = stream.add_device_listener(&listener));
+            .run_sync(|| stream.add_device_listener(&listener))
+            .unwrap();
         assert_eq!(res, kAudioHardwareBadObjectError as OSStatus);
     });
 }
@@ -258,14 +258,15 @@ fn test_add_listener_then_remove_system_device() {
             ),
             callback,
         );
-        let mut res: OSStatus = 0;
-        stream
+        let res = stream
             .queue
-            .run_sync(|| res = stream.add_device_listener(&listener));
+            .run_sync(|| stream.add_device_listener(&listener))
+            .unwrap();
         assert_eq!(res, NO_ERR);
-        stream
+        let res = stream
             .queue
-            .run_sync(|| res = stream.remove_device_listener(&listener));
+            .run_sync(|| stream.remove_device_listener(&listener))
+            .unwrap();
         assert_eq!(res, NO_ERR);
     });
 }
@@ -291,10 +292,10 @@ fn test_remove_listener_without_adding_any_listener_before_system_device() {
             ),
             callback,
         );
-        let mut res: OSStatus = 0;
-        stream
+        let res = stream
             .queue
-            .run_sync(|| res = stream.remove_device_listener(&listener));
+            .run_sync(|| stream.remove_device_listener(&listener))
+            .unwrap();
         assert_eq!(res, NO_ERR);
     });
 }
@@ -320,10 +321,10 @@ fn test_remove_listener_unknown_device() {
             ),
             callback,
         );
-        let mut res: OSStatus = 0;
-        stream
+        let res = stream
             .queue
-            .run_sync(|| res = stream.remove_device_listener(&listener));
+            .run_sync(|| stream.remove_device_listener(&listener))
+            .unwrap();
         assert_eq!(res, kAudioHardwareBadObjectError as OSStatus);
     });
 }

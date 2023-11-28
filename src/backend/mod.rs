@@ -2437,10 +2437,11 @@ impl ContextOps for AudioUnitContext {
         boxed_stream.core_stream_data =
             CoreStreamData::new(boxed_stream.as_ref(), in_stm_settings, out_stm_settings);
 
-        let mut result = Ok(());
-        boxed_stream.queue.clone().run_sync(|| {
-            result = boxed_stream.core_stream_data.setup();
-        });
+        let result = boxed_stream
+            .queue
+            .clone()
+            .run_sync(|| boxed_stream.core_stream_data.setup())
+            .unwrap();
         if let Err(r) = result {
             cubeb_log!(
                 "({:p}) Could not setup the audiounit stream.",
@@ -4171,7 +4172,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
 impl<'ctx> Drop for AudioUnitStream<'ctx> {
     fn drop(&mut self) {
         // Execute destroy in serial queue to avoid collision with reinit when un/plug devices
-        self.queue.clone().run_final(move || {
+        self.queue.clone().run_final(|| {
             self.destroy();
             self.core_stream_data = CoreStreamData::default();
         });
@@ -4184,12 +4185,10 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         self.draining.store(false, Ordering::SeqCst);
 
         // Execute start in serial queue to avoid racing with destroy or reinit.
-        let mut result = Err(Error::error());
-        let started = &mut result;
-        let stream = &self;
-        self.queue.run_sync(move || {
-            *started = stream.core_stream_data.start_audiounits();
-        });
+        let result = self
+            .queue
+            .run_sync(|| self.core_stream_data.start_audiounits())
+            .unwrap();
 
         result?;
 
@@ -4205,10 +4204,8 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         self.stopped.store(true, Ordering::SeqCst);
 
         // Execute stop in serial queue to avoid racing with destroy or reinit.
-        let stream = &self;
-        self.queue.run_sync(move || {
-            stream.core_stream_data.stop_audiounits();
-        });
+        self.queue
+            .run_sync(|| self.core_stream_data.stop_audiounits());
 
         self.notify_state_changed(State::Stopped);
 
@@ -4285,12 +4282,10 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     }
     fn set_volume(&mut self, volume: f32) -> Result<()> {
         // Execute set_volume in serial queue to avoid racing with destroy or reinit.
-        let mut result = Err(Error::error());
-        let set = &mut result;
-        let stream = &self;
-        self.queue.run_sync(move || {
-            *set = set_volume(stream.core_stream_data.output_unit, volume);
-        });
+        let result = self
+            .queue
+            .run_sync(|| set_volume(self.core_stream_data.output_unit, volume))
+            .unwrap();
 
         result?;
 
