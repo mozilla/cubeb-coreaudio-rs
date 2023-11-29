@@ -77,7 +77,7 @@ impl Queue {
 
     pub fn run_sync<F, B>(&self, work: F) -> Option<B>
     where
-        F: Send + FnOnce() -> B,
+        F: FnOnce() -> B,
     {
         let mut res: Option<B> = None;
         let should_cancel = self.get_should_cancel();
@@ -95,7 +95,7 @@ impl Queue {
 
     pub fn run_final<F, B>(&self, work: F) -> Option<B>
     where
-        F: Send + FnOnce() -> B,
+        F: FnOnce() -> B,
     {
         assert!(self.owned, "Doesn't make sense to finalize global queue");
         let mut res: Option<B> = None;
