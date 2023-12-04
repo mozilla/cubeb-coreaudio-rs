@@ -711,7 +711,7 @@ fn test_unplug_a_device_on_an_active_stream(
         state_callback,
         device_changed_callback,
         |stream| {
-            stream.start();
+            assert_eq!(stream.start(), Ok(()));
 
             let changed_watcher = Watcher::new(&notifier);
             let mut data_guard = notifier.lock().unwrap();
