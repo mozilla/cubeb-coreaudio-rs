@@ -255,7 +255,7 @@ impl BufferManager {
         match &mut self.consumer {
             IntegerRingBufferConsumer(p) => {
                 let input: &mut [i16] =
-                    unsafe { slice::from_raw_parts_mut::<i16>(data as *mut i16, to_pull) };
+                    unsafe { slice::from_raw_parts_mut::<i16>(data as *mut i16, needed_samples) };
                 let pulled = p.pop_slice(input);
                 if pulled < to_pull {
                     cubeb_alog!(
@@ -269,9 +269,9 @@ impl BufferManager {
                 }
                 if needed_samples > to_pull {
                     // Mono upmix. This can happen with voice processing.
-                    let mut write_idx = needed_samples;
-                    for (read_idx, _) in (to_pull - 1..=0).enumerate() {
-                        for (offset, _) in (0..self.output_channel_count()).enumerate() {
+                    let mut write_idx = needed_samples - self.output_channel_count();
+                    for read_idx in (0..to_pull).rev() {
+                        for offset in 0..self.output_channel_count() {
                             input[write_idx + offset] = input[read_idx];
                         }
                         write_idx -= self.output_channel_count();
@@ -280,7 +280,7 @@ impl BufferManager {
             }
             FloatRingBufferConsumer(p) => {
                 let input: &mut [f32] =
-                    unsafe { slice::from_raw_parts_mut::<f32>(data as *mut f32, to_pull) };
+                    unsafe { slice::from_raw_parts_mut::<f32>(data as *mut f32, needed_samples) };
                 let pulled = p.pop_slice(input);
                 if pulled < to_pull {
                     cubeb_alog!(
@@ -294,9 +294,9 @@ impl BufferManager {
                 }
                 if needed_samples > to_pull {
                     // Mono upmix. This can happen with voice processing.
-                    let mut write_idx = needed_samples;
-                    for (read_idx, _) in (to_pull - 1..=0).enumerate() {
-                        for (offset, _) in (0..self.output_channel_count()).enumerate() {
+                    let mut write_idx = needed_samples - self.output_channel_count();
+                    for read_idx in (0..to_pull).rev() {
+                        for offset in 0..self.output_channel_count() {
                             input[write_idx + offset] = input[read_idx];
                         }
                         write_idx -= self.output_channel_count();
@@ -306,18 +306,18 @@ impl BufferManager {
         }
     }
     pub fn get_linear_data(&mut self, frame_count: usize) -> *mut c_void {
-        let stored_sample_count = frame_count * self.stored_channel_count();
+        let output_sample_count = frame_count * self.output_channel_count();
         let p = match &mut self.linear_buffer {
             LinearBuffer::IntegerLinearBuffer(b) => {
-                b.resize(stored_sample_count, 0);
+                b.resize(output_sample_count, 0);
                 b.as_mut_ptr() as *mut c_void
             }
             LinearBuffer::FloatLinearBuffer(b) => {
-                b.resize(stored_sample_count, 0.);
+                b.resize(output_sample_count, 0.);
                 b.as_mut_ptr() as *mut c_void
             }
         };
-        self.pull_data(p, frame_count * self.output_channel_count());
+        self.pull_data(p, output_sample_count);
 
         p
     }
