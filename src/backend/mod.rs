@@ -663,9 +663,6 @@ extern "C" fn audiounit_output_callback(
         output_frames
     );
 
-    // If `input_buffer` is non-null but `input_frames` is zero and this is the first call to
-    // resampler, then we will hit an assertion in resampler code since no internal buffer will be
-    // allocated in the resampler due to zero `input_frames`
     let outframes = stm.core_stream_data.resampler.fill(
         input_buffer,
         if input_buffer.is_null() {
