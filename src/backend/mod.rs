@@ -2592,7 +2592,12 @@ impl<'ctx> CoreStreamData<'ctx> {
 
     fn create_audiounits(&mut self) -> Result<(device_info, device_info)> {
         self.debug_assert_is_on_stream_queue();
-        let should_use_voice_processing_unit = self.has_input() && self.has_output();
+        let should_use_voice_processing_unit = self.has_input()
+            && self.has_output()
+            && self
+                .input_stream_params
+                .prefs()
+                .contains(StreamPrefs::VOICE);
 
         let should_use_aggregate_device = {
             // It's impossible to create an aggregate device from an aggregate device, and it's
