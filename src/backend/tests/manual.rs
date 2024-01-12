@@ -4,6 +4,7 @@ use super::utils::{
 };
 use super::*;
 use std::io;
+use std::sync::atomic::AtomicBool;
 
 #[ignore]
 #[test]
@@ -157,6 +158,7 @@ fn test_device_collection_change() {
 fn test_stream_tester() {
     test_ops_context_operation("context: stream tester", |context_ptr| {
         let mut stream_ptr: *mut ffi::cubeb_stream = ptr::null_mut();
+        let enable_loopback = AtomicBool::new(false);
         loop {
             println!(
                 "commands:\n\
@@ -166,6 +168,7 @@ fn test_stream_tester() {
                  \t's': start the created stream\n\
                  \t't': stop the created stream\n\
                  \t'r': register a device changed callback\n\
+                 \t'l': set loopback (DUPLEX-only)\n\
                  \t'v': set volume"
             );
 
@@ -179,11 +182,12 @@ fn test_stream_tester() {
                     destroy_stream(&mut stream_ptr);
                     break;
                 }
-                "c" => create_stream(&mut stream_ptr, context_ptr),
+                "c" => create_stream(&mut stream_ptr, context_ptr, &enable_loopback),
                 "d" => destroy_stream(&mut stream_ptr),
                 "s" => start_stream(stream_ptr),
                 "t" => stop_stream(stream_ptr),
                 "r" => register_device_change_callback(stream_ptr),
+                "l" => set_loopback(stream_ptr, &enable_loopback),
                 "v" => set_volume(stream_ptr),
                 x => println!("Unknown command: {}", x),
             }
@@ -227,6 +231,40 @@ fn test_stream_tester() {
         println!("Set stream {:p} volume to {}", stream_ptr, VOL);
     }
 
+    fn set_loopback(stream_ptr: *mut ffi::cubeb_stream, enable_loopback: &AtomicBool) {
+        if stream_ptr.is_null() {
+            println!("No stream can set loopback.");
+            return;
+        }
+        let stm = unsafe { &mut *(stream_ptr as *mut AudioUnitStream) };
+        if !stm.core_stream_data.has_input() || !stm.core_stream_data.has_output() {
+            println!("Duplex stream needed to set loopback");
+            return;
+        }
+        let mut loopback: Option<bool> = None;
+        while loopback.is_none() {
+            println!("Select action:\n1) Enable loopback, 2) Disable loopback");
+            let mut input = String::new();
+            let _ = io::stdin().read_line(&mut input);
+            assert_eq!(input.pop().unwrap(), '\n');
+            loopback = match input.as_str() {
+                "1" => Some(true),
+                "2" => Some(false),
+                _ => {
+                    println!("Invalid action. Select again.\n");
+                    None
+                }
+            }
+        }
+        let loopback = loopback.unwrap();
+        enable_loopback.store(loopback, Ordering::SeqCst);
+        println!(
+            "Loopback {} for stream {:p}",
+            if loopback { "enabled" } else { "disabled" },
+            stream_ptr
+        );
+    }
+
     fn register_device_change_callback(stream_ptr: *mut ffi::cubeb_stream) {
         extern "C" fn callback(user_ptr: *mut c_void) {
             println!("user pointer @ {:p}", user_ptr);
@@ -258,7 +296,11 @@ fn test_stream_tester() {
         *stream_ptr = ptr::null_mut();
     }
 
-    fn create_stream(stream_ptr: &mut *mut ffi::cubeb_stream, context_ptr: *mut ffi::cubeb) {
+    fn create_stream(
+        stream_ptr: &mut *mut ffi::cubeb_stream,
+        context_ptr: *mut ffi::cubeb,
+        enable_loopback: &AtomicBool,
+    ) {
         if !stream_ptr.is_null() {
             println!("Stream has been created.");
             return;
@@ -370,7 +412,7 @@ fn test_stream_tester() {
                     4096, // latency
                     Some(data_callback),
                     Some(state_callback),
-                    ptr::null_mut(), // user pointer
+                    enable_loopback as *const AtomicBool as *mut c_void, // user pointer
                 )
             },
             ffi::CUBEB_OK
@@ -390,15 +432,37 @@ fn test_stream_tester() {
 
         extern "C" fn data_callback(
             stream: *mut ffi::cubeb_stream,
-            _user_ptr: *mut c_void,
-            _input_buffer: *const c_void,
+            user_ptr: *mut c_void,
+            input_buffer: *const c_void,
             output_buffer: *mut c_void,
             nframes: i64,
         ) -> i64 {
             assert!(!stream.is_null());
 
-            // Feed silence data to output buffer
-            if !output_buffer.is_null() {
+            let enable_loopback = unsafe { &mut *(user_ptr as *mut AtomicBool) };
+            let loopback = enable_loopback.load(Ordering::SeqCst);
+            if loopback && !input_buffer.is_null() && !output_buffer.is_null() {
+                // Dupe the mono input to stereo
+                let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+                assert_eq!(stm.core_stream_data.input_stream_params.channels(), 1);
+                let channels = stm.core_stream_data.output_stream_params.channels() as usize;
+                let sample_size =
+                    cubeb_sample_size(stm.core_stream_data.output_stream_params.format());
+                for f in 0..(nframes as usize) {
+                    let input_offset = f * sample_size;
+                    let output_offset = input_offset * channels;
+                    for c in 0..channels {
+                        unsafe {
+                            ptr::copy(
+                                input_buffer.add(input_offset) as *const u8,
+                                output_buffer.add(output_offset + (sample_size * c)) as *mut u8,
+                                sample_size,
+                            )
+                        };
+                    }
+                }
+            } else if !output_buffer.is_null() {
+                // Feed silence data to output buffer
                 let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
                 let channels = stm.core_stream_data.output_stream_params.channels();
                 let samples = nframes as usize * channels as usize;
