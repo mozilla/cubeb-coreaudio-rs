@@ -1135,21 +1135,6 @@ fn create_voiceprocessing_audiounit(
         return Err(Error::error());
     }
 
-    let bypass = u32::from(true);
-    let r = audio_unit_set_property(
-        unit,
-        kAudioUnitProperty_BypassEffect,
-        kAudioUnitScope_Global,
-        AU_IN_BUS,
-        &bypass,
-        mem::size_of::<u32>(),
-    );
-    if r != NO_ERR {
-        cubeb_log!("Failed to enable bypass of voiceprocessing. Error: {}", r);
-        dispose_audio_unit(unit);
-        return Err(Error::error());
-    }
-
     Ok(unit)
 }
 
@@ -3369,6 +3354,18 @@ impl<'ctx> CoreStreamData<'ctx> {
                     self.output_device.id,
                     r
                 );
+            }
+
+            // Always initiate to not use input processing.
+            if let Err(r) =
+                set_input_processing_params(self.input_unit, InputProcessingParams::NONE)
+            {
+                cubeb_log!(
+                    "({:p}) Failed to enable bypass of voiceprocessing. Error: {}",
+                    self.stm_ptr,
+                    r
+                );
+                return Err(r);
             }
         }
 
