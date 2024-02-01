@@ -35,9 +35,9 @@ use self::utils::*;
 use atomic;
 use backend::ringbuf::RingBuffer;
 use cubeb_backend::{
-    ffi, Context, ContextOps, DeviceCollectionRef, DeviceId, DeviceRef, DeviceType, Error,
-    InputProcessingParams, Ops, Result, SampleFormat, State, Stream, StreamOps, StreamParams,
-    StreamParamsRef, StreamPrefs,
+    ffi, ChannelLayout, Context, ContextOps, DeviceCollectionRef, DeviceId, DeviceRef, DeviceType,
+    Error, InputProcessingParams, Ops, Result, SampleFormat, State, Stream, StreamOps,
+    StreamParams, StreamParamsRef, StreamPrefs,
 };
 use mach::mach_time::{mach_absolute_time, mach_timebase_info};
 use std::cmp;
@@ -2935,8 +2935,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             let params = unsafe {
                 let mut p = *self.input_stream_params.as_ptr();
                 p.channels = if using_voice_processing_unit {
-                    // With VPIO, stereo input devices configured for stereo have been observed to
-                    // spit out only a single mono channel.
+                    // VPIO is always MONO.
                     1
                 } else {
                     input_hw_desc.mChannelsPerFrame
@@ -3054,9 +3053,6 @@ impl<'ctx> CoreStreamData<'ctx> {
                 out_dev_info
             );
 
-            let device_channel_count =
-                get_channel_count(self.output_device.id, DeviceType::OUTPUT).unwrap_or(0);
-
             cubeb_log!(
                 "({:p}) Opening output side: rate {}, channels {}, format {:?}, layout {:?}, prefs {:?}, latency in frames {}, voice processing {}.",
                 self.stm_ptr,
@@ -3093,9 +3089,10 @@ impl<'ctx> CoreStreamData<'ctx> {
                 output_hw_desc
             );
 
-            // In some cases with VPIO the stream format's mChannelsPerFrame is higher than
-            // expected. Use get_channel_count as source of truth.
-            output_hw_desc.mChannelsPerFrame = device_channel_count;
+            // In some cases with (other streams using) VPIO the stream format's mChannelsPerFrame
+            // is higher than expected. Use get_channel_count as source of truth.
+            output_hw_desc.mChannelsPerFrame =
+                get_channel_count(self.output_device.id, DeviceType::OUTPUT).unwrap_or(0);
 
             // This has been observed in the wild.
             if output_hw_desc.mChannelsPerFrame == 0 {
@@ -3112,7 +3109,12 @@ impl<'ctx> CoreStreamData<'ctx> {
             // channels will be appended at the end of the raw data given by the output callback.
             let params = unsafe {
                 let mut p = *self.output_stream_params.as_ptr();
-                p.channels = output_hw_desc.mChannelsPerFrame;
+                p.channels = if using_voice_processing_unit {
+                    // VPIO is always MONO.
+                    1
+                } else {
+                    output_hw_desc.mChannelsPerFrame
+                };
                 if using_voice_processing_unit {
                     // VPIO will always use the sample rate of the input hw for both input and output,
                     // as reported to us. (We can override it but we cannot improve quality this way).
@@ -3719,23 +3721,10 @@ impl<'ctx> CoreStreamData<'ctx> {
     fn get_output_channel_layout(&self) -> Result<Vec<mixer::Channel>> {
         self.debug_assert_is_on_stream_queue();
         assert!(!self.output_unit.is_null());
-        if !self.using_voice_processing_unit() {
-            return get_channel_layout(self.output_unit);
+        if self.using_voice_processing_unit() {
+            return Ok(get_channel_order(ChannelLayout::MONO));
         }
-
-        // The VoiceProcessingIO unit (as tried on MacOS 14) is known to not support
-        // kAudioUnitProperty_AudioChannelLayout queries, and to lie about
-        // kAudioDevicePropertyPreferredChannelLayout. If we're using
-        // VoiceProcessingIO, try standing up a regular AudioUnit and query that.
-        cubeb_log!(
-            "({:p}) get_output_channel_layout with a VoiceProcessingIO output unit. Trying a dedicated unit.",
-            self.stm_ptr
-        );
-        let mut dedicated_unit = create_audiounit(&self.output_device)?;
-        let res = get_channel_layout(dedicated_unit);
-        dispose_audio_unit(dedicated_unit);
-        dedicated_unit = ptr::null_mut();
-        res
+        get_channel_layout(self.output_unit)
     }
 }
 
