@@ -311,8 +311,7 @@ fn set_input_processing_params(unit: AudioUnit, params: InputProcessingParams) -
     let aec = params.contains(InputProcessingParams::ECHO_CANCELLATION);
     let ns = params.contains(InputProcessingParams::NOISE_SUPPRESSION);
 
-    // We don't use AGC, but keep it here for reference.
-    // See the comment in supported_input_processing_params.
+    // See the comment in supported_input_processing_params on why we don't expose AGC to clients.
     let agc = params.contains(InputProcessingParams::AUTOMATIC_GAIN_CONTROL);
     assert!(!agc);
 
@@ -324,7 +323,10 @@ fn set_input_processing_params(unit: AudioUnit, params: InputProcessingParams) -
         return Err(Error::error());
     }
 
-    let agc = u32::from(agc);
+    // Always use AGC to limit the signal, as it may be far out of bounds without AGC,
+    // resulting in clipping. This has been observed with an Apple Studio Display being
+    // used for both input and output.
+    let agc = u32::from(true);
     let r = audio_unit_set_property(
         unit,
         kAUVoiceIOProperty_VoiceProcessingEnableAGC,
@@ -2240,7 +2242,7 @@ impl ContextOps for AudioUnitContext {
         // The VoiceProcessingIO AudioUnit has the
         // kAUVoiceIOProperty_VoiceProcessingEnableAGC property to enable AGC on
         // the input signal, but some simple manual tests on MacOS 14.0 suggest
-        // it doesn't have any effect.
+        // it doesn't amplify a weak signal.
         Ok(InputProcessingParams::ECHO_CANCELLATION | InputProcessingParams::NOISE_SUPPRESSION)
     }
     fn enumerate_devices(
