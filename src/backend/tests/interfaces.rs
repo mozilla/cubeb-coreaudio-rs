@@ -90,6 +90,7 @@ fn test_ops_context_supported_input_processing_params() {
                 params,
                 ffi::CUBEB_INPUT_PROCESSING_PARAM_ECHO_CANCELLATION
                     | ffi::CUBEB_INPUT_PROCESSING_PARAM_NOISE_SUPPRESSION
+                    | ffi::CUBEB_INPUT_PROCESSING_PARAM_AUTOMATIC_GAIN_CONTROL
             );
         },
     );

@@ -311,21 +311,20 @@ fn set_input_processing_params(unit: AudioUnit, params: InputProcessingParams) -
     let aec = params.contains(InputProcessingParams::ECHO_CANCELLATION);
     let ns = params.contains(InputProcessingParams::NOISE_SUPPRESSION);
 
-    // See the comment in supported_input_processing_params on why we don't expose AGC to clients.
-    let agc = params.contains(InputProcessingParams::AUTOMATIC_GAIN_CONTROL);
-    assert!(!agc);
-
-    // AEC and NS are active as soon as VPIO is not bypassed.
-    // Therefore the only modes we can explicitly support are {} and {aec, ns}.
-
+    // AEC and NS are active as soon as VPIO is not bypassed, therefore the only combinations
+    // of those we can explicitly support are {} and {aec, ns}.
     if aec != ns {
         // No control to turn on AEC without NS or vice versa.
         return Err(Error::error());
     }
 
-    // Always use AGC to limit the signal, as it may be far out of bounds without AGC,
-    // resulting in clipping. This has been observed with an Apple Studio Display being
-    // used for both input and output.
+    // Always use AGC to limit the signal.
+    // - If the client wants to apply AGC we report it as successful so the client doesn't
+    //   apply another AGC algorithm on top.
+    // - If the client wants to disable AGC we also report it as successful, but we enable
+    //   it as otherwise the input signal may be far out of bounds, resulting in clipping.
+    //   This has been observed with an Apple Studio Display being used for both input and
+    //   output.
     let agc = u32::from(true);
     let r = audio_unit_set_property(
         unit,
@@ -2239,11 +2238,9 @@ impl ContextOps for AudioUnitContext {
         Ok(rate as u32)
     }
     fn supported_input_processing_params(&mut self) -> Result<InputProcessingParams> {
-        // The VoiceProcessingIO AudioUnit has the
-        // kAUVoiceIOProperty_VoiceProcessingEnableAGC property to enable AGC on
-        // the input signal, but some simple manual tests on MacOS 14.0 suggest
-        // it doesn't amplify a weak signal.
-        Ok(InputProcessingParams::ECHO_CANCELLATION | InputProcessingParams::NOISE_SUPPRESSION)
+        Ok(InputProcessingParams::ECHO_CANCELLATION
+            | InputProcessingParams::NOISE_SUPPRESSION
+            | InputProcessingParams::AUTOMATIC_GAIN_CONTROL)
     }
     fn enumerate_devices(
         &mut self,
