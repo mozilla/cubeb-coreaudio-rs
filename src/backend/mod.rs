@@ -2546,6 +2546,7 @@ struct CoreStreamData<'ctx> {
     // Info of the I/O devices.
     input_device: device_info,
     output_device: device_info,
+    input_processing_params: InputProcessingParams,
     input_buffer_manager: Option<BufferManager>,
     // Listeners indicating what system events are monitored.
     default_input_listener: Option<device_property_listener>,
@@ -2584,6 +2585,7 @@ impl<'ctx> Default for CoreStreamData<'ctx> {
             output_unit: ptr::null_mut(),
             input_device: device_info::default(),
             output_device: device_info::default(),
+            input_processing_params: InputProcessingParams::NONE,
             input_buffer_manager: None,
             default_input_listener: None,
             default_output_listener: None,
@@ -2628,6 +2630,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             output_unit: ptr::null_mut(),
             input_device: in_dev,
             output_device: out_dev,
+            input_processing_params: InputProcessingParams::NONE,
             input_buffer_manager: None,
             default_input_listener: None,
             default_output_listener: None,
@@ -3448,12 +3451,14 @@ impl<'ctx> CoreStreamData<'ctx> {
                 );
             }
 
-            // Always initiate to not use input processing.
+            // Always try to remember the applied input processing params. If they cannot
+            // be applied in the new device pair, we notify the client of an error and it
+            // will have to open a new stream.
             if let Err(r) =
-                set_input_processing_params(self.input_unit, InputProcessingParams::NONE)
+                set_input_processing_params(self.input_unit, self.input_processing_params)
             {
                 cubeb_log!(
-                    "({:p}) Failed to enable bypass of voiceprocessing. Error: {}",
+                    "({:p}) Failed to set params of voiceprocessing. Error: {}",
                     self.stm_ptr,
                     r
                 );
@@ -4332,6 +4337,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
             self as *const AudioUnitStream,
             params
         );
+        self.core_stream_data.input_processing_params = params;
         Ok(())
     }
     #[cfg(target_os = "ios")]
