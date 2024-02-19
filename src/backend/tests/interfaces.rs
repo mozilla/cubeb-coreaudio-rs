@@ -1062,6 +1062,65 @@ fn test_ops_duplex_voice_stream_set_input_processing_params_before_start() {
 }
 
 #[test]
+fn test_ops_duplex_voice_stream_set_input_processing_params_before_start_with_reinit() {
+    test_default_duplex_voice_stream_operation(
+        "duplex voice stream: processing before start with reinit",
+        |stream| {
+            let params: ffi::cubeb_input_processing_params =
+                ffi::CUBEB_INPUT_PROCESSING_PARAM_ECHO_CANCELLATION
+                    | ffi::CUBEB_INPUT_PROCESSING_PARAM_NOISE_SUPPRESSION
+                    | ffi::CUBEB_INPUT_PROCESSING_PARAM_AUTOMATIC_GAIN_CONTROL;
+            assert_eq!(
+                unsafe { OPS.stream_set_input_processing_params.unwrap()(stream, params) },
+                ffi::CUBEB_OK
+            );
+            assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
+
+            // Hacky cast, but testing this here was simplest for now.
+            let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+            stm.reinit_async();
+            let queue = stm.queue.clone();
+            let mut params_after_reinit: ffi::cubeb_input_processing_params =
+                ffi::CUBEB_INPUT_PROCESSING_PARAM_NONE;
+            queue.run_sync(|| {
+                let mut params: ffi::cubeb_input_processing_params =
+                    ffi::CUBEB_INPUT_PROCESSING_PARAM_NONE;
+                let mut agc: u32 = 0;
+                let r = audio_unit_get_property(
+                    stm.core_stream_data.input_unit,
+                    kAUVoiceIOProperty_VoiceProcessingEnableAGC,
+                    kAudioUnitScope_Global,
+                    AU_IN_BUS,
+                    &mut agc,
+                    &mut mem::size_of::<u32>(),
+                );
+                assert_eq!(r, NO_ERR);
+                if agc == 1 {
+                    params = params | ffi::CUBEB_INPUT_PROCESSING_PARAM_AUTOMATIC_GAIN_CONTROL;
+                }
+                let mut bypass: u32 = 0;
+                let r = audio_unit_get_property(
+                    stm.core_stream_data.input_unit,
+                    kAUVoiceIOProperty_BypassVoiceProcessing,
+                    kAudioUnitScope_Global,
+                    AU_IN_BUS,
+                    &mut bypass,
+                    &mut mem::size_of::<u32>(),
+                );
+                assert_eq!(r, NO_ERR);
+                if bypass == 0 {
+                    params = params
+                        | ffi::CUBEB_INPUT_PROCESSING_PARAM_ECHO_CANCELLATION
+                        | ffi::CUBEB_INPUT_PROCESSING_PARAM_NOISE_SUPPRESSION;
+                }
+                params_after_reinit = params;
+            });
+            assert_eq!(params, params_after_reinit);
+        },
+    );
+}
+
+#[test]
 fn test_ops_duplex_voice_stream_set_input_processing_params_after_start() {
     test_default_duplex_voice_stream_operation(
         "duplex voice stream: processing after start",
