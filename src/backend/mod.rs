@@ -2745,7 +2745,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                 }
                 cubeb_log!(
                     "Output device ID: {} (aggregate: {:?})",
-                    self.input_device.id,
+                    self.output_device.id,
                     output_is_aggregate
                 );
             }
