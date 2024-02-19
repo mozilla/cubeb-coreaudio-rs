@@ -2708,6 +2708,51 @@ impl<'ctx> CoreStreamData<'ctx> {
         input_domain == output_domain
     }
 
+    fn should_block_vpio_for_device_pair(
+        &self,
+        in_device: &device_info,
+        out_device: &device_info,
+    ) -> bool {
+        self.debug_assert_is_on_stream_queue();
+        cubeb_log!("Evaluating device pair against VPIO block list");
+        let log_device = |id, devtype| -> std::result::Result<(), OSStatus> {
+            cubeb_log!("{} uid=\"{}\", model_uid=\"{}\", transport_type={:?}, source={:?}, source_name=\"{}\", name=\"{}\", manufacturer=\"{}\"",
+                if devtype == DeviceType::INPUT {
+                    "Input"
+                } else {
+                    debug_assert_eq!(devtype, DeviceType::OUTPUT);
+                    "Output"
+                },
+                get_device_uid(id, devtype).map(|s| s.into_string()).unwrap_or_default(),
+                get_device_model_uid(id, devtype).map(|s| s.into_string()).unwrap_or_default(),
+                convert_uint32_into_string(get_device_transport_type(id, devtype).unwrap_or(0)),
+                convert_uint32_into_string(get_device_source(id, devtype).unwrap_or(0)),
+                get_device_source_name(id, devtype).map(|s| s.into_string()).unwrap_or_default(),
+                get_device_name(id, devtype).map(|s| s.into_string()).unwrap_or_default(),
+                get_device_manufacturer(id, devtype).map(|s| s.into_string()).unwrap_or_default());
+            Ok(())
+        };
+        log_device(in_device.id, DeviceType::INPUT);
+        log_device(out_device.id, DeviceType::OUTPUT);
+        const APPLE_STUDIO_DISPLAY_USB_ID: &str = "05AC:1114";
+        match (
+            get_device_model_uid(in_device.id, DeviceType::INPUT).map(|s| s.to_string()),
+            get_device_model_uid(out_device.id, DeviceType::OUTPUT).map(|s| s.to_string()),
+        ) {
+            (Ok(in_model_uid), Ok(out_model_uid))
+                if in_model_uid.contains(APPLE_STUDIO_DISPLAY_USB_ID)
+                    && out_model_uid.contains(APPLE_STUDIO_DISPLAY_USB_ID) =>
+            {
+                cubeb_log!("Both input and output device is an Apple Studio Display. BLOCKED");
+                true
+            }
+            _ => {
+                cubeb_log!("Device pair is not blocked");
+                false
+            }
+        }
+    }
+
     fn create_audiounits(&mut self) -> Result<(device_info, device_info)> {
         self.debug_assert_is_on_stream_queue();
         let should_use_voice_processing_unit = self.has_input()
@@ -2715,7 +2760,8 @@ impl<'ctx> CoreStreamData<'ctx> {
             && self
                 .input_stream_params
                 .prefs()
-                .contains(StreamPrefs::VOICE);
+                .contains(StreamPrefs::VOICE)
+            && !self.should_block_vpio_for_device_pair(&self.input_device, &self.output_device);
 
         let should_use_aggregate_device = {
             // It's impossible to create an aggregate device from an aggregate device, and it's
