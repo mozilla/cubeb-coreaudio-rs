@@ -310,6 +310,7 @@ fn set_input_processing_params(unit: AudioUnit, params: InputProcessingParams) -
     assert!(!unit.is_null());
     let aec = params.contains(InputProcessingParams::ECHO_CANCELLATION);
     let ns = params.contains(InputProcessingParams::NOISE_SUPPRESSION);
+    let agc = params.contains(InputProcessingParams::AUTOMATIC_GAIN_CONTROL);
 
     // AEC and NS are active as soon as VPIO is not bypassed, therefore the only combinations
     // of those we can explicitly support are {} and {aec, ns}.
@@ -318,45 +319,76 @@ fn set_input_processing_params(unit: AudioUnit, params: InputProcessingParams) -
         return Err(Error::error());
     }
 
-    // Always use AGC to limit the signal.
-    // - If the client wants to apply AGC we report it as successful so the client doesn't
-    //   apply another AGC algorithm on top.
-    // - If the client wants to disable AGC we also report it as successful, but we enable
-    //   it as otherwise the input signal may be far out of bounds, resulting in clipping.
-    //   This has been observed with an Apple Studio Display being used for both input and
-    //   output.
-    let agc = u32::from(true);
-    let r = audio_unit_set_property(
+    let mut old_agc: u32 = 0;
+    let r = audio_unit_get_property(
         unit,
         kAUVoiceIOProperty_VoiceProcessingEnableAGC,
         kAudioUnitScope_Global,
         AU_IN_BUS,
-        &agc,
-        mem::size_of::<u32>(),
+        &mut old_agc,
+        &mut mem::size_of::<u32>(),
     );
     if r != NO_ERR {
         cubeb_log!(
-            "AudioUnitSetProperty/kAUVoiceIOProperty_VoiceProcessingEnableAGC rv={}",
+            "AudioUnitGetProperty/kAUVoiceIOProperty_VoiceProcessingEnableAGC rv={}",
+            r
+        );
+        return Err(Error::error());
+    }
+
+    if (old_agc == 1) != agc {
+        let agc = u32::from(agc);
+        let r = audio_unit_set_property(
+            unit,
+            kAUVoiceIOProperty_VoiceProcessingEnableAGC,
+            kAudioUnitScope_Global,
+            AU_IN_BUS,
+            &agc,
+            mem::size_of::<u32>(),
+        );
+        if r != NO_ERR {
+            cubeb_log!(
+                "AudioUnitSetProperty/kAUVoiceIOProperty_VoiceProcessingEnableAGC rv={}",
+                r
+            );
+            return Err(Error::error());
+        }
+    }
+
+    let mut old_bypass: u32 = 0;
+    let r = audio_unit_get_property(
+        unit,
+        kAUVoiceIOProperty_BypassVoiceProcessing,
+        kAudioUnitScope_Global,
+        AU_IN_BUS,
+        &mut old_bypass,
+        &mut mem::size_of::<u32>(),
+    );
+    if r != NO_ERR {
+        cubeb_log!(
+            "AudioUnitGetProperty/kAUVoiceIOProperty_BypassVoiceProcessing rv={}",
             r
         );
         return Err(Error::error());
     }
 
     let bypass = u32::from(!aec);
-    let r = audio_unit_set_property(
-        unit,
-        kAUVoiceIOProperty_BypassVoiceProcessing,
-        kAudioUnitScope_Global,
-        AU_IN_BUS,
-        &bypass,
-        mem::size_of::<u32>(),
-    );
-    if r != NO_ERR {
-        cubeb_log!(
-            "AudioUnitSetProperty/kAUVoiceIOProperty_BypassVoiceProcessing rv={}",
-            r
+    if old_bypass != bypass {
+        let r = audio_unit_set_property(
+            unit,
+            kAUVoiceIOProperty_BypassVoiceProcessing,
+            kAudioUnitScope_Global,
+            AU_IN_BUS,
+            &bypass,
+            mem::size_of::<u32>(),
         );
-        return Err(Error::error());
+        if r != NO_ERR {
+            cubeb_log!(
+                "AudioUnitSetProperty/kAUVoiceIOProperty_BypassVoiceProcessing rv={}",
+                r
+            );
+            return Err(Error::error());
+        }
     }
 
     Ok(())
