@@ -1034,7 +1034,8 @@ fn test_ops_duplex_voice_stream_set_input_processing_params() {
     test_default_duplex_voice_stream_operation("duplex voice stream: processing", |stream| {
         let params: ffi::cubeb_input_processing_params =
             ffi::CUBEB_INPUT_PROCESSING_PARAM_ECHO_CANCELLATION
-                | ffi::CUBEB_INPUT_PROCESSING_PARAM_NOISE_SUPPRESSION;
+                | ffi::CUBEB_INPUT_PROCESSING_PARAM_NOISE_SUPPRESSION
+                | ffi::CUBEB_INPUT_PROCESSING_PARAM_AUTOMATIC_GAIN_CONTROL;
         assert_eq!(
             unsafe { OPS.stream_set_input_processing_params.unwrap()(stream, params) },
             ffi::CUBEB_OK
@@ -1049,7 +1050,8 @@ fn test_ops_duplex_voice_stream_set_input_processing_params_before_start() {
         |stream| {
             let params: ffi::cubeb_input_processing_params =
                 ffi::CUBEB_INPUT_PROCESSING_PARAM_ECHO_CANCELLATION
-                    | ffi::CUBEB_INPUT_PROCESSING_PARAM_NOISE_SUPPRESSION;
+                    | ffi::CUBEB_INPUT_PROCESSING_PARAM_NOISE_SUPPRESSION
+                    | ffi::CUBEB_INPUT_PROCESSING_PARAM_AUTOMATIC_GAIN_CONTROL;
             assert_eq!(
                 unsafe { OPS.stream_set_input_processing_params.unwrap()(stream, params) },
                 ffi::CUBEB_OK
@@ -1067,7 +1069,8 @@ fn test_ops_duplex_voice_stream_set_input_processing_params_after_start() {
             assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
             let params: ffi::cubeb_input_processing_params =
                 ffi::CUBEB_INPUT_PROCESSING_PARAM_ECHO_CANCELLATION
-                    | ffi::CUBEB_INPUT_PROCESSING_PARAM_NOISE_SUPPRESSION;
+                    | ffi::CUBEB_INPUT_PROCESSING_PARAM_NOISE_SUPPRESSION
+                    | ffi::CUBEB_INPUT_PROCESSING_PARAM_AUTOMATIC_GAIN_CONTROL;
             assert_eq!(
                 unsafe { OPS.stream_set_input_processing_params.unwrap()(stream, params) },
                 ffi::CUBEB_OK
