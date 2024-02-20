@@ -1019,6 +1019,54 @@ fn test_ops_duplex_voice_stream_set_input_mute() {
 }
 
 #[test]
+fn test_ops_duplex_voice_stream_set_input_mute_before_start() {
+    test_default_duplex_voice_stream_operation(
+        "duplex voice stream: mute before start",
+        |stream| {
+            assert_eq!(
+                unsafe { OPS.stream_set_input_mute.unwrap()(stream, 1) },
+                ffi::CUBEB_OK
+            );
+            assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
+        },
+    );
+}
+
+#[test]
+fn test_ops_duplex_voice_stream_set_input_mute_before_start_with_reinit() {
+    test_default_duplex_voice_stream_operation(
+        "duplex voice stream: mute before start with reinit",
+        |stream| {
+            assert_eq!(
+                unsafe { OPS.stream_set_input_mute.unwrap()(stream, 1) },
+                ffi::CUBEB_OK
+            );
+            assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
+
+            // Hacky cast, but testing this here was simplest for now.
+            let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+            stm.reinit_async();
+            let queue = stm.queue.clone();
+            let mut mute_after_reinit = false;
+            queue.run_sync(|| {
+                let mut mute: u32 = 0;
+                let r = audio_unit_get_property(
+                    stm.core_stream_data.input_unit,
+                    kAUVoiceIOProperty_MuteOutput,
+                    kAudioUnitScope_Global,
+                    AU_IN_BUS,
+                    &mut mute,
+                    &mut mem::size_of::<u32>(),
+                );
+                assert_eq!(r, NO_ERR);
+                mute_after_reinit = mute == 1;
+            });
+            assert_eq!(mute_after_reinit, true);
+        },
+    );
+}
+
+#[test]
 fn test_ops_duplex_voice_stream_set_input_mute_after_start() {
     test_default_duplex_voice_stream_operation("duplex voice stream: mute after start", |stream| {
         assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
