@@ -3,7 +3,8 @@ extern crate itertools;
 use self::itertools::iproduct;
 use super::utils::{
     get_devices_info_in_scope, noop_data_callback, test_device_channels_in_scope,
-    test_get_default_device, test_ops_context_operation, test_ops_stream_operation, Scope,
+    test_get_default_device, test_ops_context_operation, test_ops_stream_operation,
+    test_ops_stream_operation_on_context, Scope,
 };
 use super::*;
 
@@ -673,8 +674,11 @@ fn test_ops_context_stream_init_channel_rate_combinations() {
 
 // Stream Operations
 // ------------------------------------------------------------------------------------------------
-fn test_default_output_stream_operation<F>(name: &'static str, operation: F)
-where
+fn test_default_output_stream_operation_on_context<F>(
+    name: &'static str,
+    context_ptr: *mut ffi::cubeb,
+    operation: F,
+) where
     F: FnOnce(*mut ffi::cubeb_stream),
 {
     // Make sure the parameters meet the requirements of AudioUnitContext::stream_init
@@ -686,8 +690,9 @@ where
     output_params.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
     output_params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
 
-    test_ops_stream_operation(
+    test_ops_stream_operation_on_context(
         name,
+        context_ptr,
         ptr::null_mut(), // Use default input device.
         ptr::null_mut(), // No input parameters.
         ptr::null_mut(), // Use default output device.
@@ -700,8 +705,20 @@ where
     );
 }
 
-fn test_default_duplex_stream_operation<F>(name: &'static str, operation: F)
+fn test_default_output_stream_operation<F>(name: &'static str, operation: F)
 where
+    F: FnOnce(*mut ffi::cubeb_stream),
+{
+    test_ops_context_operation("context: default output stream operation", |context_ptr| {
+        test_default_output_stream_operation_on_context(name, context_ptr, operation);
+    });
+}
+
+fn test_default_duplex_stream_operation_on_context<F>(
+    name: &'static str,
+    context_ptr: *mut ffi::cubeb,
+    operation: F,
+) where
     F: FnOnce(*mut ffi::cubeb_stream),
 {
     // Make sure the parameters meet the requirements of AudioUnitContext::stream_init
@@ -720,8 +737,9 @@ where
     output_params.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
     output_params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
 
-    test_ops_stream_operation(
+    test_ops_stream_operation_on_context(
         name,
+        context_ptr,
         ptr::null_mut(), // Use default input device.
         &mut input_params,
         ptr::null_mut(), // Use default output device.
@@ -734,8 +752,20 @@ where
     );
 }
 
-fn test_stereo_input_duplex_stream_operation<F>(name: &'static str, operation: F)
+fn test_default_duplex_stream_operation<F>(name: &'static str, operation: F)
 where
+    F: FnOnce(*mut ffi::cubeb_stream),
+{
+    test_ops_context_operation("context: default duplex stream operation", |context_ptr| {
+        test_default_duplex_stream_operation_on_context(name, context_ptr, operation);
+    });
+}
+
+fn test_stereo_input_duplex_stream_operation_on_context<F>(
+    name: &'static str,
+    context_ptr: *mut ffi::cubeb,
+    operation: F,
+) where
     F: FnOnce(*mut ffi::cubeb_stream),
 {
     let mut input_devices = get_devices_info_in_scope(Scope::Input);
@@ -759,8 +789,9 @@ where
     output_params.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
     output_params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
 
-    test_ops_stream_operation(
+    test_ops_stream_operation_on_context(
         name,
+        context_ptr,
         input_devices[0].id as ffi::cubeb_devid,
         &mut input_params,
         ptr::null_mut(), // Use default output device.
@@ -773,8 +804,23 @@ where
     );
 }
 
-fn test_default_duplex_voice_stream_operation<F>(name: &'static str, operation: F)
+fn test_stereo_input_duplex_stream_operation<F>(name: &'static str, operation: F)
 where
+    F: FnOnce(*mut ffi::cubeb_stream),
+{
+    test_ops_context_operation(
+        "context: stereo input duplex stream operation",
+        |context_ptr| {
+            test_stereo_input_duplex_stream_operation_on_context(name, context_ptr, operation);
+        },
+    );
+}
+
+fn test_default_duplex_voice_stream_operation_on_context<F>(
+    name: &'static str,
+    context_ptr: *mut ffi::cubeb,
+    operation: F,
+) where
     F: FnOnce(*mut ffi::cubeb_stream),
 {
     // Make sure the parameters meet the requirements of AudioUnitContext::stream_init
@@ -793,8 +839,9 @@ where
     output_params.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
     output_params.prefs = ffi::CUBEB_STREAM_PREF_VOICE;
 
-    test_ops_stream_operation(
+    test_ops_stream_operation_on_context(
         name,
+        context_ptr,
         ptr::null_mut(), // Use default input device.
         &mut input_params,
         ptr::null_mut(), // Use default output device.
@@ -805,6 +852,15 @@ where
         ptr::null_mut(), // No user data pointer.
         operation,
     );
+}
+
+fn test_default_duplex_voice_stream_operation<F>(name: &'static str, operation: F)
+where
+    F: FnOnce(*mut ffi::cubeb_stream),
+{
+    test_ops_context_operation("context: duplex voice stream operation", |context_ptr| {
+        test_default_duplex_voice_stream_operation_on_context(name, context_ptr, operation);
+    });
 }
 
 fn test_stereo_input_duplex_voice_stream_operation<F>(name: &'static str, operation: F)
