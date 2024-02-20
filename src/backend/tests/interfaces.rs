@@ -7,6 +7,7 @@ use super::utils::{
     test_ops_stream_operation_on_context, Scope,
 };
 use super::*;
+use std::time::Instant;
 
 // Context Operations
 // ------------------------------------------------------------------------------------------------
@@ -1065,6 +1066,171 @@ fn test_ops_duplex_voice_stream_stop() {
         assert_eq!(unsafe { OPS.stream_stop.unwrap()(stream) }, ffi::CUBEB_OK);
         let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
         assert!(stm.core_stream_data.using_voice_processing_unit());
+    });
+}
+
+#[test]
+#[ignore]
+fn test_ops_timing_sensitive_multiple_duplex_voice_stream_init_and_destroy() {
+    test_ops_context_operation("multiple duplex voice streams", |context_ptr| {
+        let start = Instant::now();
+        // First stream uses vpio, creates the shared vpio unit.
+        test_default_duplex_voice_stream_operation_on_context(
+            "multiple duplex voice streams: stream 1",
+            context_ptr,
+            |stream| {
+                let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+                assert!(stm.core_stream_data.using_voice_processing_unit());
+
+                // Two concurrent vpio streams are not supported.
+                test_default_duplex_voice_stream_operation_on_context(
+                    "multiple duplex voice streams: stream 2",
+                    context_ptr,
+                    |stream| {
+                        let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+                        assert!(!stm.core_stream_data.using_voice_processing_unit());
+                    },
+                );
+            },
+        );
+        let d1 = start.elapsed();
+        // Third stream uses vpio, allows reuse of the one already created.
+        test_default_duplex_voice_stream_operation_on_context(
+            "multiple duplex voice streams: stream 3",
+            context_ptr,
+            |stream| {
+                let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+                assert!(stm.core_stream_data.using_voice_processing_unit());
+            },
+        );
+        let d2 = start.elapsed() - d1;
+        // d1 being significantly longer than d2 is proof we reuse vpio.
+        assert!(
+            d1 > d2 * 2,
+            "Failed d1={}s > d2={}s * 2",
+            d1.as_secs_f32(),
+            d2.as_secs_f32()
+        );
+    });
+}
+
+#[test]
+#[ignore]
+fn test_ops_timing_sensitive_multiple_duplex_voice_stream_start() {
+    test_ops_context_operation("multiple duplex voice streams", |context_ptr| {
+        let start = Instant::now();
+        // First stream uses vpio, creates the shared vpio unit.
+        test_default_duplex_voice_stream_operation_on_context(
+            "multiple duplex voice streams: stream 1",
+            context_ptr,
+            |stream| {
+                let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+                assert!(stm.core_stream_data.using_voice_processing_unit());
+                assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
+            },
+        );
+        let d1 = start.elapsed();
+        // Second stream uses vpio, allows reuse of the one already created.
+        test_default_duplex_voice_stream_operation_on_context(
+            "multiple duplex voice streams: stream 2",
+            context_ptr,
+            |stream| {
+                let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+                assert!(stm.core_stream_data.using_voice_processing_unit());
+                assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
+            },
+        );
+        let d2 = start.elapsed() - d1;
+        // d1 being significantly longer than d2 is proof we reuse vpio.
+        assert!(
+            d1 > d2 * 2,
+            "Failed d1={}s > d2={}s * s",
+            d1.as_secs_f32(),
+            d2.as_secs_f32()
+        );
+    });
+}
+
+#[test]
+#[ignore]
+fn test_ops_timing_sensitive_multiple_duplex_voice_stream_params() {
+    test_ops_context_operation("multiple duplex voice streams with params", |context_ptr| {
+        let start = Instant::now();
+        // First stream uses vpio, creates the shared vpio unit.
+        test_default_duplex_voice_stream_operation_on_context(
+            "multiple duplex voice streams: stream 1",
+            context_ptr,
+            |stream| {
+                let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+                assert!(stm.core_stream_data.using_voice_processing_unit());
+                assert_eq!(
+                    unsafe {
+                        OPS.stream_set_input_processing_params.unwrap()(
+                            stream,
+                            ffi::CUBEB_INPUT_PROCESSING_PARAM_ECHO_CANCELLATION
+                                | ffi::CUBEB_INPUT_PROCESSING_PARAM_NOISE_SUPPRESSION,
+                        )
+                    },
+                    ffi::CUBEB_OK
+                );
+                assert_eq!(
+                    unsafe { OPS.stream_set_input_mute.unwrap()(stream, 1) },
+                    ffi::CUBEB_OK
+                );
+            },
+        );
+        let d1 = start.elapsed();
+        // Second stream uses vpio, allows reuse of the one already created.
+        test_default_duplex_voice_stream_operation_on_context(
+            "multiple duplex voice streams: stream 2",
+            context_ptr,
+            |stream| {
+                let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+                assert!(stm.core_stream_data.using_voice_processing_unit());
+                let queue = stm.queue.clone();
+                // Test that input processing params does not carry over when reusing vpio.
+                let mut bypass: u32 = 0;
+                let r = queue
+                    .run_sync(|| {
+                        audio_unit_get_property(
+                            stm.core_stream_data.input_unit,
+                            kAUVoiceIOProperty_BypassVoiceProcessing,
+                            kAudioUnitScope_Global,
+                            AU_IN_BUS,
+                            &mut bypass,
+                            &mut mem::size_of::<u32>(),
+                        )
+                    })
+                    .unwrap();
+                assert_eq!(r, NO_ERR);
+                assert_eq!(bypass, 1);
+
+                // Test that input mute state does not carry over when reusing vpio.
+                let mut mute: u32 = 0;
+                let r = queue
+                    .run_sync(|| {
+                        audio_unit_get_property(
+                            stm.core_stream_data.input_unit,
+                            kAUVoiceIOProperty_MuteOutput,
+                            kAudioUnitScope_Global,
+                            AU_IN_BUS,
+                            &mut mute,
+                            &mut mem::size_of::<u32>(),
+                        )
+                    })
+                    .unwrap();
+                assert_eq!(r, NO_ERR);
+                assert_eq!(mute, 0);
+            },
+        );
+        let d2 = start.elapsed() - d1;
+        // d1 being significantly longer than d2 is proof we reuse vpio.
+        assert!(
+            d1 > d2 * 2,
+            "Failed d1={}s > d2={}s * 2",
+            d1.as_secs_f32(),
+            d2.as_secs_f32()
+        );
     });
 }
 

@@ -1166,37 +1166,45 @@ fn create_audiounit(device: &device_info) -> Result<AudioUnit> {
 }
 
 fn create_voiceprocessing_audiounit(
+    shared_voice_processing_unit: &mut SharedVoiceProcessingUnit,
     in_device: &device_info,
     out_device: &device_info,
-) -> Result<AudioUnit> {
+) -> Result<OwningHandle<AudioUnit>> {
+    debug_assert_running_serially();
     assert!(in_device.flags.contains(device_flags::DEV_INPUT));
     assert!(!in_device.flags.contains(device_flags::DEV_OUTPUT));
     assert!(!out_device.flags.contains(device_flags::DEV_INPUT));
     assert!(out_device.flags.contains(device_flags::DEV_OUTPUT));
 
-    let unit = create_typed_audiounit(kAudioUnitSubType_VoiceProcessingIO)?;
+    let unit_handle = shared_voice_processing_unit.take();
+    if let Err(e) = unit_handle {
+        cubeb_log!(
+            "Failed to take shared voiceprocessing audiounit. Error: {}",
+            e
+        );
+        return Err(Error::error());
+    }
+    let mut unit_handle = unit_handle.unwrap();
 
-    if let Err(e) = set_device_to_audiounit(unit, in_device.id, AU_IN_BUS) {
+    if let Err(e) = set_device_to_audiounit(*unit_handle.as_mut(), in_device.id, AU_IN_BUS) {
         cubeb_log!(
             "Failed to set in device {} to the created audiounit. Error: {}",
             in_device.id,
             e
         );
-        dispose_audio_unit(unit);
         return Err(Error::error());
     }
 
-    if let Err(e) = set_device_to_audiounit(unit, out_device.id, AU_OUT_BUS) {
+    if let Err(e) = set_device_to_audiounit(*unit_handle.as_mut(), out_device.id, AU_OUT_BUS) {
         cubeb_log!(
             "Failed to set out device {} to the created audiounit. Error: {}",
             out_device.id,
             e
         );
-        dispose_audio_unit(unit);
         return Err(Error::error());
     }
 
-    Ok(unit)
+    Ok(unit_handle)
 }
 
 fn enable_audiounit_scope(
@@ -2240,6 +2248,9 @@ pub struct AudioUnitContext {
     serial_queue: Queue,
     latency_controller: Mutex<LatencyController>,
     devices: Mutex<SharedDevices>,
+    // Storage for a context-global vpio unit. Duplex streams that need one will take this
+    // and return it when done.
+    shared_voice_processing_unit: SharedVoiceProcessingUnit,
 }
 
 impl AudioUnitContext {
@@ -2247,11 +2258,16 @@ impl AudioUnitContext {
         let queue_label = format!("{}.context", DISPATCH_QUEUE_LABEL);
         let serial_queue =
             Queue::new_with_target(queue_label.as_str(), get_serial_queue_singleton());
+        let shared_vp_queue = Queue::new_with_target(
+            format!("{}.context.shared_vpio", DISPATCH_QUEUE_LABEL).as_str(),
+            &serial_queue,
+        );
         Self {
             _ops: &OPS as *const _,
             serial_queue,
             latency_controller: Mutex::new(LatencyController::default()),
             devices: Mutex::new(SharedDevices::default()),
+            shared_voice_processing_unit: SharedVoiceProcessingUnit::new(shared_vp_queue),
         }
     }
 
@@ -2385,6 +2401,11 @@ impl ContextOps for AudioUnitContext {
         let queue_label = format!("{}.context.{:p}", DISPATCH_QUEUE_LABEL, ctx.as_ref());
         ctx.serial_queue =
             Queue::new_with_target(queue_label.as_str(), get_serial_queue_singleton());
+        let shared_vp_queue = Queue::new_with_target(
+            format!("{}.shared_vpio", queue_label).as_str(),
+            &ctx.serial_queue,
+        );
+        ctx.shared_voice_processing_unit = SharedVoiceProcessingUnit::new(shared_vp_queue);
         Ok(unsafe { Context::from_ptr(Box::into_raw(ctx) as *mut _) })
     }
 
@@ -2605,7 +2626,11 @@ impl ContextOps for AudioUnitContext {
         let result = boxed_stream
             .queue
             .clone()
-            .run_sync(|| boxed_stream.core_stream_data.setup())
+            .run_sync(|| {
+                boxed_stream
+                    .core_stream_data
+                    .setup(&mut boxed_stream.context.shared_voice_processing_unit)
+            })
             .unwrap();
         if let Err(r) = result {
             cubeb_log!(
@@ -2737,6 +2762,8 @@ struct CoreStreamData<'ctx> {
     // I/O AudioUnits.
     input_unit: AudioUnit,
     output_unit: AudioUnit,
+    // Handle to shared voiceprocessing AudioUnit, if in use.
+    voiceprocessing_unit_handle: Option<OwningHandle<AudioUnit>>,
     // Info of the I/O devices.
     input_device: device_info,
     output_device: device_info,
@@ -2778,6 +2805,7 @@ impl<'ctx> Default for CoreStreamData<'ctx> {
             output_dev_desc: AudioStreamBasicDescription::default(),
             input_unit: ptr::null_mut(),
             output_unit: ptr::null_mut(),
+            voiceprocessing_unit_handle: None,
             input_device: device_info::default(),
             output_device: device_info::default(),
             input_processing_params: InputProcessingParams::NONE,
@@ -2824,6 +2852,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             output_dev_desc: AudioStreamBasicDescription::default(),
             input_unit: ptr::null_mut(),
             output_unit: ptr::null_mut(),
+            voiceprocessing_unit_handle: None,
             input_device: in_dev,
             output_device: out_dev,
             input_processing_params: InputProcessingParams::NONE,
@@ -2891,7 +2920,7 @@ impl<'ctx> CoreStreamData<'ctx> {
     }
 
     fn using_voice_processing_unit(&self) -> bool {
-        !self.input_unit.is_null() && self.input_unit == self.output_unit
+        self.voiceprocessing_unit_handle.is_some()
     }
 
     fn same_clock_domain(&self) -> bool {
@@ -2963,7 +2992,10 @@ impl<'ctx> CoreStreamData<'ctx> {
         }
     }
 
-    fn create_audiounits(&mut self) -> Result<(device_info, device_info)> {
+    fn create_audiounits(
+        &mut self,
+        shared_voice_processing_unit: &mut SharedVoiceProcessingUnit,
+    ) -> Result<(device_info, device_info)> {
         self.debug_assert_is_on_stream_queue();
         let should_use_voice_processing_unit = self.has_input()
             && self.has_output()
@@ -3018,16 +3050,22 @@ impl<'ctx> CoreStreamData<'ctx> {
         // - As last resort, create regular AudioUnits. This is also the normal non-duplex path.
 
         if should_use_voice_processing_unit {
-            if let Ok(au) =
-                create_voiceprocessing_audiounit(&self.input_device, &self.output_device)
-            {
-                cubeb_log!("({:p}) Using VoiceProcessingIO AudioUnit", self.stm_ptr);
-                self.input_unit = au;
-                self.output_unit = au;
+            if let Ok(mut au_handle) = create_voiceprocessing_audiounit(
+                shared_voice_processing_unit,
+                &self.input_device,
+                &self.output_device,
+            ) {
+                cubeb_log!(
+                    "({:p}) Took shared VoiceProcessingIO AudioUnit",
+                    self.stm_ptr
+                );
+                self.input_unit = *au_handle.as_mut();
+                self.output_unit = *au_handle.as_mut();
+                self.voiceprocessing_unit_handle = Some(au_handle);
                 return Ok((self.input_device.clone(), self.output_device.clone()));
             }
             cubeb_log!(
-                "({:p}) Failed to create VoiceProcessingIO AudioUnit. Trying a regular one.",
+                "({:p}) Failed to take VoiceProcessingIO AudioUnit. Trying a regular one.",
                 self.stm_ptr
             );
         }
@@ -3129,7 +3167,10 @@ impl<'ctx> CoreStreamData<'ctx> {
     }
 
     #[allow(clippy::cognitive_complexity)] // TODO: Refactoring.
-    fn setup(&mut self) -> Result<()> {
+    fn setup(
+        &mut self,
+        shared_voice_processing_unit: &mut SharedVoiceProcessingUnit,
+    ) -> Result<()> {
         self.debug_assert_is_on_stream_queue();
         if self
             .input_stream_params
@@ -3145,7 +3186,7 @@ impl<'ctx> CoreStreamData<'ctx> {
         }
 
         let same_clock_domain = self.same_clock_domain();
-        let (in_dev_info, out_dev_info) = self.create_audiounits()?;
+        let (in_dev_info, out_dev_info) = self.create_audiounits(shared_voice_processing_unit)?;
         let using_voice_processing_unit = self.using_voice_processing_unit();
 
         assert!(!self.stm_ptr.is_null());
@@ -3733,9 +3774,15 @@ impl<'ctx> CoreStreamData<'ctx> {
         }
 
         if !self.input_unit.is_null() {
-            dispose_audio_unit(self.input_unit);
+            if !self.using_voice_processing_unit() {
+                // The VPIO unit is shared and must not be disposed.
+                dispose_audio_unit(self.input_unit);
+            }
             self.input_unit = ptr::null_mut();
         }
+
+        // Return the VPIO unit if present.
+        self.voiceprocessing_unit_handle = None;
 
         self.resampler.destroy();
         self.mixer = None;
@@ -4222,10 +4269,12 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 }
         }
 
-        self.core_stream_data.setup().map_err(|e| {
-            cubeb_log!("({:p}) Setup failed.", self.core_stream_data.stm_ptr);
-            e
-        })?;
+        self.core_stream_data
+            .setup(&mut self.context.shared_voice_processing_unit)
+            .map_err(|e| {
+                cubeb_log!("({:p}) Setup failed.", self.core_stream_data.stm_ptr);
+                e
+            })?;
 
         if let Ok(volume) = vol_rv {
             set_volume(self.core_stream_data.output_unit, volume);
