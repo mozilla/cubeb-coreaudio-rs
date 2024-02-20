@@ -1747,3 +1747,37 @@ fn get_devices_changed_callback(
         Scope::Output => devices_guard.output.changed_callback,
     }
 }
+
+// SharedVoiceProcessingUnit
+// ------------------------------------
+#[test]
+fn test_shared_voice_processing_unit() {
+    let queue = Queue::new_with_target(
+        "test_shared_voice_processing_unit",
+        get_serial_queue_singleton(),
+    );
+    let mut shared = SharedVoiceProcessingUnit::new(queue.clone());
+    let r1 = queue.run_sync(|| shared.take()).unwrap();
+    assert!(r1.is_ok());
+    {
+        let _handle = r1.unwrap();
+        let r2 = queue.run_sync(|| shared.take()).unwrap();
+        assert!(r2.is_err());
+    }
+    let r3 = queue.run_sync(|| shared.take()).unwrap();
+    assert!(r3.is_ok());
+    r3.unwrap();
+}
+
+#[test]
+#[should_panic]
+fn test_shared_voice_processing_unit_bad_release_order() {
+    let queue = Queue::new_with_target(
+        "test_shared_voice_processing_unit_bad_release_order",
+        get_serial_queue_singleton(),
+    );
+    let mut shared = SharedVoiceProcessingUnit::new(queue.clone());
+    let r1 = queue.run_sync(|| shared.take()).unwrap();
+    assert!(r1.is_ok());
+    drop(shared);
+}
