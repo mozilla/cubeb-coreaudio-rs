@@ -1044,16 +1044,18 @@ fn test_ops_stereo_input_duplex_stream_stop() {
 
 #[test]
 fn test_ops_duplex_voice_stream_init_and_destroy() {
-    test_default_duplex_voice_stream_operation(
-        "duplex voice stream: init and destroy",
-        |_stream| {},
-    );
+    test_default_duplex_voice_stream_operation("duplex voice stream: init and destroy", |stream| {
+        let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+        assert!(stm.core_stream_data.using_voice_processing_unit());
+    });
 }
 
 #[test]
 fn test_ops_duplex_voice_stream_start() {
     test_default_duplex_voice_stream_operation("duplex voice stream: start", |stream| {
         assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
+        let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+        assert!(stm.core_stream_data.using_voice_processing_unit());
     });
 }
 
@@ -1061,6 +1063,8 @@ fn test_ops_duplex_voice_stream_start() {
 fn test_ops_duplex_voice_stream_stop() {
     test_default_duplex_voice_stream_operation("duplex voice stream: stop", |stream| {
         assert_eq!(unsafe { OPS.stream_stop.unwrap()(stream) }, ffi::CUBEB_OK);
+        let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+        assert!(stm.core_stream_data.using_voice_processing_unit());
     });
 }
 
@@ -1071,6 +1075,8 @@ fn test_ops_duplex_voice_stream_set_input_mute() {
             unsafe { OPS.stream_set_input_mute.unwrap()(stream, 1) },
             ffi::CUBEB_OK
         );
+        let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+        assert!(stm.core_stream_data.using_voice_processing_unit());
     });
 }
 
@@ -1084,6 +1090,8 @@ fn test_ops_duplex_voice_stream_set_input_mute_before_start() {
                 ffi::CUBEB_OK
             );
             assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
+            let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+            assert!(stm.core_stream_data.using_voice_processing_unit());
         },
     );
 }
@@ -1101,6 +1109,7 @@ fn test_ops_duplex_voice_stream_set_input_mute_before_start_with_reinit() {
 
             // Hacky cast, but testing this here was simplest for now.
             let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+            assert!(stm.core_stream_data.using_voice_processing_unit());
             stm.reinit_async();
             let queue = stm.queue.clone();
             let mut mute_after_reinit = false;
@@ -1130,6 +1139,8 @@ fn test_ops_duplex_voice_stream_set_input_mute_after_start() {
             unsafe { OPS.stream_set_input_mute.unwrap()(stream, 1) },
             ffi::CUBEB_OK
         );
+        let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+        assert!(stm.core_stream_data.using_voice_processing_unit());
     });
 }
 
@@ -1144,6 +1155,8 @@ fn test_ops_duplex_voice_stream_set_input_processing_params() {
             unsafe { OPS.stream_set_input_processing_params.unwrap()(stream, params) },
             ffi::CUBEB_OK
         );
+        let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+        assert!(stm.core_stream_data.using_voice_processing_unit());
     });
 }
 
@@ -1161,6 +1174,8 @@ fn test_ops_duplex_voice_stream_set_input_processing_params_before_start() {
                 ffi::CUBEB_OK
             );
             assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
+            let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+            assert!(stm.core_stream_data.using_voice_processing_unit());
         },
     );
 }
@@ -1182,6 +1197,7 @@ fn test_ops_duplex_voice_stream_set_input_processing_params_before_start_with_re
 
             // Hacky cast, but testing this here was simplest for now.
             let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+            assert!(stm.core_stream_data.using_voice_processing_unit());
             stm.reinit_async();
             let queue = stm.queue.clone();
             let mut params_after_reinit: ffi::cubeb_input_processing_params =
@@ -1229,6 +1245,8 @@ fn test_ops_duplex_voice_stream_set_input_processing_params_after_start() {
     test_default_duplex_voice_stream_operation(
         "duplex voice stream: processing after start",
         |stream| {
+            let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+            assert!(stm.core_stream_data.using_voice_processing_unit());
             assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
             let params: ffi::cubeb_input_processing_params =
                 ffi::CUBEB_INPUT_PROCESSING_PARAM_ECHO_CANCELLATION
@@ -1246,7 +1264,10 @@ fn test_ops_duplex_voice_stream_set_input_processing_params_after_start() {
 fn test_ops_stereo_input_duplex_voice_stream_init_and_destroy() {
     test_stereo_input_duplex_voice_stream_operation(
         "stereo-input duplex voice stream: init and destroy",
-        |_stream| {},
+        |stream| {
+            let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+            assert!(stm.core_stream_data.using_voice_processing_unit());
+        },
     );
 }
 
@@ -1255,6 +1276,8 @@ fn test_ops_stereo_input_duplex_voice_stream_start() {
     test_stereo_input_duplex_voice_stream_operation(
         "stereo-input duplex voice stream: start",
         |stream| {
+            let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+            assert!(stm.core_stream_data.using_voice_processing_unit());
             assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
         },
     );
@@ -1265,6 +1288,8 @@ fn test_ops_stereo_input_duplex_voice_stream_stop() {
     test_stereo_input_duplex_voice_stream_operation(
         "stereo-input duplex voice stream: stop",
         |stream| {
+            let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+            assert!(stm.core_stream_data.using_voice_processing_unit());
             assert_eq!(unsafe { OPS.stream_stop.unwrap()(stream) }, ffi::CUBEB_OK);
         },
     );
