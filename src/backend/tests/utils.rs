@@ -1124,6 +1124,59 @@ where
 // The in-out stream initializeed with different device will create an aggregate_device and
 // result in firing device-collection-changed callbacks. Run in-out streams with tests
 // capturing device-collection-changed callbacks may cause troubles.
+pub fn test_ops_stream_operation_on_context<F>(
+    name: &'static str,
+    context_ptr: *mut ffi::cubeb,
+    input_device: ffi::cubeb_devid,
+    input_stream_params: *mut ffi::cubeb_stream_params,
+    output_device: ffi::cubeb_devid,
+    output_stream_params: *mut ffi::cubeb_stream_params,
+    latency_frames: u32,
+    data_callback: ffi::cubeb_data_callback,
+    state_callback: ffi::cubeb_state_callback,
+    user_ptr: *mut c_void,
+    operation: F,
+) where
+    F: FnOnce(*mut ffi::cubeb_stream),
+{
+    // Do nothing if there is no input/output device to perform input/output tests.
+    if !input_stream_params.is_null() && test_get_default_device(Scope::Input).is_none() {
+        println!("No input device to perform input tests for \"{}\".", name);
+        return;
+    }
+
+    if !output_stream_params.is_null() && test_get_default_device(Scope::Output).is_none() {
+        println!("No output device to perform output tests for \"{}\".", name);
+        return;
+    }
+
+    let mut stream: *mut ffi::cubeb_stream = ptr::null_mut();
+    let stream_name = CString::new(name).expect("Failed to create stream name");
+    assert_eq!(
+        unsafe {
+            OPS.stream_init.unwrap()(
+                context_ptr,
+                &mut stream,
+                stream_name.as_ptr(),
+                input_device,
+                input_stream_params,
+                output_device,
+                output_stream_params,
+                latency_frames,
+                data_callback,
+                state_callback,
+                user_ptr,
+            )
+        },
+        ffi::CUBEB_OK
+    );
+    assert!(!stream.is_null());
+    operation(stream);
+    unsafe {
+        OPS.stream_destroy.unwrap()(stream);
+    }
+}
+
 pub fn test_ops_stream_operation<F>(
     name: &'static str,
     input_device: ffi::cubeb_devid,
@@ -1139,42 +1192,19 @@ pub fn test_ops_stream_operation<F>(
     F: FnOnce(*mut ffi::cubeb_stream),
 {
     test_ops_context_operation("context: stream operation", |context_ptr| {
-        // Do nothing if there is no input/output device to perform input/output tests.
-        if !input_stream_params.is_null() && test_get_default_device(Scope::Input).is_none() {
-            println!("No input device to perform input tests for \"{}\".", name);
-            return;
-        }
-
-        if !output_stream_params.is_null() && test_get_default_device(Scope::Output).is_none() {
-            println!("No output device to perform output tests for \"{}\".", name);
-            return;
-        }
-
-        let mut stream: *mut ffi::cubeb_stream = ptr::null_mut();
-        let stream_name = CString::new(name).expect("Failed to create stream name");
-        assert_eq!(
-            unsafe {
-                OPS.stream_init.unwrap()(
-                    context_ptr,
-                    &mut stream,
-                    stream_name.as_ptr(),
-                    input_device,
-                    input_stream_params,
-                    output_device,
-                    output_stream_params,
-                    latency_frames,
-                    data_callback,
-                    state_callback,
-                    user_ptr,
-                )
-            },
-            ffi::CUBEB_OK
+        test_ops_stream_operation_on_context(
+            name,
+            context_ptr,
+            input_device,
+            input_stream_params,
+            output_device,
+            output_stream_params,
+            latency_frames,
+            data_callback,
+            state_callback,
+            user_ptr,
+            operation,
         );
-        assert!(!stream.is_null());
-        operation(stream);
-        unsafe {
-            OPS.stream_destroy.unwrap()(stream);
-        }
     });
 }
 
