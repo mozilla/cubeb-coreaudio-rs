@@ -32,7 +32,6 @@ use self::device_property::*;
 use self::mixer::*;
 use self::resampler::*;
 use self::utils::*;
-use atomic;
 use backend::ringbuf::RingBuffer;
 use cubeb_backend::{
     ffi, ChannelLayout, Context, ContextOps, DeviceCollectionRef, DeviceId, DeviceRef, DeviceType,
