@@ -35,7 +35,7 @@ use self::utils::*;
 use backend::ringbuf::RingBuffer;
 use cubeb_backend::{
     ffi, ChannelLayout, Context, ContextOps, DeviceCollectionRef, DeviceId, DeviceRef, DeviceType,
-    Error, InputProcessingParams, Ops, Result, SampleFormat, State, Stream, StreamOps,
+    Error, ErrorCode, InputProcessingParams, Ops, Result, SampleFormat, State, Stream, StreamOps,
     StreamParams, StreamParamsRef, StreamPrefs,
 };
 use mach::mach_time::{mach_absolute_time, mach_timebase_info};
@@ -47,7 +47,7 @@ use std::os::raw::{c_uint, c_void};
 use std::ptr;
 use std::slice;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, Weak};
 use std::time::Duration;
 const NO_ERR: OSStatus = 0;
 
@@ -2083,6 +2083,147 @@ impl LatencyController {
             self.latency = None;
         }
         self.latency
+    }
+}
+
+type SharedStorage<T> = Mutex<Option<T>>;
+
+#[derive(Debug, Clone)]
+struct OwningHandle<T> {
+    storage: Weak<SharedStorage<T>>,
+    obj: Option<T>,
+}
+
+impl<T> OwningHandle<T> {
+    fn new(storage: Weak<SharedStorage<T>>, obj: T) -> Self {
+        Self {
+            storage,
+            obj: Some(obj),
+        }
+    }
+}
+
+impl<T> AsRef<T> for OwningHandle<T> {
+    fn as_ref(&self) -> &T {
+        self.obj.as_ref().unwrap()
+    }
+}
+
+impl<T> AsMut<T> for OwningHandle<T> {
+    fn as_mut(&mut self) -> &mut T {
+        self.obj.as_mut().unwrap()
+    }
+}
+
+impl<T> Drop for OwningHandle<T> {
+    fn drop(&mut self) {
+        if let Some(storage) = self.storage.upgrade() {
+            let mut storage = storage.lock().unwrap();
+            assert!(storage.replace(self.obj.take().unwrap()).is_none());
+            return;
+        }
+        unreachable!("Storage must outlive the handle, but didn't");
+    }
+}
+
+#[derive(Debug, Default)]
+struct SharedVoiceProcessingUnitStorage {
+    storage: Option<Arc<SharedStorage<AudioUnit>>>,
+}
+
+#[derive(Debug)]
+struct SharedVoiceProcessingUnit {
+    sync_storage: Mutex<SharedVoiceProcessingUnitStorage>,
+    queue: Queue,
+}
+
+impl SharedVoiceProcessingUnit {
+    fn new(queue: Queue) -> Self {
+        Self {
+            sync_storage: Mutex::new(SharedVoiceProcessingUnitStorage::default()),
+            queue,
+        }
+    }
+
+    fn ensure_unit(&mut self) -> Result<()> {
+        debug_assert_running_serially();
+        let mut guard = self.sync_storage.lock().unwrap();
+        if guard.storage.is_some() {
+            // No need to create vpio unit as one already exists.
+            return Err(Error::not_supported());
+        }
+        let unit = create_typed_audiounit(kAudioUnitSubType_VoiceProcessingIO);
+        if unit.is_err() {
+            return Err(Error::error());
+        }
+
+        match get_default_device(DeviceType::OUTPUT) {
+            None => {
+                cubeb_log!("Could not get default output device in order to undo vpio ducking");
+            }
+            Some(id) => {
+                let r = audio_device_duck(id, 1.0, ptr::null_mut(), 0.5);
+                if r != NO_ERR {
+                    cubeb_log!(
+                            "Failed to undo ducking of voiceprocessing on output device {}. Proceeding... Error: {}",
+                            id,
+                            r
+                        );
+                }
+            }
+        };
+
+        let old_storage = guard.storage.replace(Arc::from(Mutex::new(unit.ok())));
+        assert!(old_storage.is_none());
+        Ok(())
+    }
+
+    fn take(&mut self) -> Result<OwningHandle<AudioUnit>> {
+        debug_assert_running_serially();
+        if let Err(e) = self.ensure_unit() {
+            if e.code() == ErrorCode::Error {
+                return Err(e);
+            }
+        }
+        let mut guard = self.sync_storage.lock().unwrap();
+        let storage: Arc<SharedStorage<AudioUnit>> = guard.storage.as_mut().unwrap().clone();
+        let mut guard = (*storage).lock().unwrap();
+        match guard.take() {
+            Some(unit) => Ok(OwningHandle::new(Arc::downgrade(&storage), unit)),
+            None => Err(Error::device_unavailable()),
+        }
+    }
+}
+
+unsafe impl Send for SharedVoiceProcessingUnit {}
+unsafe impl Sync for SharedVoiceProcessingUnit {}
+
+impl Drop for SharedVoiceProcessingUnit {
+    fn drop(&mut self) {
+        debug_assert_not_running_serially();
+        self.queue.run_final(|| {
+            let mut guard = self.sync_storage.lock().unwrap();
+            if guard.storage.is_none() {
+                return;
+            }
+            let last_ref_storage: Option<SharedStorage<AudioUnit>> =
+                Arc::into_inner(guard.storage.take().unwrap());
+            if last_ref_storage.is_none() {
+                // Don't assert here since the assert in OwningHandle's drop is more likely
+                // to be actionable.
+                return;
+            }
+            let last_ref_storage = last_ref_storage.unwrap();
+            let unit = last_ref_storage.lock().unwrap();
+            if unit.is_none() {
+                // Don't assert here since the assert in OwningHandle's drop is more likely
+                // to be actionable.
+                return;
+            }
+            let unit = unit.unwrap();
+            assert!(!unit.is_null());
+            dispose_audio_unit(unit);
+        });
     }
 }
 
