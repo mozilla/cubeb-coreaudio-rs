@@ -287,7 +287,26 @@ fn get_volume(unit: AudioUnit) -> Result<f32> {
 
 fn set_input_mute(unit: AudioUnit, mute: bool) -> Result<()> {
     assert!(!unit.is_null());
-    let mute: UInt32 = mute.into();
+    let mute: u32 = mute.into();
+    let mut old_mute: u32 = 0;
+    let r = audio_unit_get_property(
+        unit,
+        kAUVoiceIOProperty_MuteOutput,
+        kAudioUnitScope_Global,
+        AU_IN_BUS,
+        &mut old_mute,
+        &mut mem::size_of::<u32>(),
+    );
+    if r != NO_ERR {
+        cubeb_log!(
+            "AudioUnitGetProperty/kAUVoiceIOProperty_MuteOutput rv={}",
+            r
+        );
+        return Err(Error::error());
+    }
+    if old_mute == mute {
+        return Ok(());
+    }
     let r = audio_unit_set_property(
         unit,
         kAUVoiceIOProperty_MuteOutput,
@@ -2547,6 +2566,7 @@ struct CoreStreamData<'ctx> {
     input_device: device_info,
     output_device: device_info,
     input_processing_params: InputProcessingParams,
+    input_mute: bool,
     input_buffer_manager: Option<BufferManager>,
     // Listeners indicating what system events are monitored.
     default_input_listener: Option<device_property_listener>,
@@ -2586,6 +2606,7 @@ impl<'ctx> Default for CoreStreamData<'ctx> {
             input_device: device_info::default(),
             output_device: device_info::default(),
             input_processing_params: InputProcessingParams::NONE,
+            input_mute: false,
             input_buffer_manager: None,
             default_input_listener: None,
             default_output_listener: None,
@@ -2631,6 +2652,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             input_device: in_dev,
             output_device: out_dev,
             input_processing_params: InputProcessingParams::NONE,
+            input_mute: false,
             input_buffer_manager: None,
             default_input_listener: None,
             default_output_listener: None,
@@ -3449,6 +3471,18 @@ impl<'ctx> CoreStreamData<'ctx> {
                     self.output_device.id,
                     r
                 );
+            }
+
+            // Always try to remember the applied input mute state. If it cannot be applied
+            // to the new device pair, we notify the client of an error and it will have to
+            // open a new stream.
+            if let Err(r) = set_input_mute(self.input_unit, self.input_mute) {
+                cubeb_log!(
+                    "({:p}) Failed to set mute state of voiceprocessing. Error: {}",
+                    self.stm_ptr,
+                    r
+                );
+                return Err(r);
             }
 
             // Always try to remember the applied input processing params. If they cannot
@@ -4297,6 +4331,7 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
             self as *const AudioUnitStream,
             mute
         );
+        self.core_stream_data.input_mute = mute;
         Ok(())
     }
     fn set_input_processing_params(&mut self, params: InputProcessingParams) -> Result<()> {
