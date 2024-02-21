@@ -58,6 +58,8 @@ const DISPATCH_QUEUE_LABEL: &str = "org.mozilla.cubeb";
 const PRIVATE_AGGREGATE_DEVICE_NAME: &str = "CubebAggregateDevice";
 const VOICEPROCESSING_AGGREGATE_DEVICE_NAME: &str = "VPAUAggregateAudioDevice";
 
+const APPLE_STUDIO_DISPLAY_USB_ID: &str = "05AC:1114";
+
 // Testing empirically, some headsets report a minimal latency that is very low,
 // but this does not work in practice. Lie and say the minimum is 128 frames.
 const SAFE_MIN_LATENCY_FRAMES: u32 = 128;
@@ -1450,6 +1452,8 @@ fn get_channel_count(
     assert_ne!(devid, kAudioObjectUnknown);
 
     let mut streams = get_device_streams(devid, devtype)?;
+    let model_uid =
+        get_device_model_uid(devid, devtype).map_or_else(|_| String::new(), |s| s.into_string());
 
     if devtype == DeviceType::INPUT {
         // With VPIO, output devices will/may get a Tap that appears as input channels on the
@@ -1492,6 +1496,13 @@ fn get_channel_count(
                     cubeb_log!(
                         "INPUT_UNDEFINED TerminalType for input stream. Ignoring its channels."
                     );
+                    false
+                }
+                // The input tap stream on the Studio Display Speakers has a terminal type that
+                // is not clearly output-specific. We special-case it here.
+                EXTERNAL_DIGITAL_AUDIO_INTERFACE
+                    if model_uid.contains(APPLE_STUDIO_DISPLAY_USB_ID) =>
+                {
                     false
                 }
                 // Note INPUT_UNDEFINED is 0x200 and INPUT_MICROPHONE is 0x201
@@ -2734,7 +2745,6 @@ impl<'ctx> CoreStreamData<'ctx> {
         };
         log_device(in_device.id, DeviceType::INPUT);
         log_device(out_device.id, DeviceType::OUTPUT);
-        const APPLE_STUDIO_DISPLAY_USB_ID: &str = "05AC:1114";
         match (
             get_device_model_uid(in_device.id, DeviceType::INPUT).map(|s| s.to_string()),
             get_device_model_uid(out_device.id, DeviceType::OUTPUT).map(|s| s.to_string()),
