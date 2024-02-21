@@ -2137,6 +2137,7 @@ impl<T> Drop for OwningHandle<T> {
 #[derive(Debug, Default)]
 struct SharedVoiceProcessingUnitStorage {
     storage: Option<Arc<SharedStorage<AudioUnit>>>,
+    priming: bool,
 }
 
 #[derive(Debug)]
@@ -2160,6 +2161,7 @@ impl SharedVoiceProcessingUnit {
             // No need to create vpio unit as one already exists.
             return Err(Error::not_supported());
         }
+        guard.priming = false;
         let unit = create_typed_audiounit(kAudioUnitSubType_VoiceProcessingIO);
         if unit.is_err() {
             return Err(Error::error());
@@ -2184,6 +2186,38 @@ impl SharedVoiceProcessingUnit {
         let old_storage = guard.storage.replace(Arc::from(Mutex::new(unit.ok())));
         assert!(old_storage.is_none());
         Ok(())
+    }
+
+    fn prime(&mut self) {
+        {
+            let mut guard = self.sync_storage.lock().unwrap();
+            if guard.storage.is_some() {
+                // No need to prime as unit already exists.
+                return;
+            }
+            if guard.priming {
+                // No need to prime async as another call is already doing it.
+                return;
+            }
+            cubeb_log!("Priming the shared voiceprocessing unit");
+            guard.priming = true;
+        }
+        self.queue
+            .clone()
+            .run_async(move || match self.ensure_unit() {
+                Ok(()) => {
+                    cubeb_log!("Shared voiceprocessing unit primed and ready");
+                }
+                Err(e) => match e.code() {
+                    ErrorCode::Error => {
+                        cubeb_log!("Error creating shared voiceprocessing unit for priming");
+                    }
+                    ErrorCode::NotSupported => {
+                        cubeb_log!("Shared voiceprocessing unit was created before async priming");
+                    }
+                    _ => unreachable!("Unexpected error"),
+                },
+            });
     }
 
     fn take(&mut self) -> Result<OwningHandle<AudioUnit>> {
@@ -2211,6 +2245,7 @@ impl Drop for SharedVoiceProcessingUnit {
         debug_assert_not_running_serially();
         self.queue.run_final(|| {
             let mut guard = self.sync_storage.lock().unwrap();
+            assert!(!guard.priming);
             if guard.storage.is_none() {
                 return;
             }
@@ -2997,6 +3032,10 @@ impl<'ctx> CoreStreamData<'ctx> {
         shared_voice_processing_unit: &mut SharedVoiceProcessingUnit,
     ) -> Result<(device_info, device_info)> {
         self.debug_assert_is_on_stream_queue();
+        if self.has_input() && self.has_output() {
+            shared_voice_processing_unit.prime();
+        }
+
         let should_use_voice_processing_unit = self.has_input()
             && self.has_output()
             && self
