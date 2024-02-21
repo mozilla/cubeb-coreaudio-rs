@@ -354,7 +354,7 @@ pub fn test_device_channels_in_scope(
 ) -> std::result::Result<u32, OSStatus> {
     debug_assert_not_running_serially();
     let address = AudioObjectPropertyAddress {
-        mSelector: kAudioDevicePropertyStreamConfiguration,
+        mSelector: kAudioDevicePropertyStreams,
         mScope: match scope {
             Scope::Input => kAudioDevicePropertyScopeInput,
             Scope::Output => kAudioDevicePropertyScopeOutput,
@@ -377,8 +377,7 @@ pub fn test_device_channels_in_scope(
     if size == 0 {
         return Ok(0);
     }
-    let byte_len = size / mem::size_of::<u8>();
-    let mut bytes = vec![0u8; byte_len];
+    let mut stream_list = vec![0, (size / mem::size_of::<AudioObjectID>()) as u32];
     let status = run_serially(|| unsafe {
         AudioObjectGetPropertyData(
             id,
@@ -386,23 +385,63 @@ pub fn test_device_channels_in_scope(
             0,
             ptr::null(),
             &mut size as *mut usize as *mut u32,
-            bytes.as_mut_ptr() as *mut c_void,
+            stream_list.as_mut_ptr() as *mut c_void,
         )
     });
     if status != NO_ERR {
         return Err(status);
     }
-    let buf_list = unsafe { &*(bytes.as_mut_ptr() as *mut AudioBufferList) };
-    let buf_len = buf_list.mNumberBuffers as usize;
-    if buf_len == 0 {
-        return Ok(0);
-    }
-    let buf_ptr = buf_list.mBuffers.as_ptr() as *const AudioBuffer;
-    let buffers = unsafe { slice::from_raw_parts(buf_ptr, buf_len) };
-    let mut channels: u32 = 0;
-    for buffer in buffers {
-        channels += buffer.mNumberChannels;
-    }
+    let channels = stream_list
+        .iter()
+        .filter(|s: &&AudioObjectID| {
+            if scope != Scope::Input {
+                return true;
+            }
+            let address = AudioObjectPropertyAddress {
+                mSelector: kAudioStreamPropertyTerminalType,
+                mScope: kAudioObjectPropertyScopeGlobal,
+                mElement: kAudioObjectPropertyElementMaster,
+            };
+            let mut ttype: u32 = 0;
+            let status = unsafe {
+                AudioObjectGetPropertyData(
+                    **s,
+                    &address,
+                    0,
+                    ptr::null(),
+                    &mut mem::size_of::<u32>() as *mut usize as *mut u32,
+                    &mut ttype as *mut u32 as *mut c_void,
+                )
+            };
+            if status != NO_ERR {
+                return false;
+            }
+            ttype == kAudioStreamTerminalTypeMicrophone
+                || (INPUT_MICROPHONE..OUTPUT_UNDEFINED).contains(&ttype)
+        })
+        .map(|s: &AudioObjectID| {
+            let address = AudioObjectPropertyAddress {
+                mSelector: kAudioStreamPropertyVirtualFormat,
+                mScope: kAudioObjectPropertyScopeGlobal,
+                mElement: kAudioObjectPropertyElementMaster,
+            };
+            let mut format = AudioStreamBasicDescription::default();
+            let status = unsafe {
+                AudioObjectGetPropertyData(
+                    *s,
+                    &address,
+                    0,
+                    ptr::null(),
+                    &mut mem::size_of::<AudioStreamBasicDescription>() as *mut usize as *mut u32,
+                    &mut format as *mut AudioStreamBasicDescription as *mut c_void,
+                )
+            };
+            if status != NO_ERR {
+                return 0;
+            }
+            format.mChannelsPerFrame
+        })
+        .sum();
     Ok(channels)
 }
 
