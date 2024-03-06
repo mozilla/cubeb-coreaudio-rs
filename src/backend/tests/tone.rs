@@ -1,6 +1,6 @@
 use super::utils::{test_get_default_device, test_ops_stream_operation, Scope};
 use super::*;
-use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::atomic::AtomicI64;
 
 #[test]
 fn test_dial_tone() {
