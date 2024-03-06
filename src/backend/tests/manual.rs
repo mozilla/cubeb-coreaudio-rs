@@ -4,7 +4,6 @@ use super::utils::{
 };
 use super::*;
 use std::io;
-use std::sync::atomic::AtomicBool;
 
 #[ignore]
 #[test]
