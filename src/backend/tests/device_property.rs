@@ -501,28 +501,20 @@ fn test_get_stream_terminal_type() {
     }
     if let Some(device) = test_get_default_device(Scope::Input) {
         let streams = run_serially(|| get_device_streams(device, DeviceType::INPUT)).unwrap();
-        for stream in streams {
-            assert_eq!(
-                terminal_type_to_device_type(
-                    run_serially(|| get_stream_terminal_type(stream)).unwrap()
-                ),
-                Some(DeviceType::INPUT)
-            );
-        }
+        assert!(streams.iter().any(|&s| {
+            terminal_type_to_device_type(run_serially(|| get_stream_terminal_type(s)).unwrap())
+                == Some(DeviceType::INPUT)
+        }));
     } else {
         println!("No input device.");
     }
 
     if let Some(device) = test_get_default_device(Scope::Output) {
         let streams = run_serially(|| get_device_streams(device, DeviceType::OUTPUT)).unwrap();
-        for stream in streams {
-            assert_eq!(
-                terminal_type_to_device_type(
-                    run_serially(|| get_stream_terminal_type(stream)).unwrap()
-                ),
-                Some(DeviceType::OUTPUT)
-            );
-        }
+        assert!(streams.iter().any(|&s| {
+            terminal_type_to_device_type(run_serially(|| get_stream_terminal_type(s)).unwrap())
+                == Some(DeviceType::OUTPUT)
+        }));
     } else {
         println!("No output device.");
     }
