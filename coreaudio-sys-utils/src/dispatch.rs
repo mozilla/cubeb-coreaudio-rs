@@ -6,7 +6,7 @@ use std::os::raw::c_void;
 use std::panic;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 
 pub const DISPATCH_QUEUE_LABEL: &str = "org.mozilla.cubeb";
 
@@ -44,8 +44,8 @@ where
 // ------------------------------------------------------------------------------------------------
 #[derive(Debug)]
 pub struct Queue {
-    queue: dispatch_queue_t,
-    owned: bool,
+    queue: Mutex<dispatch_queue_t>,
+    owned: AtomicBool,
 }
 
 impl Queue {
@@ -54,11 +54,18 @@ impl Queue {
             ptr::null_mut::<dispatch_queue_attr_s>();
         let label = CString::new(label).unwrap();
         let c_string = label.as_ptr();
-        let queue = Self {
-            queue: unsafe {
-                dispatch_queue_create_with_target(c_string, DISPATCH_QUEUE_SERIAL, target.queue)
-            },
-            owned: true,
+        let queue = {
+            let target_guard = target.queue.lock().unwrap();
+            Self {
+                queue: Mutex::new(unsafe {
+                    dispatch_queue_create_with_target(
+                        c_string,
+                        DISPATCH_QUEUE_SERIAL,
+                        *target_guard,
+                    )
+                }),
+                owned: AtomicBool::new(true),
+            }
         };
         queue.set_should_cancel(Box::new(AtomicBool::new(false)));
         queue
@@ -70,15 +77,16 @@ impl Queue {
 
     pub fn get_global_queue() -> Self {
         Self {
-            queue: unsafe { dispatch_get_global_queue(QOS_CLASS_DEFAULT as isize, 0) },
-            owned: false,
+            queue: Mutex::new(unsafe { dispatch_get_global_queue(QOS_CLASS_DEFAULT as isize, 0) }),
+            owned: AtomicBool::new(false),
         }
     }
 
     #[cfg(debug_assertions)]
     pub fn debug_assert_is_current(&self) {
+        let guard = self.queue.lock().unwrap();
         unsafe {
-            dispatch_assert_queue(self.queue);
+            dispatch_assert_queue(*guard);
         }
     }
 
@@ -87,8 +95,9 @@ impl Queue {
 
     #[cfg(debug_assertions)]
     pub fn debug_assert_is_not_current(&self) {
+        let guard = self.queue.lock().unwrap();
         unsafe {
-            dispatch_assert_queue_not(self.queue);
+            dispatch_assert_queue_not(*guard);
         }
     }
 
@@ -99,7 +108,8 @@ impl Queue {
     where
         F: Send + FnOnce(),
     {
-        let should_cancel = self.get_should_cancel();
+        let guard = self.queue.lock().unwrap();
+        let should_cancel = self.get_should_cancel(*guard);
         let (closure, executor) = Self::create_closure_and_executor(|| {
             if should_cancel.map_or(false, |v| v.load(Ordering::SeqCst)) {
                 return;
@@ -107,7 +117,7 @@ impl Queue {
             work();
         });
         unsafe {
-            dispatch_async_f(self.queue, closure, executor);
+            dispatch_async_f(*guard, closure, executor);
         }
     }
 
@@ -115,16 +125,23 @@ impl Queue {
     where
         F: FnOnce() -> B,
     {
+        let queue: Option<dispatch_queue_t>;
         let mut res: Option<B> = None;
-        let should_cancel = self.get_should_cancel();
-        let (closure, executor) = Self::create_closure_and_executor(|| {
-            if should_cancel.map_or(false, |v| v.load(Ordering::SeqCst)) {
-                return;
-            }
-            res = Some(work());
-        });
+        let cex: Option<(*mut c_void, dispatch_function_t)>;
+        {
+            let guard = self.queue.lock().unwrap();
+            queue = Some(*guard);
+            let should_cancel = self.get_should_cancel(*guard);
+            cex = Some(Self::create_closure_and_executor(|| {
+                if should_cancel.map_or(false, |v| v.load(Ordering::SeqCst)) {
+                    return;
+                }
+                res = Some(work());
+            }));
+        }
+        let (closure, executor) = cex.unwrap();
         unsafe {
-            dispatch_sync_f(self.queue, closure, executor);
+            dispatch_sync_f(queue.unwrap(), closure, executor);
         }
         res
     }
@@ -133,41 +150,52 @@ impl Queue {
     where
         F: FnOnce() -> B,
     {
-        assert!(self.owned, "Doesn't make sense to finalize global queue");
-        let mut res: Option<B> = None;
-        let should_cancel = self.get_should_cancel();
-        debug_assert!(
-            should_cancel.is_some(),
-            "dispatch context should be allocated!"
+        assert!(
+            self.owned.load(Ordering::SeqCst),
+            "Doesn't make sense to finalize global queue"
         );
-        let (closure, executor) = Self::create_closure_and_executor(|| {
-            res = Some(work());
-            should_cancel
-                .expect("dispatch context should be allocated!")
-                .store(true, Ordering::SeqCst);
-        });
+        let queue: Option<dispatch_queue_t>;
+        let mut res: Option<B> = None;
+        let cex: Option<(*mut c_void, dispatch_function_t)>;
+        {
+            let guard = self.queue.lock().unwrap();
+            queue = Some(*guard);
+            let should_cancel = self.get_should_cancel(*guard);
+            debug_assert!(
+                should_cancel.is_some(),
+                "dispatch context should be allocated!"
+            );
+            cex = Some(Self::create_closure_and_executor(|| {
+                res = Some(work());
+                should_cancel
+                    .expect("dispatch context should be allocated!")
+                    .store(true, Ordering::SeqCst);
+            }));
+        }
+        let (closure, executor) = cex.unwrap();
         unsafe {
-            dispatch_sync_f(self.queue, closure, executor);
+            dispatch_sync_f(queue.unwrap(), closure, executor);
         }
         res
     }
 
-    fn get_should_cancel(&self) -> Option<&mut AtomicBool> {
-        if !self.owned {
+    fn get_should_cancel(&self, queue: dispatch_queue_t) -> Option<&mut AtomicBool> {
+        if !self.owned.load(Ordering::SeqCst) {
             return None;
         }
         unsafe {
-            let context = dispatch_get_context(
-                mem::transmute::<dispatch_queue_t, dispatch_object_t>(self.queue),
-            ) as *mut AtomicBool;
+            let context =
+                dispatch_get_context(mem::transmute::<dispatch_queue_t, dispatch_object_t>(queue))
+                    as *mut AtomicBool;
             context.as_mut()
         }
     }
 
     fn set_should_cancel(&self, context: Box<AtomicBool>) {
-        assert!(self.owned);
+        assert!(self.owned.load(Ordering::SeqCst));
         unsafe {
-            let queue = mem::transmute::<dispatch_queue_t, dispatch_object_t>(self.queue);
+            let guard = self.queue.lock().unwrap();
+            let queue = mem::transmute::<dispatch_queue_t, dispatch_object_t>(*guard);
             // Leak the context from Box.
             dispatch_set_context(queue, Box::into_raw(context) as *mut c_void);
 
@@ -182,13 +210,13 @@ impl Queue {
     }
 
     fn release(&self) {
+        let guard = self.queue.lock().unwrap();
+        let queue = *guard;
         unsafe {
             // This will release the inner `dispatch_queue_t` asynchronously.
             // TODO: It's incredibly unsafe to call `transmute` directly.
             //       Find another way to release the queue.
-            dispatch_release(mem::transmute::<dispatch_queue_t, dispatch_object_t>(
-                self.queue,
-            ));
+            dispatch_release(mem::transmute::<dispatch_queue_t, dispatch_object_t>(queue));
         }
     }
 
@@ -219,7 +247,7 @@ impl Queue {
 
 impl Drop for Queue {
     fn drop(&mut self) {
-        if self.owned {
+        if self.owned.load(Ordering::SeqCst) {
             self.release();
         }
     }
@@ -227,16 +255,20 @@ impl Drop for Queue {
 
 impl Clone for Queue {
     fn clone(&self) -> Self {
+        assert!(
+            self.owned.load(Ordering::SeqCst),
+            "No need to clone a static queue"
+        );
+        let guard = self.queue.lock().unwrap();
+        let queue = *guard;
         // TODO: It's incredibly unsafe to call `transmute` directly.
         //       Find another way to release the queue.
         unsafe {
-            dispatch_retain(mem::transmute::<dispatch_queue_t, dispatch_object_t>(
-                self.queue,
-            ));
+            dispatch_retain(mem::transmute::<dispatch_queue_t, dispatch_object_t>(queue));
         }
         Self {
-            queue: self.queue,
-            owned: true,
+            queue: Mutex::new(queue),
+            owned: AtomicBool::new(true),
         }
     }
 }
