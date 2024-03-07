@@ -49,13 +49,15 @@ fn test_switch_device_in_scope(scope: Scope) {
 
     let notifier = Arc::new(Notifier::new(0));
     let also_notifier = notifier.clone();
-    let listener = test_create_device_change_listener(scope.clone(), move |_addresses| {
-        let mut cnt = notifier.lock().unwrap();
-        *cnt += 1;
-        notifier.notify(cnt);
-        NO_ERR
+    let listener = run_serially(|| {
+        test_create_device_change_listener(scope.clone(), move |_addresses| {
+            let mut cnt = notifier.lock().unwrap();
+            *cnt += 1;
+            notifier.notify(cnt);
+            NO_ERR
+        })
     });
-    listener.start();
+    run_serially(|| listener.start());
 
     let changed_watcher = Watcher::new(&also_notifier);
     test_get_started_stream_in_scope(scope.clone(), move |_stream| loop {
