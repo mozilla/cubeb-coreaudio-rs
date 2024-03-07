@@ -5,6 +5,14 @@ use std::mem;
 use std::os::raw::c_void;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::OnceLock;
+
+pub const DISPATCH_QUEUE_LABEL: &str = "org.mozilla.cubeb";
+
+pub fn get_serial_queue_singleton() -> &'static Queue {
+    static SERIAL_QUEUE: OnceLock<Queue> = OnceLock::new();
+    SERIAL_QUEUE.get_or_init(|| Queue::new(DISPATCH_QUEUE_LABEL))
+}
 
 // Queue: A wrapper around `dispatch_queue_t` that is always serial.
 // ------------------------------------------------------------------------------------------------
@@ -196,6 +204,9 @@ impl Clone for Queue {
         }
     }
 }
+
+unsafe impl Send for Queue {}
+unsafe impl Sync for Queue {}
 
 #[test]
 fn run_tasks_in_order() {
