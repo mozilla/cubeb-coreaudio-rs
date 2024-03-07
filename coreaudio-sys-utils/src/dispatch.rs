@@ -19,6 +19,10 @@ pub fn debug_assert_running_serially() {
     get_serial_queue_singleton().debug_assert_is_current();
 }
 
+pub fn debug_assert_not_running_serially() {
+    get_serial_queue_singleton().debug_assert_is_not_current();
+}
+
 pub fn run_serially<F, B>(work: F) -> B
 where
     F: FnOnce() -> B,
@@ -80,6 +84,16 @@ impl Queue {
 
     #[cfg(not(debug_assertions))]
     pub fn debug_assert_is_current(&self) {}
+
+    #[cfg(debug_assertions)]
+    pub fn debug_assert_is_not_current(&self) {
+        unsafe {
+            dispatch_assert_queue_not(self.queue);
+        }
+    }
+
+    #[cfg(not(debug_assertions))]
+    pub fn debug_assert_is_not_current(&self) {}
 
     pub fn run_async<F>(&self, work: F)
     where

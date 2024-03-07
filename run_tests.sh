@@ -40,7 +40,6 @@ cargo clippy -- -D warnings
 # Regular Tests
 cargo test --verbose
 cargo test test_configure_output -- --ignored
-cargo test test_aggregate -- --ignored --test-threads=1
 
 # Parallel Tests
 cargo test test_parallel -- --ignored --nocapture --test-threads=1
