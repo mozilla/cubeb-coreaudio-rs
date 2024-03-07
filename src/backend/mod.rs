@@ -2509,10 +2509,10 @@ impl ContextOps for AudioUnitContext {
 
 impl Drop for AudioUnitContext {
     fn drop(&mut self) {
-        let devices = self.devices.lock().unwrap();
-        assert!(
+        assert!({
+            let devices = self.devices.lock().unwrap();
             devices.input.changed_callback.is_none() && devices.output.changed_callback.is_none()
-        );
+        });
 
         {
             let controller = self.latency_controller.lock().unwrap();
