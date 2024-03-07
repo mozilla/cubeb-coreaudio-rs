@@ -54,7 +54,6 @@ const NO_ERR: OSStatus = 0;
 const AU_OUT_BUS: AudioUnitElement = 0;
 const AU_IN_BUS: AudioUnitElement = 1;
 
-const DISPATCH_QUEUE_LABEL: &str = "org.mozilla.cubeb";
 const PRIVATE_AGGREGATE_DEVICE_NAME: &str = "CubebAggregateDevice";
 const VOICEPROCESSING_AGGREGATE_DEVICE_NAME: &str = "VPAUAggregateAudioDevice";
 
