@@ -25,6 +25,29 @@ pub extern "C" fn noop_data_callback(
     nframes
 }
 
+pub extern "C" fn draining_data_callback(
+    stream: *mut ffi::cubeb_stream,
+    _user_ptr: *mut c_void,
+    _input_buffer: *const c_void,
+    output_buffer: *mut c_void,
+    nframes: i64,
+) -> i64 {
+    assert!(!stream.is_null());
+
+    // Feed silence data to output buffer
+    if !output_buffer.is_null() {
+        let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+        let channels = stm.core_stream_data.output_stream_params.channels();
+        let samples = nframes as usize * channels as usize;
+        let sample_size = cubeb_sample_size(stm.core_stream_data.output_stream_params.format());
+        unsafe {
+            ptr::write_bytes(output_buffer, 0, samples * sample_size);
+        }
+    }
+
+    nframes - 1
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Scope {
     Input,
