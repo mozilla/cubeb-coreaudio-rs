@@ -2,12 +2,13 @@ extern crate itertools;
 
 use self::itertools::iproduct;
 use super::utils::{
-    get_devices_info_in_scope, noop_data_callback, test_device_channels_in_scope,
-    test_get_default_device, test_ops_context_operation, test_ops_stream_operation,
-    test_ops_stream_operation_on_context, Scope,
+    draining_data_callback, get_devices_info_in_scope, noop_data_callback,
+    test_device_channels_in_scope, test_get_default_device, test_ops_context_operation,
+    test_ops_stream_operation, test_ops_stream_operation_on_context, Scope,
 };
 use super::*;
-use std::time::Instant;
+use std::thread;
+use std::time::{Duration, Instant};
 
 // Context Operations
 // ------------------------------------------------------------------------------------------------
@@ -370,9 +371,6 @@ fn test_ops_context_register_device_collection_changed() {
 
 #[test]
 fn test_ops_context_register_device_collection_changed_with_a_duplex_stream() {
-    use std::thread;
-    use std::time::Duration;
-
     extern "C" fn callback(_: *mut ffi::cubeb, got_called_ptr: *mut c_void) {
         let got_called = unsafe { &mut *(got_called_ptr as *mut bool) };
         *got_called = true;
@@ -675,9 +673,10 @@ fn test_ops_context_stream_init_channel_rate_combinations() {
 
 // Stream Operations
 // ------------------------------------------------------------------------------------------------
-fn test_default_output_stream_operation_on_context<F>(
+fn test_default_output_stream_operation_on_context_with_callback<F>(
     name: &'static str,
     context_ptr: *mut ffi::cubeb,
+    data_callback: ffi::cubeb_data_callback,
     operation: F,
 ) where
     F: FnOnce(*mut ffi::cubeb_stream),
@@ -699,25 +698,41 @@ fn test_default_output_stream_operation_on_context<F>(
         ptr::null_mut(), // Use default output device.
         &mut output_params,
         4096, // TODO: Get latency by get_min_latency instead ?
-        Some(noop_data_callback),
+        data_callback,
         None,            // No state callback.
         ptr::null_mut(), // No user data pointer.
         operation,
     );
 }
 
+fn test_default_output_stream_operation_with_callback<F>(
+    name: &'static str,
+    data_callback: ffi::cubeb_data_callback,
+    operation: F,
+) where
+    F: FnOnce(*mut ffi::cubeb_stream),
+{
+    test_ops_context_operation("context: default output stream operation", |context_ptr| {
+        test_default_output_stream_operation_on_context_with_callback(
+            name,
+            context_ptr,
+            data_callback,
+            operation,
+        );
+    });
+}
+
 fn test_default_output_stream_operation<F>(name: &'static str, operation: F)
 where
     F: FnOnce(*mut ffi::cubeb_stream),
 {
-    test_ops_context_operation("context: default output stream operation", |context_ptr| {
-        test_default_output_stream_operation_on_context(name, context_ptr, operation);
-    });
+    test_default_output_stream_operation_with_callback(name, Some(noop_data_callback), operation);
 }
 
-fn test_default_duplex_stream_operation_on_context<F>(
+fn test_default_duplex_stream_operation_on_context_with_callback<F>(
     name: &'static str,
     context_ptr: *mut ffi::cubeb,
+    data_callback: ffi::cubeb_data_callback,
     operation: F,
 ) where
     F: FnOnce(*mut ffi::cubeb_stream),
@@ -746,25 +761,56 @@ fn test_default_duplex_stream_operation_on_context<F>(
         ptr::null_mut(), // Use default output device.
         &mut output_params,
         4096, // TODO: Get latency by get_min_latency instead ?
-        Some(noop_data_callback),
+        data_callback,
         None,            // No state callback.
         ptr::null_mut(), // No user data pointer.
         operation,
     );
 }
 
+fn test_default_duplex_stream_operation_on_context<F>(
+    name: &'static str,
+    context_ptr: *mut ffi::cubeb,
+    operation: F,
+) where
+    F: FnOnce(*mut ffi::cubeb_stream),
+{
+    test_default_duplex_stream_operation_on_context_with_callback(
+        name,
+        context_ptr,
+        Some(noop_data_callback),
+        operation,
+    );
+}
+
+fn test_default_duplex_stream_operation_with_callback<F>(
+    name: &'static str,
+    data_callback: ffi::cubeb_data_callback,
+    operation: F,
+) where
+    F: FnOnce(*mut ffi::cubeb_stream),
+{
+    test_ops_context_operation("context: default duplex stream operation", |context_ptr| {
+        test_default_duplex_stream_operation_on_context_with_callback(
+            name,
+            context_ptr,
+            data_callback,
+            operation,
+        );
+    });
+}
+
 fn test_default_duplex_stream_operation<F>(name: &'static str, operation: F)
 where
     F: FnOnce(*mut ffi::cubeb_stream),
 {
-    test_ops_context_operation("context: default duplex stream operation", |context_ptr| {
-        test_default_duplex_stream_operation_on_context(name, context_ptr, operation);
-    });
+    test_default_duplex_stream_operation_with_callback(name, Some(noop_data_callback), operation);
 }
 
-fn test_stereo_input_duplex_stream_operation_on_context<F>(
+fn test_stereo_input_duplex_stream_operation_on_context_with_callback<F>(
     name: &'static str,
     context_ptr: *mut ffi::cubeb,
+    data_callback: ffi::cubeb_data_callback,
     operation: F,
 ) where
     F: FnOnce(*mut ffi::cubeb_stream),
@@ -798,10 +844,30 @@ fn test_stereo_input_duplex_stream_operation_on_context<F>(
         ptr::null_mut(), // Use default output device.
         &mut output_params,
         4096, // TODO: Get latency by get_min_latency instead ?
-        Some(noop_data_callback),
+        data_callback,
         None,            // No state callback.
         ptr::null_mut(), // No user data pointer.
         operation,
+    );
+}
+
+fn test_stereo_input_duplex_stream_operation_with_callback<F>(
+    name: &'static str,
+    data_callback: ffi::cubeb_data_callback,
+    operation: F,
+) where
+    F: FnOnce(*mut ffi::cubeb_stream),
+{
+    test_ops_context_operation(
+        "context: stereo input duplex stream operation",
+        |context_ptr| {
+            test_stereo_input_duplex_stream_operation_on_context_with_callback(
+                name,
+                context_ptr,
+                data_callback,
+                operation,
+            );
+        },
     );
 }
 
@@ -809,17 +875,17 @@ fn test_stereo_input_duplex_stream_operation<F>(name: &'static str, operation: F
 where
     F: FnOnce(*mut ffi::cubeb_stream),
 {
-    test_ops_context_operation(
-        "context: stereo input duplex stream operation",
-        |context_ptr| {
-            test_stereo_input_duplex_stream_operation_on_context(name, context_ptr, operation);
-        },
+    test_stereo_input_duplex_stream_operation_with_callback(
+        name,
+        Some(noop_data_callback),
+        operation,
     );
 }
 
-fn test_default_duplex_voice_stream_operation_on_context<F>(
+fn test_default_duplex_voice_stream_operation_on_context_with_callback<F>(
     name: &'static str,
     context_ptr: *mut ffi::cubeb,
+    data_callback: ffi::cubeb_data_callback,
     operation: F,
 ) where
     F: FnOnce(*mut ffi::cubeb_stream),
@@ -848,20 +914,54 @@ fn test_default_duplex_voice_stream_operation_on_context<F>(
         ptr::null_mut(), // Use default output device.
         &mut output_params,
         4096, // TODO: Get latency by get_min_latency instead ?
-        Some(noop_data_callback),
+        data_callback,
         None,            // No state callback.
         ptr::null_mut(), // No user data pointer.
         operation,
     );
 }
 
+fn test_default_duplex_voice_stream_operation_on_context<F>(
+    name: &'static str,
+    context_ptr: *mut ffi::cubeb,
+    operation: F,
+) where
+    F: FnOnce(*mut ffi::cubeb_stream),
+{
+    test_default_duplex_voice_stream_operation_on_context_with_callback(
+        name,
+        context_ptr,
+        Some(noop_data_callback),
+        operation,
+    );
+}
+
+fn test_default_duplex_voice_stream_operation_with_callback<F>(
+    name: &'static str,
+    data_callback: ffi::cubeb_data_callback,
+    operation: F,
+) where
+    F: FnOnce(*mut ffi::cubeb_stream),
+{
+    test_ops_context_operation("context: duplex voice stream operation", |context_ptr| {
+        test_default_duplex_voice_stream_operation_on_context_with_callback(
+            name,
+            context_ptr,
+            data_callback,
+            operation,
+        );
+    });
+}
+
 fn test_default_duplex_voice_stream_operation<F>(name: &'static str, operation: F)
 where
     F: FnOnce(*mut ffi::cubeb_stream),
 {
-    test_ops_context_operation("context: duplex voice stream operation", |context_ptr| {
-        test_default_duplex_voice_stream_operation_on_context(name, context_ptr, operation);
-    });
+    test_default_duplex_voice_stream_operation_with_callback(
+        name,
+        Some(noop_data_callback),
+        operation,
+    );
 }
 
 fn test_stereo_input_duplex_voice_stream_operation<F>(name: &'static str, operation: F)
@@ -920,6 +1020,18 @@ fn test_ops_stream_stop() {
     test_default_output_stream_operation("stream: stop", |stream| {
         assert_eq!(unsafe { OPS.stream_stop.unwrap()(stream) }, ffi::CUBEB_OK);
     });
+}
+
+#[test]
+fn test_ops_stream_drain() {
+    test_default_output_stream_operation_with_callback(
+        "stream: drain",
+        Some(draining_data_callback),
+        |stream| {
+            assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
+            thread::sleep(Duration::from_millis(10));
+        },
+    );
 }
 
 #[test]
@@ -1044,6 +1156,18 @@ fn test_ops_stereo_input_duplex_stream_stop() {
 }
 
 #[test]
+fn test_ops_stereo_input_duplex_stream_drain() {
+    test_stereo_input_duplex_stream_operation_with_callback(
+        "stereo-input duplex stream: drain",
+        Some(draining_data_callback),
+        |stream| {
+            assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
+            thread::sleep(Duration::from_millis(10));
+        },
+    );
+}
+
+#[test]
 fn test_ops_duplex_voice_stream_init_and_destroy() {
     test_default_duplex_voice_stream_operation("duplex voice stream: init and destroy", |stream| {
         let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
@@ -1067,6 +1191,20 @@ fn test_ops_duplex_voice_stream_stop() {
         let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
         assert!(stm.core_stream_data.using_voice_processing_unit());
     });
+}
+
+#[test]
+fn test_ops_duplex_voice_stream_drain() {
+    test_default_duplex_voice_stream_operation_with_callback(
+        "duplex voice stream: drain",
+        Some(draining_data_callback),
+        |stream| {
+            assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
+            let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+            assert!(stm.core_stream_data.using_voice_processing_unit());
+            thread::sleep(Duration::from_millis(10));
+        },
+    );
 }
 
 #[test]
