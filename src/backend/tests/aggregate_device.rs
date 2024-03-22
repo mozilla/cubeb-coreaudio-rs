@@ -3,6 +3,7 @@ use super::utils::{
     test_get_drift_compensations, test_get_master_device, DeviceFilter, Scope,
 };
 use super::*;
+use std::iter::zip;
 use std::panic;
 
 // AggregateDevice::set_sub_devices
@@ -278,9 +279,11 @@ fn test_aggregate_set_master_device() {
     .is_ok());
     assert!(run_serially(|| AggregateDevice::set_master_device(device, output_device)).is_ok());
 
-    // Check if master is set to the first sub device of the default output device.
-    let first_output_sub_device_uid =
-        run_serially(|| get_device_uid(AggregateDevice::get_sub_devices(device).unwrap()[0]));
+    let output_sub_devices =
+        run_serially(|| AggregateDevice::get_sub_devices(output_device)).unwrap();
+    let first_output_sub_device_uid = run_serially(|| get_device_uid(output_sub_devices[0]));
+
+    // Check that the first sub device of the output device is set as master device.
     let master_device_uid = run_serially(|| test_get_master_device(device));
     assert_eq!(first_output_sub_device_uid, master_device_uid);
 
@@ -344,11 +347,20 @@ fn test_aggregate_activate_clock_drift_compensation() {
     // Check the compensations.
     let devices = run_serially(|| test_get_all_onwed_devices(device));
     let compensations = run_serially(|| get_drift_compensations(&devices));
+    let master_device_uid = run_serially(|| test_get_master_device(device));
     assert!(!compensations.is_empty());
     assert_eq!(devices.len(), compensations.len());
 
-    for (i, compensation) in compensations.iter().enumerate() {
-        assert_eq!(*compensation, if i == 0 { 0 } else { DRIFT_COMPENSATION });
+    for (device, compensation) in zip(devices, compensations) {
+        let uid = get_device_uid(device);
+        assert_eq!(
+            compensation,
+            if uid == master_device_uid {
+                0
+            } else {
+                DRIFT_COMPENSATION
+            }
+        );
     }
 
     assert!(run_serially(|| AggregateDevice::destroy_device(plugin, device)).is_ok());
@@ -376,15 +388,16 @@ fn test_aggregate_activate_clock_drift_compensation_for_an_aggregate_device_with
     ))
     .is_ok());
 
-    // TODO: Is the master device the first output sub device by default if we
-    //       don't set that ? Is it because we add the output sub device list
-    //       before the input's one ? (See implementation of
-    //       AggregateDevice::set_sub_devices).
-    let first_output_sub_device_uid = run_serially(|| {
-        get_device_uid(AggregateDevice::get_sub_devices(output_device).unwrap()[0])
-    });
+    // The master device is by default the first sub device in the list.
+    // This happens to be the first sub device of the input device, see implementation of
+    // AggregateDevice::set_sub_devices.
+    let first_input_sub_device_uid =
+        run_serially(|| get_device_uid(AggregateDevice::get_sub_devices(input_device).unwrap()[0]));
+    let first_sub_device_uid =
+        run_serially(|| get_device_uid(AggregateDevice::get_sub_devices(device).unwrap()[0]));
+    assert_eq!(first_input_sub_device_uid, first_sub_device_uid);
     let master_device_uid = run_serially(|| test_get_master_device(device));
-    assert_eq!(first_output_sub_device_uid, master_device_uid);
+    assert_eq!(first_sub_device_uid, master_device_uid);
 
     // Compensate the drift directly without setting master device.
     assert!(run_serially(|| AggregateDevice::activate_clock_drift_compensation(device)).is_ok());
@@ -441,5 +454,50 @@ fn test_aggregate_destroy_aggregate_device_for_a_unknown_plugin_device() {
         let plugin = AggregateDevice::get_system_plugin_id().unwrap();
         let device = AggregateDevice::create_blank_device_sync(plugin).unwrap();
         assert!(AggregateDevice::destroy_device(kAudioObjectUnknown, device).is_err());
+    });
+}
+
+// AggregateDevice::new
+// ------------------------------------
+#[test]
+fn test_aggregate_new() {
+    let input_device = test_get_default_device(Scope::Input);
+    let output_device = test_get_default_device(Scope::Output);
+    if input_device.is_none() || output_device.is_none() || input_device == output_device {
+        println!("No input or output device to create an aggregate device.");
+        return;
+    }
+
+    run_serially_forward_panics(|| {
+        let input_device = input_device.unwrap();
+        let output_device = output_device.unwrap();
+
+        let aggr = AggregateDevice::new(input_device, output_device).unwrap();
+
+        // Check main device
+        let output_sub_devices = AggregateDevice::get_sub_devices(output_device).unwrap();
+        let first_output_sub_device_uid = get_device_uid(output_sub_devices[0]);
+        let master_device_uid = test_get_master_device(aggr.get_device_id());
+        assert_eq!(first_output_sub_device_uid, master_device_uid);
+
+        // Check drift compensation
+        let devices = test_get_all_onwed_devices(aggr.get_device_id());
+        let compensations = get_drift_compensations(&devices);
+        assert!(!compensations.is_empty());
+        assert_eq!(devices.len(), compensations.len());
+
+        let device_uids = devices.iter().map(|&id| get_device_uid(id));
+        for (uid, compensation) in zip(device_uids, compensations) {
+            assert_eq!(
+                compensation,
+                if uid == master_device_uid {
+                    0
+                } else {
+                    DRIFT_COMPENSATION
+                },
+                "Unexpected drift value for device with uid {}",
+                uid
+            );
+        }
     });
 }

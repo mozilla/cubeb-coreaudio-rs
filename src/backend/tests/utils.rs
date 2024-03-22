@@ -528,7 +528,7 @@ pub fn test_get_master_device(id: AudioObjectID) -> String {
     debug_assert_running_serially();
 
     let address = AudioObjectPropertyAddress {
-        mSelector: kAudioAggregateDevicePropertyMasterSubDevice,
+        mSelector: kAudioAggregateDevicePropertyMainSubDevice,
         mScope: kAudioObjectPropertyScopeGlobal,
         mElement: kAudioObjectPropertyElementMaster,
     };
