@@ -1165,28 +1165,27 @@ fn create_audiounit(device: &device_info) -> Result<AudioUnit> {
     Ok(unit)
 }
 
-fn create_voiceprocessing_audiounit(
-    shared_voice_processing_unit: &mut SharedVoiceProcessingUnit,
+fn get_voiceprocessing_audiounit(
+    shared_voice_processing_unit: &mut SharedVoiceProcessingUnitManager,
     in_device: &device_info,
     out_device: &device_info,
-) -> Result<OwningHandle<AudioUnit>> {
+) -> Result<OwningHandle<VoiceProcessingUnit>> {
     debug_assert_running_serially();
     assert!(in_device.flags.contains(device_flags::DEV_INPUT));
     assert!(!in_device.flags.contains(device_flags::DEV_OUTPUT));
     assert!(!out_device.flags.contains(device_flags::DEV_INPUT));
-    assert!(out_device.flags.contains(device_flags::DEV_OUTPUT));
 
-    let unit_handle = shared_voice_processing_unit.take();
+    let unit_handle = shared_voice_processing_unit.take_or_create();
     if let Err(e) = unit_handle {
         cubeb_log!(
-            "Failed to take shared voiceprocessing audiounit. Error: {}",
+            "Failed to create shared voiceprocessing audiounit. Error: {}",
             e
         );
         return Err(Error::error());
     }
     let mut unit_handle = unit_handle.unwrap();
 
-    if let Err(e) = set_device_to_audiounit(*unit_handle.as_mut(), in_device.id, AU_IN_BUS) {
+    if let Err(e) = set_device_to_audiounit(unit_handle.as_mut().unit, in_device.id, AU_IN_BUS) {
         cubeb_log!(
             "Failed to set in device {} to the created audiounit. Error: {}",
             in_device.id,
@@ -1195,13 +1194,24 @@ fn create_voiceprocessing_audiounit(
         return Err(Error::error());
     }
 
-    if let Err(e) = set_device_to_audiounit(*unit_handle.as_mut(), out_device.id, AU_OUT_BUS) {
-        cubeb_log!(
-            "Failed to set out device {} to the created audiounit. Error: {}",
-            out_device.id,
-            e
-        );
+    let has_output = out_device.id != kAudioObjectUnknown;
+    if let Err(e) =
+        enable_audiounit_scope(unit_handle.as_mut().unit, DeviceType::OUTPUT, has_output)
+    {
+        cubeb_log!("Failed to enable audiounit input scope. Error: {}", e);
         return Err(Error::error());
+    }
+    if has_output {
+        if let Err(e) =
+            set_device_to_audiounit(unit_handle.as_mut().unit, out_device.id, AU_OUT_BUS)
+        {
+            cubeb_log!(
+                "Failed to set out device {} to the created audiounit. Error: {}",
+                out_device.id,
+                e
+            );
+            return Err(Error::error());
+        }
     }
 
     Ok(unit_handle)
@@ -1290,6 +1300,31 @@ fn create_blank_audiounit() -> Result<AudioUnit> {
     return create_typed_audiounit(kAudioUnitSubType_HALOutput);
     #[cfg(target_os = "ios")]
     return create_typed_audiounit(kAudioUnitSubType_RemoteIO);
+}
+
+fn create_voiceprocessing_audiounit() -> Result<AudioUnit> {
+    let unit = create_typed_audiounit(kAudioUnitSubType_VoiceProcessingIO);
+    if unit.is_err() {
+        return Err(Error::error());
+    }
+
+    match get_default_device(DeviceType::OUTPUT) {
+        None => {
+            cubeb_log!("Could not get default output device in order to undo vpio ducking");
+        }
+        Some(id) => {
+            let r = audio_device_duck(id, 1.0, ptr::null_mut(), 0.5);
+            if r != NO_ERR {
+                cubeb_log!(
+                        "Failed to undo ducking of voiceprocessing on output device {}. Proceeding... Error: {}",
+                        id,
+                        r
+                    );
+            }
+        }
+    };
+
+    unit
 }
 
 fn get_buffer_size(unit: AudioUnit, devtype: DeviceType) -> std::result::Result<u32, OSStatus> {
@@ -2094,7 +2129,7 @@ impl LatencyController {
     }
 }
 
-type SharedStorage<T> = Mutex<Option<T>>;
+type SharedStorage<T> = Mutex<Vec<Option<T>>>;
 
 #[derive(Debug, Clone)]
 struct OwningHandle<T> {
@@ -2125,150 +2160,202 @@ impl<T> AsMut<T> for OwningHandle<T> {
 
 impl<T> Drop for OwningHandle<T> {
     fn drop(&mut self) {
-        if let Some(storage) = self.storage.upgrade() {
-            let mut storage = storage.lock().unwrap();
-            assert!(storage.replace(self.obj.take().unwrap()).is_none());
+        let storage = self.storage.upgrade();
+        assert!(
+            storage.is_some(),
+            "Storage must outlive the handle, but didn't"
+        );
+        let storage = storage.unwrap();
+        let mut vec_guard = storage.lock().unwrap();
+        let recyclable_elem = vec_guard.iter().enumerate().find(|(_, o)| o.is_none());
+        if recyclable_elem.is_none() {
+            cubeb_log!("Shared storage is full. Dropping element directly.");
             return;
         }
-        unreachable!("Storage must outlive the handle, but didn't");
+        let (idx, _) = recyclable_elem.unwrap();
+        cubeb_log!("Recycling element #{}", idx);
+        assert!(vec_guard[idx].replace(self.obj.take().unwrap()).is_none());
     }
-}
-
-#[derive(Debug, Default)]
-struct SharedVoiceProcessingUnitStorage {
-    storage: Option<Arc<SharedStorage<AudioUnit>>>,
-    priming: bool,
 }
 
 #[derive(Debug)]
-struct SharedVoiceProcessingUnit {
-    sync_storage: Mutex<SharedVoiceProcessingUnitStorage>,
-    queue: Queue,
+struct VoiceProcessingUnit {
+    unit: AudioUnit,
 }
 
-impl SharedVoiceProcessingUnit {
-    fn new(queue: Queue) -> Self {
+impl Drop for VoiceProcessingUnit {
+    fn drop(&mut self) {
+        assert!(!self.unit.is_null());
+        dispose_audio_unit(self.unit);
+    }
+}
+
+unsafe impl Send for VoiceProcessingUnit {}
+
+#[derive(Debug)]
+struct SharedVoiceProcessingUnitManager {
+    sync_storage: Mutex<Option<Arc<SharedStorage<VoiceProcessingUnit>>>>,
+    queue: Queue,
+    recycler_capacity: usize,
+}
+
+impl SharedVoiceProcessingUnitManager {
+    fn new(queue: Queue, recycler_capacity: usize) -> Self {
         Self {
-            sync_storage: Mutex::new(SharedVoiceProcessingUnitStorage::default()),
+            sync_storage: Mutex::new(None),
             queue,
+            recycler_capacity,
         }
     }
 
-    fn ensure_unit(&mut self) -> Result<()> {
-        debug_assert_running_serially();
+    fn ensure_storage(&mut self) {
         let mut guard = self.sync_storage.lock().unwrap();
-        if guard.storage.is_some() {
-            // No need to create vpio unit as one already exists.
-            return Err(Error::not_supported());
+        if guard.is_some() {
+            return;
         }
-        guard.priming = false;
-        let unit = create_typed_audiounit(kAudioUnitSubType_VoiceProcessingIO);
-        if unit.is_err() {
-            return Err(Error::error());
-        }
-
-        match get_default_device(DeviceType::OUTPUT) {
-            None => {
-                cubeb_log!("Could not get default output device in order to undo vpio ducking");
-            }
-            Some(id) => {
-                let r = audio_device_duck(id, 1.0, ptr::null_mut(), 0.5);
-                if r != NO_ERR {
-                    cubeb_log!(
-                            "Failed to undo ducking of voiceprocessing on output device {}. Proceeding... Error: {}",
-                            id,
-                            r
-                        );
-                }
-            }
-        };
-
-        let old_storage = guard.storage.replace(Arc::from(Mutex::new(unit.ok())));
+        let storage = Vec::<Option<VoiceProcessingUnit>>::with_capacity(self.recycler_capacity);
+        let old_storage = guard.replace(Arc::from(Mutex::new(storage)));
         assert!(old_storage.is_none());
-        Ok(())
     }
 
     fn prime(&mut self) {
+        self.ensure_storage();
+        let can_create_unit = |vec: &mut Vec<Option<_>>, max_units: usize| {
+            vec.len() < max_units && vec.iter().all(|o| o.is_none())
+        };
+        let mut arc_storage: Option<Arc<SharedStorage<VoiceProcessingUnit>>> = None;
+        let mut available_idx: usize = 0;
         {
             let mut guard = self.sync_storage.lock().unwrap();
-            if guard.storage.is_some() {
-                // No need to prime as unit already exists.
+            let storage = guard.as_mut().unwrap();
+            let mut vec_guard = storage.lock().unwrap();
+            if !can_create_unit(&mut vec_guard, self.recycler_capacity) {
                 return;
             }
-            if guard.priming {
-                // No need to prime async as another call is already doing it.
-                return;
-            }
-            cubeb_log!("Priming the shared voiceprocessing unit");
-            guard.priming = true;
+            available_idx = vec_guard.len();
+            cubeb_log!("Priming shared voiceprocessing unit #{}", available_idx);
+            arc_storage = Some(Arc::clone(storage));
         }
-        self.queue
-            .clone()
-            .run_async(move || match self.ensure_unit() {
-                Ok(()) => {
+        let arc_storage = arc_storage.unwrap();
+
+        self.queue.clone().run_async(move || {
+            let mut vec_guard = arc_storage.lock().unwrap();
+            if !can_create_unit(&mut vec_guard, available_idx + 1) {
+                cubeb_log!(
+                    "Couldn't prime shared voiceprocessing unit #{}. It's already present.",
+                    available_idx
+                );
+                return;
+            }
+            match create_voiceprocessing_audiounit() {
+                Ok(unit) => {
                     cubeb_log!("Shared voiceprocessing unit primed and ready");
+                    vec_guard.push(Some(VoiceProcessingUnit { unit }));
                 }
-                Err(e) => match e.code() {
-                    ErrorCode::Error => {
-                        cubeb_log!("Error creating shared voiceprocessing unit for priming");
-                    }
-                    ErrorCode::NotSupported => {
-                        cubeb_log!("Shared voiceprocessing unit was created before async priming");
-                    }
-                    _ => unreachable!("Unexpected error"),
-                },
-            });
+                Err(e) => {
+                    match e.code() {
+                        ErrorCode::Error => {
+                            cubeb_log!("Error creating shared voiceprocessing unit for priming");
+                        }
+                        ErrorCode::NotSupported => {
+                            cubeb_log!(
+                                "Shared voiceprocessing unit was created before async priming"
+                            );
+                        }
+                        _ => unreachable!("Unexpected error"),
+                    };
+                }
+            }
+        });
     }
 
-    fn take(&mut self) -> Result<OwningHandle<AudioUnit>> {
+    fn take(&mut self) -> Result<OwningHandle<VoiceProcessingUnit>> {
         debug_assert_running_serially();
-        if let Err(e) = self.ensure_unit() {
-            if e.code() == ErrorCode::Error {
+        self.ensure_storage();
+        let mut guard = self.sync_storage.lock().unwrap();
+        let storage = guard.as_mut().unwrap();
+        let mut vec_guard = storage.lock().unwrap();
+        if let Some((idx, _)) = vec_guard.iter().enumerate().find(|(_, u)| u.is_some()) {
+            cubeb_log!("Taking shared voiceprocessing unit #{}", vec_guard.len());
+            return Ok(OwningHandle::new(
+                Arc::downgrade(storage),
+                vec_guard[idx].take().unwrap(),
+            ));
+        }
+
+        if vec_guard.len() == self.recycler_capacity {
+            // Cannot create another unit as storage is full.
+            return Err(Error::device_unavailable());
+        }
+
+        match create_voiceprocessing_audiounit() {
+            Ok(unit) => {
+                cubeb_log!(
+                    "Taking shared voiceprocessing unit #{} that was just created",
+                    vec_guard.len()
+                );
+                vec_guard.push(None);
+                Ok(OwningHandle::new(
+                    Arc::downgrade(storage),
+                    VoiceProcessingUnit { unit },
+                ))
+            }
+            Err(_) => Err(Error::error()),
+        }
+    }
+
+    fn take_or_create(&mut self) -> Result<OwningHandle<VoiceProcessingUnit>> {
+        debug_assert_running_serially();
+        self.take().or_else(|e| {
+            if e.code() == ErrorCode::DeviceUnavailable {
+                cubeb_log!(
+                    "Failed to take shared voiceprocessing audiounit. Creating a standalone one. Error: {}",
+                    e
+                );
+            } else {
+                cubeb_log!(
+                    "Failed to create shared voiceprocessing audiounit. Error: {}",
+                    e
+                );
                 return Err(e);
             }
+            let mut guard = self.sync_storage.lock().unwrap();
+            let storage = guard.as_mut().unwrap();
+            match create_voiceprocessing_audiounit() {
+                Ok(unit) => {
+                cubeb_log!("Created standalone shared voiceprocessing audiounit.");
+                Ok(OwningHandle::new(Arc::downgrade(storage), VoiceProcessingUnit { unit }))
+            }, Err(e) => {
+                    cubeb_log!("Failed to create standalone voiceprocessing audiounit. Error: {}", e);
+                    Err(e)
+            }
         }
-        let mut guard = self.sync_storage.lock().unwrap();
-        let storage: Arc<SharedStorage<AudioUnit>> = guard.storage.as_mut().unwrap().clone();
-        let mut guard = (*storage).lock().unwrap();
-        match guard.take() {
-            Some(unit) => Ok(OwningHandle::new(Arc::downgrade(&storage), unit)),
-            None => Err(Error::device_unavailable()),
-        }
+        })
     }
 }
 
-unsafe impl Send for SharedVoiceProcessingUnit {}
-unsafe impl Sync for SharedVoiceProcessingUnit {}
+unsafe impl Send for SharedVoiceProcessingUnitManager {}
+unsafe impl Sync for SharedVoiceProcessingUnitManager {}
 
-impl Drop for SharedVoiceProcessingUnit {
+impl Drop for SharedVoiceProcessingUnitManager {
     fn drop(&mut self) {
         debug_assert_not_running_serially();
         self.queue.run_final(|| {
             let mut guard = self.sync_storage.lock().unwrap();
-            assert!(!guard.priming);
-            if guard.storage.is_none() {
+            if guard.is_none() {
                 return;
             }
-            let last_ref_storage: Option<SharedStorage<AudioUnit>> =
-                Arc::into_inner(guard.storage.take().unwrap());
-            if last_ref_storage.is_none() {
-                // Don't assert here since the assert in OwningHandle's drop is more likely
-                // to be actionable.
-                return;
-            }
-            let last_ref_storage = last_ref_storage.unwrap();
-            let unit = last_ref_storage.lock().unwrap();
-            if unit.is_none() {
-                // Don't assert here since the assert in OwningHandle's drop is more likely
-                // to be actionable.
-                return;
-            }
-            let unit = unit.unwrap();
-            assert!(!unit.is_null());
-            dispose_audio_unit(unit);
+            let _last_ref_storage: Option<SharedStorage<VoiceProcessingUnit>> =
+                Arc::into_inner(guard.take().unwrap());
+            // Don't assert that all recyclable units have been returned here since the
+            // assert in OwningHandle's drop is more likely to be actionable.
         });
     }
 }
+
+// Allow recycling two VPIO units to support device switching scenarios,
+// i.e. one duplex VOICE stream and one input-only VOICE stream.
+const NUM_SHARED_VPIO_UNITS: usize = 2;
 
 pub const OPS: Ops = capi_new!(AudioUnitContext, AudioUnitStream);
 
@@ -2285,7 +2372,7 @@ pub struct AudioUnitContext {
     devices: Mutex<SharedDevices>,
     // Storage for a context-global vpio unit. Duplex streams that need one will take this
     // and return it when done.
-    shared_voice_processing_unit: SharedVoiceProcessingUnit,
+    shared_voice_processing_unit: SharedVoiceProcessingUnitManager,
 }
 
 impl AudioUnitContext {
@@ -2302,7 +2389,10 @@ impl AudioUnitContext {
             serial_queue,
             latency_controller: Mutex::new(LatencyController::default()),
             devices: Mutex::new(SharedDevices::default()),
-            shared_voice_processing_unit: SharedVoiceProcessingUnit::new(shared_vp_queue),
+            shared_voice_processing_unit: SharedVoiceProcessingUnitManager::new(
+                shared_vp_queue,
+                NUM_SHARED_VPIO_UNITS,
+            ),
         }
     }
 
@@ -2440,7 +2530,8 @@ impl ContextOps for AudioUnitContext {
             format!("{}.shared_vpio", queue_label).as_str(),
             &ctx.serial_queue,
         );
-        ctx.shared_voice_processing_unit = SharedVoiceProcessingUnit::new(shared_vp_queue);
+        ctx.shared_voice_processing_unit =
+            SharedVoiceProcessingUnitManager::new(shared_vp_queue, NUM_SHARED_VPIO_UNITS);
         Ok(unsafe { Context::from_ptr(Box::into_raw(ctx) as *mut _) })
     }
 
@@ -2798,7 +2889,7 @@ struct CoreStreamData<'ctx> {
     input_unit: AudioUnit,
     output_unit: AudioUnit,
     // Handle to shared voiceprocessing AudioUnit, if in use.
-    voiceprocessing_unit_handle: Option<OwningHandle<AudioUnit>>,
+    voiceprocessing_unit_handle: Option<OwningHandle<VoiceProcessingUnit>>,
     // Info of the I/O devices.
     input_device: device_info,
     output_device: device_info,
@@ -2983,6 +3074,22 @@ impl<'ctx> CoreStreamData<'ctx> {
         input_domain == output_domain
     }
 
+    #[allow(non_upper_case_globals)]
+    fn should_force_vpio_for_input_device(&self, in_device: &device_info) -> bool {
+        assert!(in_device.id != kAudioObjectUnknown);
+        self.debug_assert_is_on_stream_queue();
+        match get_device_transport_type(in_device.id, DeviceType::INPUT) {
+            Ok(kAudioDeviceTransportTypeBuiltIn) => {
+                cubeb_log!(
+                    "Forcing VPIO because input device is built in, and its volume \
+                     is known to be very low without VPIO whenever VPIO is hooked up to it elsewhere."
+                );
+                true
+            }
+            _ => false,
+        }
+    }
+
     fn should_block_vpio_for_device_pair(
         &self,
         in_device: &device_info,
@@ -2990,7 +3097,10 @@ impl<'ctx> CoreStreamData<'ctx> {
     ) -> bool {
         self.debug_assert_is_on_stream_queue();
         cubeb_log!("Evaluating device pair against VPIO block list");
-        let log_device = |id, devtype| -> std::result::Result<(), OSStatus> {
+        let log_device_and_get_model_uid = |id, devtype| -> String {
+            let device_model_uid = get_device_model_uid(id, devtype)
+                .map(|s| s.into_string())
+                .unwrap_or_default();
             cubeb_log!("{} uid=\"{}\", model_uid=\"{}\", transport_type={:?}, source={:?}, source_name=\"{}\", name=\"{}\", manufacturer=\"{}\"",
                 if devtype == DeviceType::INPUT {
                     "Input"
@@ -2999,37 +3109,49 @@ impl<'ctx> CoreStreamData<'ctx> {
                     "Output"
                 },
                 get_device_uid(id, devtype).map(|s| s.into_string()).unwrap_or_default(),
-                get_device_model_uid(id, devtype).map(|s| s.into_string()).unwrap_or_default(),
+                device_model_uid,
                 convert_uint32_into_string(get_device_transport_type(id, devtype).unwrap_or(0)),
                 convert_uint32_into_string(get_device_source(id, devtype).unwrap_or(0)),
                 get_device_source_name(id, devtype).map(|s| s.into_string()).unwrap_or_default(),
                 get_device_name(id, devtype).map(|s| s.into_string()).unwrap_or_default(),
                 get_device_manufacturer(id, devtype).map(|s| s.into_string()).unwrap_or_default());
-            Ok(())
+            device_model_uid
         };
-        log_device(in_device.id, DeviceType::INPUT);
-        log_device(out_device.id, DeviceType::OUTPUT);
-        match (
-            get_device_model_uid(in_device.id, DeviceType::INPUT).map(|s| s.to_string()),
-            get_device_model_uid(out_device.id, DeviceType::OUTPUT).map(|s| s.to_string()),
-        ) {
-            (Ok(in_model_uid), Ok(out_model_uid))
-                if in_model_uid.contains(APPLE_STUDIO_DISPLAY_USB_ID)
-                    && out_model_uid.contains(APPLE_STUDIO_DISPLAY_USB_ID) =>
-            {
-                cubeb_log!("Both input and output device is an Apple Studio Display. BLOCKED");
-                true
-            }
-            _ => {
-                cubeb_log!("Device pair is not blocked");
-                false
-            }
+
+        #[allow(non_upper_case_globals)]
+        let in_id = match in_device.id {
+            kAudioObjectUnknown => None,
+            id => Some(id),
+        };
+        #[allow(non_upper_case_globals)]
+        let out_id = match out_device.id {
+            kAudioObjectUnknown => None,
+            id => Some(id),
+        };
+
+        let (in_model_uid, out_model_uid) = (
+            in_id
+                .map(|id| log_device_and_get_model_uid(id, DeviceType::INPUT))
+                .unwrap_or_default(),
+            out_id
+                .map(|id| log_device_and_get_model_uid(id, DeviceType::OUTPUT))
+                .unwrap_or_default(),
+        );
+
+        if in_model_uid.contains(APPLE_STUDIO_DISPLAY_USB_ID)
+            && out_model_uid.contains(APPLE_STUDIO_DISPLAY_USB_ID)
+        {
+            cubeb_log!("Both input and output device is an Apple Studio Display. BLOCKED");
+            return true;
         }
+
+        cubeb_log!("Device pair is not blocked");
+        false
     }
 
     fn create_audiounits(
         &mut self,
-        shared_voice_processing_unit: &mut SharedVoiceProcessingUnit,
+        shared_voice_processing_unit: &mut SharedVoiceProcessingUnitManager,
     ) -> Result<(device_info, device_info)> {
         self.debug_assert_is_on_stream_queue();
         if self.has_input() && self.has_output() {
@@ -3037,11 +3159,11 @@ impl<'ctx> CoreStreamData<'ctx> {
         }
 
         let should_use_voice_processing_unit = self.has_input()
-            && self.has_output()
-            && self
+            && (self
                 .input_stream_params
                 .prefs()
                 .contains(StreamPrefs::VOICE)
+                || self.should_force_vpio_for_input_device(&self.input_device))
             && !self.should_block_vpio_for_device_pair(&self.input_device, &self.output_device);
 
         let should_use_aggregate_device = {
@@ -3089,22 +3211,20 @@ impl<'ctx> CoreStreamData<'ctx> {
         // - As last resort, create regular AudioUnits. This is also the normal non-duplex path.
 
         if should_use_voice_processing_unit {
-            if let Ok(mut au_handle) = create_voiceprocessing_audiounit(
+            if let Ok(mut au_handle) = get_voiceprocessing_audiounit(
                 shared_voice_processing_unit,
                 &self.input_device,
                 &self.output_device,
             ) {
-                cubeb_log!(
-                    "({:p}) Took shared VoiceProcessingIO AudioUnit",
-                    self.stm_ptr
-                );
-                self.input_unit = *au_handle.as_mut();
-                self.output_unit = *au_handle.as_mut();
+                self.input_unit = au_handle.as_mut().unit;
+                if self.has_output() {
+                    self.output_unit = au_handle.as_mut().unit;
+                }
                 self.voiceprocessing_unit_handle = Some(au_handle);
                 return Ok((self.input_device.clone(), self.output_device.clone()));
             }
             cubeb_log!(
-                "({:p}) Failed to take VoiceProcessingIO AudioUnit. Trying a regular one.",
+                "({:p}) Failed to get VoiceProcessingIO AudioUnit. Trying a regular one.",
                 self.stm_ptr
             );
         }
@@ -3208,7 +3328,7 @@ impl<'ctx> CoreStreamData<'ctx> {
     #[allow(clippy::cognitive_complexity)] // TODO: Refactoring.
     fn setup(
         &mut self,
-        shared_voice_processing_unit: &mut SharedVoiceProcessingUnit,
+        shared_voice_processing_unit: &mut SharedVoiceProcessingUnitManager,
     ) -> Result<()> {
         self.debug_assert_is_on_stream_queue();
         if self
@@ -3408,6 +3528,25 @@ impl<'ctx> CoreStreamData<'ctx> {
                 self.stm_ptr,
                 in_dev_info.id
             );
+        }
+
+        if self.has_input() && !self.has_output() && using_voice_processing_unit {
+            // We must configure the output side of VPIO to match the input side, even if we don't use it.
+            let r = audio_unit_set_property(
+                self.input_unit,
+                kAudioUnitProperty_StreamFormat,
+                kAudioUnitScope_Input,
+                AU_OUT_BUS,
+                &self.input_dev_desc,
+                mem::size_of::<AudioStreamBasicDescription>(),
+            );
+            if r != NO_ERR {
+                cubeb_log!(
+                    "AudioUnitSetProperty/output/kAudioUnitProperty_StreamFormat rv={}",
+                    r
+                );
+                return Err(Error::error());
+            }
         }
 
         if self.has_output() {
@@ -3718,15 +3857,31 @@ impl<'ctx> CoreStreamData<'ctx> {
             // NOTE: On MacOS 14 the ducking happens on creation of the VPIO AudioUnit.
             //       On MacOS 10.15 it happens on both creation and initialization, which
             //       is why we defer the unducking until now.
-            let r = audio_device_duck(self.output_device.id, 1.0, ptr::null_mut(), 0.5);
-            if r != NO_ERR {
-                cubeb_log!(
-                    "({:p}) Failed to undo ducking of voiceprocessing on output device {}. Proceeding... Error: {}",
-                    self.stm_ptr,
-                    self.output_device.id,
-                    r
-                );
-            }
+            #[allow(non_upper_case_globals)]
+            let mut device = match self.output_device.id {
+                kAudioObjectUnknown => None,
+                id => Some(id),
+            };
+            device = device.or_else(|| get_default_device(DeviceType::OUTPUT));
+            match device {
+                None => {
+                    cubeb_log!(
+                        "({:p}) No output device to undo vpio ducking on",
+                        self.stm_ptr
+                    );
+                }
+                Some(id) => {
+                    let r = audio_device_duck(id, 1.0, ptr::null_mut(), 0.5);
+                    if r != NO_ERR {
+                        cubeb_log!(
+                            "({:p}) Failed to undo ducking of voiceprocessing on output device {}. Proceeding... Error: {}",
+                            self.stm_ptr,
+                            id,
+                            r
+                        );
+                    }
+                }
+            };
 
             // Always try to remember the applied input mute state. If it cannot be applied
             // to the new device pair, we notify the client of an error and it will have to

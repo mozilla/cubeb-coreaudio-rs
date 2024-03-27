@@ -1748,7 +1748,7 @@ fn get_devices_changed_callback(
     }
 }
 
-// SharedVoiceProcessingUnit
+// SharedVoiceProcessingUnitManager
 // ------------------------------------
 #[test]
 fn test_shared_voice_processing_unit() {
@@ -1756,7 +1756,7 @@ fn test_shared_voice_processing_unit() {
         "test_shared_voice_processing_unit",
         get_serial_queue_singleton(),
     );
-    let mut shared = SharedVoiceProcessingUnit::new(queue.clone());
+    let mut shared = SharedVoiceProcessingUnitManager::new(queue.clone(), 1);
     let r1 = queue.run_sync(|| shared.take()).unwrap();
     assert!(r1.is_ok());
     {
@@ -1766,7 +1766,6 @@ fn test_shared_voice_processing_unit() {
     }
     let r3 = queue.run_sync(|| shared.take()).unwrap();
     assert!(r3.is_ok());
-    r3.unwrap();
 }
 
 #[test]
@@ -1775,7 +1774,7 @@ fn test_shared_voice_processing_unit_after_priming() {
         "test_shared_voice_processing_unit_after_priming",
         get_serial_queue_singleton(),
     );
-    let mut shared = SharedVoiceProcessingUnit::new(queue.clone());
+    let mut shared = SharedVoiceProcessingUnitManager::new(queue.clone(), 1);
     shared.prime();
     assert!(queue.run_sync(|| shared.take()).unwrap().is_ok());
 }
@@ -1787,8 +1786,29 @@ fn test_shared_voice_processing_unit_bad_release_order() {
         "test_shared_voice_processing_unit_bad_release_order",
         get_serial_queue_singleton(),
     );
-    let mut shared = SharedVoiceProcessingUnit::new(queue.clone());
+    let mut shared = SharedVoiceProcessingUnitManager::new(queue.clone(), 1);
     let r1 = queue.run_sync(|| shared.take()).unwrap();
     assert!(r1.is_ok());
     drop(shared);
+    run_serially_forward_panics(|| drop(r1));
+}
+
+#[test]
+fn test_shared_voice_processing_multiple_units() {
+    let queue = Queue::new_with_target(
+        "test_shared_voice_processing_multiple_units",
+        get_serial_queue_singleton(),
+    );
+    let mut shared = SharedVoiceProcessingUnitManager::new(queue.clone(), 2);
+    let r1 = queue.run_sync(|| shared.take()).unwrap();
+    assert!(r1.is_ok());
+    let r2 = queue.run_sync(|| shared.take()).unwrap();
+    assert!(r2.is_ok());
+    {
+        let _handle1 = r1.unwrap();
+        let r3 = queue.run_sync(|| shared.take()).unwrap();
+        assert!(r3.is_err());
+    }
+    let r1 = queue.run_sync(|| shared.take()).unwrap();
+    assert!(r1.is_ok());
 }

@@ -205,12 +205,16 @@ impl StreamsData {
 #[test]
 fn test_stream_tester() {
     test_ops_context_operation("context: stream tester", |context_ptr| {
+        let mut input_prefs = StreamPrefs::NONE;
+        let mut output_prefs = StreamPrefs::NONE;
         let mut streams = StreamsData::new();
         loop {
             println!(
                 "Current stream: {} (of {}). Commands:\n\
                  \t'q': quit\n\
                  \t'b': change current stream\n\
+                 \t'i': set input stream prefs to be used for creating streams\n\
+                 \t'o': set output stream prefs to be used for creating streams\n\
                  \t'c': create a stream\n\
                  Commands on the current stream:\n\
                  \t'd': destroy\n\
@@ -242,7 +246,9 @@ fn test_stream_tester() {
                     }
                     break;
                 }
-                "c" => create_stream(context_ptr, &mut streams),
+                "i" => set_prefs(&mut input_prefs),
+                "o" => set_prefs(&mut output_prefs),
+                "c" => create_stream(context_ptr, &mut streams, input_prefs, output_prefs),
                 _ if streams.current_idx.is_none() => {
                     println!("There are no streams! Create a stream first.")
                 }
@@ -261,6 +267,34 @@ fn test_stream_tester() {
             }
         }
     });
+
+    fn set_prefs(prefs: &mut StreamPrefs) {
+        let mut done = false;
+        while !done {
+            println!(
+                "Current prefs: {:?}\nSelect action:\n\
+                 \t1) Set None\n\
+                 \t2) Toggle Loopback\n\
+                 \t3) Toggle Disable Device Switching\n\
+                 \t4) Toggle Voice\n\
+                 \t5) Set All\n\
+                 \t0) Done",
+                prefs
+            );
+            let mut input = String::new();
+            let _ = io::stdin().read_line(&mut input);
+            assert_eq!(input.pop().unwrap(), '\n');
+            match input.as_str() {
+                "1" => *prefs = StreamPrefs::NONE,
+                "2" => prefs.toggle(StreamPrefs::LOOPBACK),
+                "3" => prefs.toggle(StreamPrefs::DISABLE_DEVICE_SWITCHING),
+                "4" => prefs.toggle(StreamPrefs::VOICE),
+                "5" => *prefs = StreamPrefs::all(),
+                "0" => done = true,
+                _ => println!("Invalid action. Select again.\n"),
+            }
+        }
+    }
 
     fn select_stream(streams: &mut StreamsData) {
         let num_streams = streams.len();
@@ -524,7 +558,12 @@ fn test_stream_tester() {
         stream.stream_ptr = ptr::null_mut();
     }
 
-    fn create_stream(context_ptr: *mut ffi::cubeb, streams: &mut StreamsData) {
+    fn create_stream(
+        context_ptr: *mut ffi::cubeb,
+        streams: &mut StreamsData,
+        input_prefs: StreamPrefs,
+        output_prefs: StreamPrefs,
+    ) {
         if streams.len() == 0 || !streams.current().stream_ptr.is_null() {
             println!("Allocating stream {}.", streams.len() + 1);
             streams.push(StreamData::new());
@@ -601,8 +640,8 @@ fn test_stream_tester() {
             }
         };
 
-        let mut input_params = get_dummy_stream_params(Scope::Input);
-        let mut output_params = get_dummy_stream_params(Scope::Output);
+        let mut input_params = get_dummy_stream_params(Scope::Input, input_prefs);
+        let mut output_params = get_dummy_stream_params(Scope::Output, output_prefs);
 
         let (input_device, input_stream_params) = if stream_type.contains(StreamType::INPUT) {
             (
@@ -707,14 +746,14 @@ fn test_stream_tester() {
             nframes
         }
 
-        fn get_dummy_stream_params(scope: Scope) -> ffi::cubeb_stream_params {
+        fn get_dummy_stream_params(scope: Scope, prefs: StreamPrefs) -> ffi::cubeb_stream_params {
             // The stream format for input and output must be same.
             const STREAM_FORMAT: u32 = ffi::CUBEB_SAMPLE_FLOAT32NE;
 
             // Make sure the parameters meet the requirements of AudioUnitContext::stream_init
             // (in the comments).
             let mut stream_params = ffi::cubeb_stream_params::default();
-            stream_params.prefs = ffi::CUBEB_STREAM_PREF_VOICE;
+            stream_params.prefs = prefs.bits();
             let (format, rate, channels, layout) = match scope {
                 Scope::Input => (STREAM_FORMAT, 48000, 1, ffi::CUBEB_LAYOUT_MONO),
                 Scope::Output => (STREAM_FORMAT, 44100, 2, ffi::CUBEB_LAYOUT_STEREO),
