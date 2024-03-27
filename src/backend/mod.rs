@@ -1174,7 +1174,6 @@ fn get_voiceprocessing_audiounit(
     assert!(in_device.flags.contains(device_flags::DEV_INPUT));
     assert!(!in_device.flags.contains(device_flags::DEV_OUTPUT));
     assert!(!out_device.flags.contains(device_flags::DEV_INPUT));
-    assert!(out_device.flags.contains(device_flags::DEV_OUTPUT));
 
     let unit_handle = shared_voice_processing_unit.take_or_create();
     if let Err(e) = unit_handle {
@@ -1195,13 +1194,24 @@ fn get_voiceprocessing_audiounit(
         return Err(Error::error());
     }
 
-    if let Err(e) = set_device_to_audiounit(unit_handle.as_mut().unit, out_device.id, AU_OUT_BUS) {
-        cubeb_log!(
-            "Failed to set out device {} to the created audiounit. Error: {}",
-            out_device.id,
-            e
-        );
+    let has_output = out_device.id != kAudioObjectUnknown;
+    if let Err(e) =
+        enable_audiounit_scope(unit_handle.as_mut().unit, DeviceType::OUTPUT, has_output)
+    {
+        cubeb_log!("Failed to enable audiounit input scope. Error: {}", e);
         return Err(Error::error());
+    }
+    if has_output {
+        if let Err(e) =
+            set_device_to_audiounit(unit_handle.as_mut().unit, out_device.id, AU_OUT_BUS)
+        {
+            cubeb_log!(
+                "Failed to set out device {} to the created audiounit. Error: {}",
+                out_device.id,
+                e
+            );
+            return Err(Error::error());
+        }
     }
 
     Ok(unit_handle)
@@ -3071,7 +3081,10 @@ impl<'ctx> CoreStreamData<'ctx> {
     ) -> bool {
         self.debug_assert_is_on_stream_queue();
         cubeb_log!("Evaluating device pair against VPIO block list");
-        let log_device = |id, devtype| -> std::result::Result<(), OSStatus> {
+        let log_device_and_get_model_uid = |id, devtype| -> String {
+            let device_model_uid = get_device_model_uid(id, devtype)
+                .map(|s| s.into_string())
+                .unwrap_or_default();
             cubeb_log!("{} uid=\"{}\", model_uid=\"{}\", transport_type={:?}, source={:?}, source_name=\"{}\", name=\"{}\", manufacturer=\"{}\"",
                 if devtype == DeviceType::INPUT {
                     "Input"
@@ -3080,32 +3093,44 @@ impl<'ctx> CoreStreamData<'ctx> {
                     "Output"
                 },
                 get_device_uid(id, devtype).map(|s| s.into_string()).unwrap_or_default(),
-                get_device_model_uid(id, devtype).map(|s| s.into_string()).unwrap_or_default(),
+                device_model_uid,
                 convert_uint32_into_string(get_device_transport_type(id, devtype).unwrap_or(0)),
                 convert_uint32_into_string(get_device_source(id, devtype).unwrap_or(0)),
                 get_device_source_name(id, devtype).map(|s| s.into_string()).unwrap_or_default(),
                 get_device_name(id, devtype).map(|s| s.into_string()).unwrap_or_default(),
                 get_device_manufacturer(id, devtype).map(|s| s.into_string()).unwrap_or_default());
-            Ok(())
+            device_model_uid
         };
-        log_device(in_device.id, DeviceType::INPUT);
-        log_device(out_device.id, DeviceType::OUTPUT);
-        match (
-            get_device_model_uid(in_device.id, DeviceType::INPUT).map(|s| s.to_string()),
-            get_device_model_uid(out_device.id, DeviceType::OUTPUT).map(|s| s.to_string()),
-        ) {
-            (Ok(in_model_uid), Ok(out_model_uid))
-                if in_model_uid.contains(APPLE_STUDIO_DISPLAY_USB_ID)
-                    && out_model_uid.contains(APPLE_STUDIO_DISPLAY_USB_ID) =>
-            {
-                cubeb_log!("Both input and output device is an Apple Studio Display. BLOCKED");
-                true
-            }
-            _ => {
-                cubeb_log!("Device pair is not blocked");
-                false
-            }
+
+        #[allow(non_upper_case_globals)]
+        let in_id = match in_device.id {
+            kAudioObjectUnknown => None,
+            id => Some(id),
+        };
+        #[allow(non_upper_case_globals)]
+        let out_id = match out_device.id {
+            kAudioObjectUnknown => None,
+            id => Some(id),
+        };
+
+        let (in_model_uid, out_model_uid) = (
+            in_id
+                .map(|id| log_device_and_get_model_uid(id, DeviceType::INPUT))
+                .unwrap_or_default(),
+            out_id
+                .map(|id| log_device_and_get_model_uid(id, DeviceType::OUTPUT))
+                .unwrap_or_default(),
+        );
+
+        if in_model_uid.contains(APPLE_STUDIO_DISPLAY_USB_ID)
+            && out_model_uid.contains(APPLE_STUDIO_DISPLAY_USB_ID)
+        {
+            cubeb_log!("Both input and output device is an Apple Studio Display. BLOCKED");
+            return true;
         }
+
+        cubeb_log!("Device pair is not blocked");
+        false
     }
 
     fn create_audiounits(
@@ -3118,7 +3143,6 @@ impl<'ctx> CoreStreamData<'ctx> {
         }
 
         let should_use_voice_processing_unit = self.has_input()
-            && self.has_output()
             && self
                 .input_stream_params
                 .prefs()
@@ -3176,7 +3200,9 @@ impl<'ctx> CoreStreamData<'ctx> {
                 &self.output_device,
             ) {
                 self.input_unit = au_handle.as_mut().unit;
-                self.output_unit = au_handle.as_mut().unit;
+                if self.has_output() {
+                    self.output_unit = au_handle.as_mut().unit;
+                }
                 self.voiceprocessing_unit_handle = Some(au_handle);
                 return Ok((self.input_device.clone(), self.output_device.clone()));
             }
@@ -3487,6 +3513,25 @@ impl<'ctx> CoreStreamData<'ctx> {
             );
         }
 
+        if self.has_input() && !self.has_output() && using_voice_processing_unit {
+            // We must configure the output side of VPIO to match the input side, even if we don't use it.
+            let r = audio_unit_set_property(
+                self.input_unit,
+                kAudioUnitProperty_StreamFormat,
+                kAudioUnitScope_Input,
+                AU_OUT_BUS,
+                &self.input_dev_desc,
+                mem::size_of::<AudioStreamBasicDescription>(),
+            );
+            if r != NO_ERR {
+                cubeb_log!(
+                    "AudioUnitSetProperty/output/kAudioUnitProperty_StreamFormat rv={}",
+                    r
+                );
+                return Err(Error::error());
+            }
+        }
+
         if self.has_output() {
             assert!(!self.output_unit.is_null());
 
@@ -3795,15 +3840,31 @@ impl<'ctx> CoreStreamData<'ctx> {
             // NOTE: On MacOS 14 the ducking happens on creation of the VPIO AudioUnit.
             //       On MacOS 10.15 it happens on both creation and initialization, which
             //       is why we defer the unducking until now.
-            let r = audio_device_duck(self.output_device.id, 1.0, ptr::null_mut(), 0.5);
-            if r != NO_ERR {
-                cubeb_log!(
-                    "({:p}) Failed to undo ducking of voiceprocessing on output device {}. Proceeding... Error: {}",
-                    self.stm_ptr,
-                    self.output_device.id,
-                    r
-                );
-            }
+            #[allow(non_upper_case_globals)]
+            let mut device = match self.output_device.id {
+                kAudioObjectUnknown => None,
+                id => Some(id),
+            };
+            device = device.or_else(|| get_default_device(DeviceType::OUTPUT));
+            match device {
+                None => {
+                    cubeb_log!(
+                        "({:p}) No output device to undo vpio ducking on",
+                        self.stm_ptr
+                    );
+                }
+                Some(id) => {
+                    let r = audio_device_duck(id, 1.0, ptr::null_mut(), 0.5);
+                    if r != NO_ERR {
+                        cubeb_log!(
+                            "({:p}) Failed to undo ducking of voiceprocessing on output device {}. Proceeding... Error: {}",
+                            self.stm_ptr,
+                            id,
+                            r
+                        );
+                    }
+                }
+            };
 
             // Always try to remember the applied input mute state. If it cannot be applied
             // to the new device pair, we notify the client of an error and it will have to
