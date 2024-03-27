@@ -882,6 +882,84 @@ where
     );
 }
 
+fn test_default_input_voice_stream_operation_on_context_with_callback<F>(
+    name: &'static str,
+    context_ptr: *mut ffi::cubeb,
+    data_callback: ffi::cubeb_data_callback,
+    operation: F,
+) where
+    F: FnOnce(*mut ffi::cubeb_stream),
+{
+    // Make sure the parameters meet the requirements of AudioUnitContext::stream_init
+    // (in the comments).
+    let mut input_params = ffi::cubeb_stream_params::default();
+    input_params.format = ffi::CUBEB_SAMPLE_FLOAT32NE;
+    input_params.rate = 44100;
+    input_params.channels = 1;
+    input_params.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
+    input_params.prefs = ffi::CUBEB_STREAM_PREF_VOICE;
+
+    test_ops_stream_operation_on_context(
+        name,
+        context_ptr,
+        ptr::null_mut(), // Use default input device.
+        &mut input_params,
+        ptr::null_mut(), // Use default output device.
+        ptr::null_mut(), // No output parameters.
+        4096,            // TODO: Get latency by get_min_latency instead ?
+        data_callback,
+        None,            // No state callback.
+        ptr::null_mut(), // No user data pointer.
+        operation,
+    );
+}
+
+fn test_default_input_voice_stream_operation_on_context<F>(
+    name: &'static str,
+    context_ptr: *mut ffi::cubeb,
+    operation: F,
+) where
+    F: FnOnce(*mut ffi::cubeb_stream),
+{
+    test_default_input_voice_stream_operation_on_context_with_callback(
+        name,
+        context_ptr,
+        Some(noop_data_callback),
+        operation,
+    );
+}
+
+fn test_default_input_voice_stream_operation_with_callback<F>(
+    name: &'static str,
+    data_callback: ffi::cubeb_data_callback,
+    operation: F,
+) where
+    F: FnOnce(*mut ffi::cubeb_stream),
+{
+    test_ops_context_operation(
+        "context: default input voice stream operation",
+        |context_ptr| {
+            test_default_input_voice_stream_operation_on_context_with_callback(
+                name,
+                context_ptr,
+                data_callback,
+                operation,
+            );
+        },
+    );
+}
+
+fn test_default_input_voice_stream_operation<F>(name: &'static str, operation: F)
+where
+    F: FnOnce(*mut ffi::cubeb_stream),
+{
+    test_default_input_voice_stream_operation_with_callback(
+        name,
+        Some(noop_data_callback),
+        operation,
+    );
+}
+
 fn test_default_duplex_voice_stream_operation_on_context_with_callback<F>(
     name: &'static str,
     context_ptr: *mut ffi::cubeb,
@@ -1168,6 +1246,32 @@ fn test_ops_stereo_input_duplex_stream_drain() {
 }
 
 #[test]
+fn test_ops_input_voice_stream_init_and_destroy() {
+    test_default_input_voice_stream_operation("input voice stream: init and destroy", |stream| {
+        let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+        assert!(stm.core_stream_data.using_voice_processing_unit());
+    });
+}
+
+#[test]
+fn test_ops_input_voice_stream_start() {
+    test_default_input_voice_stream_operation("input voice stream: start", |stream| {
+        assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
+        let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+        assert!(stm.core_stream_data.using_voice_processing_unit());
+    });
+}
+
+#[test]
+fn test_ops_input_voice_stream_stop() {
+    test_default_input_voice_stream_operation("input voice stream: stop", |stream| {
+        assert_eq!(unsafe { OPS.stream_stop.unwrap()(stream) }, ffi::CUBEB_OK);
+        let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+        assert!(stm.core_stream_data.using_voice_processing_unit());
+    });
+}
+
+#[test]
 fn test_ops_duplex_voice_stream_init_and_destroy() {
     test_default_duplex_voice_stream_operation("duplex voice stream: init and destroy", |stream| {
         let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
@@ -1285,7 +1389,7 @@ fn test_ops_duplex_voice_stream_while_priming() {
 
 #[test]
 #[ignore]
-fn test_ops_timing_sensitive_multiple_duplex_voice_stream_init_and_destroy() {
+fn test_ops_timing_sensitive_multiple_voice_stream_init_and_destroy() {
     let start = Instant::now();
     let mut t1 = start;
     let mut t2 = start;
@@ -1297,15 +1401,15 @@ fn test_ops_timing_sensitive_multiple_duplex_voice_stream_init_and_destroy() {
     test_ops_context_operation("multiple duplex voice streams", |context_ptr| {
         // First stream uses vpio, creates the shared vpio unit.
         test_default_duplex_voice_stream_operation_on_context(
-            "multiple duplex voice streams: stream 1",
+            "multiple voice streams: stream 1, duplex",
             context_ptr,
             |stream| {
                 let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
                 assert!(stm.core_stream_data.using_voice_processing_unit());
 
                 // Two concurrent vpio streams are supported.
-                test_default_duplex_voice_stream_operation_on_context(
-                    "multiple duplex voice streams: stream 2",
+                test_default_input_voice_stream_operation_on_context(
+                    "multiple voice streams: stream 2, input-only",
                     context_ptr,
                     |stream| {
                         let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
@@ -1313,7 +1417,7 @@ fn test_ops_timing_sensitive_multiple_duplex_voice_stream_init_and_destroy() {
 
                         // Three concurrent vpio streams are supported but only two use recycling.
                         test_default_duplex_voice_stream_operation_on_context(
-                            "multiple duplex voice streams: stream 3",
+                            "multiple voice streams: stream 3, duplex",
                             context_ptr,
                             |stream| {
                                 let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
@@ -1327,7 +1431,7 @@ fn test_ops_timing_sensitive_multiple_duplex_voice_stream_init_and_destroy() {
         t1 = Instant::now();
         // Fourth stream uses vpio, allows reuse of one already created.
         test_default_duplex_voice_stream_operation_on_context(
-            "multiple duplex voice streams: stream 3",
+            "multiple voice streams: stream 3, duplex",
             context_ptr,
             |stream| {
                 let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
@@ -1336,7 +1440,7 @@ fn test_ops_timing_sensitive_multiple_duplex_voice_stream_init_and_destroy() {
 
                 // Fifth stream uses vpio, allows reuse of one already created.
                 test_default_duplex_voice_stream_operation_on_context(
-                    "multiple duplex voice streams: stream 2",
+                    "multiple voice streams: stream 2, duplex",
                     context_ptr,
                     |stream| {
                         let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
@@ -1344,8 +1448,8 @@ fn test_ops_timing_sensitive_multiple_duplex_voice_stream_init_and_destroy() {
                         t3 = Instant::now();
 
                         // Sixth stream uses vpio, but is created anew.
-                        test_default_duplex_voice_stream_operation_on_context(
-                            "multiple duplex voice streams: stream 3",
+                        test_default_input_voice_stream_operation_on_context(
+                            "multiple voice streams: stream 3, input-only",
                             context_ptr,
                             |stream| {
                                 let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
