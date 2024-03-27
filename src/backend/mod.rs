@@ -3074,6 +3074,22 @@ impl<'ctx> CoreStreamData<'ctx> {
         input_domain == output_domain
     }
 
+    #[allow(non_upper_case_globals)]
+    fn should_force_vpio_for_input_device(&self, in_device: &device_info) -> bool {
+        assert!(in_device.id != kAudioObjectUnknown);
+        self.debug_assert_is_on_stream_queue();
+        match get_device_transport_type(in_device.id, DeviceType::INPUT) {
+            Ok(kAudioDeviceTransportTypeBuiltIn) => {
+                cubeb_log!(
+                    "Forcing VPIO because input device is built in, and its volume \
+                     is known to be very low without VPIO whenever VPIO is hooked up to it elsewhere."
+                );
+                true
+            }
+            _ => false,
+        }
+    }
+
     fn should_block_vpio_for_device_pair(
         &self,
         in_device: &device_info,
@@ -3143,10 +3159,11 @@ impl<'ctx> CoreStreamData<'ctx> {
         }
 
         let should_use_voice_processing_unit = self.has_input()
-            && self
+            && (self
                 .input_stream_params
                 .prefs()
                 .contains(StreamPrefs::VOICE)
+                || self.should_force_vpio_for_input_device(&self.input_device))
             && !self.should_block_vpio_for_device_pair(&self.input_device, &self.output_device);
 
         let should_use_aggregate_device = {
