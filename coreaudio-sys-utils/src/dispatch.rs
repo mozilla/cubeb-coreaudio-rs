@@ -7,6 +7,11 @@ use std::panic;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
+#[cfg(test)]
+use std::thread;
+#[cfg(test)]
+use std::time::Duration;
+use std::time::Instant;
 
 pub const DISPATCH_QUEUE_LABEL: &str = "org.mozilla.cubeb";
 
@@ -118,6 +123,29 @@ impl Queue {
         });
         unsafe {
             dispatch_async_f(*guard, closure, executor);
+        }
+    }
+
+    pub fn run_after<F>(&self, when: Instant, work: F)
+    where
+        F: Send + FnOnce(),
+    {
+        let now = Instant::now();
+        if when <= now {
+            return self.run_async(work);
+        }
+        let nanos = (when - now).as_nanos() as i64;
+        let when = unsafe { dispatch_time(DISPATCH_TIME_NOW.into(), nanos) };
+        let guard = self.queue.lock().unwrap();
+        let should_cancel = self.get_should_cancel(*guard);
+        let (closure, executor) = Self::create_closure_and_executor(|| {
+            if should_cancel.map_or(false, |v| v.load(Ordering::SeqCst)) {
+                return;
+            }
+            work();
+        });
+        unsafe {
+            dispatch_after_f(when, *guard, closure, executor);
         }
     }
 
@@ -337,4 +365,34 @@ fn sync_return_value() {
     assert_eq!(q.run_sync(|| 42), Some(42));
     assert_eq!(q.run_final(|| "foo"), Some("foo"));
     assert_eq!(q.run_sync(|| Ok::<(), u32>(())), None);
+}
+
+#[test]
+fn run_after() {
+    let mut visited = Vec::<u32>::new();
+
+    {
+        // Rust compilter doesn't allow a pointer to be passed across threads.
+        // A hacky way to do that is to cast the pointer into a value, then
+        // the value, which is actually an address, can be copied into threads.
+        let ptr = &mut visited as *mut Vec<u32> as usize;
+
+        fn visit(v: u32, visited_ptr: usize) {
+            let visited = unsafe { &mut *(visited_ptr as *mut Vec<u32>) };
+            visited.push(v);
+        }
+
+        let queue = Queue::new("Task after run_final will be cancelled");
+
+        queue.run_async(|| visit(1, ptr));
+        queue.run_after(Instant::now() + Duration::from_millis(10), || visit(2, ptr));
+        queue.run_after(Instant::now() + Duration::from_secs(1), || visit(3, ptr));
+        queue.run_async(|| visit(4, ptr));
+        thread::sleep(Duration::from_millis(100));
+        queue.run_final(|| visit(5, ptr));
+    }
+    // `queue` will be dropped asynchronously and then the `finalizer` of the `queue`
+    // should be fired to clean up the `context` set in the `queue`.
+
+    assert_eq!(visited, vec![1, 4, 2, 5]);
 }
