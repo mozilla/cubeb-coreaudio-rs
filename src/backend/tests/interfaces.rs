@@ -1306,6 +1306,9 @@ fn test_ops_timing_sensitive_multiple_voice_stream_init_and_destroy() {
     let mut t5 = start;
     let mut t6 = start;
     let mut t7 = start;
+    let mut t8 = start;
+    let mut t9 = start;
+    let mut t10 = start;
     test_ops_context_operation("multiple duplex voice streams", |context_ptr| {
         // First stream uses vpio, creates the shared vpio unit.
         test_default_duplex_voice_stream_operation_on_context(
@@ -1323,7 +1326,7 @@ fn test_ops_timing_sensitive_multiple_voice_stream_init_and_destroy() {
                         let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
                         assert!(stm.core_stream_data.using_voice_processing_unit());
 
-                        // Three concurrent vpio streams are supported but only two use recycling.
+                        // Three concurrent vpio streams are supported.
                         test_default_duplex_voice_stream_operation_on_context(
                             "multiple voice streams: stream 3, duplex",
                             context_ptr,
@@ -1339,7 +1342,7 @@ fn test_ops_timing_sensitive_multiple_voice_stream_init_and_destroy() {
         t1 = Instant::now();
         // Fourth stream uses vpio, allows reuse of one already created.
         test_default_duplex_voice_stream_operation_on_context(
-            "multiple voice streams: stream 3, duplex",
+            "multiple voice streams: stream 4, duplex",
             context_ptr,
             |stream| {
                 let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
@@ -1348,35 +1351,49 @@ fn test_ops_timing_sensitive_multiple_voice_stream_init_and_destroy() {
 
                 // Fifth stream uses vpio, allows reuse of one already created.
                 test_default_duplex_voice_stream_operation_on_context(
-                    "multiple voice streams: stream 2, duplex",
+                    "multiple voice streams: stream 5, duplex",
                     context_ptr,
                     |stream| {
                         let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
                         assert!(stm.core_stream_data.using_voice_processing_unit());
                         t3 = Instant::now();
 
-                        // Sixth stream uses vpio, but is created anew.
+                        // Sixth stream uses vpio, allows reuse of one already created.
                         test_default_input_voice_stream_operation_on_context(
-                            "multiple voice streams: stream 3, input-only",
+                            "multiple voice streams: stream 6, input-only",
                             context_ptr,
                             |stream| {
                                 let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
                                 assert!(stm.core_stream_data.using_voice_processing_unit());
                                 t4 = Instant::now();
+
+                                // Seventh stream uses vpio, but is created anew.
+                                test_default_input_voice_stream_operation_on_context(
+                                    "multiple voice streams: stream 7, input-only",
+                                    context_ptr,
+                                    |stream| {
+                                        let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+                                        assert!(stm.core_stream_data.using_voice_processing_unit());
+                                        t5 = Instant::now();
+                                    },
+                                );
+                                t6 = Instant::now();
                             },
                         );
-                        t5 = Instant::now();
+                        t7 = Instant::now();
                     },
                 );
-                t6 = Instant::now();
+                t8 = Instant::now();
             },
         );
+        t9 = Instant::now();
     });
-    t7 = Instant::now();
+    t10 = Instant::now();
 
     let reuse_vpio_1 = t2 - t1;
     let reuse_vpio_2 = t3 - t2;
-    let create_standalone_vpio = t4 - t3;
+    let reuse_vpio_3 = t4 - t3;
+    let create_standalone_vpio = t5 - t4;
     assert!(
         create_standalone_vpio > reuse_vpio_1 * 2,
         "Failed create_standalone_vpio={}s > reuse_vpio_1={}s * 2",
@@ -1389,21 +1406,41 @@ fn test_ops_timing_sensitive_multiple_voice_stream_init_and_destroy() {
         create_standalone_vpio.as_secs_f32(),
         reuse_vpio_2.as_secs_f32()
     );
-
-    let recycle_vpio_1 = t5 - t4;
-    let recycle_vpio_2 = t6 - t5;
-    let dispose_standalone_vpio = t7 - t6;
     assert!(
-        dispose_standalone_vpio > recycle_vpio_1 * 2,
-        "Failed dispose_standalone_vpio ={}s > recycle_vpio_1 ={}s * 2",
-        dispose_standalone_vpio.as_secs_f32(),
+        create_standalone_vpio > reuse_vpio_3 * 2,
+        "Failed create_standalone_vpio={}s > reuse_vpio_3={}s * 2",
+        create_standalone_vpio.as_secs_f32(),
+        reuse_vpio_3.as_secs_f32()
+    );
+
+    let recycle_vpio_1 = t6 - t5;
+    let recycle_vpio_2 = t7 - t6;
+    let recycle_vpio_3 = t8 - t7;
+    let recycle_vpio_4 = t9 - t8;
+    let dispose_vpios = t10 - t9;
+    assert!(
+        dispose_vpios > recycle_vpio_1 * 2,
+        "Failed dispose_vpios={}s > recycle_vpio_1 ={}s * 2",
+        dispose_vpios.as_secs_f32(),
         recycle_vpio_1.as_secs_f32()
     );
     assert!(
-        dispose_standalone_vpio > recycle_vpio_2 * 2,
-        "Failed dispose_standalone_vpio ={}s > recycle_vpio_2 ={}s * 2",
-        dispose_standalone_vpio.as_secs_f32(),
+        dispose_vpios > recycle_vpio_2 * 2,
+        "Failed dispose_vpios={}s > recycle_vpio_2 ={}s * 2",
+        dispose_vpios.as_secs_f32(),
         recycle_vpio_2.as_secs_f32()
+    );
+    assert!(
+        dispose_vpios > recycle_vpio_3 * 2,
+        "Failed dispose_vpios={}s > recycle_vpio_3 ={}s * 2",
+        dispose_vpios.as_secs_f32(),
+        recycle_vpio_3.as_secs_f32()
+    );
+    assert!(
+        dispose_vpios > recycle_vpio_4 * 2,
+        "Failed dispose_vpios={}s > recycle_vpio_4 ={}s * 2",
+        dispose_vpios.as_secs_f32(),
+        recycle_vpio_4.as_secs_f32()
     );
 }
 
