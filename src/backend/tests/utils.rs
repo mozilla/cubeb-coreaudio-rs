@@ -1266,7 +1266,7 @@ fn test_get_raw_stream<F>(
         user_ptr,
         data_callback,
         state_callback,
-        global_latency_frames.unwrap(),
+        global_latency_frames,
     );
     stream.core_stream_data = CoreStreamData::new(&stream, None, None);
 
