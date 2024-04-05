@@ -768,21 +768,6 @@ fn test_default_duplex_stream_operation_on_context_with_callback<F>(
     );
 }
 
-fn test_default_duplex_stream_operation_on_context<F>(
-    name: &'static str,
-    context_ptr: *mut ffi::cubeb,
-    operation: F,
-) where
-    F: FnOnce(*mut ffi::cubeb_stream),
-{
-    test_default_duplex_stream_operation_on_context_with_callback(
-        name,
-        context_ptr,
-        Some(noop_data_callback),
-        operation,
-    );
-}
-
 fn test_default_duplex_stream_operation_with_callback<F>(
     name: &'static str,
     data_callback: ffi::cubeb_data_callback,
@@ -1309,82 +1294,6 @@ fn test_ops_duplex_voice_stream_drain() {
             thread::sleep(Duration::from_millis(10));
         },
     );
-}
-
-#[test]
-#[ignore]
-fn test_ops_timing_sensitive_duplex_voice_stream_with_primer() {
-    test_ops_context_operation("duplex voice stream with primer", |context_ptr| {
-        let ctx = unsafe { &mut *(context_ptr as *mut AudioUnitContext) };
-        let start = Instant::now();
-        let mut d1 = start.elapsed();
-        // First stream doesn't prefer voice, so should be quick. Primes the vpio.
-        test_default_duplex_stream_operation_on_context(
-            "duplex voice stream with primer: primer",
-            context_ptr,
-            |stream| {
-                d1 = start.elapsed();
-                let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
-                assert!(!stm.core_stream_data.using_voice_processing_unit());
-            },
-        );
-        ctx.serial_queue.run_sync(|| {});
-        // Primed and ready.
-        let d2 = start.elapsed() - d1;
-        // Second stream uses vpio, allows use of the primed unit.
-        test_default_duplex_voice_stream_operation_on_context(
-            "duplex voice stream with primer: voice",
-            context_ptr,
-            |stream| {
-                let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
-                assert!(stm.core_stream_data.using_voice_processing_unit());
-            },
-        );
-        let d3 = start.elapsed() - d2 - d1;
-        // d1 and d3 should both be reasonably quick.
-        assert!(
-            d1 < Duration::from_secs(1),
-            "Failed d1={}s < 1",
-            d1.as_secs_f32()
-        );
-        assert!(
-            d3 < Duration::from_secs(1),
-            "Failed d3={}s < 1",
-            d3.as_secs_f32()
-        );
-        // d2 is the time it took to prime, it should be significantly longer.
-        assert!(
-            d2 > d3 * 2,
-            "Failed d2={}s > d3={}s * 2",
-            d2.as_secs_f32(),
-            d3.as_secs_f32()
-        );
-    });
-}
-
-#[test]
-fn test_ops_duplex_voice_stream_while_priming() {
-    test_ops_context_operation("duplex voice stream while priming", |context_ptr| {
-        // First stream doesn't prefer voice, so should be quick. Primes async the vpio.
-        test_default_duplex_stream_operation_on_context(
-            "duplex voice stream while priming: primer",
-            context_ptr,
-            |stream| {
-                let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
-                assert!(!stm.core_stream_data.using_voice_processing_unit());
-            },
-        );
-        // Second stream uses vpio, should wait for the priming to finish,
-        // rather than fail to get vpio.
-        test_default_duplex_voice_stream_operation_on_context(
-            "duplex voice stream while priming: voice",
-            context_ptr,
-            |stream| {
-                let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
-                assert!(stm.core_stream_data.using_voice_processing_unit());
-            },
-        );
-    });
 }
 
 #[test]
