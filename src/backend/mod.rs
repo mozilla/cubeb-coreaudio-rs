@@ -2109,7 +2109,7 @@ struct LatencyController {
 }
 
 impl LatencyController {
-    fn add_stream(&mut self, latency: u32) -> Option<u32> {
+    fn add_stream(&mut self, latency: u32) -> u32 {
         self.streams += 1;
         // For the 1st stream set anything within safe min-max
         if self.streams == 1 {
@@ -2118,16 +2118,15 @@ impl LatencyController {
             // synthetize the clock from the callbacks, and we want the clock to update often.
             self.latency = Some(latency.clamp(SAFE_MIN_LATENCY_FRAMES, SAFE_MAX_LATENCY_FRAMES));
         }
-        self.latency
+        self.latency.unwrap_or(latency)
     }
 
-    fn subtract_stream(&mut self) -> Option<u32> {
+    fn subtract_stream(&mut self) {
         self.streams -= 1;
         if self.streams == 0 {
             assert!(self.latency.is_some());
             self.latency = None;
         }
-        self.latency
     }
 }
 
@@ -2479,14 +2478,14 @@ impl AudioUnitContext {
         controller.streams
     }
 
-    fn update_latency_by_adding_stream(&self, latency_frames: u32) -> Option<u32> {
+    fn update_latency_by_adding_stream(&self, latency_frames: u32) -> u32 {
         let mut controller = self.latency_controller.lock().unwrap();
         controller.add_stream(latency_frames)
     }
 
-    fn update_latency_by_removing_stream(&self) -> Option<u32> {
+    fn update_latency_by_removing_stream(&self) {
         let mut controller = self.latency_controller.lock().unwrap();
-        controller.subtract_stream()
+        controller.subtract_stream();
     }
 
     fn add_devices_changed_listener(
@@ -2758,19 +2757,6 @@ impl ContextOps for AudioUnitContext {
             return Err(Error::invalid_parameter());
         }
 
-        // Latency cannot change if another stream is operating in parallel. In this case
-        // latency is set to the other stream value.
-        let global_latency_frames = self
-            .update_latency_by_adding_stream(latency_frames)
-            .unwrap();
-        if global_latency_frames != latency_frames {
-            cubeb_log!(
-                "Use global latency {} instead of the requested latency {}.",
-                global_latency_frames,
-                latency_frames
-            );
-        }
-
         let in_stm_settings = if let Some(params) = input_stream_params {
             let in_device = match self
                 .serial_queue
@@ -2806,6 +2792,17 @@ impl ContextOps for AudioUnitContext {
         } else {
             None
         };
+
+        // Latency cannot change if another stream is operating in parallel. In this case
+        // latency is set to the other stream value.
+        let global_latency_frames = self.update_latency_by_adding_stream(latency_frames);
+        if global_latency_frames != latency_frames {
+            cubeb_log!(
+                "Use global latency {} instead of the requested latency {}.",
+                global_latency_frames,
+                latency_frames
+            );
+        }
 
         let mut boxed_stream = Box::new(AudioUnitStream::new(
             self,
@@ -2886,10 +2883,16 @@ impl Drop for AudioUnitContext {
         self.shared_voice_processing_unit =
             SharedVoiceProcessingUnitManager::new(self.serial_queue.clone());
 
+        // Make sure all the pending (device-collection-changed-callback) tasks
+        // in queue are done, and cancel all the tasks appended after `drop` is executed.
+        let queue = self.serial_queue.clone();
+        queue.run_final(|| {});
+
         {
             let controller = self.latency_controller.lock().unwrap();
-            // Disabling this assert for bug 1083664 -- we seem to leak a stream
+            // Disabling this assert in release for bug 1083664 -- we seem to leak a stream
             // assert(controller.streams == 0);
+            debug_assert!(controller.streams == 0);
             if controller.streams > 0 {
                 cubeb_log!(
                     "({:p}) API misuse, {} streams active when context destroyed!",
@@ -2898,10 +2901,6 @@ impl Drop for AudioUnitContext {
                 );
             }
         }
-        // Make sure all the pending (device-collection-changed-callback) tasks
-        // in queue are done, and cancel all the tasks appended after `drop` is executed.
-        let queue = self.serial_queue.clone();
-        queue.run_final(|| {});
     }
 }
 

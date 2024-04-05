@@ -666,6 +666,8 @@ fn test_ops_context_stream_init_channel_rate_combinations() {
                 ffi::CUBEB_OK
             );
             assert!(!stream.is_null());
+
+            unsafe { OPS.stream_destroy.unwrap()(stream) };
         }
     });
 }

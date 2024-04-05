@@ -56,7 +56,7 @@ fn test_increase_and_decrease_context_streams() {
     assert_eq!(context.active_streams(), STREAMS);
     check_streams(&context, STREAMS);
 
-    check_latency(&context, latencies[0]);
+    check_latency(&context, Some(latencies[0]));
     for i in 0..latencies.len() - 1 {
         assert_eq!(latencies[i], latencies[i + 1]);
     }
