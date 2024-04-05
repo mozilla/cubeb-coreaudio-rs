@@ -64,6 +64,8 @@ const APPLE_STUDIO_DISPLAY_USB_ID: &str = "05AC:1114";
 const SAFE_MIN_LATENCY_FRAMES: u32 = 128;
 const SAFE_MAX_LATENCY_FRAMES: u32 = 512;
 
+const VPIO_IDLE_TIMEOUT: Duration = Duration::from_secs(10);
+
 bitflags! {
     #[allow(non_camel_case_types)]
     #[derive(Clone, Debug, PartialEq, Copy)]
@@ -2155,18 +2157,29 @@ impl LatencyController {
 struct SharedStorageInternal<T> {
     // Storage for shared elements.
     elements: Vec<T>,
+    // Number of elements in use, i.e. all elements created/taken and not recycled.
+    outstanding_element_count: usize,
+    // Used for invalidation of in-flight tasks to clear elements.
+    // Incremented when something takes a shared element.
+    generation: usize,
 }
 
 #[derive(Debug)]
 struct SharedStorage<T> {
+    queue: Queue,
+    idle_timeout: Duration,
     storage: Mutex<SharedStorageInternal<T>>,
 }
 
-impl<T> SharedStorage<T> {
-    fn new() -> Self {
+impl<T: Send> SharedStorage<T> {
+    fn with_idle_timeout(queue: Queue, idle_timeout: Duration) -> Self {
         Self {
+            queue,
+            idle_timeout,
             storage: Mutex::new(SharedStorageInternal::<T> {
                 elements: Vec::default(),
+                outstanding_element_count: 0,
+                generation: 0,
             }),
         }
     }
@@ -2174,10 +2187,38 @@ impl<T> SharedStorage<T> {
     fn take_locked(guard: &mut MutexGuard<'_, SharedStorageInternal<T>>) -> Result<T> {
         if let Some(e) = guard.elements.pop() {
             cubeb_log!("Taking shared element #{}.", guard.elements.len());
+            guard.outstanding_element_count += 1;
+            guard.generation += 1;
             return Ok(e);
         }
 
         Err(Error::not_supported())
+    }
+
+    fn create_with_locked<F>(
+        guard: &mut MutexGuard<'_, SharedStorageInternal<T>>,
+        f: F,
+    ) -> Result<T>
+    where
+        F: FnOnce() -> Result<T>,
+    {
+        let start = Instant::now();
+        match f() {
+            Ok(obj) => {
+                cubeb_log!(
+                    "Just created shared element #{}. Took {}s.",
+                    guard.outstanding_element_count,
+                    (Instant::now() - start).as_secs_f32()
+                );
+                guard.outstanding_element_count += 1;
+                guard.generation += 1;
+                Ok(obj)
+            }
+            Err(_) => {
+                cubeb_log!("Creating shared element failed");
+                Err(Error::error())
+            }
+        }
     }
 
     #[cfg(test)]
@@ -2191,38 +2232,87 @@ impl<T> SharedStorage<T> {
         F: FnOnce() -> Result<T>,
     {
         let mut guard = self.storage.lock().unwrap();
-        SharedStorage::take_locked(&mut guard).or_else(|_| {
-            let start = Instant::now();
-            match f() {
-                Ok(obj) => {
-                    cubeb_log!(
-                        "Just created shared element. Took {}s.",
-                        (Instant::now() - start).as_secs_f32()
-                    );
-                    Ok(obj)
-                }
-                Err(_) => {
-                    cubeb_log!("Creating shared element failed");
-                    Err(Error::error())
-                }
-            }
-        })
+        SharedStorage::take_locked(&mut guard)
+            .or_else(|_| SharedStorage::create_with_locked(&mut guard, f))
     }
 
     fn recycle(&self, obj: T) {
         let mut guard = self.storage.lock().unwrap();
-        cubeb_log!("Recycling shared element #{}.", guard.elements.len());
+        guard.outstanding_element_count -= 1;
+        cubeb_log!(
+            "Recycling shared element #{}. Nr of live elements now {}.",
+            guard.elements.len(),
+            guard.outstanding_element_count
+        );
         guard.elements.push(obj);
+    }
+
+    fn clear_locked(guard: &mut MutexGuard<'_, SharedStorageInternal<T>>) {
+        let count = guard.elements.len();
+        let start = Instant::now();
+        guard.elements.clear();
+        cubeb_log!(
+            "Cleared {} shared element{}. Took {}s.",
+            count,
+            if count == 1 { "" } else { "s" },
+            (Instant::now() - start).as_secs_f32()
+        );
+    }
+
+    fn clear(&self) {
+        debug_assert_running_serially();
+        let mut guard = self.storage.lock().unwrap();
+        SharedStorage::clear_locked(&mut guard);
+    }
+
+    fn clear_if_all_idle_async(storage: &Arc<SharedStorage<T>>) {
+        let (queue, outstanding_element_count, generation) = {
+            let guard = storage.storage.lock().unwrap();
+            (
+                storage.queue.clone(),
+                guard.outstanding_element_count,
+                guard.generation,
+            )
+        };
+        if outstanding_element_count > 0 {
+            cubeb_log!(
+                "Not clearing shared voiceprocessing unit storage because {} elements are in use. Generation={}.",
+                outstanding_element_count,
+                generation
+            );
+            return;
+        }
+        cubeb_log!(
+            "Clearing shared voiceprocessing unit storage in {}s if still at generation {}.",
+            storage.idle_timeout.as_secs_f32(),
+            generation
+        );
+        let storage = storage.clone();
+        queue.run_after(Instant::now() + storage.idle_timeout, move || {
+            let mut guard = storage.storage.lock().unwrap();
+            if generation != guard.generation {
+                cubeb_log!(
+                    "Not clearing shared voiceprocessing unit storage for generation {} as we're now at {}.",
+                    generation,
+                    guard.generation
+                );
+                return;
+            }
+            SharedStorage::clear_locked(&mut guard);
+        });
     }
 }
 
 #[derive(Debug)]
-struct OwningHandle<T> {
+struct OwningHandle<T>
+where
+    T: Send,
+{
     storage: Weak<SharedStorage<T>>,
     obj: Option<T>,
 }
 
-impl<T> OwningHandle<T> {
+impl<T: Send> OwningHandle<T> {
     fn new(storage: Weak<SharedStorage<T>>, obj: T) -> Self {
         Self {
             storage,
@@ -2231,19 +2321,19 @@ impl<T> OwningHandle<T> {
     }
 }
 
-impl<T> AsRef<T> for OwningHandle<T> {
+impl<T: Send> AsRef<T> for OwningHandle<T> {
     fn as_ref(&self) -> &T {
         self.obj.as_ref().unwrap()
     }
 }
 
-impl<T> AsMut<T> for OwningHandle<T> {
+impl<T: Send> AsMut<T> for OwningHandle<T> {
     fn as_mut(&mut self) -> &mut T {
         self.obj.as_mut().unwrap()
     }
 }
 
-impl<T> Drop for OwningHandle<T> {
+impl<T: Send> Drop for OwningHandle<T> {
     fn drop(&mut self) {
         let storage = self.storage.upgrade();
         assert!(
@@ -2256,6 +2346,7 @@ impl<T> Drop for OwningHandle<T> {
         }
         let obj = self.obj.take().unwrap();
         storage.recycle(obj);
+        SharedStorage::clear_if_all_idle_async(&storage);
     }
 }
 
@@ -2277,14 +2368,20 @@ unsafe impl Send for VoiceProcessingUnit {}
 struct SharedVoiceProcessingUnitManager {
     sync_storage: Mutex<Option<Arc<SharedStorage<VoiceProcessingUnit>>>>,
     queue: Queue,
+    idle_timeout: Duration,
 }
 
 impl SharedVoiceProcessingUnitManager {
-    fn new(queue: Queue) -> Self {
+    fn with_idle_timeout(queue: Queue, idle_timeout: Duration) -> Self {
         Self {
             sync_storage: Mutex::new(None),
             queue,
+            idle_timeout,
         }
+    }
+
+    fn new(queue: Queue) -> Self {
+        SharedVoiceProcessingUnitManager::with_idle_timeout(queue, VPIO_IDLE_TIMEOUT)
     }
 
     fn ensure_storage_locked(
@@ -2295,7 +2392,10 @@ impl SharedVoiceProcessingUnitManager {
             return;
         }
         cubeb_log!("Creating shared voiceprocessing storage.");
-        let storage = SharedStorage::<VoiceProcessingUnit>::new();
+        let storage = SharedStorage::<VoiceProcessingUnit>::with_idle_timeout(
+            self.queue.clone(),
+            self.idle_timeout,
+        );
         let old_storage = guard.replace(Arc::from(storage));
         assert!(old_storage.is_none());
     }
@@ -2333,10 +2433,7 @@ impl Drop for SharedVoiceProcessingUnitManager {
             if guard.is_none() {
                 return;
             }
-            let _last_ref_storage: Option<SharedStorage<VoiceProcessingUnit>> =
-                Arc::into_inner(guard.take().unwrap());
-            // Don't assert that all recyclable units have been returned here since the
-            // assert in OwningHandle's drop is more likely to be actionable.
+            guard.as_mut().unwrap().clear();
         });
     }
 }
@@ -2785,6 +2882,9 @@ impl Drop for AudioUnitContext {
             let devices = self.devices.lock().unwrap();
             devices.input.changed_callback.is_none() && devices.output.changed_callback.is_none()
         });
+
+        self.shared_voice_processing_unit =
+            SharedVoiceProcessingUnitManager::new(self.serial_queue.clone());
 
         {
             let controller = self.latency_controller.lock().unwrap();
