@@ -2218,57 +2218,6 @@ impl SharedVoiceProcessingUnitManager {
         assert!(old_storage.is_none());
     }
 
-    fn prime(&mut self) {
-        self.ensure_storage();
-        let can_create_unit = |vec: &mut Vec<Option<_>>, max_units: usize| {
-            vec.len() < max_units && vec.iter().all(|o| o.is_none())
-        };
-        let mut arc_storage: Option<Arc<SharedStorage<VoiceProcessingUnit>>> = None;
-        let mut available_idx: usize = 0;
-        {
-            let mut guard = self.sync_storage.lock().unwrap();
-            let storage = guard.as_mut().unwrap();
-            let mut vec_guard = storage.lock().unwrap();
-            if !can_create_unit(&mut vec_guard, self.recycler_capacity) {
-                return;
-            }
-            available_idx = vec_guard.len();
-            cubeb_log!("Priming shared voiceprocessing unit #{}", available_idx);
-            arc_storage = Some(Arc::clone(storage));
-        }
-        let arc_storage = arc_storage.unwrap();
-
-        self.queue.clone().run_async(move || {
-            let mut vec_guard = arc_storage.lock().unwrap();
-            if !can_create_unit(&mut vec_guard, available_idx + 1) {
-                cubeb_log!(
-                    "Couldn't prime shared voiceprocessing unit #{}. It's already present.",
-                    available_idx
-                );
-                return;
-            }
-            match create_voiceprocessing_audiounit() {
-                Ok(unit) => {
-                    cubeb_log!("Shared voiceprocessing unit primed and ready");
-                    vec_guard.push(Some(VoiceProcessingUnit { unit }));
-                }
-                Err(e) => {
-                    match e.code() {
-                        ErrorCode::Error => {
-                            cubeb_log!("Error creating shared voiceprocessing unit for priming");
-                        }
-                        ErrorCode::NotSupported => {
-                            cubeb_log!(
-                                "Shared voiceprocessing unit was created before async priming"
-                            );
-                        }
-                        _ => unreachable!("Unexpected error"),
-                    };
-                }
-            }
-        });
-    }
-
     fn take(&mut self) -> Result<OwningHandle<VoiceProcessingUnit>> {
         debug_assert_running_serially();
         self.ensure_storage();
@@ -3154,10 +3103,6 @@ impl<'ctx> CoreStreamData<'ctx> {
         shared_voice_processing_unit: &mut SharedVoiceProcessingUnitManager,
     ) -> Result<(device_info, device_info)> {
         self.debug_assert_is_on_stream_queue();
-        if self.has_input() && self.has_output() {
-            shared_voice_processing_unit.prime();
-        }
-
         let should_use_voice_processing_unit = self.has_input()
             && (self
                 .input_stream_params

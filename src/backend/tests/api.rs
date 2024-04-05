@@ -1769,17 +1769,6 @@ fn test_shared_voice_processing_unit() {
 }
 
 #[test]
-fn test_shared_voice_processing_unit_after_priming() {
-    let queue = Queue::new_with_target(
-        "test_shared_voice_processing_unit_after_priming",
-        get_serial_queue_singleton(),
-    );
-    let mut shared = SharedVoiceProcessingUnitManager::new(queue.clone(), 1);
-    shared.prime();
-    assert!(queue.run_sync(|| shared.take()).unwrap().is_ok());
-}
-
-#[test]
 #[should_panic]
 fn test_shared_voice_processing_unit_bad_release_order() {
     let queue = Queue::new_with_target(
