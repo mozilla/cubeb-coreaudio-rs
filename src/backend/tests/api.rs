@@ -187,7 +187,9 @@ fn test_set_device_info_to_system_input_device() {
 #[test]
 #[should_panic]
 fn test_set_device_info_to_system_output_device() {
-    let _device = create_device_info(kAudioObjectSystemObject, DeviceType::OUTPUT);
+    let _device = run_serially_forward_panics(|| {
+        create_device_info(kAudioObjectSystemObject, DeviceType::OUTPUT)
+    });
 }
 
 // FIXME: Is it ok to set input device to a nonexistent device ?
@@ -196,7 +198,8 @@ fn test_set_device_info_to_system_output_device() {
 #[should_panic]
 fn test_set_device_info_to_nonexistent_input_device() {
     let nonexistent_id = std::u32::MAX;
-    let _device = create_device_info(nonexistent_id, DeviceType::INPUT);
+    let _device =
+        run_serially_forward_panics(|| create_device_info(nonexistent_id, DeviceType::INPUT));
 }
 
 // FIXME: Is it ok to set output device to a nonexistent device ?
@@ -205,7 +208,8 @@ fn test_set_device_info_to_nonexistent_input_device() {
 #[should_panic]
 fn test_set_device_info_to_nonexistent_output_device() {
     let nonexistent_id = std::u32::MAX;
-    let _device = create_device_info(nonexistent_id, DeviceType::OUTPUT);
+    let _device =
+        run_serially_forward_panics(|| create_device_info(nonexistent_id, DeviceType::OUTPUT));
 }
 
 // add_listener (for default output device)
