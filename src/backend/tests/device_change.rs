@@ -21,7 +21,7 @@ use super::utils::{
     test_set_default_device, Scope, StreamType, TestDevicePlugger, TestDeviceSwitcher,
 };
 use super::*;
-use std::sync::{LockResult, MutexGuard, WaitTimeoutResult};
+use std::sync::{LockResult, WaitTimeoutResult};
 
 // Switch default devices used by the active streams, to test stream reinitialization
 // ================================================================================================
