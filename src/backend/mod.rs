@@ -1302,9 +1302,9 @@ fn create_blank_audiounit() -> Result<AudioUnit> {
     return create_typed_audiounit(kAudioUnitSubType_RemoteIO);
 }
 
-fn create_voiceprocessing_audiounit() -> Result<AudioUnit> {
-    let unit = create_typed_audiounit(kAudioUnitSubType_VoiceProcessingIO);
-    if unit.is_err() {
+fn create_voiceprocessing_audiounit() -> Result<VoiceProcessingUnit> {
+    let res = create_typed_audiounit(kAudioUnitSubType_VoiceProcessingIO);
+    if res.is_err() {
         return Err(Error::error());
     }
 
@@ -1324,7 +1324,7 @@ fn create_voiceprocessing_audiounit() -> Result<AudioUnit> {
         }
     };
 
-    unit
+    res.map(|unit| VoiceProcessingUnit { unit })
 }
 
 fn get_buffer_size(unit: AudioUnit, devtype: DeviceType) -> std::result::Result<u32, OSStatus> {
@@ -2244,10 +2244,7 @@ impl SharedVoiceProcessingUnitManager {
                     vec_guard.len()
                 );
                 vec_guard.push(None);
-                Ok(OwningHandle::new(
-                    Arc::downgrade(storage),
-                    VoiceProcessingUnit { unit },
-                ))
+                Ok(OwningHandle::new(Arc::downgrade(storage), unit))
             }
             Err(_) => Err(Error::error()),
         }
@@ -2273,7 +2270,7 @@ impl SharedVoiceProcessingUnitManager {
             match create_voiceprocessing_audiounit() {
                 Ok(unit) => {
                 cubeb_log!("Created standalone shared voiceprocessing audiounit.");
-                Ok(OwningHandle::new(Arc::downgrade(storage), VoiceProcessingUnit { unit }))
+                Ok(OwningHandle::new(Arc::downgrade(storage), unit))
             }, Err(e) => {
                     cubeb_log!("Failed to create standalone voiceprocessing audiounit. Error: {}", e);
                     Err(e)
