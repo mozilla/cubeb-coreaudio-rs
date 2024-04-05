@@ -35,7 +35,7 @@ use self::utils::*;
 use backend::ringbuf::RingBuffer;
 use cubeb_backend::{
     ffi, ChannelLayout, Context, ContextOps, DeviceCollectionRef, DeviceId, DeviceRef, DeviceType,
-    Error, ErrorCode, InputProcessingParams, Ops, Result, SampleFormat, State, Stream, StreamOps,
+    Error, InputProcessingParams, Ops, Result, SampleFormat, State, Stream, StreamOps,
     StreamParams, StreamParamsRef, StreamPrefs,
 };
 use mach::mach_time::{mach_absolute_time, mach_timebase_info};
@@ -47,8 +47,8 @@ use std::os::raw::{c_uint, c_void};
 use std::ptr;
 use std::slice;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
-use std::sync::{Arc, Condvar, Mutex, Weak};
-use std::time::Duration;
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, Weak};
+use std::time::{Duration, Instant};
 const NO_ERR: OSStatus = 0;
 
 const AU_OUT_BUS: AudioUnitElement = 0;
@@ -2129,9 +2129,94 @@ impl LatencyController {
     }
 }
 
-type SharedStorage<T> = Mutex<Vec<Option<T>>>;
+// SharedStorage<T> below looks generic but has evolved to be pretty tailored
+// the observed behavior of VoiceProcessingIO audio units on macOS 14.
+// Some key points are:
+// - Creating the first VoiceProcessingIO unit in a process takes a long time, often > 3s.
+// - Creating a second VoiceProcessingIO unit in a process is significantly faster, < 1s.
+// - Disposing of a VoiceProcessingIO unit when all other VoiceProcessingIO units are
+//   uninitialized will take significantly longer than disposing the remaining
+//   VoiceProcessingIO units, and will have other side effects: starting another
+//   VoiceProcessingIO unit after this is on par with creating the first one in the
+//   process, bluetooth devices will move away from the handsfree profile, etc.
+// The takeaway is that there is something internal to the VoiceProcessingIO audio unit
+// that is costly to create and dispose of and its creation is triggered by creation of
+// the first VoiceProcessingIO unit, and its disposal is triggered by the disposal of
+// the first VoiceProcessingIO unit when no other VoiceProcessingIO units are initialized.
+//
+// The intended behavior of SharedStorage<T> and SharedVoiceProcessingUnitManager is therefore:
+// - Retain ideally just one VoiceProcessingIO unit after stream destruction, so device
+//   switching is fast. The benefit of retaining more than one is unclear.
+// - Dispose of either all VoiceProcessingIO units, or none at all, such that the retained
+//   VoiceProcessingIO unit really helps speed up creating and starting the next. In practice
+//   this means we retain all VoiceProcessingIO units until they can all be disposed of.
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
+struct SharedStorageInternal<T> {
+    // Storage for shared elements.
+    elements: Vec<T>,
+}
+
+#[derive(Debug)]
+struct SharedStorage<T> {
+    storage: Mutex<SharedStorageInternal<T>>,
+}
+
+impl<T> SharedStorage<T> {
+    fn new() -> Self {
+        Self {
+            storage: Mutex::new(SharedStorageInternal::<T> {
+                elements: Vec::default(),
+            }),
+        }
+    }
+
+    fn take_locked(guard: &mut MutexGuard<'_, SharedStorageInternal<T>>) -> Result<T> {
+        if let Some(e) = guard.elements.pop() {
+            cubeb_log!("Taking shared element #{}.", guard.elements.len());
+            return Ok(e);
+        }
+
+        Err(Error::not_supported())
+    }
+
+    #[cfg(test)]
+    fn take(&self) -> Result<T> {
+        let mut guard = self.storage.lock().unwrap();
+        SharedStorage::take_locked(&mut guard)
+    }
+
+    fn take_or_create_with<F>(&self, f: F) -> Result<T>
+    where
+        F: FnOnce() -> Result<T>,
+    {
+        let mut guard = self.storage.lock().unwrap();
+        SharedStorage::take_locked(&mut guard).or_else(|_| {
+            let start = Instant::now();
+            match f() {
+                Ok(obj) => {
+                    cubeb_log!(
+                        "Just created shared element. Took {}s.",
+                        (Instant::now() - start).as_secs_f32()
+                    );
+                    Ok(obj)
+                }
+                Err(_) => {
+                    cubeb_log!("Creating shared element failed");
+                    Err(Error::error())
+                }
+            }
+        })
+    }
+
+    fn recycle(&self, obj: T) {
+        let mut guard = self.storage.lock().unwrap();
+        cubeb_log!("Recycling shared element #{}.", guard.elements.len());
+        guard.elements.push(obj);
+    }
+}
+
+#[derive(Debug)]
 struct OwningHandle<T> {
     storage: Weak<SharedStorage<T>>,
     obj: Option<T>,
@@ -2166,15 +2251,11 @@ impl<T> Drop for OwningHandle<T> {
             "Storage must outlive the handle, but didn't"
         );
         let storage = storage.unwrap();
-        let mut vec_guard = storage.lock().unwrap();
-        let recyclable_elem = vec_guard.iter().enumerate().find(|(_, o)| o.is_none());
-        if recyclable_elem.is_none() {
-            cubeb_log!("Shared storage is full. Dropping element directly.");
+        if self.obj.is_none() {
             return;
         }
-        let (idx, _) = recyclable_elem.unwrap();
-        cubeb_log!("Recycling element #{}", idx);
-        assert!(vec_guard[idx].replace(self.obj.take().unwrap()).is_none());
+        let obj = self.obj.take().unwrap();
+        storage.recycle(obj);
     }
 }
 
@@ -2196,87 +2277,48 @@ unsafe impl Send for VoiceProcessingUnit {}
 struct SharedVoiceProcessingUnitManager {
     sync_storage: Mutex<Option<Arc<SharedStorage<VoiceProcessingUnit>>>>,
     queue: Queue,
-    recycler_capacity: usize,
 }
 
 impl SharedVoiceProcessingUnitManager {
-    fn new(queue: Queue, recycler_capacity: usize) -> Self {
+    fn new(queue: Queue) -> Self {
         Self {
             sync_storage: Mutex::new(None),
             queue,
-            recycler_capacity,
         }
     }
 
-    fn ensure_storage(&mut self) {
-        let mut guard = self.sync_storage.lock().unwrap();
+    fn ensure_storage_locked(
+        &self,
+        guard: &mut MutexGuard<Option<Arc<SharedStorage<VoiceProcessingUnit>>>>,
+    ) {
         if guard.is_some() {
             return;
         }
-        let storage = Vec::<Option<VoiceProcessingUnit>>::with_capacity(self.recycler_capacity);
-        let old_storage = guard.replace(Arc::from(Mutex::new(storage)));
+        cubeb_log!("Creating shared voiceprocessing storage.");
+        let storage = SharedStorage::<VoiceProcessingUnit>::new();
+        let old_storage = guard.replace(Arc::from(storage));
         assert!(old_storage.is_none());
     }
 
+    // Take an already existing, shared, vpio unit, if one is available.
+    #[cfg(test)]
     fn take(&mut self) -> Result<OwningHandle<VoiceProcessingUnit>> {
         debug_assert_running_serially();
-        self.ensure_storage();
         let mut guard = self.sync_storage.lock().unwrap();
+        self.ensure_storage_locked(&mut guard);
         let storage = guard.as_mut().unwrap();
-        let mut vec_guard = storage.lock().unwrap();
-        if let Some((idx, _)) = vec_guard.iter().enumerate().find(|(_, u)| u.is_some()) {
-            cubeb_log!("Taking shared voiceprocessing unit #{}", vec_guard.len());
-            return Ok(OwningHandle::new(
-                Arc::downgrade(storage),
-                vec_guard[idx].take().unwrap(),
-            ));
-        }
-
-        if vec_guard.len() == self.recycler_capacity {
-            // Cannot create another unit as storage is full.
-            return Err(Error::device_unavailable());
-        }
-
-        match create_voiceprocessing_audiounit() {
-            Ok(unit) => {
-                cubeb_log!(
-                    "Taking shared voiceprocessing unit #{} that was just created",
-                    vec_guard.len()
-                );
-                vec_guard.push(None);
-                Ok(OwningHandle::new(Arc::downgrade(storage), unit))
-            }
-            Err(_) => Err(Error::error()),
-        }
+        let res = storage.take();
+        res.map(|u| OwningHandle::new(Arc::downgrade(storage), u))
     }
 
+    // Take an already existing, shared, vpio unit, or create one if none are available.
     fn take_or_create(&mut self) -> Result<OwningHandle<VoiceProcessingUnit>> {
         debug_assert_running_serially();
-        self.take().or_else(|e| {
-            if e.code() == ErrorCode::DeviceUnavailable {
-                cubeb_log!(
-                    "Failed to take shared voiceprocessing audiounit. Creating a standalone one. Error: {}",
-                    e
-                );
-            } else {
-                cubeb_log!(
-                    "Failed to create shared voiceprocessing audiounit. Error: {}",
-                    e
-                );
-                return Err(e);
-            }
-            let mut guard = self.sync_storage.lock().unwrap();
-            let storage = guard.as_mut().unwrap();
-            match create_voiceprocessing_audiounit() {
-                Ok(unit) => {
-                cubeb_log!("Created standalone shared voiceprocessing audiounit.");
-                Ok(OwningHandle::new(Arc::downgrade(storage), unit))
-            }, Err(e) => {
-                    cubeb_log!("Failed to create standalone voiceprocessing audiounit. Error: {}", e);
-                    Err(e)
-            }
-        }
-        })
+        let mut guard = self.sync_storage.lock().unwrap();
+        self.ensure_storage_locked(&mut guard);
+        let storage = guard.as_mut().unwrap();
+        let res = storage.take_or_create_with(create_voiceprocessing_audiounit);
+        res.map(|u| OwningHandle::new(Arc::downgrade(storage), u))
     }
 }
 
@@ -2298,10 +2340,6 @@ impl Drop for SharedVoiceProcessingUnitManager {
         });
     }
 }
-
-// Allow recycling two VPIO units to support device switching scenarios,
-// i.e. one duplex VOICE stream and one input-only VOICE stream.
-const NUM_SHARED_VPIO_UNITS: usize = 2;
 
 pub const OPS: Ops = capi_new!(AudioUnitContext, AudioUnitStream);
 
@@ -2335,10 +2373,7 @@ impl AudioUnitContext {
             serial_queue,
             latency_controller: Mutex::new(LatencyController::default()),
             devices: Mutex::new(SharedDevices::default()),
-            shared_voice_processing_unit: SharedVoiceProcessingUnitManager::new(
-                shared_vp_queue,
-                NUM_SHARED_VPIO_UNITS,
-            ),
+            shared_voice_processing_unit: SharedVoiceProcessingUnitManager::new(shared_vp_queue),
         }
     }
 
@@ -2476,8 +2511,7 @@ impl ContextOps for AudioUnitContext {
             format!("{}.shared_vpio", queue_label).as_str(),
             &ctx.serial_queue,
         );
-        ctx.shared_voice_processing_unit =
-            SharedVoiceProcessingUnitManager::new(shared_vp_queue, NUM_SHARED_VPIO_UNITS);
+        ctx.shared_voice_processing_unit = SharedVoiceProcessingUnitManager::new(shared_vp_queue);
         Ok(unsafe { Context::from_ptr(Box::into_raw(ctx) as *mut _) })
     }
 
