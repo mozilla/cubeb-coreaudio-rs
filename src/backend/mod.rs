@@ -1611,7 +1611,7 @@ fn get_range_of_sample_rates(
     if rates.is_empty() {
         return Err(String::from("No data"));
     }
-    let (mut min, mut max) = (std::f64::MAX, std::f64::MIN);
+    let (mut min, mut max) = (f64::MAX, f64::MIN);
     for rate in rates {
         if rate.mMaximum > max {
             max = rate.mMaximum;
