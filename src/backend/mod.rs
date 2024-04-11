@@ -168,10 +168,7 @@ impl From<CAChannelLabel> for mixer::Channel {
             sys::kAudioChannelLabel_TopBackCenter => mixer::Channel::TopBackCenter,
             sys::kAudioChannelLabel_TopBackRight => mixer::Channel::TopBackRight,
             sys::kAudioChannelLabel_Unknown => mixer::Channel::Discrete,
-            _ => {
-                panic!("Label not handled");
-                mixer::Channel::Silence
-            }
+            _ => panic!("Label not handled"),
         }
     }
 }
