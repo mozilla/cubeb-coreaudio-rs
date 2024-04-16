@@ -25,6 +25,7 @@ const CHANNEL_ORDER: [audio_mixer::Channel; audio_mixer::Channel::count()] = [
     audio_mixer::Channel::TopBackCenter,
     audio_mixer::Channel::TopBackRight,
     audio_mixer::Channel::Silence,
+    audio_mixer::Channel::Discrete,
 ];
 
 pub fn get_channel_order(channel_layout: ChannelLayout) -> Vec<audio_mixer::Channel> {
@@ -214,7 +215,7 @@ impl Mixer {
         if output_channels.is_empty()
             || out_channel_count != output_channels.len()
             || all_silence == output_channels
-            || Self::non_silent_duplicate_channel_present(&output_channels)
+            || Self::duplicate_channel_present(&output_channels)
         {
             cubeb_log!("Use invalid layout. Apply default layout instead");
             output_channels = get_default_channel_order(out_channel_count);
@@ -261,10 +262,10 @@ impl Mixer {
         )
     }
 
-    fn non_silent_duplicate_channel_present(channels: &[audio_mixer::Channel]) -> bool {
+    fn duplicate_channel_present(channels: &[audio_mixer::Channel]) -> bool {
         let mut bitmap: u32 = 0;
         for channel in channels {
-            if channel != &Channel::Silence {
+            if channel != &Channel::Silence && channel != &Channel::Discrete {
                 if (bitmap & channel.bitmask()) != 0 {
                     return true;
                 }
@@ -478,7 +479,7 @@ fn test_non_silent_duplicate_channels() {
         Channel::Silence,
         Channel::FrontRight,
     ];
-    assert!(Mixer::non_silent_duplicate_channel_present(&duplicate));
+    assert!(Mixer::duplicate_channel_present(&duplicate));
 
     let non_duplicate = [
         Channel::FrontLeft,
@@ -488,5 +489,25 @@ fn test_non_silent_duplicate_channels() {
         Channel::Silence,
         Channel::Silence,
     ];
-    assert!(!Mixer::non_silent_duplicate_channel_present(&non_duplicate));
+    assert!(!Mixer::duplicate_channel_present(&non_duplicate));
+
+    let duplicate = [
+        Channel::FrontLeft,
+        Channel::Discrete,
+        Channel::FrontRight,
+        Channel::FrontCenter,
+        Channel::Discrete,
+        Channel::FrontRight,
+    ];
+    assert!(Mixer::duplicate_channel_present(&duplicate));
+
+    let non_duplicate = [
+        Channel::FrontLeft,
+        Channel::Discrete,
+        Channel::FrontRight,
+        Channel::FrontCenter,
+        Channel::Discrete,
+        Channel::Discrete,
+    ];
+    assert!(!Mixer::duplicate_channel_present(&non_duplicate));
 }
