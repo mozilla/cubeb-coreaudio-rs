@@ -207,7 +207,11 @@ impl From<CAChannelLabel> for mixer::Channel {
             sys::kAudioChannelLabel_TopBackCenter => mixer::Channel::TopBackCenter,
             sys::kAudioChannelLabel_TopBackRight => mixer::Channel::TopBackRight,
             sys::kAudioChannelLabel_Unknown => mixer::Channel::Discrete,
-            _ => panic!("Label not handled"),
+            sys::kAudioChannelLabel_Unused => mixer::Channel::Silence,
+            v => {
+                eprintln!("Warning: channel label value {} isn't handled", v);
+                mixer::Channel::Silence
+            }
         }
     }
 }
