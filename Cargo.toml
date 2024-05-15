@@ -11,7 +11,7 @@ crate-type = ["staticlib", "rlib"]
 atomic = "0.4"
 bitflags = "2"
 coreaudio-sys-utils = { path = "coreaudio-sys-utils" }
-cubeb-backend = "0.12.0"
+cubeb-backend = "0.13"
 float-cmp = "0.6"
 libc = "0.2"
 lazy_static = "1.2"

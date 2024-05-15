@@ -33,7 +33,7 @@ use self::mixer::*;
 use self::resampler::*;
 use self::utils::*;
 use backend::ringbuf::RingBuffer;
-#[cfg(feature = "audio_dump")]
+#[cfg(feature = "audio-dump")]
 use cubeb_backend::ffi::cubeb_audio_dump_stream_t;
 use cubeb_backend::{
     ffi, ChannelLayout, Context, ContextOps, DeviceCollectionRef, DeviceId, DeviceRef, DeviceType,
@@ -116,7 +116,7 @@ lazy_static! {
     };
 }
 
-#[cfg(feature = "audio_dump")]
+#[cfg(feature = "audio-dump")]
 fn dump_audio(stream: cubeb_audio_dump_stream_t, audio_samples: *mut c_void, count: u32) {
     unsafe {
         let rv = ffi::cubeb_audio_dump_write(stream, audio_samples, count);
@@ -569,7 +569,7 @@ extern "C" fn audiounit_input_callback(
         } else {
             assert_eq!(status, NO_ERR);
 
-            #[cfg(feature = "audio_dump")]
+            #[cfg(feature = "audio-dump")]
             {
                 dump_audio(
                     stm.core_stream_data.audio_dump_input,
@@ -735,7 +735,7 @@ extern "C" fn audiounit_output_callback(
     if stm.stopped.load(Ordering::SeqCst) {
         cubeb_alog!("({:p}) output stopped.", stm as *const AudioUnitStream);
         audiounit_make_silent(&buffers[0]);
-        #[cfg(feature = "audio_dump")]
+        #[cfg(feature = "audio-dump")]
         {
             dump_audio(
                 stm.core_stream_data.audio_dump_output,
@@ -754,7 +754,7 @@ extern "C" fn audiounit_output_callback(
         stm.notify_state_changed(State::Drained);
         let queue = stm.queue.clone();
         audiounit_make_silent(&buffers[0]);
-        #[cfg(feature = "audio_dump")]
+        #[cfg(feature = "audio-dump")]
         {
             dump_audio(
                 stm.core_stream_data.audio_dump_output,
@@ -891,7 +891,7 @@ extern "C" fn audiounit_output_callback(
         let queue = stm.queue.clone();
         audiounit_make_silent(&buffers[0]);
 
-        #[cfg(feature = "audio_dump")]
+        #[cfg(feature = "audio-dump")]
         {
             dump_audio(
                 stm.core_stream_data.audio_dump_output,
@@ -951,7 +951,7 @@ extern "C" fn audiounit_output_callback(
         );
     }
 
-    #[cfg(feature = "audio_dump")]
+    #[cfg(feature = "audio-dump")]
     {
         dump_audio(
             stm.core_stream_data.audio_dump_output,
@@ -3071,13 +3071,13 @@ struct CoreStreamData<'ctx> {
     output_alive_listener: Option<device_property_listener>,
     output_source_listener: Option<device_property_listener>,
     input_logging: Option<InputCallbackLogger>,
-    #[cfg(feature = "audio_dump")]
+    #[cfg(feature = "audio-dump")]
     audio_dump_session: ffi::cubeb_audio_dump_session_t,
-    #[cfg(feature = "audio_dump")]
+    #[cfg(feature = "audio-dump")]
     audio_dump_session_running: bool,
-    #[cfg(feature = "audio_dump")]
+    #[cfg(feature = "audio-dump")]
     audio_dump_input: ffi::cubeb_audio_dump_stream_t,
-    #[cfg(feature = "audio_dump")]
+    #[cfg(feature = "audio-dump")]
     audio_dump_output: ffi::cubeb_audio_dump_stream_t,
 }
 
@@ -3119,13 +3119,13 @@ impl<'ctx> Default for CoreStreamData<'ctx> {
             output_alive_listener: None,
             output_source_listener: None,
             input_logging: None,
-            #[cfg(feature = "audio_dump")]
+            #[cfg(feature = "audio-dump")]
             audio_dump_session: ptr::null_mut(),
-            #[cfg(feature = "audio_dump")]
+            #[cfg(feature = "audio-dump")]
             audio_dump_session_running: false,
-            #[cfg(feature = "audio_dump")]
+            #[cfg(feature = "audio-dump")]
             audio_dump_input: ptr::null_mut(),
-            #[cfg(feature = "audio_dump")]
+            #[cfg(feature = "audio-dump")]
             audio_dump_output: ptr::null_mut(),
         }
     }
@@ -3174,13 +3174,13 @@ impl<'ctx> CoreStreamData<'ctx> {
             output_alive_listener: None,
             output_source_listener: None,
             input_logging: None,
-            #[cfg(feature = "audio_dump")]
+            #[cfg(feature = "audio-dump")]
             audio_dump_session: ptr::null_mut(),
-            #[cfg(feature = "audio_dump")]
+            #[cfg(feature = "audio-dump")]
             audio_dump_session_running: false,
-            #[cfg(feature = "audio_dump")]
+            #[cfg(feature = "audio-dump")]
             audio_dump_input: ptr::null_mut(),
-            #[cfg(feature = "audio_dump")]
+            #[cfg(feature = "audio-dump")]
             audio_dump_output: ptr::null_mut(),
         }
     }
@@ -3539,7 +3539,7 @@ impl<'ctx> CoreStreamData<'ctx> {
         assert!(!self.stm_ptr.is_null());
         let stream = unsafe { &(*self.stm_ptr) };
 
-        #[cfg(feature = "audio_dump")]
+        #[cfg(feature = "audio-dump")]
         unsafe {
             ffi::cubeb_audio_dump_init(&mut self.audio_dump_session);
         }
@@ -3633,7 +3633,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                 e
             })?;
 
-            #[cfg(feature = "audio_dump")]
+            #[cfg(feature = "audio-dump")]
             {
                 let name = format!("input-{:p}.wav", self.stm_ptr);
                 let cname = CString::new(name).expect("OK");
@@ -3849,7 +3849,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                 e
             })?;
 
-            #[cfg(feature = "audio_dump")]
+            #[cfg(feature = "audio-dump")]
             {
                 let name = format!("output-{:p}.wav", self.stm_ptr);
                 let cname = CString::new(name).expect("OK");
@@ -4038,7 +4038,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             self.input_logging = Some(InputCallbackLogger::new());
         }
 
-        #[cfg(feature = "audio_dump")]
+        #[cfg(feature = "audio-dump")]
         {
             unsafe { ffi::cubeb_audio_dump_start(self.audio_dump_session) };
             self.audio_dump_session_running = true;
@@ -4217,7 +4217,7 @@ impl<'ctx> CoreStreamData<'ctx> {
         // Return the VPIO unit if present.
         self.voiceprocessing_unit_handle = None;
 
-        #[cfg(feature = "audio_dump")]
+        #[cfg(feature = "audio-dump")]
         {
             if !self.audio_dump_session.is_null() {
                 unsafe {
