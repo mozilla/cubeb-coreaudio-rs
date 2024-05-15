@@ -357,14 +357,14 @@ impl TestDeviceInfo {
     }
 
     fn get_label(id: AudioObjectID, scope: Scope) -> String {
-        match get_device_uid(id, scope.into()) {
+        match run_serially_forward_panics(|| get_device_uid(id, scope.into())) {
             Ok(uid) => uid.into_string(),
             Err(status) => format!("Unknow. Error: {}", status).to_string(),
         }
     }
 
     fn get_uid(id: AudioObjectID, scope: Scope) -> String {
-        match get_device_label(id, scope.into()) {
+        match run_serially_forward_panics(|| get_device_label(id, scope.into())) {
             Ok(label) => label.into_string(),
             Err(status) => format!("Unknown. Error: {}", status).to_string(),
         }
