@@ -1026,6 +1026,7 @@ extern "C" fn audiounit_property_listener_callback(
 }
 
 fn get_default_device(devtype: DeviceType) -> Option<AudioObjectID> {
+    debug_assert_running_serially();
     match get_default_device_id(devtype) {
         Err(e) => {
             cubeb_log!("Cannot get default {:?} device. Error: {}", devtype, e);
@@ -1040,6 +1041,7 @@ fn get_default_device(devtype: DeviceType) -> Option<AudioObjectID> {
 }
 
 fn get_default_device_id(devtype: DeviceType) -> std::result::Result<AudioObjectID, OSStatus> {
+    debug_assert_running_serially();
     let address = get_property_address(
         match devtype {
             DeviceType::INPUT => Property::HardwareDefaultInputDevice,
@@ -1087,6 +1089,7 @@ fn audiounit_convert_channel_layout(layout: &AudioChannelLayout) -> Result<Vec<m
 }
 
 fn audiounit_get_preferred_channel_layout(output_unit: AudioUnit) -> Result<Vec<mixer::Channel>> {
+    debug_assert_running_serially();
     let mut rv = NO_ERR;
     let mut size: usize = 0;
     rv = audio_unit_get_property_info(
@@ -1129,6 +1132,7 @@ fn audiounit_get_preferred_channel_layout(output_unit: AudioUnit) -> Result<Vec<
 // This is for output AudioUnit only. Calling this by input-only AudioUnit is prone
 // to crash intermittently.
 fn audiounit_get_current_channel_layout(output_unit: AudioUnit) -> Result<Vec<mixer::Channel>> {
+    debug_assert_running_serially();
     let mut rv = NO_ERR;
     let mut size: usize = 0;
     rv = audio_unit_get_property_info(
@@ -1169,6 +1173,7 @@ fn audiounit_get_current_channel_layout(output_unit: AudioUnit) -> Result<Vec<mi
 }
 
 fn get_channel_layout(output_unit: AudioUnit) -> Result<Vec<mixer::Channel>> {
+    debug_assert_running_serially();
     audiounit_get_current_channel_layout(output_unit)
         .or_else(|_| {
             // The kAudioUnitProperty_AudioChannelLayout property isn't known before
@@ -1208,6 +1213,7 @@ fn create_audiounit(device: &device_info) -> Result<AudioUnit> {
     assert!(!device
         .flags
         .contains(device_flags::DEV_INPUT | device_flags::DEV_OUTPUT));
+    debug_assert_running_serially();
 
     let unit = create_blank_audiounit()?;
     let mut bus = AU_OUT_BUS;
@@ -1610,6 +1616,7 @@ fn get_channel_count(
     devtype: DeviceType,
 ) -> std::result::Result<u32, OSStatus> {
     assert_ne!(devid, kAudioObjectUnknown);
+    debug_assert_running_serially();
 
     let mut streams = get_device_streams(devid, devtype)?;
     let model_uid =
@@ -1691,6 +1698,7 @@ fn get_range_of_sample_rates(
     devid: AudioObjectID,
     devtype: DeviceType,
 ) -> std::result::Result<(f64, f64), String> {
+    debug_assert_running_serially();
     let result = get_ranges_of_device_sample_rate(devid, devtype);
     if let Err(e) = result {
         return Err(format!("status {}", e));
@@ -1712,6 +1720,7 @@ fn get_range_of_sample_rates(
 }
 
 fn get_fixed_latency(devid: AudioObjectID, devtype: DeviceType) -> u32 {
+    debug_assert_running_serially();
     let device_latency = match get_device_latency(devid, devtype) {
         Ok(latency) => latency,
         Err(e) => {
@@ -1754,6 +1763,7 @@ fn get_device_group_id(
     id: AudioDeviceID,
     devtype: DeviceType,
 ) -> std::result::Result<CString, OSStatus> {
+    debug_assert_running_serially();
     match get_device_transport_type(id, devtype) {
         Ok(kAudioDeviceTransportTypeBuiltIn) => {
             cubeb_log!(
@@ -1789,6 +1799,8 @@ fn get_device_group_id(
 }
 
 fn get_custom_group_id(id: AudioDeviceID, devtype: DeviceType) -> Option<CString> {
+    debug_assert_running_serially();
+
     const IMIC: u32 = 0x696D_6963; // "imic" (internal microphone)
     const ISPK: u32 = 0x6973_706B; // "ispk" (internal speaker)
     const EMIC: u32 = 0x656D_6963; // "emic" (external microphone)
@@ -1830,10 +1842,12 @@ fn get_device_label(
     id: AudioDeviceID,
     devtype: DeviceType,
 ) -> std::result::Result<StringRef, OSStatus> {
+    debug_assert_running_serially();
     get_device_source_name(id, devtype).or_else(|_| get_device_name(id, devtype))
 }
 
 fn get_device_global_uid(id: AudioDeviceID) -> std::result::Result<StringRef, OSStatus> {
+    debug_assert_running_serially();
     get_device_uid(id, DeviceType::INPUT | DeviceType::OUTPUT)
 }
 
@@ -2016,6 +2030,7 @@ fn destroy_cubeb_device_info(device: &mut ffi::cubeb_device_info) {
 }
 
 fn audiounit_get_devices() -> Vec<AudioObjectID> {
+    debug_assert_running_serially();
     let mut size: usize = 0;
     let address = get_property_address(
         Property::HardwareDevices,
@@ -2042,6 +2057,7 @@ fn audiounit_get_devices() -> Vec<AudioObjectID> {
 
 fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID> {
     assert!(devtype.intersects(DeviceType::INPUT | DeviceType::OUTPUT));
+    debug_assert_running_serially();
 
     let mut devices = audiounit_get_devices();
 
@@ -2708,17 +2724,21 @@ impl ContextOps for AudioUnitContext {
     }
     #[cfg(not(target_os = "ios"))]
     fn max_channel_count(&mut self) -> Result<u32> {
-        let device = match get_default_device(DeviceType::OUTPUT) {
-            None => {
-                cubeb_log!("Could not get default output device");
-                return Err(Error::error());
-            }
-            Some(id) => id,
-        };
-        get_channel_count(device, DeviceType::OUTPUT).map_err(|e| {
-            cubeb_log!("Cannot get the channel count. Error: {}", e);
-            Error::error()
-        })
+        self.serial_queue
+            .run_sync(|| {
+                let device = match get_default_device(DeviceType::OUTPUT) {
+                    None => {
+                        cubeb_log!("Could not get default output device");
+                        return Err(Error::error());
+                    }
+                    Some(id) => id,
+                };
+                get_channel_count(device, DeviceType::OUTPUT).map_err(|e| {
+                    cubeb_log!("Cannot get the channel count. Error: {}", e);
+                    Error::error()
+                })
+            })
+            .unwrap()
     }
     #[cfg(target_os = "ios")]
     fn min_latency(&mut self, _params: StreamParams) -> Result<u32> {
@@ -2726,21 +2746,25 @@ impl ContextOps for AudioUnitContext {
     }
     #[cfg(not(target_os = "ios"))]
     fn min_latency(&mut self, _params: StreamParams) -> Result<u32> {
-        let device = match get_default_device(DeviceType::OUTPUT) {
-            None => {
-                cubeb_log!("Could not get default output device");
-                return Err(Error::error());
-            }
-            Some(id) => id,
-        };
+        self.serial_queue
+            .run_sync(|| {
+                let device = match get_default_device(DeviceType::OUTPUT) {
+                    None => {
+                        cubeb_log!("Could not get default output device");
+                        return Err(Error::error());
+                    }
+                    Some(id) => id,
+                };
 
-        let range =
-            get_device_buffer_frame_size_range(device, DeviceType::OUTPUT).map_err(|e| {
-                cubeb_log!("Could not get acceptable latency range. Error: {}", e);
-                Error::error()
-            })?;
+                let range = get_device_buffer_frame_size_range(device, DeviceType::OUTPUT)
+                    .map_err(|e| {
+                        cubeb_log!("Could not get acceptable latency range. Error: {}", e);
+                        Error::error()
+                    })?;
 
-        Ok(cmp::max(range.mMinimum as u32, SAFE_MIN_LATENCY_FRAMES))
+                Ok(cmp::max(range.mMinimum as u32, SAFE_MIN_LATENCY_FRAMES))
+            })
+            .unwrap()
     }
     #[cfg(target_os = "ios")]
     fn preferred_sample_rate(&mut self) -> Result<u32> {
@@ -2748,21 +2772,25 @@ impl ContextOps for AudioUnitContext {
     }
     #[cfg(not(target_os = "ios"))]
     fn preferred_sample_rate(&mut self) -> Result<u32> {
-        let device = match get_default_device(DeviceType::OUTPUT) {
-            None => {
-                cubeb_log!("Could not get default output device");
-                return Err(Error::error());
-            }
-            Some(id) => id,
-        };
-        let rate = get_device_sample_rate(device, DeviceType::OUTPUT).map_err(|e| {
-            cubeb_log!(
-                "Cannot get the sample rate of the default output device. Error: {}",
-                e
-            );
-            Error::error()
-        })?;
-        Ok(rate as u32)
+        self.serial_queue
+            .run_sync(|| {
+                let device = match get_default_device(DeviceType::OUTPUT) {
+                    None => {
+                        cubeb_log!("Could not get default output device");
+                        return Err(Error::error());
+                    }
+                    Some(id) => id,
+                };
+                let rate = get_device_sample_rate(device, DeviceType::OUTPUT).map_err(|e| {
+                    cubeb_log!(
+                        "Cannot get the sample rate of the default output device. Error: {}",
+                        e
+                    );
+                    Error::error()
+                })?;
+                Ok(rate as u32)
+            })
+            .unwrap()
     }
     fn supported_input_processing_params(&mut self) -> Result<InputProcessingParams> {
         Ok(InputProcessingParams::ECHO_CANCELLATION
@@ -2774,19 +2802,27 @@ impl ContextOps for AudioUnitContext {
         devtype: DeviceType,
         collection: &DeviceCollectionRef,
     ) -> Result<()> {
-        let mut device_infos = Vec::new();
-        let dev_types = [DeviceType::INPUT, DeviceType::OUTPUT];
-        for dev_type in dev_types.iter() {
-            if !devtype.contains(*dev_type) {
-                continue;
-            }
-            let devices = audiounit_get_devices_of_type(*dev_type);
-            for device in devices {
-                if let Ok(info) = create_cubeb_device_info(device, *dev_type) {
-                    device_infos.push(info);
+        let device_infos = self
+            .serial_queue
+            .run_sync(|| {
+                let mut dev_types = vec![DeviceType::INPUT, DeviceType::OUTPUT];
+                dev_types.retain(|&dt| devtype.contains(dt));
+                let device_ids: Vec<(DeviceType, Vec<AudioObjectID>)> = dev_types
+                    .iter()
+                    .map(|&dt| (dt, audiounit_get_devices_of_type(dt)))
+                    .collect();
+                let count = device_ids.iter().map(|(_dt, ids)| ids.len()).sum();
+                let mut device_infos = Vec::with_capacity(count);
+                for (dt, dev_ids) in device_ids {
+                    for dev_id in dev_ids {
+                        if let Ok(info) = create_cubeb_device_info(dev_id, dt) {
+                            device_infos.push(info);
+                        }
+                    }
                 }
-            }
-        }
+                device_infos
+            })
+            .unwrap();
         let (ptr, len) = if device_infos.is_empty() {
             (ptr::null_mut(), 0)
         } else {
