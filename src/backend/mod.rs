@@ -3620,7 +3620,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             let r = audio_unit_get_property(
                 self.input_unit,
                 kAudioUnitProperty_StreamFormat,
-                kAudioUnitScope_Input,
+                kAudioUnitScope_Output,
                 AU_IN_BUS,
                 &mut input_hw_desc,
                 &mut size,
@@ -3637,9 +3637,6 @@ impl<'ctx> CoreStreamData<'ctx> {
                 self.stm_ptr,
                 input_hw_desc
             );
-            // In some cases with VPIO the stream format's mChannelsPerFrame is higher than
-            // expected. Use get_channel_count as source of truth.
-            input_hw_desc.mChannelsPerFrame = device_channel_count;
             // Notice: when we are using aggregate device, the input_hw_desc.mChannelsPerFrame is
             // the total of all the input channel count of the devices added in the aggregate device.
             // Due to our aggregate device settings, the data captured by the output device's input
@@ -3649,12 +3646,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             // channels to the audio callback.
             let params = unsafe {
                 let mut p = *self.input_stream_params.as_ptr();
-                p.channels = if using_voice_processing_unit {
-                    // VPIO is always MONO.
-                    1
-                } else {
-                    input_hw_desc.mChannelsPerFrame
-                };
+                p.channels = input_hw_desc.mChannelsPerFrame;
                 // Input AudioUnit must be configured with device's sample rate.
                 // we will resample inside input callback.
                 p.rate = input_hw_desc.mSampleRate as _;
@@ -3825,7 +3817,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             let r = audio_unit_get_property(
                 self.output_unit,
                 kAudioUnitProperty_StreamFormat,
-                kAudioUnitScope_Output,
+                kAudioUnitScope_Input,
                 AU_OUT_BUS,
                 &mut output_hw_desc,
                 &mut size,
@@ -3843,11 +3835,6 @@ impl<'ctx> CoreStreamData<'ctx> {
                 output_hw_desc
             );
 
-            // In some cases with (other streams using) VPIO the stream format's mChannelsPerFrame
-            // is higher than expected. Use get_channel_count as source of truth.
-            output_hw_desc.mChannelsPerFrame =
-                get_channel_count(self.output_device.id, DeviceType::OUTPUT).unwrap_or(0);
-
             // This has been observed in the wild.
             if output_hw_desc.mChannelsPerFrame == 0 {
                 cubeb_log!(
@@ -3863,12 +3850,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             // channels will be appended at the end of the raw data given by the output callback.
             let params = unsafe {
                 let mut p = *self.output_stream_params.as_ptr();
-                p.channels = if using_voice_processing_unit {
-                    // VPIO is always MONO.
-                    1
-                } else {
-                    output_hw_desc.mChannelsPerFrame
-                };
+                p.channels = output_hw_desc.mChannelsPerFrame;
                 if using_voice_processing_unit {
                     // VPIO will always use the sample rate of the input hw for both input and output,
                     // as reported to us. (We can override it but we cannot improve quality this way).
