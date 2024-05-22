@@ -4700,6 +4700,11 @@ impl<'ctx> AudioUnitStream<'ctx> {
             self.core_stream_data.stop_audiounits();
         }
 
+        if self.stopped.load(Ordering::SeqCst) {
+            // Something stopped the stream, we must not reinit.
+            return Ok(());
+        }
+
         debug_assert!(
             !self.core_stream_data.input_unit.is_null()
                 || !self.core_stream_data.output_unit.is_null()
