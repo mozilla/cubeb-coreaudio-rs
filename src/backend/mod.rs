@@ -636,7 +636,7 @@ extern "C" fn audiounit_input_callback(
             queue.run_async(move || {
                 stm.core_stream_data.stop_audiounits();
             });
-            return handle;
+            return ErrorHandle::Return(status);
         }
         if outframes < total_input_frames {
             stm.draining.store(true, Ordering::SeqCst);
