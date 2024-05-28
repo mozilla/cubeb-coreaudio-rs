@@ -1134,6 +1134,32 @@ fn test_get_channel_count_of_unknwon_type() {
     }
 }
 
+fn get_nonvpio_input_channel_counts() -> Vec<u32> {
+    debug_assert_running_serially();
+    get_devices()
+        .into_iter()
+        .filter(|&id| !is_vpio(id))
+        .filter_map(|id| get_channel_count(id, DeviceType::INPUT).ok())
+        .collect()
+}
+
+#[test]
+#[ignore]
+fn test_get_channel_count_of_input_devices_with_vpio() {
+    let non_vpio_channel_counts =
+        run_serially_forward_panics(|| get_nonvpio_input_channel_counts());
+
+    let queue = Queue::new_with_target(
+        "test_get_channel_count_of_input_devices_with_vpio",
+        get_serial_queue_singleton(),
+    );
+    let mut shared = SharedVoiceProcessingUnitManager::new(queue.clone());
+    let _vpio = queue.run_sync(|| shared.take_or_create()).unwrap().unwrap();
+
+    let vpio_channel_counts = run_serially_forward_panics(|| get_nonvpio_input_channel_counts());
+    assert_eq!(non_vpio_channel_counts, vpio_channel_counts);
+}
+
 // get_range_of_sample_rates
 // ------------------------------------
 #[test]
