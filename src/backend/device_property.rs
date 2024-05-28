@@ -18,6 +18,32 @@ pub fn get_device_uid(
     }
 }
 
+pub fn get_devices() -> Vec<AudioObjectID> {
+    debug_assert_running_serially();
+    let mut size: usize = 0;
+    let address = get_property_address(
+        Property::HardwareDevices,
+        DeviceType::INPUT | DeviceType::OUTPUT,
+    );
+    let mut ret =
+        audio_object_get_property_data_size(kAudioObjectSystemObject, &address, &mut size);
+    if ret != NO_ERR {
+        return Vec::new();
+    }
+    // Total number of input and output devices.
+    let mut devices: Vec<AudioObjectID> = allocate_array_by_size(size);
+    ret = audio_object_get_property_data(
+        kAudioObjectSystemObject,
+        &address,
+        &mut size,
+        devices.as_mut_ptr(),
+    );
+    if ret != NO_ERR {
+        return Vec::new();
+    }
+    devices
+}
+
 pub fn get_device_model_uid(
     id: AudioDeviceID,
     devtype: DeviceType,

@@ -185,9 +185,7 @@ impl AggregateDevice {
         let (lock, cvar) = &*condvar_pair;
         let guard = lock.lock().unwrap();
         let (_guard, timeout_res) = cvar
-            .wait_timeout_while(guard, waiting_time, |()| {
-                !audiounit_get_devices().contains(&device)
-            })
+            .wait_timeout_while(guard, waiting_time, |()| !get_devices().contains(&device))
             .unwrap();
         if timeout_res.timed_out() {
             cubeb_log!(
