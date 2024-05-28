@@ -1965,37 +1965,11 @@ fn destroy_cubeb_device_info(device: &mut ffi::cubeb_device_info) {
     }
 }
 
-fn audiounit_get_devices() -> Vec<AudioObjectID> {
-    debug_assert_running_serially();
-    let mut size: usize = 0;
-    let address = get_property_address(
-        Property::HardwareDevices,
-        DeviceType::INPUT | DeviceType::OUTPUT,
-    );
-    let mut ret =
-        audio_object_get_property_data_size(kAudioObjectSystemObject, &address, &mut size);
-    if ret != NO_ERR {
-        return Vec::new();
-    }
-    // Total number of input and output devices.
-    let mut devices: Vec<AudioObjectID> = allocate_array_by_size(size);
-    ret = audio_object_get_property_data(
-        kAudioObjectSystemObject,
-        &address,
-        &mut size,
-        devices.as_mut_ptr(),
-    );
-    if ret != NO_ERR {
-        return Vec::new();
-    }
-    devices
-}
-
 fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID> {
     assert!(devtype.intersects(DeviceType::INPUT | DeviceType::OUTPUT));
     debug_assert_running_serially();
 
-    let mut devices = audiounit_get_devices();
+    let mut devices = get_devices();
 
     // Remove the aggregate device from the list of devices (if any).
     devices.retain(|&device| {
