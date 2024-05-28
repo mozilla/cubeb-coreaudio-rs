@@ -14,6 +14,8 @@ cargo test test_switch_device -- --ignored --nocapture
 
 cargo test test_plug_and_unplug_device -- --ignored --nocapture
 
+cargo test test_get_channel_count_of_input_devices_with_vpio -- --ignored --nocapture
+
 cargo test test_register_device_changed_callback_to_check_default_device_changed_input -- --ignored --nocapture
 cargo test test_register_device_changed_callback_to_check_default_device_changed_output -- --ignored --nocapture
 cargo test test_register_device_changed_callback_to_check_default_device_changed_duplex -- --ignored --nocapture
