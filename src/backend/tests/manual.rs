@@ -771,6 +771,26 @@ fn test_stream_tester() {
 #[ignore]
 #[test]
 fn test_tone() {
+    let devices = test_get_devices_in_scope(Scope::Output);
+    for (_, device) in devices.iter().enumerate() {
+        let info = TestDeviceInfo::new(*device, Scope::Output);
+        let mut pa = AudioObjectPropertyAddress::default();
+        pa.mSelector = kAudioDevicePropertyPreferredChannelsForStereo;
+        pa.mScope = kAudioDevicePropertyScopeOutput;
+        pa.mElement = kAudioObjectPropertyElementMaster;
+        get_serial_queue_singleton().run_sync(|| {
+            let mut ssize: usize = 8;
+            let mut value = [0 as u32; 2];
+            let r = audio_object_get_property_data(*device, &pa, &mut ssize, &mut value);
+            if r != 0 {
+                eprintln!("Error getting prop data");
+            }
+            println!(
+                "{}: Channels for the stereo pair are [{}, {}]",
+                info.label, value[0], value[1]
+            );
+        });
+    }
     fn test_impl(ch_count: usize) {
         use std::f32::consts::PI;
         use std::thread;
