@@ -1620,73 +1620,7 @@ fn get_channel_count(
     assert_ne!(devid, kAudioObjectUnknown);
     debug_assert_running_serially();
 
-    let mut streams = get_device_streams(devid, devtype)?;
-    let model_uid =
-        get_device_model_uid(devid, devtype).map_or_else(|_| String::new(), |s| s.into_string());
-
-    if devtype == DeviceType::INPUT {
-        // With VPIO, output devices will/may get a Tap that appears as input channels on the
-        // output device id. One could check for whether the output device has a tap enabled,
-        // but it is impossible to distinguish an output-only device from an input+output
-        // device. There have also been corner cases observed, where the device does NOT have
-        // a Tap enabled, but it still has the extra input channels from the Tap.
-        // We can check the terminal type of the input stream instead, the VPIO type is
-        // INPUT_UNDEFINED or an output type, we explicitly ignore those and keep all other cases.
-        streams.retain(|stream| {
-            let terminal_type = get_stream_terminal_type(*stream);
-            if terminal_type.is_err() {
-                return true;
-            }
-
-            #[allow(non_upper_case_globals)]
-            match terminal_type.unwrap() {
-                kAudioStreamTerminalTypeMicrophone
-                | kAudioStreamTerminalTypeHeadsetMicrophone
-                | kAudioStreamTerminalTypeReceiverMicrophone => true,
-                kAudioStreamTerminalTypeUnknown => {
-                    cubeb_log!("Unknown TerminalType for input stream. Ignoring its channels.");
-                    false
-                }
-                t if [
-                    kAudioStreamTerminalTypeSpeaker,
-                    kAudioStreamTerminalTypeHeadphones,
-                    kAudioStreamTerminalTypeLFESpeaker,
-                    kAudioStreamTerminalTypeReceiverSpeaker,
-                ]
-                .contains(&t) =>
-                {
-                    cubeb_log!(
-                        "Output TerminalType {:#06X} for input stream. Ignoring its channels.",
-                        t
-                    );
-                    false
-                }
-                INPUT_UNDEFINED => {
-                    cubeb_log!(
-                        "INPUT_UNDEFINED TerminalType for input stream. Ignoring its channels."
-                    );
-                    false
-                }
-                // The input tap stream on the Studio Display Speakers has a terminal type that
-                // is not clearly output-specific. We special-case it here.
-                EXTERNAL_DIGITAL_AUDIO_INTERFACE
-                    if model_uid.contains(APPLE_STUDIO_DISPLAY_USB_ID) =>
-                {
-                    false
-                }
-                // Note INPUT_UNDEFINED is 0x200 and INPUT_MICROPHONE is 0x201
-                t if (INPUT_MICROPHONE..OUTPUT_UNDEFINED).contains(&t) => true,
-                t if (OUTPUT_UNDEFINED..BIDIRECTIONAL_UNDEFINED).contains(&t) => false,
-                t if (BIDIRECTIONAL_UNDEFINED..TELEPHONY_UNDEFINED).contains(&t) => true,
-                t if (TELEPHONY_UNDEFINED..EXTERNAL_UNDEFINED).contains(&t) => true,
-                t => {
-                    cubeb_log!("Unknown TerminalType {:#06X} for input stream.", t);
-                    true
-                }
-            }
-        });
-    }
-
+    let streams = get_device_streams(devid, devtype)?;
     let mut count = 0;
     for stream in streams {
         if let Ok(format) = get_stream_virtual_format(stream) {
