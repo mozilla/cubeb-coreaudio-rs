@@ -72,8 +72,7 @@ fn test_aggregate_get_sub_devices() {
 #[should_panic]
 fn test_aggregate_get_sub_devices_for_a_unknown_device() {
     run_serially_forward_panics(|| {
-        let devices = AggregateDevice::get_sub_devices(kAudioObjectUnknown).unwrap();
-        assert!(devices.is_empty());
+        AggregateDevice::get_sub_devices(kAudioObjectUnknown);
     });
 }
 
