@@ -195,10 +195,15 @@ pub fn get_device_latency(
     }
 }
 
+#[derive(Debug)]
+pub struct DeviceStream {
+    pub device: AudioDeviceID,
+    pub stream: AudioStreamID,
+}
 pub fn get_device_streams(
     id: AudioDeviceID,
     devtype: DeviceType,
-) -> std::result::Result<Vec<AudioStreamID>, OSStatus> {
+) -> std::result::Result<Vec<DeviceStream>, OSStatus> {
     assert_ne!(id, kAudioObjectUnknown);
     debug_assert_running_serially();
 
@@ -210,12 +215,16 @@ pub fn get_device_streams(
         return Err(err);
     }
 
-    let mut streams: Vec<AudioObjectID> = allocate_array_by_size(size);
+    let mut streams = vec![AudioObjectID::default(); size / mem::size_of::<AudioObjectID>()];
     let err = audio_object_get_property_data(id, &address, &mut size, streams.as_mut_ptr());
     if err != NO_ERR {
         return Err(err);
     }
 
+    let mut device_streams = streams
+        .into_iter()
+        .map(|stream| DeviceStream { device: id, stream })
+        .collect::<Vec<_>>();
     if devtype.contains(DeviceType::INPUT) {
         // With VPIO, output devices will/may get a Tap that appears as an input stream on the
         // output device id. It is unclear what kind of Tap this is as it cannot be enumerated
@@ -251,26 +260,32 @@ pub fn get_device_streams(
         }
         debug_assert!(devices.contains(&id));
         devices.sort();
-        let next_id = devices.into_iter().skip_while(|&i| i != id).skip(1).next();
+        let next_id = devices.into_iter().skip_while(|&i| i != id).nth(1);
         cubeb_log!(
             "Filtering input streams {:?} for device {}. Next device is {:?}.",
-            streams,
+            device_streams
+                .iter()
+                .map(|ds| ds.stream)
+                .collect::<Vec<_>>(),
             id,
             next_id
         );
         if let Some(next_id) = next_id {
-            streams.retain(|&s| s > id && s < next_id);
+            device_streams.retain(|ds| ds.stream > id && ds.stream < next_id);
         } else {
-            streams.retain(|&s| s > id);
+            device_streams.retain(|ds| ds.stream > id);
         }
         cubeb_log!(
             "Input stream filtering for device {} retained {:?}.",
             id,
-            streams
+            device_streams
+                .iter()
+                .map(|ds| ds.stream)
+                .collect::<Vec<_>>()
         );
     }
 
-    Ok(streams)
+    Ok(device_streams)
 }
 
 pub fn get_device_sample_rate(
