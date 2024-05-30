@@ -212,11 +212,65 @@ pub fn get_device_streams(
 
     let mut streams: Vec<AudioObjectID> = allocate_array_by_size(size);
     let err = audio_object_get_property_data(id, &address, &mut size, streams.as_mut_ptr());
-    if err == NO_ERR {
-        Ok(streams)
-    } else {
-        Err(err)
+    if err != NO_ERR {
+        return Err(err);
     }
+
+    if devtype.contains(DeviceType::INPUT) {
+        // With VPIO, output devices will/may get a Tap that appears as an input stream on the
+        // output device id. It is unclear what kind of Tap this is as it cannot be enumerated
+        // as a Tap through the public APIs. There is no property on the stream itself that
+        // can consistently identify it as originating from another device's output either.
+        // TerminalType gets close but is often kAudioStreamTerminalTypeUnknown, and there are
+        // cases reported where real input streams have that TerminalType, too.
+        // See Firefox bug 1890186.
+        // We rely on AudioObjectID order instead. AudioDeviceID and AudioStreamID (and more)
+        // are all AudioObjectIDs underneath, and they're all distinct. The Tap streams
+        // mentioned above are created when VPIO is created, and their AudioObjectIDs are higher
+        // than the VPIO device's AudioObjectID, but lower than the next *real* device's
+        // AudioObjectID.
+        // Simplified, a device's native streams have AudioObjectIDs higher than their device's
+        // AudioObjectID but lower than the next device's AudioObjectID.
+        // We use this to filter streams, and hope that it holds across macOS versions.
+        // Note that for aggregate devices this does not hold, as their stream IDs seem to be
+        // repurposed by VPIO. We sum up the result of the above algorithm for each of their sub
+        // devices instead, as that seems to hold.
+        let mut devices = get_devices();
+        let sub_devices = AggregateDevice::get_sub_devices(id);
+        if let Ok(sub_device_ids) = sub_devices {
+            cubeb_log!(
+                "Getting input device streams for aggregate device {}. Summing over sub devices {:?}.",
+                id,
+                sub_device_ids
+            );
+            return Ok(sub_device_ids
+                .into_iter()
+                .filter_map(|sub_id| get_device_streams(sub_id, devtype).ok())
+                .flatten()
+                .collect());
+        }
+        debug_assert!(devices.contains(&id));
+        devices.sort();
+        let next_id = devices.into_iter().skip_while(|&i| i != id).skip(1).next();
+        cubeb_log!(
+            "Filtering input streams {:?} for device {}. Next device is {:?}.",
+            streams,
+            id,
+            next_id
+        );
+        if let Some(next_id) = next_id {
+            streams.retain(|&s| s > id && s < next_id);
+        } else {
+            streams.retain(|&s| s > id);
+        }
+        cubeb_log!(
+            "Input stream filtering for device {} retained {:?}.",
+            id,
+            streams
+        );
+    }
+
+    Ok(streams)
 }
 
 pub fn get_device_sample_rate(
