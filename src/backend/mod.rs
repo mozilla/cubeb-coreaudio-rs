@@ -1621,10 +1621,16 @@ fn get_channel_count(
     debug_assert_running_serially();
 
     let devstreams = get_device_streams(devid, devtype)?;
-    let mut count = 0;
+    let mut count: u32 = 0;
     for ds in devstreams {
-        if let Ok(format) = get_stream_virtual_format(ds.stream) {
-            count += format.mChannelsPerFrame;
+        if devtype == DeviceType::INPUT
+            && CoreStreamData::should_force_vpio_for_input_device(ds.device)
+        {
+            count += 1;
+        } else {
+            count += get_stream_virtual_format(ds.stream)
+                .map(|f| f.mChannelsPerFrame)
+                .unwrap_or(0);
         }
     }
     Ok(count)
@@ -3212,14 +3218,15 @@ impl<'ctx> CoreStreamData<'ctx> {
     }
 
     #[allow(non_upper_case_globals)]
-    fn should_force_vpio_for_input_device(&self, in_device: &device_info) -> bool {
-        assert!(in_device.id != kAudioObjectUnknown);
-        self.debug_assert_is_on_stream_queue();
-        match get_device_transport_type(in_device.id, DeviceType::INPUT) {
+    fn should_force_vpio_for_input_device(id: AudioDeviceID) -> bool {
+        assert!(id != kAudioObjectUnknown);
+        debug_assert_running_serially();
+        match get_device_transport_type(id, DeviceType::INPUT) {
             Ok(kAudioDeviceTransportTypeBuiltIn) => {
                 cubeb_log!(
-                    "Forcing VPIO because input device is built in, and its volume \
-                     is known to be very low without VPIO whenever VPIO is hooked up to it elsewhere."
+                    "Input device {} is on the VPIO force list because it is built in, \
+                     and its volume is known to be very low without VPIO whenever VPIO \
+                     is hooked up to it elsewhere."
                 );
                 true
             }
@@ -3296,7 +3303,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                 .input_stream_params
                 .prefs()
                 .contains(StreamPrefs::VOICE)
-                || self.should_force_vpio_for_input_device(&self.input_device))
+                || CoreStreamData::should_force_vpio_for_input_device(self.input_device.id))
             && !self.should_block_vpio_for_device_pair(&self.input_device, &self.output_device)
             && macos_kernel_major_version() != Ok(MACOS_KERNEL_MAJOR_VERSION_MONTEREY);
 
