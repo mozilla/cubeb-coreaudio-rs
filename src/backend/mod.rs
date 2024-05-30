@@ -1620,10 +1620,10 @@ fn get_channel_count(
     assert_ne!(devid, kAudioObjectUnknown);
     debug_assert_running_serially();
 
-    let streams = get_device_streams(devid, devtype)?;
+    let devstreams = get_device_streams(devid, devtype)?;
     let mut count = 0;
-    for stream in streams {
-        if let Ok(format) = get_stream_virtual_format(stream) {
+    for ds in devstreams {
+        if let Ok(format) = get_stream_virtual_format(ds.stream) {
             count += format.mChannelsPerFrame;
         }
     }
@@ -1670,8 +1670,8 @@ fn get_fixed_latency(devid: AudioObjectID, devtype: DeviceType) -> u32 {
         }
     };
 
-    let stream_latency = get_device_streams(devid, devtype).and_then(|streams| {
-        if streams.is_empty() {
+    let stream_latency = get_device_streams(devid, devtype).and_then(|devstreams| {
+        if devstreams.is_empty() {
             cubeb_log!(
                 "No stream on device {} in {:?} scope!",
                 devid,
@@ -1679,7 +1679,7 @@ fn get_fixed_latency(devid: AudioObjectID, devtype: DeviceType) -> u32 {
             );
             Ok(0) // default stream latency
         } else {
-            get_stream_latency(streams[0])
+            get_stream_latency(devstreams[0].stream)
         }
     }).map_err(|e| {
         cubeb_log!(

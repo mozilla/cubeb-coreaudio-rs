@@ -413,20 +413,20 @@ fn test_get_ranges_of_device_sample_rate_by_unknown_device() {
 #[test]
 fn test_get_stream_latency() {
     if let Some(device) = test_get_default_device(Scope::Input) {
-        let streams = run_serially(|| get_device_streams(device, DeviceType::INPUT)).unwrap();
-        for stream in streams {
-            let latency = run_serially(|| get_stream_latency(stream)).unwrap();
-            println!("latency of the input stream {} is {}", stream, latency);
+        let devstreams = run_serially(|| get_device_streams(device, DeviceType::INPUT)).unwrap();
+        for ds in devstreams {
+            let latency = run_serially(|| get_stream_latency(ds.stream)).unwrap();
+            println!("latency of the input stream {} is {}", ds.stream, latency);
         }
     } else {
         println!("No input device.");
     }
 
     if let Some(device) = test_get_default_device(Scope::Output) {
-        let streams = run_serially(|| get_device_streams(device, DeviceType::OUTPUT)).unwrap();
-        for stream in streams {
-            let latency = run_serially(|| get_stream_latency(stream)).unwrap();
-            println!("latency of the output stream {} is {}", stream, latency);
+        let devstreams = run_serially(|| get_device_streams(device, DeviceType::OUTPUT)).unwrap();
+        for ds in devstreams {
+            let latency = run_serially(|| get_stream_latency(ds.stream)).unwrap();
+            println!("latency of the output stream {} is {}", ds.stream, latency);
         }
     } else {
         println!("No output device.");
@@ -444,10 +444,10 @@ fn test_get_stream_latency_by_unknown_device() {
 #[test]
 fn test_get_stream_virtual_format() {
     if let Some(device) = test_get_default_device(Scope::Input) {
-        let streams = run_serially(|| get_device_streams(device, DeviceType::INPUT)).unwrap();
-        let formats = streams
+        let devstreams = run_serially(|| get_device_streams(device, DeviceType::INPUT)).unwrap();
+        let formats = devstreams
             .iter()
-            .map(|s| run_serially(|| get_stream_virtual_format(*s)))
+            .map(|ds| run_serially(|| get_stream_virtual_format(ds.stream)))
             .collect::<Vec<std::result::Result<AudioStreamBasicDescription, OSStatus>>>();
         println!("input stream formats: {:?}", formats);
         assert!(!formats.is_empty());
@@ -456,10 +456,10 @@ fn test_get_stream_virtual_format() {
     }
 
     if let Some(device) = test_get_default_device(Scope::Output) {
-        let streams = run_serially(|| get_device_streams(device, DeviceType::OUTPUT)).unwrap();
-        let formats = streams
+        let devstreams = run_serially(|| get_device_streams(device, DeviceType::OUTPUT)).unwrap();
+        let formats = devstreams
             .iter()
-            .map(|s| run_serially(|| get_stream_virtual_format(*s)))
+            .map(|ds| run_serially(|| get_stream_virtual_format(ds.stream)))
             .collect::<Vec<std::result::Result<AudioStreamBasicDescription, OSStatus>>>();
         println!("output stream formats: {:?}", formats);
         assert!(!formats.is_empty());
