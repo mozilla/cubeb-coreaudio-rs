@@ -1,6 +1,6 @@
 use super::utils::{
-    test_get_devices_in_scope, test_ops_context_operation, test_ops_stream_operation, Scope,
-    StreamType, TestDeviceInfo, TestDeviceSwitcher,
+    test_disable_log, test_enable_log, test_get_devices_in_scope, test_ops_context_operation,
+    test_ops_stream_operation, Scope, StreamType, TestDeviceInfo, TestDeviceSwitcher,
 };
 use super::*;
 use std::io;
@@ -205,6 +205,7 @@ impl StreamsData {
 #[test]
 fn test_stream_tester() {
     test_ops_context_operation("context: stream tester", |context_ptr| {
+        test_enable_log(ffi::CUBEB_LOG_NORMAL);
         let mut input_prefs = StreamPrefs::NONE;
         let mut output_prefs = StreamPrefs::NONE;
         let mut streams = StreamsData::new();
@@ -266,6 +267,7 @@ fn test_stream_tester() {
                 },
             }
         }
+        test_disable_log();
     });
 
     fn set_prefs(prefs: &mut StreamPrefs) {
