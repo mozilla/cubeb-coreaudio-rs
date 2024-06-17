@@ -1,6 +1,6 @@
 use super::utils::{
-    test_get_devices_in_scope, test_ops_context_operation, test_ops_stream_operation, Scope,
-    StreamType, TestDeviceInfo, TestDeviceSwitcher,
+    test_disable_log, test_enable_log, test_get_devices_in_scope, test_ops_context_operation,
+    test_ops_stream_operation, Scope, StreamType, TestDeviceInfo, TestDeviceSwitcher,
 };
 use super::*;
 use std::io;
@@ -212,6 +212,8 @@ fn test_stream_tester() {
             println!(
                 "Current stream: {} (of {}). Commands:\n\
                  \t'q': quit\n\
+                 \t'gn': enable normal logging\n\
+                 \t'gv': enable verbose logging\n\
                  \t'b': change current stream\n\
                  \t'i': set input stream prefs to be used for creating streams\n\
                  \t'o': set output stream prefs to be used for creating streams\n\
@@ -246,6 +248,8 @@ fn test_stream_tester() {
                     }
                     break;
                 }
+                "gn" => test_enable_log(ffi::CUBEB_LOG_NORMAL),
+                "gv" => test_enable_log(ffi::CUBEB_LOG_VERBOSE),
                 "i" => set_prefs(&mut input_prefs),
                 "o" => set_prefs(&mut output_prefs),
                 "c" => create_stream(context_ptr, &mut streams, input_prefs, output_prefs),
@@ -765,6 +769,7 @@ fn test_stream_tester() {
             stream_params
         }
     }
+    test_disable_log();
 }
 
 // Simple stereo tone test
