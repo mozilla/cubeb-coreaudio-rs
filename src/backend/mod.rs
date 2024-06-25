@@ -729,6 +729,14 @@ extern "C" fn audiounit_output_callback(
     assert!(!user_ptr.is_null());
     let stm = unsafe { &mut *(user_ptr as *mut AudioUnitStream) };
 
+    if output_frames == 0 {
+        cubeb_alog!(
+            "({:p}) output callback empty.",
+            stm as *const AudioUnitStream
+        );
+        return NO_ERR;
+    }
+
     let out_buffer_list_ref = unsafe { &mut (*out_buffer_list) };
     assert_eq!(out_buffer_list_ref.mNumberBuffers, 1);
     let buffers = unsafe {
@@ -879,6 +887,7 @@ extern "C" fn audiounit_output_callback(
         output_frames
     );
 
+    assert_ne!(output_frames, 0);
     let outframes = stm.core_stream_data.resampler.fill(
         input_buffer,
         if input_buffer.is_null() {
