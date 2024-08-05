@@ -3267,7 +3267,8 @@ impl<'ctx> CoreStreamData<'ctx> {
                 cubeb_log!(
                     "Input device {} is on the VPIO force list because it is built in, \
                      and its volume is known to be very low without VPIO whenever VPIO \
-                     is hooked up to it elsewhere."
+                     is hooked up to it elsewhere.",
+                    id
                 );
                 true
             }
