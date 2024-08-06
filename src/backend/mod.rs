@@ -1689,14 +1689,13 @@ fn get_fixed_latency(devid: AudioObjectID, devtype: DeviceType) -> u32 {
         } else {
             get_stream_latency(devstreams[0].stream)
         }
-    }).map_err(|e| {
+    }).inspect_err(|e| {
         cubeb_log!(
             "Cannot get the stream, or the latency of the first stream on device {} in {:?} scope. Error: {}",
             devid,
             devtype,
             e
         );
-        e
     }).unwrap_or(0); // default stream latency
 
     device_latency + stream_latency
@@ -3620,12 +3619,11 @@ impl<'ctx> CoreStreamData<'ctx> {
                 StreamParams::from(p)
             };
 
-            self.input_dev_desc = create_stream_description(&params).map_err(|e| {
+            self.input_dev_desc = create_stream_description(&params).inspect_err(|_| {
                 cubeb_log!(
                     "({:p}) Setting format description for input failed.",
                     self.stm_ptr
                 );
-                e
             })?;
 
             #[cfg(feature = "audio-dump")]
@@ -3826,12 +3824,11 @@ impl<'ctx> CoreStreamData<'ctx> {
                 StreamParams::from(p)
             };
 
-            self.output_dev_desc = create_stream_description(&params).map_err(|e| {
+            self.output_dev_desc = create_stream_description(&params).inspect_err(|_| {
                 cubeb_log!(
                     "({:p}) Could not initialize the audio stream description.",
                     self.stm_ptr
                 );
-                e
             })?;
 
             #[cfg(feature = "audio-dump")]
@@ -3856,12 +3853,11 @@ impl<'ctx> CoreStreamData<'ctx> {
 
             let device_layout = self
                 .get_output_channel_layout()
-                .map_err(|e| {
+                .inspect_err(|_| {
                     cubeb_log!(
                         "({:p}) Could not get any channel layout. Defaulting to no channels.",
                         self.stm_ptr
                     );
-                    e
                 })
                 .unwrap_or_default();
 
@@ -4739,9 +4735,8 @@ impl<'ctx> AudioUnitStream<'ctx> {
 
         self.core_stream_data
             .setup(&mut self.context.shared_voice_processing_unit)
-            .map_err(|e| {
+            .inspect_err(|_| {
                 cubeb_log!("({:p}) Setup failed.", self.core_stream_data.stm_ptr);
-                e
             })?;
 
         if let Ok(volume) = vol_rv {
@@ -4750,12 +4745,11 @@ impl<'ctx> AudioUnitStream<'ctx> {
 
         // If the stream was running, start it again.
         if !self.stopped.load(Ordering::SeqCst) {
-            self.core_stream_data.start_audiounits().map_err(|e| {
+            self.core_stream_data.start_audiounits().inspect_err(|_| {
                 cubeb_log!(
                     "({:p}) Start audiounit failed.",
                     self.core_stream_data.stm_ptr
                 );
-                e
             })?;
         }
 
