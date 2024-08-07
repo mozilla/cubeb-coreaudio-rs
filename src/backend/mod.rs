@@ -3786,7 +3786,16 @@ impl<'ctx> CoreStreamData<'ctx> {
             let r = audio_unit_get_property(
                 self.output_unit,
                 kAudioUnitProperty_StreamFormat,
-                kAudioUnitScope_Input,
+                if using_voice_processing_unit {
+                    // With a VPIO unit the output scope includes all channels in the hw.
+                    // The VPIO unit however is only MONO which the input scope reflects.
+                    kAudioUnitScope_Input
+                } else {
+                    // With a HAL unit the output scope for the output bus returns the number of
+                    // output channels of the hw, as we want. The input scope seems limited to
+                    // two channels.
+                    kAudioUnitScope_Output
+                },
                 AU_OUT_BUS,
                 &mut output_hw_desc,
                 &mut size,
