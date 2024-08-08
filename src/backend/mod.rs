@@ -4579,6 +4579,7 @@ struct AudioUnitStream<'ctx> {
     stopped: AtomicBool,
     draining: AtomicBool,
     reinit_pending: AtomicBool,
+    delayed_reinit: bool,
     destroy_pending: AtomicBool,
     // Latency requested by the user.
     latency_frames: u32,
@@ -4626,6 +4627,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             stopped: AtomicBool::new(true),
             draining: AtomicBool::new(false),
             reinit_pending: AtomicBool::new(false),
+            delayed_reinit: false,
             destroy_pending: AtomicBool::new(false),
             latency_frames,
             output_device_latency_frames: AtomicU32::new(0),
@@ -4685,7 +4687,8 @@ impl<'ctx> AudioUnitStream<'ctx> {
         }
 
         if self.stopped.load(Ordering::SeqCst) {
-            // Something stopped the stream, we must not reinit.
+            // Something stopped the stream, reinit on next start
+            self.delayed_reinit = true;
             return Ok(());
         }
 
@@ -4877,14 +4880,28 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
         self.stopped.store(false, Ordering::SeqCst);
         self.draining.store(false, Ordering::SeqCst);
 
-        // Execute start in serial queue to avoid racing with destroy or reinit.
-        let result = self
-            .queue
+        self.queue
             .clone()
-            .run_sync(|| self.core_stream_data.start_audiounits())
+            .run_sync(|| -> Result<()> {
+                // Need reinitialization: device was changed when paused. It will be started after
+                // reinit because self.stopped is false.
+                if self.delayed_reinit {
+                    self.reinit().inspect_err(|_| {
+                        cubeb_log!(
+                            "({:p}) delayed reinit during start failed.",
+                            self.core_stream_data.stm_ptr
+                        );
+                    })?;
+                    self.delayed_reinit = false;
+                    Ok(())
+                } else {
+                    // Execute start in serial queue to avoid racing with destroy or reinit.
+                    self.core_stream_data.start_audiounits().inspect_err(|_| {
+                        cubeb_log!("({:p}) start failed.", self.core_stream_data.stm_ptr);
+                    })
+                }
+            })
             .unwrap();
-
-        result?;
 
         self.notify_state_changed(State::Started);
 
