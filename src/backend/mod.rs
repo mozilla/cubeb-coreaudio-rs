@@ -1019,11 +1019,14 @@ extern "C" fn audiounit_property_listener_callback(
     {
         let callback = stm.device_changed_callback.lock().unwrap();
         if let Some(device_changed_callback) = *callback {
+            cubeb_log!("Calling device changed callback");
             unsafe {
                 device_changed_callback(stm.user_ptr);
             }
         }
     }
+
+    cubeb_log!("Reinitializing stream with new device because of device change, async");
     stm.reinit_async();
 
     NO_ERR
@@ -4706,6 +4709,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 .flags
                 .contains(device_flags::DEV_SELECTED_DEFAULT)
         {
+            cubeb_log!("Using new default output device");
             self.core_stream_data.output_device =
                 match create_device_info(kAudioObjectUnknown, DeviceType::OUTPUT) {
                     None => {
@@ -4724,6 +4728,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 .flags
                 .contains(device_flags::DEV_SELECTED_DEFAULT)
         {
+            cubeb_log!("Using new default input device");
             self.core_stream_data.input_device =
                 match create_device_info(kAudioObjectUnknown, DeviceType::INPUT) {
                     None => {
@@ -4734,6 +4739,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 }
         }
 
+        cubeb_log!("Reinit: setup");
         self.core_stream_data
             .setup(&mut self.context.shared_voice_processing_unit)
             .inspect_err(|_| {
@@ -4771,6 +4777,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
         // Use a new thread, through the queue, to avoid deadlock when calling
         // Get/SetProperties method from inside notify callback
         queue.run_async(move || {
+            cubeb_log!("Reinitialization of stream");
             let stm_ptr = self as *const AudioUnitStream;
             if self.destroy_pending.load(Ordering::SeqCst) {
                 cubeb_log!(
