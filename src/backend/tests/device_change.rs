@@ -120,6 +120,41 @@ fn test_switch_device_in_scope_while_paused(scope: Scope) {
             stm.core_stream_data.input_unit
         };
 
+        let check_devices = |current| {
+            stm.queue.run_sync(|| {
+                let (bus, unit, id) = if scope == Scope::Output {
+                    (
+                        AU_OUT_BUS,
+                        stm.core_stream_data.output_unit,
+                        stm.core_stream_data.output_device.id,
+                    )
+                } else {
+                    (
+                        AU_IN_BUS,
+                        stm.core_stream_data.input_unit,
+                        stm.core_stream_data.input_device.id,
+                    )
+                };
+                let mut device_id: AudioDeviceID = 0;
+                let mut size = std::mem::size_of::<AudioDeviceID>();
+                let status = audio_unit_get_property(
+                    unit,
+                    kAudioOutputUnitProperty_CurrentDevice,
+                    kAudioUnitScope_Global,
+                    bus,
+                    &mut device_id,
+                    &mut size,
+                );
+                if status != NO_ERR {
+                    panic!("Could not get device ID from audiounit");
+                }
+                assert_eq!(id, current);
+                assert_eq!(device_id, current);
+            });
+        };
+
+        check_devices(device_switcher.current());
+
         // Pause the stream, and change the default device
         assert_eq!(unsafe { OPS.stream_stop.unwrap()(stream) }, ffi::CUBEB_OK);
 
@@ -147,6 +182,8 @@ fn test_switch_device_in_scope_while_paused(scope: Scope) {
 
         // Start the stream, and check that the device in use isn't the same as before pausing
         assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
+
+        check_devices(device_switcher.current());
 
         let after = if scope == Scope::Output {
             stm.core_stream_data.output_unit
