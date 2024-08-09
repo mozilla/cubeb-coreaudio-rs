@@ -4877,6 +4877,8 @@ impl<'ctx> Drop for AudioUnitStream<'ctx> {
 
 impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
     fn start(&mut self) -> Result<()> {
+        let was_stopped = self.stopped.load(Ordering::SeqCst);
+        let was_draining = self.draining.load(Ordering::SeqCst);
         self.stopped.store(false, Ordering::SeqCst);
         self.draining.store(false, Ordering::SeqCst);
 
@@ -4886,22 +4888,33 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
                 // Need reinitialization: device was changed when paused. It will be started after
                 // reinit because self.stopped is false.
                 if self.delayed_reinit {
-                    self.reinit().inspect_err(|_| {
+                    let rv = self.reinit().inspect_err(|_| {
                         cubeb_log!(
                             "({:p}) delayed reinit during start failed.",
                             self.core_stream_data.stm_ptr
                         );
-                    })?;
+                    });
+                    // In case of failure, restore the state
+                    if rv.is_err() {
+                        self.stopped.store(was_stopped, Ordering::SeqCst);
+                        self.draining.store(was_draining, Ordering::SeqCst);
+                        return rv;
+                    }
                     self.delayed_reinit = false;
                     Ok(())
                 } else {
                     // Execute start in serial queue to avoid racing with destroy or reinit.
-                    self.core_stream_data.start_audiounits().inspect_err(|_| {
+                    let rv = self.core_stream_data.start_audiounits();
+                    if rv.is_err() {
                         cubeb_log!("({:p}) start failed.", self.core_stream_data.stm_ptr);
-                    })
+                        self.stopped.store(was_stopped, Ordering::SeqCst);
+                        self.draining.store(was_draining, Ordering::SeqCst);
+                        return rv;
+                    }
+                    Ok(())
                 }
             })
-            .unwrap();
+            .unwrap()?;
 
         self.notify_state_changed(State::Started);
 
