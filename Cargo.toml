@@ -25,3 +25,8 @@ itertools = "0.11"
 
 [features]
 audio-dump = []
+
+# Workaround for https://github.com/rust-lang/cargo/issues/6745 to allow this
+# Cargo.toml file to appear under a subdirectory of a workspace without being in
+# that workspace (e.g. in cubeb-rs).
+[workspace]
