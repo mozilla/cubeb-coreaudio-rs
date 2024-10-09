@@ -32,14 +32,14 @@ pub fn run_serially<F, B>(work: F) -> B
 where
     F: FnOnce() -> B,
 {
-    get_serial_queue_singleton().run_sync(|| work()).unwrap()
+    get_serial_queue_singleton().run_sync(work).unwrap()
 }
 
 pub fn run_serially_forward_panics<F, B>(work: F) -> B
 where
     F: panic::UnwindSafe + FnOnce() -> B,
 {
-    match run_serially(|| panic::catch_unwind(|| work())) {
+    match run_serially(|| panic::catch_unwind(work)) {
         Ok(res) => res,
         Err(e) => panic::resume_unwind(e),
     }

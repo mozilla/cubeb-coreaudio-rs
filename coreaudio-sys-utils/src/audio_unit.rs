@@ -4,6 +4,9 @@ use std::convert::TryFrom;
 use std::os::raw::c_void;
 use std::ptr;
 
+// See https://github.com/mozilla/cubeb-coreaudio-rs/issues/237 for this and
+// all other such warning suppressions in this file.
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn audio_unit_get_property_info(
     unit: AudioUnit,
     property: AudioUnitPropertyID,
@@ -27,6 +30,7 @@ pub fn audio_unit_get_property_info(
     }
 }
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn audio_unit_get_property<T>(
     unit: AudioUnit,
     property: AudioUnitPropertyID,
@@ -50,6 +54,7 @@ pub fn audio_unit_get_property<T>(
     }
 }
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn audio_unit_set_property<T>(
     unit: AudioUnit,
     property: AudioUnitPropertyID,
@@ -72,6 +77,7 @@ pub fn audio_unit_set_property<T>(
     }
 }
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn audio_unit_get_parameter(
     unit: AudioUnit,
     id: AudioUnitParameterID,
@@ -92,6 +98,7 @@ pub fn audio_unit_get_parameter(
     }
 }
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn audio_unit_set_parameter(
     unit: AudioUnit,
     id: AudioUnitParameterID,
@@ -105,35 +112,41 @@ pub fn audio_unit_set_parameter(
     unsafe { AudioUnitSetParameter(unit, id, scope, element, value, buffer_offset_in_frames) }
 }
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn audio_unit_initialize(unit: AudioUnit) -> OSStatus {
     assert!(!unit.is_null());
     debug_assert_running_serially();
     unsafe { AudioUnitInitialize(unit) }
 }
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn audio_unit_uninitialize(unit: AudioUnit) -> OSStatus {
     assert!(!unit.is_null());
     debug_assert_running_serially();
     unsafe { AudioUnitUninitialize(unit) }
 }
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn dispose_audio_unit(unit: AudioUnit) -> OSStatus {
     debug_assert_running_serially();
     unsafe { AudioComponentInstanceDispose(unit) }
 }
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn audio_output_unit_start(unit: AudioUnit) -> OSStatus {
     assert!(!unit.is_null());
     debug_assert_running_serially();
     unsafe { AudioOutputUnitStart(unit) }
 }
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn audio_output_unit_stop(unit: AudioUnit) -> OSStatus {
     assert!(!unit.is_null());
     debug_assert_running_serially();
     unsafe { AudioOutputUnitStop(unit) }
 }
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn audio_unit_render(
     in_unit: AudioUnit,
     io_action_flags: &mut AudioUnitRenderActionFlags,
@@ -159,6 +172,7 @@ pub fn audio_unit_render(
 pub type audio_unit_property_listener_proc =
     extern "C" fn(*mut c_void, AudioUnit, AudioUnitPropertyID, AudioUnitScope, AudioUnitElement);
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn audio_unit_add_property_listener<T>(
     unit: AudioUnit,
     id: AudioUnitPropertyID,
@@ -170,6 +184,7 @@ pub fn audio_unit_add_property_listener<T>(
     unsafe { AudioUnitAddPropertyListener(unit, id, Some(listener), data as *mut c_void) }
 }
 
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn audio_unit_remove_property_listener_with_user_data<T>(
     unit: AudioUnit,
     id: AudioUnitPropertyID,
