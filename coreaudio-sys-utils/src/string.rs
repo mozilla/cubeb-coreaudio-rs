@@ -102,7 +102,7 @@ fn utf8_from_cfstringref(string_ref: CFStringRef) -> Vec<u8> {
             kCFStringEncodingUTF8,
             0,
             false as Boolean,
-            ptr::null_mut() as *mut u8,
+            ptr::null_mut(),
             0,
             &mut size,
         )

@@ -13,6 +13,8 @@ extern "C" {
     ) -> OSStatus;
 }
 
+// See https://github.com/mozilla/cubeb-coreaudio-rs/issues/237
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn audio_device_duck(
     in_device: AudioDeviceID,
     in_ducked_level: f32,
