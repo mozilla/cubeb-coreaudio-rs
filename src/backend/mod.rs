@@ -3049,7 +3049,7 @@ struct CoreStreamData<'ctx> {
     audio_dump_output: ffi::cubeb_audio_dump_stream_t,
 }
 
-impl<'ctx> Default for CoreStreamData<'ctx> {
+impl Default for CoreStreamData<'_> {
     fn default() -> Self {
         Self {
             stm_ptr: ptr::null(),
@@ -4556,7 +4556,7 @@ impl<'ctx> CoreStreamData<'ctx> {
     }
 }
 
-impl<'ctx> Drop for CoreStreamData<'ctx> {
+impl Drop for CoreStreamData<'_> {
     fn drop(&mut self) {
         self.debug_assert_is_on_stream_queue();
         self.stop_audiounits();
@@ -4881,7 +4881,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
     }
 }
 
-impl<'ctx> Drop for AudioUnitStream<'ctx> {
+impl Drop for AudioUnitStream<'_> {
     fn drop(&mut self) {
         // Execute destroy in serial queue to avoid collision with reinit when un/plug devices
         self.queue.clone().run_final(|| {
@@ -4891,7 +4891,7 @@ impl<'ctx> Drop for AudioUnitStream<'ctx> {
     }
 }
 
-impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
+impl StreamOps for AudioUnitStream<'_> {
     fn start(&mut self) -> Result<()> {
         let was_stopped = self.stopped.load(Ordering::SeqCst);
         let was_draining = self.draining.load(Ordering::SeqCst);
@@ -5175,8 +5175,8 @@ impl<'ctx> StreamOps for AudioUnitStream<'ctx> {
 }
 
 #[allow(clippy::non_send_fields_in_send_ty)]
-unsafe impl<'ctx> Send for AudioUnitStream<'ctx> {}
-unsafe impl<'ctx> Sync for AudioUnitStream<'ctx> {}
+unsafe impl Send for AudioUnitStream<'_> {}
+unsafe impl Sync for AudioUnitStream<'_> {}
 
 #[cfg(test)]
 mod tests;
