@@ -1712,7 +1712,7 @@ fn get_device_group_id(
     debug_assert_running_serially();
     match get_device_transport_type(id, devtype) {
         Ok(kAudioDeviceTransportTypeBuiltIn) => {
-            cubeb_log!(
+            cubeb_logv!(
                 "The transport type is {:?}",
                 convert_uint32_into_string(kAudioDeviceTransportTypeBuiltIn)
             );
@@ -1724,7 +1724,7 @@ fn get_device_group_id(
             };
         }
         Ok(trans_type) => {
-            cubeb_log!(
+            cubeb_logv!(
                 "The transport type is {:?}. Getting model UID instead.",
                 convert_uint32_into_string(trans_type)
             );
@@ -1755,7 +1755,7 @@ fn get_custom_group_id(id: AudioDeviceID, devtype: DeviceType) -> Option<CString
     match get_device_source(id, devtype) {
         s @ Ok(IMIC) | s @ Ok(ISPK) => {
             const GROUP_ID: &str = "builtin-internal-mic|spk";
-            cubeb_log!(
+            cubeb_logv!(
                 "Using hardcode group id: {} when source is: {:?}.",
                 GROUP_ID,
                 convert_uint32_into_string(s.unwrap())
@@ -1764,7 +1764,7 @@ fn get_custom_group_id(id: AudioDeviceID, devtype: DeviceType) -> Option<CString
         }
         s @ Ok(EMIC) | s @ Ok(HDPN) => {
             const GROUP_ID: &str = "builtin-external-mic|hdpn";
-            cubeb_log!(
+            cubeb_logv!(
                 "Using hardcode group id: {} when source is: {:?}.",
                 GROUP_ID,
                 convert_uint32_into_string(s.unwrap())
@@ -2011,7 +2011,7 @@ fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID> {
         let info = format!("{} ({})", device, label);
 
         if let Ok(channels) = get_channel_count(device, devtype) {
-            cubeb_log!("Device {} has {} {:?}-channels", info, channels, devtype);
+            cubeb_logv!("Device {} has {} {:?}-channels", info, channels, devtype);
             if channels > 0 {
                 devices_in_scope.push(device);
             }
@@ -3271,7 +3271,7 @@ impl<'ctx> CoreStreamData<'ctx> {
         debug_assert_running_serially();
         match get_device_transport_type(id, DeviceType::INPUT) {
             Ok(kAudioDeviceTransportTypeBuiltIn) => {
-                cubeb_log!(
+                cubeb_logv!(
                     "Input device {} is on the VPIO force list because it is built in, \
                      and its volume is known to be very low without VPIO whenever VPIO \
                      is hooked up to it elsewhere.",
