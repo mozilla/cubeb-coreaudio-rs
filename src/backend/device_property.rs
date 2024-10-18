@@ -265,7 +265,7 @@ pub fn get_device_streams(
         debug_assert!(devices.contains(&id));
         devices.sort();
         let next_id = devices.into_iter().skip_while(|&i| i != id).nth(1);
-        cubeb_log!(
+        cubeb_logv!(
             "Filtering input streams {:?} for device {}. Next device is {:?}.",
             device_streams
                 .iter()
@@ -279,7 +279,7 @@ pub fn get_device_streams(
         } else {
             device_streams.retain(|ds| ds.stream > id);
         }
-        cubeb_log!(
+        cubeb_logv!(
             "Input stream filtering for device {} retained {:?}.",
             id,
             device_streams
