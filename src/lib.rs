@@ -12,6 +12,8 @@ extern crate cubeb_backend;
 extern crate float_cmp;
 extern crate mach;
 
+extern crate num;
+
 mod backend;
 mod capi;
 
