@@ -4,6 +4,7 @@ use std::os::raw::c_void;
 use std::slice;
 
 use cubeb_backend::SampleFormat;
+use num::cast::AsPrimitive;
 
 use super::ringbuf::RingBuffer;
 
@@ -36,12 +37,25 @@ fn drop_first_n_channels_in_place<T: Copy>(
     }
 }
 
+trait DataType: AsPrimitive<f32> {
+    fn from_f32(v: f32) -> Self;
+}
+
+impl<T: AsPrimitive<f32>> DataType for T
+where
+    f32: AsPrimitive<T>,
+{
+    fn from_f32(v: f32) -> T {
+        v.as_()
+    }
+}
+
 // It can be that the a stereo microphone is in use, but the user asked for mono input. In this
 // particular case, downmix the stereo pair into a mono channel. In all other cases, simply drop
 // the remaining channels before appending to the ringbuffer, becauses there is no right or wrong
 // way to do this, unlike with the output side, where proper channel matrixing can be done.
 // Return the number of valid samples in the buffer.
-fn remix_or_drop_channels<T: Copy + std::ops::Add<Output = T>>(
+fn remix_or_drop_channels<T: DataType>(
     input_channels: usize,
     output_channels: usize,
     data: &mut [T],
@@ -56,7 +70,8 @@ fn remix_or_drop_channels<T: Copy + std::ops::Add<Output = T>>(
     if input_channels == 2 && output_channels == 1 {
         let mut read_idx = 0;
         for (write_idx, _) in (0..frame_count).enumerate() {
-            data[write_idx] = data[read_idx] + data[read_idx + 1];
+            let avg = (data[read_idx].as_() + data[read_idx + 1].as_()) / 2.0;
+            data[write_idx] = DataType::from_f32(avg);
             read_idx += 2;
         }
         return output_channels * frame_count;
@@ -76,7 +91,7 @@ fn remix_or_drop_channels<T: Copy + std::ops::Add<Output = T>>(
     output_channels * frame_count
 }
 
-fn process_data<T: Copy + std::ops::Add<Output = T>>(
+fn process_data<T: DataType>(
     data: *mut c_void,
     frame_count: usize,
     input_channel_count: usize,
@@ -351,5 +366,15 @@ impl BufferManager {
 impl fmt::Debug for BufferManager {
     fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn remix_stereo_ints() {
+        let mut data = [i16::MAX / 2 + 1, i16::MAX / 2 + 1];
+        assert_eq!(remix_or_drop_channels(2, 1, &mut data, 1), 1);
     }
 }
