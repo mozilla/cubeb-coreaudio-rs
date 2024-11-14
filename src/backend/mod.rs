@@ -3266,6 +3266,7 @@ impl<'ctx> CoreStreamData<'ctx> {
     }
 
     #[allow(non_upper_case_globals)]
+    #[cfg(feature = "vpio-forcelist")]
     fn should_force_vpio_for_input_device(id: AudioDeviceID) -> bool {
         assert!(id != kAudioObjectUnknown);
         debug_assert_running_serially();
@@ -3281,6 +3282,11 @@ impl<'ctx> CoreStreamData<'ctx> {
             }
             _ => false,
         }
+    }
+
+    #[cfg(not(feature = "vpio-forcelist"))]
+    fn should_force_vpio_for_input_device(_id: AudioDeviceID) -> bool {
+        false
     }
 
     fn should_block_vpio_for_device_pair(
