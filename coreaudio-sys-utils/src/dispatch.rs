@@ -116,7 +116,7 @@ impl Queue {
         let guard = self.queue.lock().unwrap();
         let should_cancel = self.get_should_cancel(*guard);
         let (closure, executor) = Self::create_closure_and_executor(|| {
-            if should_cancel.map_or(false, |v| v.load(Ordering::SeqCst)) {
+            if should_cancel.is_some_and(|v| v.load(Ordering::SeqCst)) {
                 return;
             }
             work();
@@ -139,7 +139,7 @@ impl Queue {
         let guard = self.queue.lock().unwrap();
         let should_cancel = self.get_should_cancel(*guard);
         let (closure, executor) = Self::create_closure_and_executor(|| {
-            if should_cancel.map_or(false, |v| v.load(Ordering::SeqCst)) {
+            if should_cancel.is_some_and(|v| v.load(Ordering::SeqCst)) {
                 return;
             }
             work();
@@ -161,7 +161,7 @@ impl Queue {
             queue = Some(*guard);
             let should_cancel = self.get_should_cancel(*guard);
             cex = Some(Self::create_closure_and_executor(|| {
-                if should_cancel.map_or(false, |v| v.load(Ordering::SeqCst)) {
+                if should_cancel.is_some_and(|v| v.load(Ordering::SeqCst)) {
                     return;
                 }
                 res = Some(work());

@@ -1741,7 +1741,7 @@ fn test_ops_duplex_voice_stream_set_input_mute_before_start_with_reinit() {
                 assert_eq!(r, NO_ERR);
                 mute_after_reinit = mute == 1;
             });
-            assert_eq!(mute_after_reinit, true);
+            assert!(mute_after_reinit);
         },
     );
 }
@@ -1847,7 +1847,7 @@ fn test_ops_duplex_voice_stream_set_input_processing_params_before_start_with_re
                 );
                 assert_eq!(r, NO_ERR);
                 if agc == 1 {
-                    params = params | ffi::CUBEB_INPUT_PROCESSING_PARAM_AUTOMATIC_GAIN_CONTROL;
+                    params |= ffi::CUBEB_INPUT_PROCESSING_PARAM_AUTOMATIC_GAIN_CONTROL;
                 }
                 let mut bypass: u32 = 0;
                 let r = audio_unit_get_property(

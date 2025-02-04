@@ -482,14 +482,14 @@ fn test_get_stream_virtual_format_by_unknown_stream() {
 #[test]
 fn test_get_devices() {
     if let Some(device) = test_get_default_device(Scope::Input) {
-        let devices = run_serially(|| get_devices());
+        let devices = run_serially(get_devices);
         assert!(devices.contains(&device));
     } else {
         println!("No input device.");
     }
 
     if let Some(device) = test_get_default_device(Scope::Output) {
-        let devices = run_serially(|| get_devices());
+        let devices = run_serially(get_devices);
         assert!(devices.contains(&device));
     } else {
         println!("No output device.");

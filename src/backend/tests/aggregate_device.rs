@@ -56,7 +56,7 @@ fn test_aggregate_get_sub_devices() {
         let left: HashSet<u32> = lhs.into_iter().collect();
         let right: HashSet<u32> = rhs.into_iter().collect();
         left.symmetric_difference(&right)
-            .map(|&i| i.clone())
+            .map(|&i| i)
             .collect()
     }
 
@@ -173,7 +173,7 @@ fn test_aggregate_destroy_aggregate_device_for_a_unknown_aggregate_device() {
 #[test]
 fn test_aggregate_create_blank_device() {
     // TODO: Test this when there is no available devices.
-    let plugin = run_serially(|| AggregateDevice::get_system_plugin_id()).unwrap();
+    let plugin = run_serially(AggregateDevice::get_system_plugin_id).unwrap();
     let device = run_serially(|| AggregateDevice::create_blank_device_sync(plugin)).unwrap();
     let devices = test_get_all_devices(DeviceFilter::IncludeAll);
     let device = devices.into_iter().find(|dev| dev == &device).unwrap();
@@ -210,7 +210,7 @@ fn test_aggregate_set_sub_devices() {
     let input_device = input_device.unwrap();
     let output_device = output_device.unwrap();
 
-    let plugin = run_serially(|| AggregateDevice::get_system_plugin_id()).unwrap();
+    let plugin = run_serially(AggregateDevice::get_system_plugin_id).unwrap();
     let device = run_serially(|| AggregateDevice::create_blank_device_sync(plugin)).unwrap();
     assert!(run_serially(|| AggregateDevice::set_sub_devices_sync(
         device,
@@ -315,7 +315,7 @@ fn test_aggregate_set_master_device() {
     let input_device = input_device.unwrap();
     let output_device = output_device.unwrap();
 
-    let plugin = run_serially(|| AggregateDevice::get_system_plugin_id()).unwrap();
+    let plugin = run_serially(AggregateDevice::get_system_plugin_id).unwrap();
     let device = run_serially(|| AggregateDevice::create_blank_device_sync(plugin)).unwrap();
     assert!(run_serially(|| AggregateDevice::set_sub_devices_sync(
         device,
@@ -344,7 +344,7 @@ fn test_aggregate_set_master_device_for_a_blank_aggregate_device() {
         return;
     }
 
-    let plugin = run_serially(|| AggregateDevice::get_system_plugin_id()).unwrap();
+    let plugin = run_serially(AggregateDevice::get_system_plugin_id).unwrap();
     let device = run_serially(|| AggregateDevice::create_blank_device_sync(plugin)).unwrap();
     assert!(
         run_serially(|| AggregateDevice::set_master_device(device, output_device.unwrap())).is_ok()
@@ -379,7 +379,7 @@ fn test_aggregate_activate_clock_drift_compensation() {
     let input_device = input_device.unwrap();
     let output_device = output_device.unwrap();
 
-    let plugin = run_serially(|| AggregateDevice::get_system_plugin_id()).unwrap();
+    let plugin = run_serially(AggregateDevice::get_system_plugin_id).unwrap();
     let device = run_serially(|| AggregateDevice::create_blank_device_sync(plugin)).unwrap();
     assert!(run_serially(|| AggregateDevice::set_sub_devices_sync(
         device,
@@ -425,7 +425,7 @@ fn test_aggregate_activate_clock_drift_compensation_for_an_aggregate_device_with
     let input_device = input_device.unwrap();
     let output_device = output_device.unwrap();
 
-    let plugin = run_serially(|| AggregateDevice::get_system_plugin_id()).unwrap();
+    let plugin = run_serially(AggregateDevice::get_system_plugin_id).unwrap();
     let device = run_serially(|| AggregateDevice::create_blank_device_sync(plugin)).unwrap();
     assert!(run_serially(|| AggregateDevice::set_sub_devices_sync(
         device,
