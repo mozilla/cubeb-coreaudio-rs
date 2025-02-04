@@ -63,7 +63,7 @@ fn test_switch_device_in_scope(scope: Scope) {
 
     let changed_watcher = Watcher::new(&also_notifier);
     test_get_started_stream_in_scope(scope.clone(), move |_stream| loop {
-        let start_cnt = changed_watcher.lock().unwrap().clone();
+        let start_cnt = *changed_watcher.lock().unwrap();
         device_switcher.next();
         let mut guard = changed_watcher.lock().unwrap();
         guard = changed_watcher
@@ -158,7 +158,7 @@ fn test_switch_device_in_scope_while_paused(scope: Scope) {
         // Pause the stream, and change the default device
         assert_eq!(unsafe { OPS.stream_stop.unwrap()(stream) }, ffi::CUBEB_OK);
 
-        let start_cnt = changed_watcher.lock().unwrap().clone();
+        let start_cnt = *changed_watcher.lock().unwrap();
         device_switcher.next();
         let mut guard = changed_watcher.lock().unwrap();
         guard = changed_watcher
@@ -512,7 +512,7 @@ fn test_register_device_changed_callback_to_check_default_device_changed(stm_typ
                         std::hint::spin_loop()
                     }
                     let guard = changed_watcher.lock().unwrap();
-                    let start_cnt = guard.clone();
+                    let start_cnt = *guard;
                     device_switcher.next();
                     changed_watcher
                         .wait_while(guard, |cnt| *cnt == start_cnt)
@@ -529,7 +529,7 @@ fn test_register_device_changed_callback_to_check_default_device_changed(stm_typ
                         std::hint::spin_loop()
                     }
                     let guard = changed_watcher.lock().unwrap();
-                    let start_cnt = guard.clone();
+                    let start_cnt = *guard;
                     device_switcher.next();
                     changed_watcher
                         .wait_while(guard, |cnt| *cnt == start_cnt)
@@ -844,7 +844,7 @@ fn test_unplug_a_device_on_an_active_stream(
             let start_changed_count = {
                 let guard = notifier.lock().unwrap();
                 assert_eq!(guard.states.last().unwrap(), &ffi::CUBEB_STATE_STARTED);
-                guard.changed_count.clone()
+                guard.changed_count
             };
 
             assert!(plugger.unplug().is_ok());

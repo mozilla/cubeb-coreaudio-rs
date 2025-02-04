@@ -1155,7 +1155,7 @@ fn get_nonvpio_input_channel_counts() -> Vec<u32> {
 #[ignore]
 fn test_get_channel_count_of_input_devices_with_vpio() {
     let non_vpio_channel_counts =
-        run_serially_forward_panics(|| get_nonvpio_input_channel_counts());
+        run_serially_forward_panics(get_nonvpio_input_channel_counts);
 
     let queue = Queue::new_with_target(
         "test_get_channel_count_of_input_devices_with_vpio",
@@ -1164,7 +1164,7 @@ fn test_get_channel_count_of_input_devices_with_vpio() {
     let mut shared = SharedVoiceProcessingUnitManager::new(queue.clone());
     let _vpio = queue.run_sync(|| shared.take_or_create()).unwrap().unwrap();
 
-    let vpio_channel_counts = run_serially_forward_panics(|| get_nonvpio_input_channel_counts());
+    let vpio_channel_counts = run_serially_forward_panics(get_nonvpio_input_channel_counts);
     assert_eq!(non_vpio_channel_counts, vpio_channel_counts);
 }
 
@@ -1197,7 +1197,7 @@ fn test_get_channel_count_of_input_devices_with_aggregate_device_and_vpio() {
     let state = Arc::new(Mutex::new(State::default()));
 
     // Set up an AggregateDevice with input and output.
-    let initial_channel_counts = run_serially_forward_panics(|| get_nonvpio_input_channel_counts());
+    let initial_channel_counts = run_serially_forward_panics(get_nonvpio_input_channel_counts);
     let s1 = state.clone();
     let aggr_channel_counts = run_serially_forward_panics(|| {
         let mut state = s1.lock().unwrap();
@@ -1326,37 +1326,31 @@ fn test_get_same_group_id_for_builtin_device_pairs() {
     let mut input_group_ids = HashMap::<u32, String>::new();
     let input_devices = test_get_devices_in_scope(Scope::Input);
     for device in input_devices.iter() {
-        match run_serially_forward_panics(|| get_device_source(*device, DeviceType::INPUT)) {
-            Ok(source) => match run_serially_forward_panics(|| {
-                get_device_group_id(*device, DeviceType::INPUT)
-            }) {
-                Ok(id) => assert!(input_group_ids
-                    .insert(source, id.into_string().unwrap())
-                    .is_none()),
-                Err(e) => assert!(input_group_ids
-                    .insert(source, format!("Error {}", e))
-                    .is_none()),
-            },
-            _ => {} // do nothing when failing to get source.
-        }
+        if let Ok(source) = run_serially_forward_panics(|| get_device_source(*device, DeviceType::INPUT)) { match run_serially_forward_panics(|| {
+            get_device_group_id(*device, DeviceType::INPUT)
+        }) {
+            Ok(id) => assert!(input_group_ids
+                .insert(source, id.into_string().unwrap())
+                .is_none()),
+            Err(e) => assert!(input_group_ids
+                .insert(source, format!("Error {}", e))
+                .is_none()),
+        } }
     }
 
     let mut output_group_ids = HashMap::<u32, String>::new();
     let output_devices = test_get_devices_in_scope(Scope::Output);
     for device in output_devices.iter() {
-        match run_serially_forward_panics(|| get_device_source(*device, DeviceType::OUTPUT)) {
-            Ok(source) => match run_serially_forward_panics(|| {
-                get_device_group_id(*device, DeviceType::OUTPUT)
-            }) {
-                Ok(id) => assert!(output_group_ids
-                    .insert(source, id.into_string().unwrap())
-                    .is_none()),
-                Err(e) => assert!(output_group_ids
-                    .insert(source, format!("Error {}", e))
-                    .is_none()),
-            },
-            _ => {} // do nothing when failing to get source.
-        }
+        if let Ok(source) = run_serially_forward_panics(|| get_device_source(*device, DeviceType::OUTPUT)) { match run_serially_forward_panics(|| {
+            get_device_group_id(*device, DeviceType::OUTPUT)
+        }) {
+            Ok(id) => assert!(output_group_ids
+                .insert(source, id.into_string().unwrap())
+                .is_none()),
+            Err(e) => assert!(output_group_ids
+                .insert(source, format!("Error {}", e))
+                .is_none()),
+        } }
     }
 
     for (input, output) in pairs.iter() {
