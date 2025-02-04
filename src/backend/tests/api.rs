@@ -1154,8 +1154,7 @@ fn get_nonvpio_input_channel_counts() -> Vec<u32> {
 #[test]
 #[ignore]
 fn test_get_channel_count_of_input_devices_with_vpio() {
-    let non_vpio_channel_counts =
-        run_serially_forward_panics(get_nonvpio_input_channel_counts);
+    let non_vpio_channel_counts = run_serially_forward_panics(get_nonvpio_input_channel_counts);
 
     let queue = Queue::new_with_target(
         "test_get_channel_count_of_input_devices_with_vpio",
@@ -1326,31 +1325,35 @@ fn test_get_same_group_id_for_builtin_device_pairs() {
     let mut input_group_ids = HashMap::<u32, String>::new();
     let input_devices = test_get_devices_in_scope(Scope::Input);
     for device in input_devices.iter() {
-        if let Ok(source) = run_serially_forward_panics(|| get_device_source(*device, DeviceType::INPUT)) { match run_serially_forward_panics(|| {
-            get_device_group_id(*device, DeviceType::INPUT)
-        }) {
-            Ok(id) => assert!(input_group_ids
-                .insert(source, id.into_string().unwrap())
-                .is_none()),
-            Err(e) => assert!(input_group_ids
-                .insert(source, format!("Error {}", e))
-                .is_none()),
-        } }
+        if let Ok(source) =
+            run_serially_forward_panics(|| get_device_source(*device, DeviceType::INPUT))
+        {
+            match run_serially_forward_panics(|| get_device_group_id(*device, DeviceType::INPUT)) {
+                Ok(id) => assert!(input_group_ids
+                    .insert(source, id.into_string().unwrap())
+                    .is_none()),
+                Err(e) => assert!(input_group_ids
+                    .insert(source, format!("Error {}", e))
+                    .is_none()),
+            }
+        }
     }
 
     let mut output_group_ids = HashMap::<u32, String>::new();
     let output_devices = test_get_devices_in_scope(Scope::Output);
     for device in output_devices.iter() {
-        if let Ok(source) = run_serially_forward_panics(|| get_device_source(*device, DeviceType::OUTPUT)) { match run_serially_forward_panics(|| {
-            get_device_group_id(*device, DeviceType::OUTPUT)
-        }) {
-            Ok(id) => assert!(output_group_ids
-                .insert(source, id.into_string().unwrap())
-                .is_none()),
-            Err(e) => assert!(output_group_ids
-                .insert(source, format!("Error {}", e))
-                .is_none()),
-        } }
+        if let Ok(source) =
+            run_serially_forward_panics(|| get_device_source(*device, DeviceType::OUTPUT))
+        {
+            match run_serially_forward_panics(|| get_device_group_id(*device, DeviceType::OUTPUT)) {
+                Ok(id) => assert!(output_group_ids
+                    .insert(source, id.into_string().unwrap())
+                    .is_none()),
+                Err(e) => assert!(output_group_ids
+                    .insert(source, format!("Error {}", e))
+                    .is_none()),
+            }
+        }
     }
 
     for (input, output) in pairs.iter() {
