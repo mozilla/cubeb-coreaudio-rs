@@ -1337,6 +1337,7 @@ fn test_get_same_group_id_for_builtin_device_pairs() {
                     .is_none()),
             }
         }
+        // else do nothing when failing to get source.
     }
 
     let mut output_group_ids = HashMap::<u32, String>::new();
@@ -1354,6 +1355,7 @@ fn test_get_same_group_id_for_builtin_device_pairs() {
                     .is_none()),
             }
         }
+        // else do nothing when failing to get source.
     }
 
     for (input, output) in pairs.iter() {
