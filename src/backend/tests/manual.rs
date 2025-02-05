@@ -310,7 +310,7 @@ fn test_stream_tester() {
             let _ = io::stdin().read_line(&mut input);
             assert_eq!(input.pop().unwrap(), '\n');
             selection = match input.parse::<usize>() {
-                Ok(i) if (1..=num_streams).contains((&i)) => Some(i),
+                Ok(i) if (1..=num_streams).contains(&i) => Some(i),
                 _ => {
                     println!("Invalid stream. Select again.\n");
                     None
