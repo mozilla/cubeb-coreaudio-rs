@@ -9,6 +9,8 @@ if [[ -z "${RUST_BACKTRACE}" ]]; then
 fi
 echo "RUST_BACKTRACE is set to ${RUST_BACKTRACE}\n"
 
+export MACOSX_DEPLOYMENT_TARGET="10.15"
+
 # Run tests in the sub crate
 # Run the tests by `cargo * -p <SUB_CRATE>` if it's possible. By doing so, the duplicate compiling
 # between this crate and the <SUB_CRATE> can be saved. The compiling for <SUB_CRATE> can be reused
