@@ -12,6 +12,7 @@ mod aggregate_device;
 mod auto_release;
 mod buffer_manager;
 mod device_property;
+mod intern;
 mod mixer;
 mod resampler;
 mod utils;
@@ -1799,6 +1800,7 @@ fn get_device_global_uid(id: AudioDeviceID) -> std::result::Result<StringRef, OS
 
 #[allow(clippy::cognitive_complexity)]
 fn create_cubeb_device_info(
+    intern: &Arc<Mutex<intern::Intern>>,
     devid: AudioObjectID,
     devtype: DeviceType,
 ) -> Result<ffi::cubeb_device_info> {
@@ -1819,15 +1821,11 @@ fn create_cubeb_device_info(
         ..Default::default()
     };
 
-    assert!(
-        mem::size_of::<ffi::cubeb_devid>() >= mem::size_of_val(&devid),
-        "cubeb_devid can't represent devid"
-    );
-    dev_info.devid = devid as ffi::cubeb_devid;
-
     match get_device_uid(devid, devtype) {
         Ok(uid) => {
             let c_string = uid.into_cstring();
+            // Intern the device UID to provide a stable devid pointer for the lifetime of the context.
+            dev_info.devid = intern.lock().unwrap().add(&c_string) as ffi::cubeb_devid;
             dev_info.device_id = c_string.into_raw();
         }
         Err(e) => {
@@ -2478,6 +2476,7 @@ pub struct AudioUnitContext {
     // Storage for a context-global vpio unit. Duplex streams that need one will take this
     // and return it when done.
     shared_voice_processing_unit: SharedVoiceProcessingUnitManager,
+    devids: Arc<Mutex<intern::Intern>>,
 }
 
 impl AudioUnitContext {
@@ -2503,6 +2502,7 @@ impl AudioUnitContext {
             devices: Mutex::new(SharedDevices::default()),
             host_time_to_ns_ratio,
             shared_voice_processing_unit: SharedVoiceProcessingUnitManager::new(shared_vp_queue),
+            devids: Arc::new(Mutex::new(intern::Intern::new())),
         }
     }
 
@@ -2735,6 +2735,7 @@ impl ContextOps for AudioUnitContext {
         devtype: DeviceType,
         collection: &DeviceCollectionRef,
     ) -> Result<()> {
+        let intern = self.devids.clone();
         let device_infos = self
             .serial_queue
             .run_sync(|| {
@@ -2748,7 +2749,7 @@ impl ContextOps for AudioUnitContext {
                 let mut device_infos = Vec::with_capacity(count);
                 for (dt, dev_ids) in device_ids {
                     for dev_id in dev_ids {
-                        if let Ok(info) = create_cubeb_device_info(dev_id, dt) {
+                        if let Ok(info) = create_cubeb_device_info(&intern, dev_id, dt) {
                             device_infos.push(info);
                         }
                     }
@@ -2817,7 +2818,12 @@ impl ContextOps for AudioUnitContext {
         let in_stm_settings = if let Some(params) = input_stream_params {
             let in_device = match self
                 .serial_queue
-                .run_sync(|| create_device_info(input_device as AudioDeviceID, DeviceType::INPUT))
+                .run_sync(|| {
+                    create_device_info(
+                        get_device_from_devid(input_device).unwrap(),
+                        DeviceType::INPUT,
+                    )
+                })
                 .unwrap()
             {
                 None => {
@@ -2835,7 +2841,12 @@ impl ContextOps for AudioUnitContext {
         let out_stm_settings = if let Some(params) = output_stream_params {
             let out_device = match self
                 .serial_queue
-                .run_sync(|| create_device_info(output_device as AudioDeviceID, DeviceType::OUTPUT))
+                .run_sync(|| {
+                    create_device_info(
+                        get_device_from_devid(output_device).unwrap(),
+                        DeviceType::OUTPUT,
+                    )
+                })
                 .unwrap()
             {
                 None => {
