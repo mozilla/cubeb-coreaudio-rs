@@ -3,8 +3,9 @@ extern crate itertools;
 use self::itertools::iproduct;
 use super::utils::{
     draining_data_callback, get_devices_info_in_scope, noop_data_callback, state_tracking_cb,
-    test_device_channels_in_scope, test_get_default_device, test_ops_context_operation,
-    test_ops_stream_operation, test_ops_stream_operation_on_context, Scope, StateCallbackData,
+    test_device_channels_in_scope, test_get_default_device, test_object_id_to_devid,
+    test_ops_context_operation, test_ops_stream_operation, test_ops_stream_operation_on_context,
+    Scope, StateCallbackData,
 };
 use super::*;
 use std::thread;
@@ -523,13 +524,15 @@ fn test_ops_context_stream_init_no_input_stream_params() {
     test_ops_context_operation(name, |context_ptr| {
         let mut stream: *mut ffi::cubeb_stream = ptr::null_mut();
         let stream_name = CString::new(name).expect("Failed to create stream name");
+        let input_device =
+            test_object_id_to_devid(context_ptr, input_device.unwrap(), DeviceType::INPUT);
         assert_eq!(
             unsafe {
                 OPS.stream_init.unwrap()(
                     context_ptr,
                     &mut stream,
                     stream_name.as_ptr(),
-                    input_device.unwrap() as ffi::cubeb_devid,
+                    input_device,
                     ptr::null_mut(), // No input parameters.
                     ptr::null_mut(), // Use default output device.
                     ptr::null_mut(), // No output parameters.
@@ -822,10 +825,12 @@ fn test_stereo_input_duplex_stream_operation_on_context_with_callback<F>(
     output_params.layout = ffi::CUBEB_LAYOUT_UNDEFINED;
     output_params.prefs = ffi::CUBEB_STREAM_PREF_NONE;
 
+    let input_device = test_object_id_to_devid(context_ptr, input_devices[0].id, DeviceType::INPUT);
+
     test_ops_stream_operation_on_context(
         name,
         context_ptr,
-        input_devices[0].id as ffi::cubeb_devid,
+        input_device,
         &mut input_params,
         ptr::null_mut(), // Use default output device.
         &mut output_params,

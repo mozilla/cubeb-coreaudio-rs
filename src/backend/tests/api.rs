@@ -1445,14 +1445,16 @@ fn test_get_device_global_uid_by_unknwon_device() {
 fn test_create_cubeb_device_info() {
     use std::collections::VecDeque;
 
-    test_create_device_from_hwdev_in_scope(Scope::Input);
-    test_create_device_from_hwdev_in_scope(Scope::Output);
+    let intern = Arc::new(Mutex::new(intern::Intern::new()));
 
-    fn test_create_device_from_hwdev_in_scope(scope: Scope) {
+    test_create_device_from_hwdev_in_scope(&intern, Scope::Input);
+    test_create_device_from_hwdev_in_scope(&intern, Scope::Output);
+
+    fn test_create_device_from_hwdev_in_scope(intern: &Arc<Mutex<intern::Intern>>, scope: Scope) {
         if let Some(device) = test_get_default_device(scope.clone()) {
             let is_input = test_device_in_scope(device, Scope::Input);
             let is_output = test_device_in_scope(device, Scope::Output);
-            let mut results = test_create_device_infos_by_device(device);
+            let mut results = test_create_device_infos_by_device(intern, device);
             assert_eq!(results.len(), 2);
             // Input device type:
             let input_result = results.pop_front().unwrap();
@@ -1478,13 +1480,14 @@ fn test_create_cubeb_device_info() {
     }
 
     fn test_create_device_infos_by_device(
+        intern: &Arc<Mutex<intern::Intern>>,
         id: AudioObjectID,
     ) -> VecDeque<std::result::Result<ffi::cubeb_device_info, Error>> {
         let dev_types = [DeviceType::INPUT, DeviceType::OUTPUT];
         let mut results = VecDeque::new();
         for dev_type in dev_types.iter() {
             results.push_back(run_serially_forward_panics(|| {
-                create_cubeb_device_info(id, *dev_type)
+                create_cubeb_device_info(intern, id, *dev_type)
             }));
         }
         results
@@ -1492,8 +1495,7 @@ fn test_create_cubeb_device_info() {
 
     fn check_device_info_by_device(info: &ffi::cubeb_device_info, id: AudioObjectID, scope: Scope) {
         assert!(!info.devid.is_null());
-        assert!(mem::size_of_val(&info.devid) >= mem::size_of::<AudioObjectID>());
-        assert_eq!(info.devid as AudioObjectID, id);
+        assert_ne!(info.devid, info.device_id as _);
         assert!(!info.device_id.is_null());
         assert!(!info.friendly_name.is_null());
         assert!(!info.group_id.is_null());
@@ -1535,7 +1537,8 @@ fn test_create_cubeb_device_info() {
 #[test]
 #[should_panic]
 fn test_create_device_info_by_unknown_device() {
-    assert!(create_cubeb_device_info(kAudioObjectUnknown, DeviceType::OUTPUT).is_err());
+    let intern = Arc::new(Mutex::new(intern::Intern::new()));
+    assert!(create_cubeb_device_info(&intern, kAudioObjectUnknown, DeviceType::OUTPUT).is_err());
 }
 
 #[test]
@@ -1544,8 +1547,10 @@ fn test_create_device_info_with_unknown_type() {
     test_create_device_info_with_unknown_type_by_scope(Scope::Output);
 
     fn test_create_device_info_with_unknown_type_by_scope(scope: Scope) {
+        let intern = Arc::new(Mutex::new(intern::Intern::new()));
         if let Some(device) = test_get_default_device(scope.clone()) {
             assert!(run_serially_forward_panics(|| create_cubeb_device_info(
+                &intern,
                 device,
                 DeviceType::UNKNOWN
             ))
@@ -1580,8 +1585,10 @@ fn test_create_device_from_hwdev_with_inout_type() {
 
     fn test_create_device_from_hwdev_with_inout_type_by_scope(scope: Scope) {
         if let Some(device) = test_get_default_device(scope.clone()) {
+            let intern = Arc::new(Mutex::new(intern::Intern::new()));
             // Get a kAudioHardwareUnknownPropertyError in get_channel_count actually.
             assert!(run_serially_forward_panics(|| create_cubeb_device_info(
+                &intern,
                 device,
                 DeviceType::INPUT | DeviceType::OUTPUT
             ))
