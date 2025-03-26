@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-12, macos-13, macos-14]
+        os: [macos-13, macos-14]
         rust: [stable]
         experimental: [false]
         include:
@@ -34,7 +34,6 @@ jobs:
         cargo --version
 
     - name: Setup switchaudio
-      if: ${{ matrix.os == 'macos-13' || matrix.os == 'macos-14' }}
       run: |
         brew install switchaudio-osx
 
@@ -46,7 +45,6 @@ jobs:
         SwitchAudioSource -s "BlackHole 2ch" -t output
 
     - name: Grant microphone access
-      if: ${{ matrix.os == 'macos-13' || matrix.os == 'macos-14' }}
       env:
         tcc_extra_columns: ${{ matrix.os == 'macos-14' && ',NULL,NULL,''UNUSED'',1687786159' || '' }}
       run: sqlite3 $HOME/Library/Application\ Support/com.apple.TCC/TCC.db "INSERT OR IGNORE INTO access VALUES ('kTCCServiceMicrophone','/usr/local/opt/runner/provisioner/provisioner',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,1687786159${{ env.tcc_extra_columns }});"
