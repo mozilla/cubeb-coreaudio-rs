@@ -41,6 +41,7 @@ jobs:
     - name: Setup blackhole-2ch
       run: |
         brew install blackhole-2ch
+        sudo killall -9 coreaudiod
         SwitchAudioSource -s "BlackHole 2ch" -t input
         SwitchAudioSource -s "BlackHole 2ch" -t output
 
