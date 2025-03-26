@@ -4098,7 +4098,7 @@ impl<'ctx> CoreStreamData<'ctx> {
         }
 
         if !self.output_unit.is_null() {
-            if self.input_unit != self.output_unit {
+            if !std::ptr::eq(self.input_unit, self.output_unit) {
                 let r = audio_unit_initialize(self.output_unit);
                 if r != NO_ERR {
                     cubeb_log!("AudioUnitInitialize/output rv={}", r);
