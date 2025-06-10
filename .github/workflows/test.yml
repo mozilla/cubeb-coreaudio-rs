@@ -9,11 +9,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-13, macos-14]
+        os: [macos-13, macos-14, macos-15]
         rust: [stable]
         experimental: [false]
         include:
-          - os: macos-14
+          - os: macos-15
             rust: nightly
             experimental: true
 
