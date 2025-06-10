@@ -75,7 +75,7 @@ impl std::fmt::Display for StringRef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let string =
             String::from_utf8(utf8_from_cfstringref(self.0)).expect("convert bytes to a String");
-        write!(f, "{}", string)
+        write!(f, "{string}")
     }
 }
 

@@ -6,7 +6,7 @@ use std::os::raw::c_void;
 use std::panic;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Mutex, MutexGuard, OnceLock};
 #[cfg(test)]
 use std::thread;
 #[cfg(test)]
@@ -114,7 +114,7 @@ impl Queue {
         F: Send + FnOnce(),
     {
         let guard = self.queue.lock().unwrap();
-        let should_cancel = self.get_should_cancel(*guard);
+        let should_cancel = self.get_should_cancel(&guard);
         let (closure, executor) = Self::create_closure_and_executor(|| {
             if should_cancel.is_some_and(|v| v.load(Ordering::SeqCst)) {
                 return;
@@ -137,7 +137,7 @@ impl Queue {
         let nanos = (when - now).as_nanos() as i64;
         let when = unsafe { dispatch_time(DISPATCH_TIME_NOW.into(), nanos) };
         let guard = self.queue.lock().unwrap();
-        let should_cancel = self.get_should_cancel(*guard);
+        let should_cancel = self.get_should_cancel(&guard);
         let (closure, executor) = Self::create_closure_and_executor(|| {
             if should_cancel.is_some_and(|v| v.load(Ordering::SeqCst)) {
                 return;
@@ -159,7 +159,7 @@ impl Queue {
         {
             let guard = self.queue.lock().unwrap();
             queue = Some(*guard);
-            let should_cancel = self.get_should_cancel(*guard);
+            let should_cancel = self.get_should_cancel(&guard);
             cex = Some(Self::create_closure_and_executor(|| {
                 if should_cancel.is_some_and(|v| v.load(Ordering::SeqCst)) {
                     return;
@@ -188,7 +188,7 @@ impl Queue {
         {
             let guard = self.queue.lock().unwrap();
             queue = Some(*guard);
-            let should_cancel = self.get_should_cancel(*guard);
+            let should_cancel = self.get_should_cancel(&guard);
             debug_assert!(
                 should_cancel.is_some(),
                 "dispatch context should be allocated!"
@@ -207,14 +207,17 @@ impl Queue {
         res
     }
 
-    fn get_should_cancel(&self, queue: dispatch_queue_t) -> Option<&mut AtomicBool> {
+    fn get_should_cancel<'a>(
+        &self,
+        queue: &MutexGuard<'a, dispatch_queue_t>,
+    ) -> Option<&'a mut AtomicBool> {
         if !self.owned.load(Ordering::SeqCst) {
             return None;
         }
         unsafe {
-            let context =
-                dispatch_get_context(mem::transmute::<dispatch_queue_t, dispatch_object_t>(queue))
-                    as *mut AtomicBool;
+            let context = dispatch_get_context(
+                mem::transmute::<dispatch_queue_t, dispatch_object_t>(**queue),
+            ) as *mut AtomicBool;
             context.as_mut()
         }
     }

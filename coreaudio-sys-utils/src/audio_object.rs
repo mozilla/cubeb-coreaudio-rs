@@ -146,6 +146,6 @@ impl fmt::Display for PropertySelector {
             Self::DataSource => "kAudioDevicePropertyDataSource",
             _ => "Unknown",
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
