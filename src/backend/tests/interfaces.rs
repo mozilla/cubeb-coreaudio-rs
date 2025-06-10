@@ -1177,7 +1177,7 @@ fn test_ops_stream_device_destroy() {
     test_default_output_stream_operation("stream: destroy null device", |stream| {
         assert_eq!(
             unsafe { OPS.stream_device_destroy.unwrap()(stream, ptr::null_mut()) },
-            ffi::CUBEB_OK // It returns OK anyway.
+            ffi::CUBEB_ERROR_INVALID_PARAMETER
         );
     });
 }
