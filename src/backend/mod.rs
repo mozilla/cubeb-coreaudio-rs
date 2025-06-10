@@ -199,7 +199,7 @@ impl From<CAChannelLabel> for mixer::Channel {
             sys::kAudioChannelLabel_Unknown => mixer::Channel::Discrete,
             sys::kAudioChannelLabel_Unused => mixer::Channel::Silence,
             v => {
-                eprintln!("Warning: channel label value {} isn't handled", v);
+                eprintln!("Warning: channel label value {v} isn't handled");
                 mixer::Channel::Silence
             }
         }
@@ -1649,7 +1649,7 @@ fn get_range_of_sample_rates(
     debug_assert_running_serially();
     let result = get_ranges_of_device_sample_rate(devid, devtype);
     if let Err(e) = result {
-        return Err(format!("status {}", e));
+        return Err(format!("status {e}"));
     }
     let rates = result.unwrap();
     if rates.is_empty() {
@@ -2004,9 +2004,9 @@ fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID> {
     for device in devices {
         let label = match get_device_label(device, DeviceType::OUTPUT | DeviceType::INPUT) {
             Ok(label) => label.into_string(),
-            Err(e) => format!("Unknown(error: {})", e),
+            Err(e) => format!("Unknown(error: {e})"),
         };
-        let info = format!("{} ({})", device, label);
+        let info = format!("{device} ({label})");
 
         if let Ok(channels) = get_channel_count(device, devtype) {
             cubeb_log!("Device {} has {} {:?}-channels", info, channels, devtype);
@@ -2481,11 +2481,11 @@ pub struct AudioUnitContext {
 
 impl AudioUnitContext {
     fn new() -> Self {
-        let queue_label = format!("{}.context", DISPATCH_QUEUE_LABEL);
+        let queue_label = format!("{DISPATCH_QUEUE_LABEL}.context");
         let serial_queue =
             Queue::new_with_target(queue_label.as_str(), get_serial_queue_singleton());
         let shared_vp_queue = Queue::new_with_target(
-            format!("{}.context.shared_vpio", DISPATCH_QUEUE_LABEL).as_str(),
+            format!("{DISPATCH_QUEUE_LABEL}.context.shared_vpio").as_str(),
             &serial_queue,
         );
         let host_time_to_ns_ratio = {
@@ -2637,7 +2637,7 @@ impl ContextOps for AudioUnitContext {
         ctx.serial_queue =
             Queue::new_with_target(queue_label.as_str(), get_serial_queue_singleton());
         let shared_vp_queue = Queue::new_with_target(
-            format!("{}.shared_vpio", queue_label).as_str(),
+            format!("{queue_label}.shared_vpio").as_str(),
             &ctx.serial_queue,
         );
         ctx.shared_voice_processing_unit = SharedVoiceProcessingUnitManager::new(shared_vp_queue);

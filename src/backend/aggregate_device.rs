@@ -40,9 +40,9 @@ impl From<usize> for Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::OS(status) => write!(f, "OSStatus({})", status),
-            Error::Timeout(duration) => write!(f, "Timeout({:?})", duration),
-            Error::LessThan2Devices(number) => write!(f, "LessThan2Devices({} only)", number),
+            Error::OS(status) => write!(f, "OSStatus({status})"),
+            Error::Timeout(duration) => write!(f, "Timeout({duration:?})"),
+            Error::LessThan2Devices(number) => write!(f, "LessThan2Devices({number} only)"),
         }
     }
 }
@@ -233,8 +233,8 @@ impl AggregateDevice {
 
         let sys_time = SystemTime::now();
         let time_id = sys_time.duration_since(UNIX_EPOCH).unwrap().as_nanos();
-        let device_name = format!("{}_{}", PRIVATE_AGGREGATE_DEVICE_NAME, time_id);
-        let device_uid = format!("org.mozilla.{}", device_name);
+        let device_name = format!("{PRIVATE_AGGREGATE_DEVICE_NAME}_{time_id}");
+        let device_uid = format!("org.mozilla.{device_name}");
 
         let mut device_id = kAudioObjectUnknown;
         let status = unsafe {
@@ -670,8 +670,8 @@ impl AggregateDevice {
 
             let output_rate =
                 match get_device_sample_rate(output_id, DeviceType::INPUT | DeviceType::OUTPUT) {
-                    Ok(rate) => format!("{}", rate),
-                    Err(e) => format!("Error {}", e),
+                    Ok(rate) => format!("{rate}"),
+                    Err(e) => format!("Error {e}"),
                 };
             cubeb_log!(
                 "The nominal rate of the output device {}: {}",
