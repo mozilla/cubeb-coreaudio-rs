@@ -40,7 +40,7 @@ use cubeb_backend::{
     Error, InputProcessingParams, Ops, Result, SampleFormat, State, Stream, StreamOps,
     StreamParams, StreamParamsRef, StreamPrefs,
 };
-use mach::mach_time::{mach_absolute_time, mach_timebase_info};
+use mach2::mach_time::{mach_absolute_time, mach_timebase_info};
 use std::cmp;
 use std::ffi::{CStr, CString};
 use std::fmt;
