@@ -14,7 +14,7 @@ coreaudio-sys-utils = { path = "coreaudio-sys-utils" }
 cubeb-backend = "0.26"
 float-cmp = "0.6"
 libc = "0.2"
-mach = "0.3"
+mach2 = "0.4"
 num = "0.4.3"
 audio-mixer = "0.2"
 ringbuf = "0.2.6"
