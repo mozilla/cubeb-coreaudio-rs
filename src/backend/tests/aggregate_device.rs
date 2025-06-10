@@ -1,7 +1,7 @@
 extern crate itertools;
 
 use super::utils::{
-    test_get_all_devices, test_get_all_onwed_devices, test_get_default_device,
+    test_get_all_devices, test_get_all_owned_devices, test_get_default_device,
     test_get_drift_compensations, test_get_master_device, DeviceFilter, Scope,
 };
 use super::*;
@@ -236,7 +236,7 @@ fn test_aggregate_set_sub_devices() {
         assert!(sub_devices.contains(dev));
     }
 
-    let onwed_devices = run_serially(|| test_get_all_onwed_devices(device));
+    let onwed_devices = run_serially(|| test_get_all_owned_devices(device));
     let onwed_device_uids = run_serially(|| get_device_uids(&onwed_devices));
     let input_sub_device_uids = run_serially(|| get_device_uids(&input_sub_devices));
     let output_sub_device_uids = run_serially(|| get_device_uids(&output_sub_devices));
@@ -389,7 +389,7 @@ fn test_aggregate_activate_clock_drift_compensation() {
     assert!(run_serially(|| AggregateDevice::activate_clock_drift_compensation(device)).is_ok());
 
     // Check the compensations.
-    let devices = run_serially(|| test_get_all_onwed_devices(device));
+    let devices = run_serially(|| test_get_all_owned_devices(device));
     let compensations = run_serially(|| get_drift_compensations(&devices));
     let master_device_uid = run_serially(|| test_get_master_device(device));
     assert!(!compensations.is_empty());
@@ -449,7 +449,7 @@ fn test_aggregate_activate_clock_drift_compensation_for_an_aggregate_device_with
     assert!(run_serially(|| AggregateDevice::activate_clock_drift_compensation(device)).is_ok());
 
     // Check the compensations.
-    let devices = run_serially(|| test_get_all_onwed_devices(device));
+    let devices = run_serially(|| test_get_all_owned_devices(device));
     let compensations = run_serially(|| get_drift_compensations(&devices));
     assert!(!compensations.is_empty());
     assert_eq!(devices.len(), compensations.len());
@@ -470,7 +470,7 @@ fn test_aggregate_activate_clock_drift_compensation_for_a_blank_aggregate_device
 
         let sub_devices = AggregateDevice::get_sub_devices_or_self(device).unwrap();
         assert!(sub_devices.is_empty());
-        let onwed_devices = test_get_all_onwed_devices(device);
+        let onwed_devices = test_get_all_owned_devices(device);
         assert!(onwed_devices.is_empty());
 
         // Get a panic since no sub devices to be set compensation.
@@ -527,7 +527,7 @@ fn test_aggregate_new() {
         assert_eq!(first_output_sub_device_uid, master_device_uid);
 
         // Check drift compensation
-        let devices = test_get_all_onwed_devices(aggr.get_device_id());
+        let devices = test_get_all_owned_devices(aggr.get_device_id());
         let compensations = get_drift_compensations(&devices);
         assert!(!compensations.is_empty());
         assert_eq!(devices.len(), compensations.len());

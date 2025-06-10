@@ -535,7 +535,7 @@ pub fn test_device_in_scope(id: AudioObjectID, scope: Scope) -> bool {
     channels.is_ok() && channels.unwrap() > 0
 }
 
-pub fn test_get_all_onwed_devices(id: AudioDeviceID) -> Vec<AudioObjectID> {
+pub fn test_get_all_owned_devices(id: AudioDeviceID) -> Vec<AudioObjectID> {
     assert_ne!(id, kAudioObjectUnknown);
     debug_assert_running_serially();
 
