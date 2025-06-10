@@ -44,11 +44,6 @@ jobs:
         SwitchAudioSource -s "BlackHole 2ch" -t input
         SwitchAudioSource -s "BlackHole 2ch" -t output
 
-    - name: Grant microphone access
-      env:
-        tcc_extra_columns: ${{ matrix.os == 'macos-14' && ',NULL,NULL,''UNUSED'',1687786159' || '' }}
-      run: sqlite3 $HOME/Library/Application\ Support/com.apple.TCC/TCC.db "INSERT OR IGNORE INTO access VALUES ('kTCCServiceMicrophone','/usr/local/opt/runner/provisioner/provisioner',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,1687786159${{ env.tcc_extra_columns }});"
-
     - name: Build
       run: cargo build --verbose
 
