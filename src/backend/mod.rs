@@ -2009,7 +2009,7 @@ fn audiounit_get_devices_of_type(devtype: DeviceType) -> Vec<AudioObjectID> {
         let info = format!("{device} ({label})");
 
         if let Ok(channels) = get_channel_count(device, devtype) {
-            cubeb_log!("Device {} has {} {:?}-channels", info, channels, devtype);
+            cubeb_log!("Device {info} has {channels} {devtype:?}-channels");
             if channels > 0 {
                 devices_in_scope.push(device);
             }
