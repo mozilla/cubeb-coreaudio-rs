@@ -207,15 +207,15 @@ impl Queue {
         res
     }
 
-    fn get_should_cancel(&self, queue: dispatch_queue_t) -> Option<&mut AtomicBool> {
+    fn get_should_cancel(&self, queue: dispatch_queue_t) -> Option<&AtomicBool> {
         if !self.owned.load(Ordering::SeqCst) {
             return None;
         }
         unsafe {
             let context =
                 dispatch_get_context(mem::transmute::<dispatch_queue_t, dispatch_object_t>(queue))
-                    as *mut AtomicBool;
-            context.as_mut()
+                    as *const AtomicBool;
+            context.as_ref()
         }
     }
 
