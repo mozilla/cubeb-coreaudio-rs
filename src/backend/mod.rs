@@ -2067,6 +2067,61 @@ extern "C" fn audiounit_collection_changed_callback(
     NO_ERR
 }
 
+extern "C" fn audiounit_default_device_changed_callback(
+    _in_object_id: AudioObjectID,
+    in_number_addresses: u32,
+    in_addresses: *const AudioObjectPropertyAddress,
+    in_client_data: *mut c_void,
+) -> OSStatus {
+    let context = unsafe { &mut *(in_client_data as *mut AudioUnitContext) };
+
+    let queue = context.serial_queue.clone();
+
+    let addresses = unsafe { *in_addresses };
+
+    // This can be called from inside an AudioUnit function, dispatch to another queue.
+    queue.run_async(move || {
+        let ctx_ptr = context as *const AudioUnitContext;
+
+        let devices = context.devices.lock().unwrap();
+
+        if devices.input.changed_callback.is_none() && devices.output.changed_callback.is_none() {
+            return;
+        }
+
+        // Default device changes count as device collection changes
+        let addresses = unsafe { slice::from_raw_parts(&addresses, in_number_addresses as usize) };
+        for addr in addresses {
+            let property = PropertySelector::from(addr.mSelector);
+            match property {
+                PropertySelector::DefaultInputDevice => {
+                    if devices.input.changed_callback.is_some() {
+                        unsafe {
+                            devices.input.changed_callback.unwrap()(
+                                ctx_ptr as *mut ffi::cubeb,
+                                devices.input.callback_user_ptr,
+                            );
+                        }
+                    }
+                }
+                PropertySelector::DefaultOutputDevice => {
+                    if devices.output.changed_callback.is_some() {
+                        unsafe {
+                            devices.output.changed_callback.unwrap()(
+                                ctx_ptr as *mut ffi::cubeb,
+                                devices.output.callback_user_ptr,
+                            );
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    });
+
+    NO_ERR
+}
+
 #[derive(Debug)]
 struct DevicesData {
     changed_callback: ffi::cubeb_device_collection_changed_callback,
@@ -2560,6 +2615,73 @@ impl AudioUnitContext {
                 );
                 return Err(Error::error());
             }
+
+            // Also listen for default device changes
+            let input_address = get_property_address(
+                Property::HardwareDefaultInputDevice,
+                DeviceType::INPUT | DeviceType::OUTPUT,
+            );
+            let ret = audio_object_add_property_listener(
+                kAudioObjectSystemObject,
+                &input_address,
+                audiounit_default_device_changed_callback,
+                context_ptr,
+            );
+            if ret != NO_ERR {
+                // Clean up the hardware devices listener on failure
+                let address = get_property_address(
+                    Property::HardwareDevices,
+                    DeviceType::INPUT | DeviceType::OUTPUT,
+                );
+                audio_object_remove_property_listener(
+                    kAudioObjectSystemObject,
+                    &address,
+                    audiounit_collection_changed_callback,
+                    context_ptr,
+                );
+                cubeb_log!(
+                    "Cannot add default input device listener for {:?}, Error: {}",
+                    devtype,
+                    ret
+                );
+                return Err(Error::error());
+            }
+
+            let output_address = get_property_address(
+                Property::HardwareDefaultOutputDevice,
+                DeviceType::INPUT | DeviceType::OUTPUT,
+            );
+            let ret = audio_object_add_property_listener(
+                kAudioObjectSystemObject,
+                &output_address,
+                audiounit_default_device_changed_callback,
+                context_ptr,
+            );
+            if ret != NO_ERR {
+                // Clean up both previous listeners on failure
+                let address = get_property_address(
+                    Property::HardwareDevices,
+                    DeviceType::INPUT | DeviceType::OUTPUT,
+                );
+                audio_object_remove_property_listener(
+                    kAudioObjectSystemObject,
+                    &address,
+                    audiounit_collection_changed_callback,
+                    context_ptr,
+                );
+                audio_object_remove_property_listener(
+                    kAudioObjectSystemObject,
+                    &input_address,
+                    audiounit_default_device_changed_callback,
+                    context_ptr,
+                );
+                cubeb_log!(
+                    "Cannot add default output device listener for {:?}, Error: {}",
+                    devtype,
+                    ret
+                );
+                return Err(Error::error());
+            }
         }
 
         if devtype.contains(DeviceType::INPUT) {
@@ -2610,22 +2732,37 @@ impl AudioUnitContext {
             DeviceType::INPUT | DeviceType::OUTPUT,
         );
         // Note: unregister a non registered cb is not a problem, not checking.
-        let r = audio_object_remove_property_listener(
+        audio_object_remove_property_listener(
             kAudioObjectSystemObject,
             &address,
             audiounit_collection_changed_callback,
             context_ptr,
         );
-        if r == NO_ERR {
-            Ok(())
-        } else {
-            cubeb_log!(
-                "Cannot remove devices-changed listener for {:?}, Error: {}",
-                devtype,
-                r
-            );
-            Err(Error::error())
-        }
+
+        // Also remove default device listeners
+        let input_address = get_property_address(
+            Property::HardwareDefaultInputDevice,
+            DeviceType::INPUT | DeviceType::OUTPUT,
+        );
+        audio_object_remove_property_listener(
+            kAudioObjectSystemObject,
+            &input_address,
+            audiounit_default_device_changed_callback,
+            context_ptr,
+        );
+
+        let output_address = get_property_address(
+            Property::HardwareDefaultOutputDevice,
+            DeviceType::INPUT | DeviceType::OUTPUT,
+        );
+        audio_object_remove_property_listener(
+            kAudioObjectSystemObject,
+            &output_address,
+            audiounit_default_device_changed_callback,
+            context_ptr,
+        );
+
+        Ok(())
     }
 }
 

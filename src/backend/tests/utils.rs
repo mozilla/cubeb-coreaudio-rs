@@ -98,7 +98,7 @@ pub extern "C" fn state_tracking_cb(
     };
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Scope {
     Input,
     Output,
