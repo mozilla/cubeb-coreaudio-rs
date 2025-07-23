@@ -1010,3 +1010,167 @@ fn test_get_stream_with_device_changed_callback<F>(
         },
     );
 }
+
+// test_device_collection_change_on_default_device_change
+// ------------------------------------
+
+// Helper function to test device collection change when default device changes
+fn test_default_device_change_triggers_callback(scope: Scope, device_type: DeviceType) {
+    test_default_device_change_triggers_callback_multiple(&[(scope, device_type)]);
+}
+
+// Helper function to test device collection change for both input/output (e.g.
+// when in duplex)
+fn test_default_device_change_triggers_callback_multiple(scope_types: &[(Scope, DeviceType)]) {
+    use std::collections::HashMap;
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    #[derive(Clone, Default, PartialEq)]
+    struct CallbackCounts {
+        input_count: u32,
+        output_count: u32,
+    }
+
+    // Check if we have enough devices for all requested scopes, and find our
+    // current and next devices
+    let mut device_info = HashMap::new();
+    for (scope, _) in scope_types {
+        let devices = test_get_devices_in_scope(scope.clone());
+        if devices.len() < 2 {
+            let scope_name = match scope {
+                Scope::Input => "input",
+                Scope::Output => "output",
+            };
+            eprintln!(
+                "Skipping test: need at least 2 {} devices, found {}",
+                scope_name,
+                devices.len()
+            );
+            return;
+        }
+
+        let initial_default = test_get_default_device(scope.clone()).unwrap();
+        let alternate_device = devices.iter().find(|&id| *id != initial_default).unwrap();
+
+        device_info.insert(scope.clone(), (initial_default, *alternate_device));
+    }
+
+    let notifier = Arc::new(Notifier::new(CallbackCounts::default()));
+    let notifier_ptr = notifier.as_ref() as *const Notifier<CallbackCounts>;
+
+    let mut context = AudioUnitContext::new();
+
+    extern "C" fn input_device_collection_changed_callback(
+        _context: *mut ffi::cubeb,
+        user_ptr: *mut c_void,
+    ) {
+        let notifier = unsafe { &*(user_ptr as *const Notifier<CallbackCounts>) };
+        let mut guard = notifier.lock().unwrap();
+        guard.input_count += 1;
+        notifier.notify(guard);
+    }
+
+    extern "C" fn output_device_collection_changed_callback(
+        _context: *mut ffi::cubeb,
+        user_ptr: *mut c_void,
+    ) {
+        let notifier = unsafe { &*(user_ptr as *const Notifier<CallbackCounts>) };
+        let mut guard = notifier.lock().unwrap();
+        guard.output_count += 1;
+        notifier.notify(guard);
+    }
+
+    let callback_data_ptr = notifier_ptr as *mut c_void;
+
+    // Register callbacks for all requested device types
+    for (_, device_type) in scope_types {
+        let callback_fn = match *device_type {
+            DeviceType::INPUT => input_device_collection_changed_callback,
+            DeviceType::OUTPUT => output_device_collection_changed_callback,
+            _ => panic!("Unsupported device type: {:?}", device_type),
+        };
+
+        assert!(context
+            .register_device_collection_changed(*device_type, Some(callback_fn), callback_data_ptr)
+            .is_ok());
+    }
+
+    // Change default devices and wait for callbacks
+    let watcher = Watcher::new(&notifier);
+
+    for (scope, device_type) in scope_types {
+        let (_initial_default, alternate_device) = device_info.get(scope).unwrap();
+
+        // Get current count before changing device
+        let expected_count_before = {
+            let guard = watcher.lock().unwrap();
+            match *device_type {
+                DeviceType::INPUT => guard.input_count,
+                DeviceType::OUTPUT => guard.output_count,
+                _ => panic!("Unsupported device type"),
+            }
+        };
+
+        // Change device
+        test_set_default_device(*alternate_device, scope.clone())
+            .expect("Failed to set default device");
+
+        // Wait for callback
+        let guard = watcher.lock().unwrap();
+        let (result_guard, _timeout_result) = watcher
+            .wait_timeout_while(guard, Duration::from_secs(5), |data| match *device_type {
+                DeviceType::INPUT => data.input_count == expected_count_before,
+                DeviceType::OUTPUT => data.output_count == expected_count_before,
+                _ => false,
+            })
+            .unwrap();
+
+        let callback_received = match *device_type {
+            DeviceType::INPUT => result_guard.input_count > expected_count_before,
+            DeviceType::OUTPUT => result_guard.output_count > expected_count_before,
+            _ => false,
+        };
+
+        assert!(
+            callback_received,
+            "{:?} device collection change callback was not called",
+            device_type
+        );
+
+        drop(result_guard); // Release the lock before next iteration
+    }
+
+    // Unregister callbacks
+    for (_, device_type) in scope_types {
+        context.register_device_collection_changed(*device_type, None, ptr::null_mut());
+    }
+
+    // Restore original default devices
+    for (scope, _) in scope_types {
+        let (initial_default, _) = device_info.get(scope).unwrap();
+        test_set_default_device(*initial_default, scope.clone())
+            .expect("Failed to restore default device");
+    }
+}
+
+#[ignore]
+#[test]
+fn test_device_collection_change_on_default_input_device_change() {
+    test_default_device_change_triggers_callback(Scope::Input, DeviceType::INPUT);
+}
+
+#[ignore]
+#[test]
+fn test_device_collection_change_on_default_output_device_change() {
+    test_default_device_change_triggers_callback(Scope::Output, DeviceType::OUTPUT);
+}
+
+#[ignore]
+#[test]
+fn test_device_collection_change_on_default_device_change_duplex() {
+    test_default_device_change_triggers_callback_multiple(&[
+        (Scope::Input, DeviceType::INPUT),
+        (Scope::Output, DeviceType::OUTPUT),
+    ]);
+}
