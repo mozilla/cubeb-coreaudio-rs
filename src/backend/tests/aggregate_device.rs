@@ -7,7 +7,7 @@ use super::utils::{
 use super::*;
 use std::collections::HashSet;
 use std::iter::zip;
-use std::panic;
+use std::{panic, thread, time};
 
 // AggregateDevice::set_sub_devices
 // ------------------------------------
@@ -82,6 +82,9 @@ fn test_aggregate_get_sub_devices() {
         let plugin_id = AggregateDevice::get_system_plugin_id().unwrap();
         let aggr = run_serially_forward_panics(|| AggregateDevice::create_blank_device(plugin_id))
             .unwrap();
+        // On recent macbooks, it takes some time for the device to show up somehow.
+        let ten_millis = time::Duration::from_millis(100);
+        thread::sleep(ten_millis);
         let new = diff(
             devices_base.clone(),
             test_get_all_devices(DeviceFilter::ExcludeVPIO),

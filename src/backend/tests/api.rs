@@ -1,3 +1,5 @@
+use std::ffi::c_char;
+
 use super::utils::{
     test_audiounit_get_buffer_frame_size, test_audiounit_scope_is_enabled, test_create_audiounit,
     test_device_channels_in_scope, test_device_in_scope, test_get_all_devices,
@@ -1151,6 +1153,57 @@ fn get_nonvpio_input_channel_counts() -> Vec<u32> {
         .collect()
 }
 
+extern "C" {
+    fn sysctlbyname(
+        name: *const c_char,
+        oldp: *mut std::os::raw::c_void,
+        oldlenp: *mut libc::size_t,
+        newp: *mut std::os::raw::c_void,
+        newlen: libc::size_t,
+    ) -> std::os::raw::c_int;
+}
+
+fn get_sysctl_string(name: &str) -> Option<String> {
+    let name_cstr = std::ffi::CString::new(name).ok()?;
+    let mut size: libc::size_t = 0;
+
+    unsafe {
+        if sysctlbyname(
+            name_cstr.as_ptr(),
+            std::ptr::null_mut(),
+            &mut size,
+            std::ptr::null_mut(),
+            0,
+        ) != 0
+        {
+            return None;
+        }
+
+        let mut buffer = vec![0u8; size];
+        if sysctlbyname(
+            name_cstr.as_ptr(),
+            buffer.as_mut_ptr() as *mut _,
+            &mut size,
+            std::ptr::null_mut(),
+            0,
+        ) != 0
+        {
+            return None;
+        }
+
+        buffer.truncate(size - 1);
+        String::from_utf8(buffer).ok()
+    }
+}
+
+fn is_m4_macbook() -> bool {
+    if let Some(model) = get_sysctl_string("hw.model") {
+        // Apple Silicon devices aren't e.g. MacBookProXX,Y, they are MacXX,Y
+        return model.starts_with("Mac16,"); // All M4-based computers
+    }
+    false
+}
+
 #[test]
 #[ignore]
 fn test_get_channel_count_of_input_devices_with_vpio() {
@@ -1164,7 +1217,11 @@ fn test_get_channel_count_of_input_devices_with_vpio() {
     let _vpio = queue.run_sync(|| shared.take_or_create()).unwrap().unwrap();
 
     let vpio_channel_counts = run_serially_forward_panics(get_nonvpio_input_channel_counts);
-    assert_eq!(non_vpio_channel_counts, vpio_channel_counts);
+    // https://github.com/mozilla/cubeb-coreaudio-rs/issues/255
+    // Maybe M3 also ? Sometimes this passes, but it's fairly inconsistent.
+    if !is_m4_macbook() {
+        assert_eq!(non_vpio_channel_counts, vpio_channel_counts);
+    }
 }
 
 #[test]
@@ -1222,7 +1279,11 @@ fn test_get_channel_count_of_input_devices_with_aggregate_device_and_vpio() {
 
         get_nonvpio_input_channel_counts()
     });
-    assert_eq!(aggr_channel_counts, aggr_vpio_channel_counts);
+
+    // https://github.com/mozilla/cubeb-coreaudio-rs/issues/255
+    if !is_m4_macbook() {
+        assert_eq!(aggr_channel_counts, aggr_vpio_channel_counts);
+    }
 }
 
 // get_range_of_sample_rates
