@@ -3249,6 +3249,7 @@ impl Default for CoreStreamData<'_> {
                 channels: 0,
                 layout: ffi::CUBEB_LAYOUT_UNDEFINED,
                 prefs: ffi::CUBEB_STREAM_PREF_NONE,
+                input_params: ffi::CUBEB_INPUT_PROCESSING_PARAM_NONE,
             }),
             output_stream_params: StreamParams::from(ffi::cubeb_stream_params {
                 format: ffi::CUBEB_SAMPLE_FLOAT32NE,
@@ -3256,6 +3257,7 @@ impl Default for CoreStreamData<'_> {
                 channels: 0,
                 layout: ffi::CUBEB_LAYOUT_UNDEFINED,
                 prefs: ffi::CUBEB_STREAM_PREF_NONE,
+                input_params: ffi::CUBEB_INPUT_PROCESSING_PARAM_NONE,
             }),
             input_dev_desc: AudioStreamBasicDescription::default(),
             output_dev_desc: AudioStreamBasicDescription::default(),
@@ -3300,6 +3302,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                 channels: 0,
                 layout: ffi::CUBEB_LAYOUT_UNDEFINED,
                 prefs: ffi::CUBEB_STREAM_PREF_NONE,
+                input_params: ffi::CUBEB_INPUT_PROCESSING_PARAM_NONE,
             })
         }
         let (in_stm_params, in_dev) =
