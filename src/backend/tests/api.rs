@@ -1524,7 +1524,7 @@ fn test_create_cubeb_device_info() {
                 check_device_info_by_device(&input_device_info, device, Scope::Input);
                 run_serially(|| destroy_cubeb_device_info(&mut input_device_info));
             } else {
-                assert_eq!(input_result.unwrap_err(), Error::error());
+                assert_eq!(input_result.unwrap_err(), Error::Error);
             }
             // Output device type:
             let output_result = results.pop_front().unwrap();
@@ -1533,7 +1533,7 @@ fn test_create_cubeb_device_info() {
                 check_device_info_by_device(&output_device_info, device, Scope::Output);
                 run_serially(|| destroy_cubeb_device_info(&mut output_device_info));
             } else {
-                assert_eq!(output_result.unwrap_err(), Error::error());
+                assert_eq!(output_result.unwrap_err(), Error::Error);
             }
         } else {
             println!("No device for {:?}.", scope);
