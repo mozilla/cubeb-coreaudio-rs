@@ -36,9 +36,9 @@ use backend::ringbuf::RingBuffer;
 #[cfg(feature = "audio-dump")]
 use cubeb_backend::ffi::cubeb_audio_dump_stream_t;
 use cubeb_backend::{
-    ffi, ChannelLayout, Context, ContextOps, DeviceCollectionRef, DeviceId, DeviceRef, DeviceType,
-    Error, InputProcessingParams, Ops, Result, SampleFormat, State, Stream, StreamOps,
-    StreamParams, StreamParamsRef, StreamPrefs,
+    ffi, ChannelLayout, ContextOps, DeviceId, DeviceInfo, DeviceRef, DeviceType, Error,
+    InputProcessingParams, Ops, Result, SampleFormat, State, Stream, StreamOps, StreamParams,
+    StreamParamsRef, StreamPrefs,
 };
 use mach2::mach_time::{mach_absolute_time, mach_timebase_info};
 use std::cmp;
@@ -1962,9 +1962,10 @@ fn destroy_cubeb_device_info(device: &mut ffi::cubeb_device_info) {
             device.group_id = ptr::null();
         }
 
-        assert!(!device.friendly_name.is_null());
-        let _ = CString::from_raw(device.friendly_name as *mut _);
-        device.friendly_name = ptr::null();
+        if !device.friendly_name.is_null() {
+            let _ = CString::from_raw(device.friendly_name as *mut _);
+            device.friendly_name = ptr::null();
+        }
 
         if !device.vendor_name.is_null() {
             let _ = CString::from_raw(device.vendor_name as *mut _);
@@ -2804,7 +2805,7 @@ impl AudioUnitContext {
 }
 
 impl ContextOps for AudioUnitContext {
-    fn init(_context_name: Option<&CStr>) -> Result<Context> {
+    fn init(_context_name: Option<&CStr>) -> Result<Box<Self>> {
         run_serially(set_notification_runloop);
         let mut ctx = Box::new(AudioUnitContext::new());
         let queue_label = format!("{}.context.{:p}", DISPATCH_QUEUE_LABEL, ctx.as_ref());
@@ -2815,7 +2816,7 @@ impl ContextOps for AudioUnitContext {
             &ctx.serial_queue,
         );
         ctx.shared_voice_processing_unit = SharedVoiceProcessingUnitManager::new(shared_vp_queue);
-        Ok(unsafe { Context::from_ptr(Box::into_raw(ctx) as *mut _) })
+        Ok(ctx)
     }
 
     fn backend_id(&mut self) -> &'static CStr {
@@ -2904,11 +2905,7 @@ impl ContextOps for AudioUnitContext {
             | InputProcessingParams::NOISE_SUPPRESSION
             | InputProcessingParams::AUTOMATIC_GAIN_CONTROL)
     }
-    fn enumerate_devices(
-        &mut self,
-        devtype: DeviceType,
-        collection: &DeviceCollectionRef,
-    ) -> Result<()> {
+    fn enumerate_devices(&mut self, devtype: DeviceType) -> Result<Box<[DeviceInfo]>> {
         let intern = self.devids.clone();
         let device_infos = self
             .serial_queue
@@ -2931,30 +2928,17 @@ impl ContextOps for AudioUnitContext {
                 device_infos
             })
             .unwrap();
-        let (ptr, len) = if device_infos.is_empty() {
-            (ptr::null_mut(), 0)
-        } else {
-            forget_vec(device_infos)
-        };
-        let coll = unsafe { &mut *collection.as_ptr() };
-        coll.device = ptr;
-        coll.count = len;
-        Ok(())
+        Ok(device_infos
+            .into_iter()
+            .map(DeviceInfo::from)
+            .collect::<Vec<_>>()
+            .into_boxed_slice())
     }
-    fn device_collection_destroy(&mut self, collection: &mut DeviceCollectionRef) -> Result<()> {
-        assert!(!collection.as_ptr().is_null());
-        let coll = unsafe { &mut *collection.as_ptr() };
-        if coll.device.is_null() {
-            return Ok(());
+    fn device_collection_destroy(&mut self, collection: Box<[DeviceInfo]>) -> Result<()> {
+        for device in collection {
+            let mut device = ffi::cubeb_device_info::from(device);
+            destroy_cubeb_device_info(&mut device);
         }
-
-        let mut devices = retake_forgotten_vec(coll.device, coll.count);
-        for device in &mut devices {
-            destroy_cubeb_device_info(device);
-        }
-        drop(devices); // Release the memory.
-        coll.device = ptr::null_mut();
-        coll.count = 0;
         Ok(())
     }
     fn stream_init(
