@@ -267,7 +267,7 @@ fn create_stream_description(stream_params: &StreamParams) -> Result<AudioStream
             desc.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsBigEndian;
         }
         _ => {
-            return Err(Error::invalid_format());
+            return Err(Error::InvalidFormat);
         }
     }
 
@@ -299,7 +299,7 @@ fn set_volume(unit: AudioUnit, volume: f32) -> Result<()> {
         Ok(())
     } else {
         cubeb_log!("AudioUnitSetParameter/kHALOutputParam_Volume rv={}", r);
-        Err(Error::error())
+        Err(Error::Error)
     }
 }
 
@@ -317,7 +317,7 @@ fn get_volume(unit: AudioUnit) -> Result<f32> {
         Ok(volume)
     } else {
         cubeb_log!("AudioUnitGetParameter/kHALOutputParam_Volume rv={}", r);
-        Err(Error::error())
+        Err(Error::Error)
     }
 }
 
@@ -338,7 +338,7 @@ fn set_input_mute(unit: AudioUnit, mute: bool) -> Result<()> {
             "AudioUnitGetProperty/kAUVoiceIOProperty_MuteOutput rv={}",
             r
         );
-        return Err(Error::error());
+        return Err(Error::Error);
     }
     if old_mute == mute {
         return Ok(());
@@ -358,7 +358,7 @@ fn set_input_mute(unit: AudioUnit, mute: bool) -> Result<()> {
             "AudioUnitSetProperty/kAUVoiceIOProperty_MuteOutput rv={}",
             r
         );
-        Err(Error::error())
+        Err(Error::Error)
     }
 }
 
@@ -383,7 +383,7 @@ fn set_input_processing_params(unit: AudioUnit, params: InputProcessingParams) -
             "AudioUnitGetProperty/kAUVoiceIOProperty_VoiceProcessingEnableAGC rv={}",
             r
         );
-        return Err(Error::error());
+        return Err(Error::Error);
     }
 
     if (old_agc == 1) != agc {
@@ -401,7 +401,7 @@ fn set_input_processing_params(unit: AudioUnit, params: InputProcessingParams) -
                 "AudioUnitSetProperty/kAUVoiceIOProperty_VoiceProcessingEnableAGC rv={}",
                 r
             );
-            return Err(Error::error());
+            return Err(Error::Error);
         }
         cubeb_log!(
             "set_input_processing_params on unit {:p} - set agc: {}",
@@ -424,7 +424,7 @@ fn set_input_processing_params(unit: AudioUnit, params: InputProcessingParams) -
             "AudioUnitGetProperty/kAUVoiceIOProperty_BypassVoiceProcessing rv={}",
             r
         );
-        return Err(Error::error());
+        return Err(Error::Error);
     }
 
     let bypass = u32::from(!aec);
@@ -442,7 +442,7 @@ fn set_input_processing_params(unit: AudioUnit, params: InputProcessingParams) -
                 "AudioUnitSetProperty/kAUVoiceIOProperty_BypassVoiceProcessing rv={}",
                 r
             );
-            return Err(Error::error());
+            return Err(Error::Error);
         }
         cubeb_log!(
             "set_input_processing_params on unit {:p} - set bypass: {}",
@@ -1077,7 +1077,7 @@ fn audiounit_convert_channel_layout(layout: &AudioChannelLayout) -> Result<Vec<m
         // kAudioChannelLayoutTag_Stereo
         // ....
         cubeb_log!("Only handling UseChannelDescriptions for now.\n");
-        return Err(Error::error());
+        return Err(Error::Error);
     }
 
     let channel_descriptions = unsafe {
@@ -1113,7 +1113,7 @@ fn audiounit_get_preferred_channel_layout(output_unit: AudioUnit) -> Result<Vec<
             "AudioUnitGetPropertyInfo/kAudioDevicePropertyPreferredChannelLayout rv={}",
             rv
         );
-        return Err(Error::error());
+        return Err(Error::Error);
     }
     debug_assert!(size > 0);
 
@@ -1131,7 +1131,7 @@ fn audiounit_get_preferred_channel_layout(output_unit: AudioUnit) -> Result<Vec<
             "AudioUnitGetProperty/kAudioDevicePropertyPreferredChannelLayout rv={}",
             rv
         );
-        return Err(Error::error());
+        return Err(Error::Error);
     }
 
     audiounit_convert_channel_layout(layout.as_ref())
@@ -1156,7 +1156,7 @@ fn audiounit_get_current_channel_layout(output_unit: AudioUnit) -> Result<Vec<mi
             "AudioUnitGetPropertyInfo/kAudioUnitProperty_AudioChannelLayout rv={}",
             rv
         );
-        return Err(Error::error());
+        return Err(Error::Error);
     }
     debug_assert!(size > 0);
 
@@ -1174,7 +1174,7 @@ fn audiounit_get_current_channel_layout(output_unit: AudioUnit) -> Result<Vec<mi
             "AudioUnitGetProperty/kAudioUnitProperty_AudioChannelLayout rv={}",
             rv
         );
-        return Err(Error::error());
+        return Err(Error::Error);
     }
 
     audiounit_convert_channel_layout(layout.as_ref())
@@ -1200,7 +1200,7 @@ fn start_audiounit(unit: AudioUnit) -> Result<()> {
         Ok(())
     } else {
         cubeb_log!("Cannot start audiounit @ {:p}. Error: {}", unit, status);
-        Err(Error::error())
+        Err(Error::Error)
     }
 }
 
@@ -1210,7 +1210,7 @@ fn stop_audiounit(unit: AudioUnit) -> Result<()> {
         Ok(())
     } else {
         cubeb_log!("Cannot stop audiounit @ {:p}. Error: {}", unit, status);
-        Err(Error::error())
+        Err(Error::Error)
     }
 }
 
@@ -1231,12 +1231,12 @@ fn create_audiounit(device: &device_info) -> Result<AudioUnit> {
         if let Err(e) = enable_audiounit_scope(unit, DeviceType::INPUT, true) {
             cubeb_log!("Failed to enable audiounit input scope. Error: {}", e);
             dispose_audio_unit(unit);
-            return Err(Error::error());
+            return Err(Error::Error);
         }
         if let Err(e) = enable_audiounit_scope(unit, DeviceType::OUTPUT, false) {
             cubeb_log!("Failed to disable audiounit output scope. Error: {}", e);
             dispose_audio_unit(unit);
-            return Err(Error::error());
+            return Err(Error::Error);
         }
         bus = AU_IN_BUS;
     }
@@ -1246,12 +1246,12 @@ fn create_audiounit(device: &device_info) -> Result<AudioUnit> {
         if let Err(e) = enable_audiounit_scope(unit, DeviceType::OUTPUT, true) {
             cubeb_log!("Failed to enable audiounit output scope. Error: {}", e);
             dispose_audio_unit(unit);
-            return Err(Error::error());
+            return Err(Error::Error);
         }
         if let Err(e) = enable_audiounit_scope(unit, DeviceType::INPUT, false) {
             cubeb_log!("Failed to disable audiounit input scope. Error: {}", e);
             dispose_audio_unit(unit);
-            return Err(Error::error());
+            return Err(Error::Error);
         }
         bus = AU_OUT_BUS;
     }
@@ -1263,7 +1263,7 @@ fn create_audiounit(device: &device_info) -> Result<AudioUnit> {
             e
         );
         dispose_audio_unit(unit);
-        return Err(Error::error());
+        return Err(Error::Error);
     }
 
     Ok(unit)
@@ -1285,7 +1285,7 @@ fn get_voiceprocessing_audiounit(
             "Failed to create shared voiceprocessing audiounit. Error: {}",
             e
         );
-        return Err(Error::error());
+        return Err(Error::Error);
     }
     let mut unit_handle = unit_handle.unwrap();
 
@@ -1295,7 +1295,7 @@ fn get_voiceprocessing_audiounit(
             in_device.id,
             e
         );
-        return Err(Error::error());
+        return Err(Error::Error);
     }
 
     let has_output = out_device.id != kAudioObjectUnknown;
@@ -1303,7 +1303,7 @@ fn get_voiceprocessing_audiounit(
         enable_audiounit_scope(unit_handle.as_mut().unit, DeviceType::OUTPUT, has_output)
     {
         cubeb_log!("Failed to enable audiounit input scope. Error: {}", e);
-        return Err(Error::error());
+        return Err(Error::Error);
     }
     if has_output {
         if let Err(e) =
@@ -1314,7 +1314,7 @@ fn get_voiceprocessing_audiounit(
                 out_device.id,
                 e
             );
-            return Err(Error::error());
+            return Err(Error::Error);
         }
     }
 
@@ -1386,7 +1386,7 @@ fn create_typed_audiounit(sub_type: c_uint) -> Result<AudioUnit> {
     let comp = unsafe { AudioComponentFindNext(ptr::null_mut(), &desc) };
     if comp.is_null() {
         cubeb_log!("Could not find matching audio hardware.");
-        return Err(Error::error());
+        return Err(Error::Error);
     }
     let mut unit: AudioUnit = ptr::null_mut();
     let status = unsafe { AudioComponentInstanceNew(comp, &mut unit) };
@@ -1395,7 +1395,7 @@ fn create_typed_audiounit(sub_type: c_uint) -> Result<AudioUnit> {
         Ok(unit)
     } else {
         cubeb_log!("Fail to get a new AudioUnit. Error: {}", status);
-        Err(Error::error())
+        Err(Error::Error)
     }
 }
 
@@ -1409,7 +1409,7 @@ fn create_blank_audiounit() -> Result<AudioUnit> {
 fn create_voiceprocessing_audiounit() -> Result<VoiceProcessingUnit> {
     let res = create_typed_audiounit(kAudioUnitSubType_VoiceProcessingIO);
     if res.is_err() {
-        return Err(Error::error());
+        return Err(Error::Error);
     }
 
     match get_default_device(DeviceType::OUTPUT) {
@@ -1496,7 +1496,7 @@ fn set_buffer_size_sync(unit: AudioUnit, devtype: DeviceType, frames: u32) -> Re
             devtype,
             e
         );
-        Error::error()
+        Error::Error
     })?;
     if frames == current_frames {
         cubeb_log!(
@@ -1542,7 +1542,7 @@ fn set_buffer_size_sync(unit: AudioUnit, devtype: DeviceType, frames: u32) -> Re
             devtype,
             e
         );
-        Error::error()
+        Error::Error
     })?;
 
     let (lock, cvar) = &*pair;
@@ -1557,7 +1557,7 @@ fn set_buffer_size_sync(unit: AudioUnit, devtype: DeviceType, frames: u32) -> Re
             );
         }
         if !*chg {
-            return Err(Error::error());
+            return Err(Error::Error);
         }
     }
 
@@ -1568,7 +1568,7 @@ fn set_buffer_size_sync(unit: AudioUnit, devtype: DeviceType, frames: u32) -> Re
             devtype,
             e
         );
-        Error::error()
+        Error::Error
     })?;
     cubeb_log!(
         "The new buffer frames size of AudioUnit {:?} for {:?} is {}",
@@ -1805,15 +1805,15 @@ fn create_cubeb_device_info(
     devtype: DeviceType,
 ) -> Result<ffi::cubeb_device_info> {
     if devtype != DeviceType::INPUT && devtype != DeviceType::OUTPUT {
-        return Err(Error::error());
+        return Err(Error::Error);
     }
     let channels = get_channel_count(devid, devtype).map_err(|e| {
         cubeb_log!("Cannot get the channel count. Error: {}", e);
-        Error::error()
+        Error::Error
     })?;
     if channels == 0 {
         // Invalid type for this device.
-        return Err(Error::error());
+        return Err(Error::Error);
     }
 
     let mut dev_info = ffi::cubeb_device_info {
@@ -2268,7 +2268,7 @@ impl<T: Send> SharedStorage<T> {
             return Ok(e);
         }
 
-        Err(Error::not_supported())
+        Err(Error::NotSupported)
     }
 
     fn create_with_locked<F>(
@@ -2292,7 +2292,7 @@ impl<T: Send> SharedStorage<T> {
             }
             Err(_) => {
                 cubeb_log!("Creating shared element failed");
-                Err(Error::error())
+                Err(Error::Error)
             }
         }
     }
@@ -2593,7 +2593,7 @@ impl AudioUnitContext {
         if devtype.contains(DeviceType::INPUT) && devices.input.changed_callback.is_some()
             || devtype.contains(DeviceType::OUTPUT) && devices.output.changed_callback.is_some()
         {
-            return Err(Error::invalid_parameter());
+            return Err(Error::InvalidParameter);
         }
 
         if devices.input.changed_callback.is_none() && devices.output.changed_callback.is_none() {
@@ -2653,7 +2653,7 @@ impl AudioUnitContext {
                     devtype,
                     ret
                 );
-                return Err(Error::error());
+                return Err(Error::Error);
             }
 
             // Add default input device listener
@@ -2670,7 +2670,7 @@ impl AudioUnitContext {
                     devtype,
                     ret
                 );
-                return Err(Error::error());
+                return Err(Error::Error);
             }
 
             // Add default output device listener
@@ -2687,7 +2687,7 @@ impl AudioUnitContext {
                     devtype,
                     ret
                 );
-                return Err(Error::error());
+                return Err(Error::Error);
             }
         }
 
@@ -2716,7 +2716,7 @@ impl AudioUnitContext {
 
     fn remove_devices_changed_listener(&mut self, devtype: DeviceType) -> Result<()> {
         if !devtype.intersects(DeviceType::INPUT | DeviceType::OUTPUT) {
-            return Err(Error::invalid_parameter());
+            return Err(Error::InvalidParameter);
         }
 
         let context_ptr = self as *mut AudioUnitContext;
@@ -2798,7 +2798,7 @@ impl AudioUnitContext {
         if errors.is_empty() {
             Ok(())
         } else {
-            Err(Error::error())
+            Err(Error::Error)
         }
     }
 }
@@ -2836,13 +2836,13 @@ impl ContextOps for AudioUnitContext {
                 let device = match get_default_device(DeviceType::OUTPUT) {
                     None => {
                         cubeb_log!("Could not get default output device");
-                        return Err(Error::error());
+                        return Err(Error::Error);
                     }
                     Some(id) => id,
                 };
                 get_channel_count(device, DeviceType::OUTPUT).map_err(|e| {
                     cubeb_log!("Cannot get the channel count. Error: {}", e);
-                    Error::error()
+                    Error::Error
                 })
             })
             .unwrap()
@@ -2858,7 +2858,7 @@ impl ContextOps for AudioUnitContext {
                 let device = match get_default_device(DeviceType::OUTPUT) {
                     None => {
                         cubeb_log!("Could not get default output device");
-                        return Err(Error::error());
+                        return Err(Error::Error);
                     }
                     Some(id) => id,
                 };
@@ -2866,7 +2866,7 @@ impl ContextOps for AudioUnitContext {
                 let range = get_device_buffer_frame_size_range(device, DeviceType::OUTPUT)
                     .map_err(|e| {
                         cubeb_log!("Could not get acceptable latency range. Error: {}", e);
-                        Error::error()
+                        Error::Error
                     })?;
 
                 Ok(cmp::max(range.mMinimum as u32, SAFE_MIN_LATENCY_FRAMES))
@@ -2884,7 +2884,7 @@ impl ContextOps for AudioUnitContext {
                 let device = match get_default_device(DeviceType::OUTPUT) {
                     None => {
                         cubeb_log!("Could not get default output device");
-                        return Err(Error::error());
+                        return Err(Error::Error);
                     }
                     Some(id) => id,
                 };
@@ -2893,7 +2893,7 @@ impl ContextOps for AudioUnitContext {
                         "Cannot get the sample rate of the default output device. Error: {}",
                         e
                     );
-                    Error::error()
+                    Error::Error
                 })?;
                 Ok(rate as u32)
             })
@@ -2971,22 +2971,22 @@ impl ContextOps for AudioUnitContext {
     ) -> Result<Stream> {
         if !input_device.is_null() && input_stream_params.is_none() {
             cubeb_log!("Cannot init an input device without input stream params");
-            return Err(Error::invalid_parameter());
+            return Err(Error::InvalidParameter);
         }
 
         if !output_device.is_null() && output_stream_params.is_none() {
             cubeb_log!("Cannot init an output device without output stream params");
-            return Err(Error::invalid_parameter());
+            return Err(Error::InvalidParameter);
         }
 
         if input_stream_params.is_none() && output_stream_params.is_none() {
             cubeb_log!("Cannot init a stream without any stream params");
-            return Err(Error::invalid_parameter());
+            return Err(Error::InvalidParameter);
         }
 
         if data_callback.is_none() {
             cubeb_log!("Cannot init a stream without a data callback");
-            return Err(Error::invalid_parameter());
+            return Err(Error::InvalidParameter);
         }
 
         let in_stm_settings = if let Some(params) = input_stream_params {
@@ -3002,7 +3002,7 @@ impl ContextOps for AudioUnitContext {
             {
                 None => {
                     cubeb_log!("Fail to create device info for input");
-                    return Err(Error::error());
+                    return Err(Error::Error);
                 }
                 Some(d) => d,
             };
@@ -3025,7 +3025,7 @@ impl ContextOps for AudioUnitContext {
             {
                 None => {
                     cubeb_log!("Fail to create device info for output");
-                    return Err(Error::error());
+                    return Err(Error::Error);
                 }
                 Some(d) => d,
             };
@@ -3096,7 +3096,7 @@ impl ContextOps for AudioUnitContext {
         user_ptr: *mut c_void,
     ) -> Result<()> {
         if devtype == DeviceType::UNKNOWN {
-            return Err(Error::invalid_parameter());
+            return Err(Error::InvalidParameter);
         }
         self.serial_queue
             .clone()
@@ -3723,7 +3723,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                 .contains(StreamPrefs::LOOPBACK)
         {
             cubeb_log!("({:p}) Loopback not supported for audiounit.", self.stm_ptr);
-            return Err(Error::not_supported());
+            return Err(Error::NotSupported);
         }
 
         let same_clock_domain = self.same_clock_domain();
@@ -3757,7 +3757,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                     device_channel_count,
                     self.input_stream_params.channels()
                 );
-                return Err(Error::invalid_parameter());
+                return Err(Error::InvalidParameter);
             }
 
             cubeb_log!(
@@ -3796,7 +3796,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                     "AudioUnitGetProperty/input/kAudioUnitProperty_StreamFormat rv={}",
                     r
                 );
-                return Err(Error::error());
+                return Err(Error::Error);
             }
             cubeb_log!(
                 "({:p}) Input hardware description: {:?}",
@@ -3869,7 +3869,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                     "AudioUnitSetProperty/input/kAudioUnitProperty_StreamFormat rv={}",
                     r
                 );
-                return Err(Error::error());
+                return Err(Error::Error);
             }
 
             // Frames per buffer in the input callback.
@@ -3886,7 +3886,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                     "AudioUnitSetProperty/input/kAudioUnitProperty_MaximumFramesPerSlice rv={}",
                     r
                 );
-                return Err(Error::error());
+                return Err(Error::Error);
             }
 
             // When we use the aggregate device, the self.input_dev_desc.mChannelsPerFrame is the
@@ -3923,7 +3923,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                     "AudioUnitSetProperty/input/kAudioOutputUnitProperty_SetInputCallback rv={}",
                     r
                 );
-                return Err(Error::error());
+                return Err(Error::Error);
             }
 
             stream.frames_read.store(0, Ordering::SeqCst);
@@ -3950,7 +3950,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                     "AudioUnitSetProperty/output/kAudioUnitProperty_StreamFormat rv={}",
                     r
                 );
-                return Err(Error::error());
+                return Err(Error::Error);
             }
         }
 
@@ -4000,7 +4000,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                     "AudioUnitGetProperty/output/kAudioUnitProperty_StreamFormat rv={}",
                     r
                 );
-                return Err(Error::error());
+                return Err(Error::Error);
             }
             cubeb_log!(
                 "({:p}) Output hardware description: {:?}",
@@ -4014,7 +4014,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                     "({:p}) Output hardware description channel count is zero",
                     self.stm_ptr
                 );
-                return Err(Error::error());
+                return Err(Error::Error);
             }
 
             // Simple case of stereo output, map to the stereo pair (that might not be the first
@@ -4144,7 +4144,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                     "AudioUnitSetProperty/output/kAudioUnitProperty_StreamFormat rv={}",
                     r
                 );
-                return Err(Error::error());
+                return Err(Error::Error);
             }
 
             // Use latency to set buffer size
@@ -4170,7 +4170,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                     "AudioUnitSetProperty/output/kAudioUnitProperty_MaximumFramesPerSlice rv={}",
                     r
                 );
-                return Err(Error::error());
+                return Err(Error::Error);
             }
 
             let aurcbs_out = AURenderCallbackStruct {
@@ -4190,7 +4190,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                     "AudioUnitSetProperty/output/kAudioUnitProperty_SetRenderCallback rv={}",
                     r
                 );
-                return Err(Error::error());
+                return Err(Error::Error);
             }
 
             stream.frames_written.store(0, Ordering::SeqCst);
@@ -4272,7 +4272,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             let r = audio_unit_initialize(self.input_unit);
             if r != NO_ERR {
                 cubeb_log!("AudioUnitInitialize/input rv={}", r);
-                return Err(Error::error());
+                return Err(Error::Error);
             }
 
             stream.input_device_latency_frames.store(
@@ -4286,7 +4286,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                 let r = audio_unit_initialize(self.output_unit);
                 if r != NO_ERR {
                     cubeb_log!("AudioUnitInitialize/output rv={}", r);
-                    return Err(Error::error());
+                    return Err(Error::Error);
                 }
             }
 
@@ -4504,7 +4504,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             if rv != NO_ERR {
                 self.output_source_listener = None;
                 cubeb_log!("AudioObjectAddPropertyListener/output/kAudioDevicePropertyDataSource rv={}, device id={}", rv, self.output_device.id);
-                return Err(Error::error());
+                return Err(Error::Error);
             }
 
             // Get the notification when the output device is going away
@@ -4526,7 +4526,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                 if rv != NO_ERR {
                     self.output_alive_listener = None;
                     cubeb_log!("AudioObjectAddPropertyListener/output/kAudioDevicePropertyDeviceIsAlive rv={}, device id ={}", rv, self.output_device.id);
-                    return Err(Error::error());
+                    return Err(Error::Error);
                 }
             }
         }
@@ -4554,7 +4554,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             if rv != NO_ERR {
                 self.input_source_listener = None;
                 cubeb_log!("AudioObjectAddPropertyListener/input/kAudioDevicePropertyDataSource rv={}, device id={}", rv, self.input_device.id);
-                return Err(Error::error());
+                return Err(Error::Error);
             }
 
             // Get the notification when the input device is going away
@@ -4576,7 +4576,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                 if rv != NO_ERR {
                     self.input_alive_listener = None;
                     cubeb_log!("AudioObjectAddPropertyListener/input/kAudioDevicePropertyDeviceIsAlive rv={}, device id ={}", rv, self.input_device.id);
-                    return Err(Error::error());
+                    return Err(Error::Error);
                 }
             }
         }
@@ -4615,7 +4615,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             if r != NO_ERR {
                 self.default_output_listener = None;
                 cubeb_log!("AudioObjectAddPropertyListener/output/kAudioHardwarePropertyDefaultOutputDevice rv={}", r);
-                return Err(Error::error());
+                return Err(Error::Error);
             }
         }
 
@@ -4645,7 +4645,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             if r != NO_ERR {
                 self.default_input_listener = None;
                 cubeb_log!("AudioObjectAddPropertyListener/input/kAudioHardwarePropertyDefaultInputDevice rv={}", r);
-                return Err(Error::error());
+                return Err(Error::Error);
             }
         }
 
@@ -4673,7 +4673,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             let rv = stm.remove_device_listener(self.output_source_listener.as_ref().unwrap());
             if rv != NO_ERR {
                 cubeb_log!("AudioObjectRemovePropertyListener/output/kAudioDevicePropertyDataSource rv={}, device id={}", rv, self.output_device.id);
-                r = Err(Error::error());
+                r = Err(Error::Error);
             }
             self.output_source_listener = None;
         }
@@ -4682,7 +4682,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             let rv = stm.remove_device_listener(self.output_alive_listener.as_ref().unwrap());
             if rv != NO_ERR {
                 cubeb_log!("AudioObjectRemovePropertyListener/output/kAudioDevicePropertyDeviceIsAlive rv={}, device id={}", rv, self.output_device.id);
-                r = Err(Error::error());
+                r = Err(Error::Error);
             }
             self.output_alive_listener = None;
         }
@@ -4691,7 +4691,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             let rv = stm.remove_device_listener(self.input_source_listener.as_ref().unwrap());
             if rv != NO_ERR {
                 cubeb_log!("AudioObjectRemovePropertyListener/input/kAudioDevicePropertyDataSource rv={}, device id={}", rv, self.input_device.id);
-                r = Err(Error::error());
+                r = Err(Error::Error);
             }
             self.input_source_listener = None;
         }
@@ -4700,7 +4700,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             let rv = stm.remove_device_listener(self.input_alive_listener.as_ref().unwrap());
             if rv != NO_ERR {
                 cubeb_log!("AudioObjectRemovePropertyListener/input/kAudioDevicePropertyDeviceIsAlive rv={}, device id={}", rv, self.input_device.id);
-                r = Err(Error::error());
+                r = Err(Error::Error);
             }
             self.input_alive_listener = None;
         }
@@ -4722,7 +4722,7 @@ impl<'ctx> CoreStreamData<'ctx> {
         if self.default_output_listener.is_some() {
             let r = stm.remove_device_listener(self.default_output_listener.as_ref().unwrap());
             if r != NO_ERR {
-                return Err(Error::error());
+                return Err(Error::Error);
             }
             self.default_output_listener = None;
         }
@@ -4730,7 +4730,7 @@ impl<'ctx> CoreStreamData<'ctx> {
         if self.default_input_listener.is_some() {
             let r = stm.remove_device_listener(self.default_input_listener.as_ref().unwrap());
             if r != NO_ERR {
-                return Err(Error::error());
+                return Err(Error::Error);
             }
             self.default_input_listener = None;
         }
@@ -4905,7 +4905,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 || !self.core_stream_data.output_unit.is_null()
         );
         let vol_rv = if self.core_stream_data.output_unit.is_null() {
-            Err(Error::error())
+            Err(Error::Error)
         } else {
             get_volume(self.core_stream_data.output_unit)
         };
@@ -4925,7 +4925,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 match create_device_info(kAudioObjectUnknown, DeviceType::OUTPUT) {
                     None => {
                         cubeb_log!("Fail to create device info for output");
-                        return Err(Error::error());
+                        return Err(Error::Error);
                     }
                     Some(d) => d,
                 };
@@ -4944,7 +4944,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 match create_device_info(kAudioObjectUnknown, DeviceType::INPUT) {
                     None => {
                         cubeb_log!("Fail to create device info for input");
-                        return Err(Error::error());
+                        return Err(Error::Error);
                     }
                     Some(d) => d,
                 }
@@ -5210,7 +5210,7 @@ impl StreamOps for AudioUnitStream<'_> {
                 Ok((frames * user_rate) / hw_rate)
             }
         } else {
-            Err(Error::error())
+            Err(Error::Error)
         }
     }
     fn set_volume(&mut self, volume: f32) -> Result<()> {
@@ -5230,22 +5230,22 @@ impl StreamOps for AudioUnitStream<'_> {
         Ok(())
     }
     fn set_name(&mut self, _: &CStr) -> Result<()> {
-        Err(Error::not_supported())
+        Err(Error::NotSupported)
     }
     fn current_device(&mut self) -> Result<&DeviceRef> {
-        Err(Error::not_supported())
+        Err(Error::NotSupported)
     }
     fn set_input_mute(&mut self, mute: bool) -> Result<()> {
         if self.core_stream_data.input_unit.is_null() {
-            return Err(Error::invalid_parameter());
+            return Err(Error::InvalidParameter);
         }
 
         if !self.core_stream_data.using_voice_processing_unit() {
-            return Err(Error::error());
+            return Err(Error::Error);
         }
 
         // Execute set_input_mute in serial queue to avoid racing with destroy or reinit.
-        let mut result = Err(Error::error());
+        let mut result = Err(Error::Error);
         let set = &mut result;
         let stream = &self;
         self.queue.run_sync(move || {
@@ -5266,7 +5266,7 @@ impl StreamOps for AudioUnitStream<'_> {
         // CUBEB_ERROR_INVALID_PARAMETER if a given param is not supported by
         // this backend, or if this stream does not have an input device
         if self.core_stream_data.input_unit.is_null() {
-            return Err(Error::invalid_parameter());
+            return Err(Error::InvalidParameter);
         }
 
         if self
@@ -5276,7 +5276,7 @@ impl StreamOps for AudioUnitStream<'_> {
             .intersection(params)
             != params
         {
-            return Err(Error::invalid_parameter());
+            return Err(Error::InvalidParameter);
         }
 
         // AEC and NS are active as soon as VPIO is not bypassed, therefore the only combinations
@@ -5290,17 +5290,17 @@ impl StreamOps for AudioUnitStream<'_> {
                 self as *const AudioUnitStream,
                 params
             );
-            return Err(Error::error());
+            return Err(Error::Error);
         }
 
         // CUBEB_ERROR if params could not be applied
         //   note: only works with VoiceProcessingIO
         if !self.core_stream_data.using_voice_processing_unit() {
-            return Err(Error::error());
+            return Err(Error::Error);
         }
 
         // Execute set_input_processing_params in serial queue to avoid racing with destroy or reinit.
-        let mut result = Err(Error::error());
+        let mut result = Err(Error::Error);
         let result_ = &mut result;
         let mut deferred = false;
         let deferred_ = &mut deferred;
@@ -5333,7 +5333,7 @@ impl StreamOps for AudioUnitStream<'_> {
     #[cfg(not(target_os = "ios"))]
     fn device_destroy(&mut self, device: &DeviceRef) -> Result<()> {
         if device.as_ptr().is_null() {
-            Err(Error::error())
+            Err(Error::Error)
         } else {
             unsafe {
                 let mut dev: Box<ffi::cubeb_device> = Box::from_raw(device.as_ptr() as *mut _);
@@ -5358,7 +5358,7 @@ impl StreamOps for AudioUnitStream<'_> {
         // Note: second register without unregister first causes 'nope' error.
         // Current implementation requires unregister before register a new cb.
         if device_changed_callback.is_some() && callback.is_some() {
-            Err(Error::invalid_parameter())
+            Err(Error::InvalidParameter)
         } else {
             *callback = device_changed_callback;
             Ok(())
