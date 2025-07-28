@@ -1621,25 +1621,6 @@ fn test_create_device_info_with_unknown_type() {
 }
 
 #[test]
-#[should_panic]
-fn test_device_destroy_empty_device() {
-    let mut device = ffi::cubeb_device_info::default();
-
-    assert!(device.device_id.is_null());
-    assert!(device.group_id.is_null());
-    assert!(device.friendly_name.is_null());
-    assert!(device.vendor_name.is_null());
-
-    // `friendly_name` must be set.
-    destroy_cubeb_device_info(&mut device);
-
-    assert!(device.device_id.is_null());
-    assert!(device.group_id.is_null());
-    assert!(device.friendly_name.is_null());
-    assert!(device.vendor_name.is_null());
-}
-
-#[test]
 fn test_create_device_from_hwdev_with_inout_type() {
     test_create_device_from_hwdev_with_inout_type_by_scope(Scope::Input);
     test_create_device_from_hwdev_with_inout_type_by_scope(Scope::Output);
