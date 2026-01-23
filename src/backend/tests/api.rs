@@ -1713,7 +1713,7 @@ fn test_add_devices_changed_listener() {
             if devtype.contains(DeviceType::INPUT) {
                 let cb = get_devices_changed_callback(context, Scope::Input);
                 assert!(cb.is_some());
-                assert_eq!(cb.unwrap(), *callback);
+                assert!(std::ptr::fn_addr_eq(cb.unwrap(), *callback));
             } else {
                 let cb = get_devices_changed_callback(context, Scope::Input);
                 assert!(cb.is_none());
@@ -1722,7 +1722,7 @@ fn test_add_devices_changed_listener() {
             if devtype.contains(DeviceType::OUTPUT) {
                 let cb = get_devices_changed_callback(context, Scope::Output);
                 assert!(cb.is_some());
-                assert_eq!(cb.unwrap(), *callback);
+                assert!(std::ptr::fn_addr_eq(cb.unwrap(), *callback));
             } else {
                 let cb = get_devices_changed_callback(context, Scope::Output);
                 assert!(cb.is_none());
@@ -1796,16 +1796,16 @@ fn test_remove_devices_changed_listener() {
 
             let input_callback = get_devices_changed_callback(context, Scope::Input);
             assert!(input_callback.is_some());
-            assert_eq!(
+            assert!(std::ptr::fn_addr_eq(
                 input_callback.unwrap(),
                 *(map.get(&DeviceType::INPUT).unwrap())
-            );
+            ));
             let output_callback = get_devices_changed_callback(context, Scope::Output);
             assert!(output_callback.is_some());
-            assert_eq!(
+            assert!(std::ptr::fn_addr_eq(
                 output_callback.unwrap(),
                 *(map.get(&DeviceType::OUTPUT).unwrap())
-            );
+            ));
 
             // Unregister the callbacks within one specific scopes.
             assert!(run_serially(|| context.remove_devices_changed_listener(*devtype)).is_ok());
@@ -1816,7 +1816,10 @@ fn test_remove_devices_changed_listener() {
             } else {
                 let cb = get_devices_changed_callback(context, Scope::Input);
                 assert!(cb.is_some());
-                assert_eq!(cb.unwrap(), *(map.get(&DeviceType::INPUT).unwrap()));
+                assert!(std::ptr::fn_addr_eq(
+                    cb.unwrap(),
+                    *(map.get(&DeviceType::INPUT).unwrap())
+                ));
             }
 
             if devtype.contains(DeviceType::OUTPUT) {
@@ -1825,7 +1828,10 @@ fn test_remove_devices_changed_listener() {
             } else {
                 let cb = get_devices_changed_callback(context, Scope::Output);
                 assert!(cb.is_some());
-                assert_eq!(cb.unwrap(), *(map.get(&DeviceType::OUTPUT).unwrap()));
+                assert!(std::ptr::fn_addr_eq(
+                    cb.unwrap(),
+                    *(map.get(&DeviceType::OUTPUT).unwrap())
+                ));
             }
 
             // Unregister the callbacks within all scopes.
@@ -1878,13 +1884,13 @@ fn test_remove_devices_changed_listener_within_all_scopes() {
             if devtype.contains(DeviceType::INPUT) {
                 let cb = get_devices_changed_callback(context, Scope::Input);
                 assert!(cb.is_some());
-                assert_eq!(cb.unwrap(), *callback);
+                assert!(std::ptr::fn_addr_eq(cb.unwrap(), *callback));
             }
 
             if devtype.contains(DeviceType::OUTPUT) {
                 let cb = get_devices_changed_callback(context, Scope::Output);
                 assert!(cb.is_some());
-                assert_eq!(cb.unwrap(), *callback);
+                assert!(std::ptr::fn_addr_eq(cb.unwrap(), *callback));
             }
 
             assert!(run_serially(
