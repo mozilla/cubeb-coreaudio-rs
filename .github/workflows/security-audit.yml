@@ -1,0 +1,27 @@
+name: Security Audit
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sunday at midnight UTC
+  push:
+    branches: [trailblazer]
+  pull_request:  # Run on ALL PRs to enforce security compliance
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      run: rustup toolchain install stable --profile minimal
+
+    - name: Install cargo-audit
+      run: cargo install cargo-audit
+
+    - name: Run security audit
+      run: cargo audit
+
+    - name: Run security audit (coreaudio-sys-utils)
+      run: cargo audit --file coreaudio-sys-utils/Cargo.lock
