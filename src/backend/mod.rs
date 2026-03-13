@@ -686,6 +686,19 @@ extern "C" fn audiounit_input_callback(
         });
     }
 
+    // AudioOutputUnitStop waits for in-flight callbacks, but TSan cannot see
+    // CoreAudio's internal synchronization. Release on the AudioUnit handle to
+    // pair with the acquire in stop_audiounit, modeling the per-unit HALB_Mutex.
+    #[cfg(feature = "tsan-annotations")]
+    {
+        extern "C" {
+            fn __tsan_release(addr: *mut c_void);
+        }
+        unsafe {
+            __tsan_release(stm.core_stream_data.input_unit as *mut c_void);
+        }
+    }
+
     match handle {
         ErrorHandle::Reinit => {
             stm.reinit_async();
@@ -986,6 +999,17 @@ extern "C" fn audiounit_output_callback(
             output_frames * stm.core_stream_data.output_dev_desc.mChannelsPerFrame,
         );
     }
+
+    #[cfg(feature = "tsan-annotations")]
+    {
+        extern "C" {
+            fn __tsan_release(addr: *mut c_void);
+        }
+        unsafe {
+            __tsan_release(stm.core_stream_data.output_unit as *mut c_void);
+        }
+    }
+
     NO_ERR
 }
 
@@ -1229,6 +1253,18 @@ fn start_audiounit(unit: AudioUnit) -> Result<()> {
 
 fn stop_audiounit(unit: AudioUnit) -> Result<()> {
     let status = audio_output_unit_stop(unit);
+    // AudioOutputUnitStop waits for in-flight callbacks, but TSan cannot see
+    // CoreAudio's internal HALB_Mutex synchronization. Acquire on the AudioUnit
+    // handle to pair with the release at the end of each callback.
+    #[cfg(feature = "tsan-annotations")]
+    {
+        extern "C" {
+            fn __tsan_acquire(addr: *mut c_void);
+        }
+        unsafe {
+            __tsan_acquire(unit as *mut c_void);
+        }
+    }
     if status == NO_ERR {
         Ok(())
     } else {
