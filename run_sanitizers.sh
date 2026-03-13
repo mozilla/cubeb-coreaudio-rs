@@ -19,11 +19,25 @@ set -e
 TARGET=$(rustc -vV | grep host | cut -d' ' -f2)
 echo "Target: $TARGET"
 
+# Accept sanitizers as command line arguments.
+# Usage: ./run_sanitizers.sh [address] [thread]
+# Default: Run all sanitizers (address and thread)
+# For public CI: ./run_sanitizers.sh address (ASan only)
+# For maintainer CI: ./run_sanitizers.sh address thread (or no args for all)
 # Ideally, sanitizers should be ("address" "leak" "memory" "thread") but
 # - `memory`: It doesn't works with target x86_64-apple-darwin
 # - `leak`: Get some errors that are out of our control. See:
 #   https://github.com/mozilla/cubeb-coreaudio-rs/issues/45#issuecomment-591642931
-sanitizers=("address" "thread")
+if [ $# -eq 0 ]; then
+    # Default: Run all available sanitizers
+    sanitizers=("address" "thread")
+else
+    # Use provided arguments
+    sanitizers=("$@")
+fi
+
+echo "Running sanitizers: ${sanitizers[*]}"
+
 for san in "${sanitizers[@]}"
 do
     San="$(tr '[:lower:]' '[:upper:]' <<< ${san:0:1})${san:1}"
