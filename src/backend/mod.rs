@@ -309,7 +309,11 @@ fn create_stream_description(stream_params: &StreamParams) -> Result<AudioStream
 }
 
 fn set_volume(unit: AudioUnit, volume: f32) -> Result<()> {
-    assert!(!unit.is_null());
+    debug_assert!(!unit.is_null());
+    if unit.is_null() {
+        cubeb_log!("set_volume: audio unit is null");
+        return Err(Error::Error);
+    }
     let r = audio_unit_set_parameter(
         unit,
         kHALOutputParam_Volume,
@@ -327,7 +331,11 @@ fn set_volume(unit: AudioUnit, volume: f32) -> Result<()> {
 }
 
 fn get_volume(unit: AudioUnit) -> Result<f32> {
-    assert!(!unit.is_null());
+    debug_assert!(!unit.is_null());
+    if unit.is_null() {
+        cubeb_log!("get_volume: audio unit is null");
+        return Err(Error::Error);
+    }
     let mut volume: f32 = 0.0;
     let r = audio_unit_get_parameter(
         unit,
@@ -345,7 +353,11 @@ fn get_volume(unit: AudioUnit) -> Result<f32> {
 }
 
 fn set_input_mute(unit: AudioUnit, mute: bool) -> Result<()> {
-    assert!(!unit.is_null());
+    debug_assert!(!unit.is_null());
+    if unit.is_null() {
+        cubeb_log!("set_input_mute: audio unit is null");
+        return Err(Error::Error);
+    }
     let mute: u32 = mute.into();
     let mut old_mute: u32 = 0;
     let r = audio_unit_get_property(
@@ -386,7 +398,11 @@ fn set_input_mute(unit: AudioUnit, mute: bool) -> Result<()> {
 }
 
 fn set_input_processing_params(unit: AudioUnit, params: InputProcessingParams) -> Result<()> {
-    assert!(!unit.is_null());
+    debug_assert!(!unit.is_null());
+    if unit.is_null() {
+        cubeb_log!("set_input_processing_params: audio unit is null");
+        return Err(Error::Error);
+    }
     let aec = params.contains(InputProcessingParams::ECHO_CANCELLATION);
     let ns = params.contains(InputProcessingParams::NOISE_SUPPRESSION);
     let agc = params.contains(InputProcessingParams::AUTOMATIC_GAIN_CONTROL);
@@ -5042,6 +5058,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
 
             if self.reinit().is_err() {
                 self.core_stream_data.close();
+                self.stopped.store(true, Ordering::SeqCst);
                 self.notify_state_changed(State::Error);
                 cubeb_log!(
                     "({:p}) Could not reopen the stream after switching.",
