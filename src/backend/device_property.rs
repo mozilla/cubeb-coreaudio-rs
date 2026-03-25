@@ -4,7 +4,11 @@ pub fn get_device_uid(
     id: AudioDeviceID,
     devtype: DeviceType,
 ) -> std::result::Result<StringRef, OSStatus> {
-    assert_ne!(id, kAudioObjectUnknown);
+    debug_assert_ne!(id, kAudioObjectUnknown);
+    if id == kAudioObjectUnknown {
+        cubeb_log!("get_device_uid: device id is kAudioObjectUnknown");
+        return Err(kAudioHardwareBadObjectError as OSStatus);
+    }
     debug_assert_running_serially();
 
     let address = get_property_address(Property::DeviceUID, devtype);

@@ -1687,7 +1687,11 @@ fn get_channel_count(
     devid: AudioObjectID,
     devtype: DeviceType,
 ) -> std::result::Result<u32, OSStatus> {
-    assert_ne!(devid, kAudioObjectUnknown);
+    debug_assert_ne!(devid, kAudioObjectUnknown);
+    if devid == kAudioObjectUnknown {
+        cubeb_log!("get_channel_count: device id is kAudioObjectUnknown");
+        return Err(kAudioHardwareBadObjectError as OSStatus);
+    }
     debug_assert_running_serially();
 
     let devstreams = get_device_streams(devid, devtype)?;
