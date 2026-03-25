@@ -515,11 +515,18 @@ extern "C" fn audiounit_input_callback(
         Reinit,
     }
 
-    assert!(input_frames > 0);
     assert_eq!(bus, AU_IN_BUS);
 
     assert!(!user_ptr.is_null());
     let stm = unsafe { &mut *(user_ptr as *mut AudioUnitStream) };
+
+    if input_frames == 0 {
+        cubeb_alog!(
+            "({:p}) input callback empty.",
+            stm as *const AudioUnitStream
+        );
+        return NO_ERR;
+    }
 
     if unsafe { *flags | kAudioTimeStampHostTimeValid } != 0 {
         let now = unsafe { mach_absolute_time() };
@@ -980,10 +987,17 @@ extern "C" fn audiounit_output_callback(
 
     // Mixing
     if let Some(mixer) = stm.core_stream_data.mixer.as_mut() {
-        assert!(
-            buffers[0].mDataByteSize
-                >= stm.core_stream_data.output_dev_desc.mBytesPerFrame * output_frames
-        );
+        let needed = stm.core_stream_data.output_dev_desc.mBytesPerFrame * output_frames;
+        if buffers[0].mDataByteSize < needed {
+            cubeb_log!(
+                "({:p}) output buffer too small for mixer: have {} bytes, need {} bytes",
+                stm as *const AudioUnitStream,
+                buffers[0].mDataByteSize,
+                needed
+            );
+            audiounit_make_silent(&buffers[0]);
+            return NO_ERR;
+        }
         mixer.mix(
             output_frames as usize,
             buffers[0].mData,
