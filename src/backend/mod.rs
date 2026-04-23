@@ -3415,6 +3415,12 @@ impl<'ctx> CoreStreamData<'ctx> {
         // and before the stream is destroyed.
         debug_assert!(!self.input_unit.is_null() || !self.output_unit.is_null());
 
+        // Match other cubeb backends: reset the async logger's recorded
+        // producer thread id before the CoreAudio I/O proc begins logging.
+        unsafe {
+            ffi::cubeb_async_log_reset_threads();
+        }
+
         if !self.input_unit.is_null() {
             start_audiounit(self.input_unit)?;
         }
