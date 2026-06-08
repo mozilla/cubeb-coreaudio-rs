@@ -429,6 +429,30 @@ pub fn get_clock_domain(
     }
 }
 
+// Query the OS workgroup associated with the device's audio I/O thread.
+//
+// Returns a retained (+1) `os_workgroup_t` on success; the caller is
+// responsible for releasing it.  Not all devices publish a workgroup
+// (e.g. virtual devices on older OS versions), in which case this returns
+// an error.
+pub fn get_device_workgroup(
+    id: AudioDeviceID,
+    devtype: DeviceType,
+) -> std::result::Result<os_workgroup_t, OSStatus> {
+    assert_ne!(id, kAudioObjectUnknown);
+    debug_assert_running_serially();
+
+    let address = get_property_address(Property::IOThreadOSWorkgroup, devtype);
+    let mut size = mem::size_of::<os_workgroup_t>();
+    let mut wg: os_workgroup_t = ptr::null_mut();
+    let err = audio_object_get_property_data(id, &address, &mut size, &mut wg);
+    if err == NO_ERR {
+        Ok(wg)
+    } else {
+        Err(err)
+    }
+}
+
 pub enum Property {
     DeviceBufferFrameSizeRange,
     DeviceIsAlive,
@@ -445,6 +469,7 @@ pub enum Property {
     HardwareDefaultOutputDevice,
     HardwareDeviceForUID,
     HardwareDevices,
+    IOThreadOSWorkgroup,
     ModelUID,
     StreamLatency,
     StreamTerminalType,
@@ -471,6 +496,7 @@ impl From<Property> for AudioObjectPropertySelector {
             Property::HardwareDefaultOutputDevice => kAudioHardwarePropertyDefaultOutputDevice,
             Property::HardwareDeviceForUID => kAudioHardwarePropertyDeviceForUID,
             Property::HardwareDevices => kAudioHardwarePropertyDevices,
+            Property::IOThreadOSWorkgroup => kAudioDevicePropertyIOThreadOSWorkgroup,
             Property::ModelUID => kAudioDevicePropertyModelUID,
             Property::StreamLatency => kAudioStreamPropertyLatency,
             Property::StreamTerminalType => kAudioStreamPropertyTerminalType,

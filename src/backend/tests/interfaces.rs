@@ -1944,3 +1944,45 @@ fn test_ops_stereo_input_duplex_voice_stream_stop() {
         },
     );
 }
+
+#[test]
+fn test_ops_stream_get_workgroup_null_stream() {
+    // NULL input returns NULL, no crash.
+    let wg = unsafe { crate::capi::audiounit_stream_get_workgroup(ptr::null_mut()) };
+    assert!(wg.is_null());
+}
+
+#[test]
+fn test_ops_stream_get_workgroup() {
+    use coreaudio_sys_utils::sys::os_release;
+
+    test_default_output_stream_operation("stream: get workgroup", |stream| {
+        // Direct struct peek: setup() should have populated the output workgroup
+        // (this is true on any macOS version CoreAudio has published one for the
+        // default output device, which is the common case on recent releases).
+        let stm = unsafe { &*(stream as *const AudioUnitStream) };
+        let populated = stm.core_stream_data.output_workgroup.is_some();
+
+        // Query via the public capi and verify the result matches the internal state.
+        let wg = unsafe { crate::capi::audiounit_stream_get_workgroup(stream) };
+        if populated {
+            assert!(
+                !wg.is_null(),
+                "workgroup present internally but capi returned null"
+            );
+
+            // Querying a second time should return a fresh retained reference,
+            // not the same pointer invalidated.  Both must be released.
+            let wg2 = unsafe { crate::capi::audiounit_stream_get_workgroup(stream) };
+            assert!(!wg2.is_null());
+
+            unsafe { os_release(wg as *mut c_void) };
+            unsafe { os_release(wg2 as *mut c_void) };
+        } else {
+            // Some older devices / OS versions may not publish a workgroup.
+            // In that case both internal state and the capi should agree on null.
+            assert!(wg.is_null());
+            println!("default output device publishes no workgroup; skipping positive case");
+        }
+    });
+}

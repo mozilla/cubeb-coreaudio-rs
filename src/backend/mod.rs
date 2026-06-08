@@ -16,6 +16,7 @@ mod intern;
 mod mixer;
 mod resampler;
 mod utils;
+mod workgroup;
 
 use self::aggregate_device::*;
 use self::auto_release::*;
@@ -32,6 +33,7 @@ use self::device_property::*;
 use self::mixer::*;
 use self::resampler::*;
 use self::utils::*;
+use self::workgroup::WorkGroup;
 use backend::ringbuf::RingBuffer;
 #[cfg(feature = "audio-dump")]
 use cubeb_backend::ffi::cubeb_audio_dump_stream_t;
@@ -3320,6 +3322,13 @@ struct CoreStreamData<'ctx> {
     audio_dump_input: ffi::cubeb_audio_dump_stream_t,
     #[cfg(feature = "audio-dump")]
     audio_dump_output: ffi::cubeb_audio_dump_stream_t,
+    // OS workgroups associated with each device's audio I/O thread, queried
+    // from kAudioDevicePropertyIOThreadOSWorkgroup during setup().  Auxiliary
+    // threads that cooperate on this stream's audio deadline (e.g. audioipc's
+    // cross-process callback dispatch thread) can join these to participate
+    // in the workgroup's scheduling.
+    output_workgroup: Option<WorkGroup>,
+    input_workgroup: Option<WorkGroup>,
 }
 
 impl Default for CoreStreamData<'_> {
@@ -3371,6 +3380,8 @@ impl Default for CoreStreamData<'_> {
             audio_dump_input: ptr::null_mut(),
             #[cfg(feature = "audio-dump")]
             audio_dump_output: ptr::null_mut(),
+            output_workgroup: None,
+            input_workgroup: None,
         }
     }
 }
@@ -3428,6 +3439,8 @@ impl<'ctx> CoreStreamData<'ctx> {
             audio_dump_input: ptr::null_mut(),
             #[cfg(feature = "audio-dump")]
             audio_dump_output: ptr::null_mut(),
+            output_workgroup: None,
+            input_workgroup: None,
         }
     }
 
@@ -4504,6 +4517,39 @@ impl<'ctx> CoreStreamData<'ctx> {
                         || self.output_alive_listener.is_some()))
         );
 
+        // Cache each device's audio I/O workgroup so auxiliary threads that
+        // cooperate on this stream's audio deadline can query and join it.
+        // Not every device publishes a workgroup (older OS versions, virtual
+        // devices); a query failure here is non-fatal.
+        if self.has_output() && self.output_device.id != kAudioObjectUnknown {
+            match get_device_workgroup(self.output_device.id, DeviceType::OUTPUT) {
+                Ok(wg) => {
+                    self.output_workgroup = unsafe { WorkGroup::from_retained(wg) };
+                }
+                Err(e) => {
+                    cubeb_log!(
+                        "({:p}) output device workgroup query failed: {}",
+                        self.stm_ptr,
+                        e
+                    );
+                }
+            }
+        }
+        if self.has_input() && self.input_device.id != kAudioObjectUnknown {
+            match get_device_workgroup(self.input_device.id, DeviceType::INPUT) {
+                Ok(wg) => {
+                    self.input_workgroup = unsafe { WorkGroup::from_retained(wg) };
+                }
+                Err(e) => {
+                    cubeb_log!(
+                        "({:p}) input device workgroup query failed: {}",
+                        self.stm_ptr,
+                        e
+                    );
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -4570,6 +4616,10 @@ impl<'ctx> CoreStreamData<'ctx> {
         self.resampler.destroy();
         self.mixer = None;
         self.aggregate_device = None;
+        // Release workgroup references.  On reinit, setup() re-queries against
+        // the new device IDs.
+        self.output_workgroup = None;
+        self.input_workgroup = None;
 
         if self.uninstall_system_changed_callback().is_err() {
             cubeb_log!(
@@ -4872,7 +4922,7 @@ struct OutputCallbackTimingData {
 // #[repr(C)] is used to prevent any padding from being added in the beginning of the AudioUnitStream.
 #[repr(C)]
 #[derive(Debug)]
-struct AudioUnitStream<'ctx> {
+pub(crate) struct AudioUnitStream<'ctx> {
     context: &'ctx mut AudioUnitContext,
     user_ptr: *mut c_void,
     // Task queue for the stream.
@@ -5175,6 +5225,30 @@ impl<'ctx> AudioUnitStream<'ctx> {
             "Cubeb stream ({:p}) destroyed successful.",
             self as *const AudioUnitStream
         );
+    }
+
+    // Returns a retained (+1) reference to this stream's audio workgroup.
+    // Prefers the output device's workgroup; falls back to the input device's
+    // workgroup for input-only streams.  Returns NULL if neither is available.
+    //
+    // The query runs on the stream's serial queue to avoid racing with reinit
+    // (which replaces CoreStreamData).  The caller owns the returned reference
+    // and must release it with `os_release`.
+    pub(crate) fn workgroup_retained(&self) -> os_workgroup_t {
+        let mut result: os_workgroup_t = ptr::null_mut();
+        let result_ = &mut result;
+        let stream = &self;
+        self.queue.run_sync(move || {
+            let wg = stream
+                .core_stream_data
+                .output_workgroup
+                .as_ref()
+                .or(stream.core_stream_data.input_workgroup.as_ref());
+            if let Some(wg) = wg {
+                *result_ = wg.retained();
+            }
+        });
+        result
     }
 }
 
