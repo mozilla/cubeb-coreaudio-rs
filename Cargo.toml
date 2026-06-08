@@ -29,6 +29,7 @@ audio-dump = []
 vpio-forcelist = []
 gecko-in-tree = ["cubeb-backend/gecko-in-tree"]
 tsan-annotations = []
+no-private-apis = ["coreaudio-sys-utils/no-private-apis"]
 
 # Workaround for https://github.com/rust-lang/cargo/issues/6745 to allow this
 # Cargo.toml file to appear under a subdirectory of a workspace without being in
