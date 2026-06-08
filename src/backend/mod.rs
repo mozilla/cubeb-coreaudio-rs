@@ -21,6 +21,7 @@ use self::aggregate_device::*;
 use self::auto_release::*;
 use self::buffer_manager::*;
 use self::coreaudio_sys_utils::aggregate_device::*;
+#[allow(unused_imports)]
 use self::coreaudio_sys_utils::audio_device_extensions::*;
 use self::coreaudio_sys_utils::audio_object::*;
 use self::coreaudio_sys_utils::audio_unit::*;
@@ -1515,6 +1516,7 @@ fn create_voiceprocessing_audiounit() -> Result<VoiceProcessingUnit> {
         return Err(Error::Error);
     }
 
+    #[cfg(not(feature = "no-private-apis"))]
     match get_default_device(DeviceType::OUTPUT) {
         None => {
             cubeb_log!("Could not get default output device in order to undo vpio ducking");
@@ -4423,6 +4425,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             }
         }
 
+        #[cfg(not(feature = "no-private-apis"))]
         if using_voice_processing_unit {
             // The VPIO AudioUnit automatically ducks other audio streams on the VPIO
             // output device. Its ramp duration is 0.5s when ducking, so unduck similarly
