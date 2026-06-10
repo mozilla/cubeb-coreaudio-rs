@@ -4510,7 +4510,13 @@ impl<'ctx> CoreStreamData<'ctx> {
         Ok(())
     }
 
-    fn close(&mut self) {
+    // `defer_dispose` disposes the (non-shared) audio units on a background
+    // queue rather than synchronously, so a stalled coreaudiod cannot block the
+    // caller. It is only safe during final teardown, where the units are not
+    // recreated afterwards; reinit and error paths must dispose synchronously.
+    // See https://bugzilla.mozilla.org/show_bug.cgi?id=2045209 and
+    // `dispose_audio_unit_async`.
+    fn close(&mut self, defer_dispose: bool) {
         self.debug_assert_is_on_stream_queue();
         if !self.input_unit.is_null() {
             audio_unit_uninitialize(self.input_unit);
@@ -4525,14 +4531,22 @@ impl<'ctx> CoreStreamData<'ctx> {
 
         if !self.output_unit.is_null() {
             audio_unit_uninitialize(self.output_unit);
-            dispose_audio_unit(self.output_unit);
+            if defer_dispose {
+                dispose_audio_unit_async(self.output_unit);
+            } else {
+                dispose_audio_unit(self.output_unit);
+            }
             self.output_unit = ptr::null_mut();
         }
 
         if !self.input_unit.is_null() {
             if !self.using_voice_processing_unit() {
                 // The VPIO unit is shared and must not be disposed.
-                dispose_audio_unit(self.input_unit);
+                if defer_dispose {
+                    dispose_audio_unit_async(self.input_unit);
+                } else {
+                    dispose_audio_unit(self.input_unit);
+                }
             }
             self.input_unit = ptr::null_mut();
         }
@@ -4859,7 +4873,7 @@ impl Drop for CoreStreamData<'_> {
     fn drop(&mut self) {
         self.debug_assert_is_on_stream_queue();
         self.stop_audiounits();
-        self.close();
+        self.close(false);
     }
 }
 
@@ -5017,7 +5031,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             get_volume(self.core_stream_data.output_unit)
         };
 
-        self.core_stream_data.close();
+        self.core_stream_data.close(false);
 
         // Use the new default device if this stream was set to follow the output device.
         if self.core_stream_data.has_output()
@@ -5106,7 +5120,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             }
 
             if self.reinit().is_err() {
-                self.core_stream_data.close();
+                self.core_stream_data.close(false);
                 self.stopped.store(true, Ordering::SeqCst);
                 self.notify_state_changed(State::Error);
                 cubeb_log!(
@@ -5123,7 +5137,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
         self.queue.debug_assert_is_current();
         let stm_ptr = self as *const AudioUnitStream;
 
-        self.core_stream_data.close();
+        self.core_stream_data.close(false);
         self.notify_state_changed(State::Error);
         cubeb_log!("({:p}) Close the stream due to an error.", stm_ptr);
 
@@ -5132,7 +5146,11 @@ impl<'ctx> AudioUnitStream<'ctx> {
 
     fn destroy_internal(&mut self) {
         self.queue.debug_assert_is_current();
-        self.core_stream_data.close();
+        // Defer the (potentially coreaudiod-blocking) audio unit disposal to a
+        // background queue so final teardown cannot wedge the shared AudioIPC
+        // server RPC thread and stall other audio clients.
+        // See https://bugzilla.mozilla.org/show_bug.cgi?id=2045209.
+        self.core_stream_data.close(true);
         assert!(self.context.active_streams() >= 1);
         self.context.update_latency_by_removing_stream();
     }
