@@ -561,7 +561,7 @@ impl AggregateDevice {
         if status != NO_ERR {
             return Err(Error::from(status));
         }
-        assert!(size > 0);
+        debug_assert!(size > 0);
         let subdevices_num = size / mem::size_of::<AudioObjectID>();
         if subdevices_num < 2 {
             cubeb_log!(
