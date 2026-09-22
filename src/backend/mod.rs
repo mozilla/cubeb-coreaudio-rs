@@ -3260,9 +3260,8 @@ impl InputCallbackLogger {
     }
 
     fn push(&mut self, data: InputCallbackData) {
-        if self.prod.try_push(data).is_err() {
-            panic!("can't push to ringbuf");
-        }
+        // Drop log entries if input callbacks outpace the output callback draining this queue.
+        let _ = self.prod.try_push(data);
     }
 
     fn pop(&mut self) -> Option<InputCallbackData> {
