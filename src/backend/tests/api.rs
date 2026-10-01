@@ -1085,7 +1085,7 @@ fn test_get_channel_count_of_output_for_a_input_only_deivce() {
 }
 
 #[test]
-#[should_panic]
+#[cfg_attr(debug_assertions, should_panic)]
 fn test_panic_get_channel_count_of_unknown_device() {
     assert!(run_serially_forward_panics(|| get_channel_count(
         kAudioObjectUnknown,
@@ -1493,7 +1493,7 @@ fn test_get_device_global_uid() {
 }
 
 #[test]
-#[should_panic]
+#[cfg_attr(debug_assertions, should_panic)]
 fn test_panic_get_device_global_uid_by_unknwon_device() {
     // Unknown device.
     assert!(run_serially_forward_panics(|| get_device_global_uid(kAudioObjectUnknown)).is_err());
@@ -1596,7 +1596,7 @@ fn test_create_cubeb_device_info() {
 }
 
 #[test]
-#[should_panic]
+#[cfg_attr(debug_assertions, should_panic)]
 fn test_panic_create_device_info_by_unknown_device() {
     let intern = Arc::new(Mutex::new(intern::Intern::new()));
     assert!(create_cubeb_device_info(&intern, kAudioObjectUnknown, DeviceType::OUTPUT).is_err());
