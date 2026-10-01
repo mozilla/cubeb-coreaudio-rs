@@ -1971,10 +1971,10 @@ fn test_ops_stream_get_workgroup() {
                 "workgroup present internally but capi returned null"
             );
 
-            // Querying a second time should return a fresh retained reference,
-            // not the same pointer invalidated.  Both must be released.
+            // Both queries should return the same cached workgroup, each with
+            // its own retained reference. Both references must be released.
             let wg2 = unsafe { crate::capi::audiounit_stream_get_workgroup(stream) };
-            assert!(!wg2.is_null());
+            assert_eq!(wg, wg2);
 
             unsafe { os_release(wg as *mut c_void) };
             unsafe { os_release(wg2 as *mut c_void) };
