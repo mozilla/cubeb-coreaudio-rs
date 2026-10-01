@@ -6,7 +6,8 @@ use std::slice;
 use cubeb_backend::SampleFormat;
 use num::cast::AsPrimitive;
 
-use super::ringbuf::RingBuffer;
+use super::ringbuf::traits::{Consumer, Observer, Producer, Split};
+use super::ringbuf::HeapRb as RingBuffer;
 
 use self::LinearBuffer::*;
 use self::RingBufferConsumer::*;
@@ -136,13 +137,13 @@ fn process_data<T: DataType>(
 }
 
 pub enum RingBufferConsumer {
-    IntegerRingBufferConsumer(ringbuf::Consumer<i16>),
-    FloatRingBufferConsumer(ringbuf::Consumer<f32>),
+    IntegerRingBufferConsumer(ringbuf::HeapCons<i16>),
+    FloatRingBufferConsumer(ringbuf::HeapCons<f32>),
 }
 
 pub enum RingBufferProducer {
-    IntegerRingBufferProducer(ringbuf::Producer<i16>),
-    FloatRingBufferProducer(ringbuf::Producer<f32>),
+    IntegerRingBufferProducer(ringbuf::HeapProd<i16>),
+    FloatRingBufferProducer(ringbuf::HeapProd<f32>),
 }
 
 pub enum LinearBuffer {
@@ -339,8 +340,8 @@ impl BufferManager {
     pub fn available_frames(&self) -> usize {
         assert_ne!(self.stored_channel_count(), 0);
         let stored_samples = match &self.consumer {
-            IntegerRingBufferConsumer(p) => p.len(),
-            FloatRingBufferConsumer(p) => p.len(),
+            IntegerRingBufferConsumer(p) => p.occupied_len(),
+            FloatRingBufferConsumer(p) => p.occupied_len(),
         };
         stored_samples / self.stored_channel_count()
     }
@@ -348,16 +349,16 @@ impl BufferManager {
         let final_sample_count = final_frame_count * self.stored_channel_count();
         match &mut self.consumer {
             IntegerRingBufferConsumer(c) => {
-                let available = c.len();
+                let available = c.occupied_len();
                 assert!(available >= final_sample_count);
                 let to_pop = available - final_sample_count;
-                c.discard(to_pop);
+                c.skip(to_pop);
             }
             FloatRingBufferConsumer(c) => {
-                let available = c.len();
+                let available = c.occupied_len();
                 assert!(available >= final_sample_count);
                 let to_pop = available - final_sample_count;
-                c.discard(to_pop);
+                c.skip(to_pop);
             }
         }
     }
