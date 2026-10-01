@@ -337,6 +337,19 @@ impl BufferManager {
 
         p
     }
+    // The cached ringbuf endpoints are not Sync: even occupied_len() updates
+    // their local indices. Query the producer from the input callback so a
+    // duplex stream never touches the consumer from both audio callbacks.
+    pub fn available_frames_from_producer(&self) -> usize {
+        assert_ne!(self.stored_channel_count(), 0);
+        let stored_samples = match &self.producer {
+            IntegerRingBufferProducer(p) => p.occupied_len(),
+            FloatRingBufferProducer(p) => p.occupied_len(),
+        };
+        stored_samples / self.stored_channel_count()
+    }
+    // Only call this from the callback that consumes the input data (the
+    // output callback for duplex streams, or the input callback otherwise).
     pub fn available_frames(&self) -> usize {
         assert_ne!(self.stored_channel_count(), 0);
         let stored_samples = match &self.consumer {
@@ -373,6 +386,43 @@ impl fmt::Debug for BufferManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn producer_available_frames_tracks_consumption() {
+        let mut integer_data = [0i16; 8];
+        let mut float_data = [0f32; 8];
+        for (format, data) in [
+            (
+                SampleFormat::S16NE,
+                integer_data.as_mut_ptr() as *mut c_void,
+            ),
+            (
+                SampleFormat::Float32NE,
+                float_data.as_mut_ptr() as *mut c_void,
+            ),
+        ] {
+            // Include remixing so both views count stored frames, not samples
+            // or frames in the output format.
+            for (input_channels, output_channels) in [(1, 1), (2, 2), (2, 1)] {
+                let mut buffer = BufferManager::new(format, 4, input_channels, 0, output_channels);
+                assert_eq!(buffer.available_frames_from_producer(), 0);
+
+                buffer.push_data(data, 4);
+                assert_eq!(buffer.available_frames_from_producer(), 4);
+                assert_eq!(buffer.available_frames(), 4);
+
+                buffer.get_linear_data(2);
+                assert_eq!(buffer.available_frames_from_producer(), 2);
+
+                buffer.trim(1);
+                assert_eq!(buffer.available_frames_from_producer(), 1);
+
+                buffer.get_linear_data(1);
+                assert_eq!(buffer.available_frames_from_producer(), 0);
+            }
+        }
+    }
+
     #[test]
     fn remix_stereo_ints() {
         let mut data = [i16::MAX / 2 + 1, i16::MAX / 2 + 1];

@@ -645,7 +645,7 @@ extern "C" fn audiounit_input_callback(
             let input_callback_data = InputCallbackData {
                 bytes: input_buffer_list.mBuffers[0].mDataByteSize,
                 rendered_frames: input_frames,
-                total_available: input_buffer_manager.available_frames(),
+                total_available: input_buffer_manager.available_frames_from_producer(),
                 channels: input_buffer_list.mBuffers[0].mNumberChannels,
                 num_buf: input_buffer_list.mNumberBuffers,
             };
