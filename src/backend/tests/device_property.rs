@@ -21,7 +21,7 @@ fn test_get_device_uid() {
 }
 
 #[test]
-#[should_panic]
+#[cfg_attr(debug_assertions, should_panic)]
 fn test_panic_get_device_uid_by_unknwon_device() {
     // Unknown device.
     assert!(
