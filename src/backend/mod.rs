@@ -1287,6 +1287,26 @@ fn get_channel_layout(output_unit: AudioUnit) -> Result<Vec<mixer::Channel>> {
         })
 }
 
+fn get_device_preferred_channel_layout(device_id: AudioDeviceID) -> Result<Vec<mixer::Channel>> {
+    debug_assert_running_serially();
+    let address = AudioObjectPropertyAddress {
+        mSelector: kAudioDevicePropertyPreferredChannelLayout,
+        mScope: kAudioDevicePropertyScopeOutput,
+        mElement: kAudioObjectPropertyElementMaster,
+    };
+    let mut size = 0;
+    if audio_object_get_property_data_size(device_id, &address, &mut size) != NO_ERR
+        || size < mem::size_of::<AudioChannelLayout>()
+    {
+        return Err(Error::Error);
+    }
+    let mut layout = make_sized_audio_channel_layout(size);
+    if audio_object_get_property_data(device_id, &address, &mut size, layout.as_mut()) != NO_ERR {
+        return Err(Error::Error);
+    }
+    audiounit_convert_channel_layout(layout.as_ref())
+}
+
 fn start_audiounit(unit: AudioUnit) -> Result<()> {
     let status = audio_output_unit_start(unit);
     if status == NO_ERR {
@@ -4131,11 +4151,30 @@ impl<'ctx> CoreStreamData<'ctx> {
                 return Err(Error::Error);
             }
 
+            let input_device_output_channels = if self.aggregate_device.is_some() {
+                get_channel_count(self.input_device.id, DeviceType::OUTPUT).unwrap_or(0)
+            } else {
+                0
+            };
+            let input_device_output_channels =
+                if input_device_output_channels < output_hw_desc.mChannelsPerFrame {
+                    input_device_output_channels
+                } else {
+                    cubeb_log!(
+                    "({:p}) Invalid aggregate output channel count: input device {}, aggregate {}",
+                    self.stm_ptr,
+                    input_device_output_channels,
+                    output_hw_desc.mChannelsPerFrame
+                );
+                    0
+                };
+
             // Simple case of stereo output, map to the stereo pair (that might not be the first
             // two channels). Fall back to regular mixing if this fails.
             let mut maybe_need_mixer = true;
             if self.output_stream_params.channels() == 2
                 && self.output_stream_params.layout() == ChannelLayout::STEREO
+                && input_device_output_channels == 0
             {
                 let layout = AudioChannelLayout {
                     mChannelLayoutTag: kAudioChannelLayoutTag_Stereo,
@@ -4160,8 +4199,8 @@ impl<'ctx> CoreStreamData<'ctx> {
 
             // Notice: when we are using aggregate device, the output_hw_desc.mChannelsPerFrame is
             // the total of all the output channel count of the devices added in the aggregate device.
-            // Due to our aggregate device settings, the data recorded by the input device's output
-            // channels will be appended at the end of the raw data given by the output callback.
+            // The input device's output channels are first in the aggregate. When present,
+            // the mixer will leave them silent and route playback to the output device.
             let params = unsafe {
                 let mut p = *self.output_stream_params.as_ptr();
                 p.channels = if maybe_need_mixer {
@@ -4204,7 +4243,7 @@ impl<'ctx> CoreStreamData<'ctx> {
                 }
             }
 
-            let device_layout = self
+            let mut device_layout = self
                 .get_output_channel_layout()
                 .inspect_err(|_| {
                     cubeb_log!(
@@ -4213,6 +4252,18 @@ impl<'ctx> CoreStreamData<'ctx> {
                     );
                 })
                 .unwrap_or_default();
+
+            if input_device_output_channels > 0 {
+                let output_device_channels =
+                    (output_hw_desc.mChannelsPerFrame - input_device_output_channels) as usize;
+                let output_device_layout =
+                    get_device_preferred_channel_layout(self.output_device.id).unwrap_or_default();
+                device_layout = mixer::aggregate_output_channel_order(
+                    input_device_output_channels as usize,
+                    output_device_channels,
+                    output_device_layout,
+                );
+            }
 
             cubeb_log!(
                 "({:p} Using output device channel layout {:?}",
