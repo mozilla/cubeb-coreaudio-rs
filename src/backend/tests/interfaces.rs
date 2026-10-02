@@ -3,9 +3,9 @@ extern crate itertools;
 use self::itertools::iproduct;
 use super::utils::{
     draining_data_callback, get_devices_info_in_scope, noop_data_callback, state_tracking_cb,
-    test_device_channels_in_scope, test_get_default_device, test_object_id_to_devid,
-    test_ops_context_operation, test_ops_stream_operation, test_ops_stream_operation_on_context,
-    Scope, StateCallbackData,
+    test_device_channels_in_scope, test_get_default_device, test_get_devices_in_scope,
+    test_object_id_to_devid, test_ops_context_operation, test_ops_stream_operation,
+    test_ops_stream_operation_on_context, Scope, StateCallbackData,
 };
 use super::*;
 use std::mem::ManuallyDrop;
@@ -1279,6 +1279,195 @@ fn test_ops_stereo_input_duplex_stream_init_and_destroy() {
     test_stereo_input_duplex_stream_operation(
         "stereo-input duplex stream: init and destroy",
         |_stream| {},
+    );
+}
+
+#[test]
+fn test_duplex_aggregate_routes_playback_to_output_device() {
+    let output_device = test_get_devices_in_scope(Scope::Output)
+        .into_iter()
+        .find(|&device| {
+            run_serially(|| get_device_name(device, DeviceType::OUTPUT))
+                .map(|name| name.into_string() == "BlackHole 16ch")
+                .unwrap_or(false)
+        })
+        .expect("Need BlackHole 16ch as the output device");
+    let input_device = test_get_devices_in_scope(Scope::Input)
+        .into_iter()
+        .find(|&device| {
+            device != output_device
+                && run_serially(|| get_device_name(device, DeviceType::INPUT))
+                    .map(|name| name.into_string() == "BlackHole 2ch")
+                    .unwrap_or(false)
+        })
+        .expect("Need BlackHole 2ch as the input device");
+    assert_eq!(
+        run_serially(|| get_channel_count(input_device, DeviceType::OUTPUT)).unwrap(),
+        2
+    );
+    assert_eq!(
+        run_serially(|| get_channel_count(output_device, DeviceType::OUTPUT)).unwrap(),
+        16
+    );
+
+    struct RoutingProbe {
+        output_frames: usize,
+        input_frames: usize,
+        input_peak: f32,
+    }
+
+    struct CaptureProbe {
+        input_frames: usize,
+        input_peak: f32,
+    }
+
+    extern "C" fn routing_callback(
+        _stream: *mut ffi::cubeb_stream,
+        user_ptr: *mut c_void,
+        input_buffer: *const c_void,
+        output_buffer: *mut c_void,
+        nframes: i64,
+    ) -> i64 {
+        let probe = unsafe { &mut *(user_ptr as *mut RoutingProbe) };
+        let frames = nframes as usize;
+        if !input_buffer.is_null() {
+            let input = unsafe { slice::from_raw_parts(input_buffer as *const f32, frames * 2) };
+            probe.input_peak = input
+                .iter()
+                .fold(probe.input_peak, |peak, sample| peak.max(sample.abs()));
+            probe.input_frames += frames;
+        }
+        if !output_buffer.is_null() {
+            let output =
+                unsafe { slice::from_raw_parts_mut(output_buffer as *mut f32, frames * 2) };
+            for pair in output.chunks_exact_mut(2) {
+                let sample = if probe.output_frames >= 24_000 {
+                    (2.0 * std::f32::consts::PI * 440.0 * probe.output_frames as f32 / 48_000.0)
+                        .sin()
+                        * 0.1
+                } else {
+                    0.0
+                };
+                pair[0] = sample;
+                pair[1] = sample;
+                probe.output_frames += 1;
+            }
+        }
+        nframes
+    }
+
+    extern "C" fn capture_callback(
+        _stream: *mut ffi::cubeb_stream,
+        user_ptr: *mut c_void,
+        input_buffer: *const c_void,
+        _output_buffer: *mut c_void,
+        nframes: i64,
+    ) -> i64 {
+        let probe = unsafe { &mut *(user_ptr as *mut CaptureProbe) };
+        if !input_buffer.is_null() {
+            let input =
+                unsafe { slice::from_raw_parts(input_buffer as *const f32, nframes as usize * 2) };
+            probe.input_peak = input
+                .iter()
+                .fold(probe.input_peak, |peak, sample| peak.max(sample.abs()));
+            probe.input_frames += nframes as usize;
+        }
+        nframes
+    }
+
+    extern "C" fn ignore_state_callback(
+        _stream: *mut ffi::cubeb_stream,
+        _user_ptr: *mut c_void,
+        _state: ffi::cubeb_state,
+    ) {
+    }
+
+    let mut input_params = cubeb_backend::ffi::cubeb_stream_params {
+        format: ffi::CUBEB_SAMPLE_FLOAT32NE,
+        rate: 48000,
+        channels: 2,
+        layout: ffi::CUBEB_LAYOUT_STEREO,
+        ..Default::default()
+    };
+
+    let mut capture_params = input_params;
+
+    let mut output_params = cubeb_backend::ffi::cubeb_stream_params {
+        format: ffi::CUBEB_SAMPLE_FLOAT32NE,
+        rate: 48000,
+        channels: 2,
+        layout: ffi::CUBEB_LAYOUT_STEREO,
+        ..Default::default()
+    };
+
+    let mut probe = RoutingProbe {
+        output_frames: 0,
+        input_frames: 0,
+        input_peak: 0.0,
+    };
+
+    let mut capture = CaptureProbe {
+        input_frames: 0,
+        input_peak: 0.0,
+    };
+
+    test_ops_stream_operation(
+        "capture intended output device",
+        output_device as ffi::cubeb_devid,
+        &mut capture_params,
+        ptr::null_mut(),
+        ptr::null_mut(),
+        4096,
+        Some(capture_callback),
+        Some(ignore_state_callback),
+        &mut capture as *mut CaptureProbe as *mut c_void,
+        |capture_stream| {
+            assert_eq!(
+                unsafe { OPS.stream_start.unwrap()(capture_stream) },
+                ffi::CUBEB_OK
+            );
+            test_ops_stream_operation(
+                "duplex aggregate output routing",
+                input_device as ffi::cubeb_devid,
+                &mut input_params,
+                output_device as ffi::cubeb_devid,
+                &mut output_params,
+                4096,
+                Some(routing_callback),
+                Some(ignore_state_callback),
+                &mut probe as *mut RoutingProbe as *mut c_void,
+                |stream| {
+                    let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+                    assert!(stm.core_stream_data.aggregate_device.is_some());
+                    assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
+                    thread::sleep(Duration::from_secs(2));
+                    assert_eq!(unsafe { OPS.stream_stop.unwrap()(stream) }, ffi::CUBEB_OK);
+                },
+            );
+            assert_eq!(
+                unsafe { OPS.stream_stop.unwrap()(capture_stream) },
+                ffi::CUBEB_OK
+            );
+        },
+    );
+    assert!(probe.output_frames >= 48_000, "No tone was played");
+    assert!(
+        probe.input_frames >= 48_000,
+        "No input loopback was captured"
+    );
+    assert!(
+        capture.input_frames >= 48_000,
+        "No output loopback was captured"
+    );
+    assert!(
+        probe.input_peak < 0.01,
+        "Tone reached the input device's output: peak {}",
+        probe.input_peak
+    );
+    assert!(
+        capture.input_peak > 0.02,
+        "Tone did not reach the selected output device: peak {}",
+        capture.input_peak
     );
 }
 

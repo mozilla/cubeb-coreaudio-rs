@@ -55,7 +55,7 @@ fn test_aggregate_get_sub_devices() {
     fn diff(lhs: Vec<u32>, rhs: Vec<u32>) -> Vec<u32> {
         let left: HashSet<u32> = lhs.into_iter().collect();
         let right: HashSet<u32> = rhs.into_iter().collect();
-        left.symmetric_difference(&right).map(|&i| i).collect()
+        left.symmetric_difference(&right).copied().collect()
     }
 
     // Run in a large block so other test cases cannot add or remove devices while this runs.
@@ -295,7 +295,7 @@ fn test_panic_aggregate_set_sub_devices_for_unknown_output_devices() {
     });
 }
 
-fn get_device_uids(devices: &Vec<AudioObjectID>) -> Vec<String> {
+fn get_device_uids(devices: &[AudioObjectID]) -> Vec<String> {
     devices
         .iter()
         .map(|device| get_device_global_uid(*device).unwrap().into_string())
