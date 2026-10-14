@@ -151,8 +151,9 @@ fn test_minimum_resampling_input_frames_equal_input_output_rate() {
 #[test]
 fn test_create_device_info_from_unknown_input_device() {
     if let Some(default_device_id) = test_get_default_device(Scope::Input) {
-        let default_device =
-            run_serially(|| create_device_info(kAudioObjectUnknown, DeviceType::INPUT).unwrap());
+        let default_device = run_serially(|| {
+            create_device_info(kAudioObjectUnknown, DeviceType::INPUT, StreamPrefs::NONE).unwrap()
+        });
         assert_eq!(default_device.id, default_device_id);
         assert_eq!(
             default_device.flags,
@@ -166,8 +167,10 @@ fn test_create_device_info_from_unknown_input_device() {
 #[test]
 fn test_create_device_info_from_unknown_output_device() {
     if let Some(default_device_id) = test_get_default_device(Scope::Output) {
-        let default_device =
-            run_serially(|| create_device_info(kAudioObjectUnknown, DeviceType::OUTPUT)).unwrap();
+        let default_device = run_serially(|| {
+            create_device_info(kAudioObjectUnknown, DeviceType::OUTPUT, StreamPrefs::NONE)
+        })
+        .unwrap();
         assert_eq!(default_device.id, default_device_id);
         assert_eq!(
             default_device.flags,
@@ -182,7 +185,11 @@ fn test_create_device_info_from_unknown_output_device() {
 #[should_panic]
 fn test_panic_set_device_info_to_system_input_device() {
     let _device = run_serially_forward_panics(|| {
-        create_device_info(kAudioObjectSystemObject, DeviceType::INPUT)
+        create_device_info(
+            kAudioObjectSystemObject,
+            DeviceType::INPUT,
+            StreamPrefs::NONE,
+        )
     });
 }
 
@@ -190,7 +197,11 @@ fn test_panic_set_device_info_to_system_input_device() {
 #[should_panic]
 fn test_panic_set_device_info_to_system_output_device() {
     let _device = run_serially_forward_panics(|| {
-        create_device_info(kAudioObjectSystemObject, DeviceType::OUTPUT)
+        create_device_info(
+            kAudioObjectSystemObject,
+            DeviceType::OUTPUT,
+            StreamPrefs::NONE,
+        )
     });
 }
 
@@ -200,8 +211,9 @@ fn test_panic_set_device_info_to_system_output_device() {
 #[should_panic]
 fn test_panic_set_device_info_to_nonexistent_input_device() {
     let nonexistent_id = std::u32::MAX;
-    let _device =
-        run_serially_forward_panics(|| create_device_info(nonexistent_id, DeviceType::INPUT));
+    let _device = run_serially_forward_panics(|| {
+        create_device_info(nonexistent_id, DeviceType::INPUT, StreamPrefs::NONE)
+    });
 }
 
 // FIXME: Is it ok to set output device to a nonexistent device ?
@@ -210,8 +222,9 @@ fn test_panic_set_device_info_to_nonexistent_input_device() {
 #[should_panic]
 fn test_panic_set_device_info_to_nonexistent_output_device() {
     let nonexistent_id = std::u32::MAX;
-    let _device =
-        run_serially_forward_panics(|| create_device_info(nonexistent_id, DeviceType::OUTPUT));
+    let _device = run_serially_forward_panics(|| {
+        create_device_info(nonexistent_id, DeviceType::OUTPUT, StreamPrefs::NONE)
+    });
 }
 
 // add_listener (for default output device)
@@ -2045,4 +2058,25 @@ fn test_shared_voice_processing_release_on_idle_cancel_on_take() {
     queue.run_sync(|| {});
     let r2 = queue.run_sync(|| shared.take()).unwrap();
     assert!(r2.is_ok());
+}
+
+#[test]
+fn test_create_device_info_with_switching_disabled() {
+    for (scope, devtype, flags) in [
+        (Scope::Input, DeviceType::INPUT, device_flags::DEV_INPUT),
+        (Scope::Output, DeviceType::OUTPUT, device_flags::DEV_OUTPUT),
+    ] {
+        if let Some(default_id) = test_get_default_device(scope) {
+            let device = run_serially(|| {
+                create_device_info(
+                    kAudioObjectUnknown,
+                    devtype,
+                    StreamPrefs::DISABLE_DEVICE_SWITCHING,
+                )
+                .unwrap()
+            });
+            assert_eq!(device.id, default_id);
+            assert_eq!(device.flags, flags);
+        }
+    }
 }

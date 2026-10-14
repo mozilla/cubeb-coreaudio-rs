@@ -14,13 +14,12 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Install cargo-audit
+      run: cargo install cargo-audit --locked
+
     - name: Run security audit
-      uses: rustsec/audit-check@v2
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
+      run: cargo audit
 
     - name: Run security audit (coreaudio-sys-utils)
-      uses: rustsec/audit-check@v2
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        working-directory: coreaudio-sys-utils
+      run: cargo audit
+      working-directory: coreaudio-sys-utils

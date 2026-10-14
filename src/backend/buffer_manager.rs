@@ -7,6 +7,7 @@ use cubeb_backend::SampleFormat;
 use num::cast::AsPrimitive;
 
 use super::ringbuf::traits::{Consumer, Observer, Producer, Split};
+use super::ringbuf::wrap::Wrap;
 use super::ringbuf::HeapRb as RingBuffer;
 
 use self::LinearBuffer::*;
@@ -340,8 +341,8 @@ impl BufferManager {
     pub fn available_frames(&self) -> usize {
         assert_ne!(self.stored_channel_count(), 0);
         let stored_samples = match &self.consumer {
-            IntegerRingBufferConsumer(p) => p.occupied_len(),
-            FloatRingBufferConsumer(p) => p.occupied_len(),
+            IntegerRingBufferConsumer(p) => p.rb().occupied_len(),
+            FloatRingBufferConsumer(p) => p.rb().occupied_len(),
         };
         stored_samples / self.stored_channel_count()
     }

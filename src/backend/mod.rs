@@ -127,7 +127,7 @@ bitflags! {
         const DEV_UNKNOWN           = 0b0000_0000; // Unknown
         const DEV_INPUT             = 0b0000_0001; // Record device like mic
         const DEV_OUTPUT            = 0b0000_0010; // Playback device like speakers
-        const DEV_SELECTED_DEFAULT  = 0b0000_0100; // User selected to use the system default device
+        const DEV_SELECTED_DEFAULT  = 0b0000_0100; // Follow the system default device
     }
 }
 
@@ -249,7 +249,11 @@ fn set_notification_runloop() {
     }
 }
 
-fn create_device_info(devid: AudioDeviceID, devtype: DeviceType) -> Option<device_info> {
+fn create_device_info(
+    devid: AudioDeviceID,
+    devtype: DeviceType,
+    prefs: StreamPrefs,
+) -> Option<device_info> {
     assert_ne!(devid, kAudioObjectSystemObject);
     debug_assert_running_serially();
 
@@ -261,7 +265,9 @@ fn create_device_info(devid: AudioDeviceID, devtype: DeviceType) -> Option<devic
 
     if devid == kAudioObjectUnknown {
         cubeb_log!("Using the system default device");
-        flags |= device_flags::DEV_SELECTED_DEFAULT;
+        if !prefs.contains(StreamPrefs::DISABLE_DEVICE_SWITCHING) {
+            flags |= device_flags::DEV_SELECTED_DEFAULT;
+        }
         get_default_device(devtype).map(|id| device_info { id, flags })
     } else {
         Some(device_info { id: devid, flags })
@@ -3085,6 +3091,7 @@ impl ContextOps for AudioUnitContext {
                     create_device_info(
                         get_device_from_devid(input_device).unwrap(),
                         DeviceType::INPUT,
+                        params.prefs(),
                     )
                 })
                 .unwrap()
@@ -3108,6 +3115,7 @@ impl ContextOps for AudioUnitContext {
                     create_device_info(
                         get_device_from_devid(output_device).unwrap(),
                         DeviceType::OUTPUT,
+                        params.prefs(),
                     )
                 })
                 .unwrap()
@@ -4490,13 +4498,13 @@ impl<'ctx> CoreStreamData<'ctx> {
             return Err(r);
         }
 
-        // We have either default_input_listener or input_alive_listener.
-        // We cannot have both of them at the same time.
+        // A pinned input may share the output device's alive listener.
+        let input_alive_listener = self.input_alive_listener.is_some()
+            || (self.default_input_listener.is_none()
+                && self.input_device.id == self.output_device.id
+                && self.output_alive_listener.is_some());
         assert!(
-            !self.has_input()
-                || ((self.default_input_listener.is_some() != self.input_alive_listener.is_some())
-                    && (self.default_input_listener.is_some()
-                        || self.input_alive_listener.is_some()))
+            !self.has_input() || (self.default_input_listener.is_some() != input_alive_listener)
         );
 
         // We have either default_output_listener or output_alive_listener.
@@ -4678,6 +4686,8 @@ impl<'ctx> CoreStreamData<'ctx> {
                 .input_device
                 .flags
                 .contains(device_flags::DEV_SELECTED_DEFAULT)
+                && !(self.input_device.id == self.output_device.id
+                    && self.output_alive_listener.is_some())
             {
                 self.input_alive_listener = Some(device_property_listener::new(
                     self.input_device.id,
@@ -5030,14 +5040,17 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 .contains(device_flags::DEV_SELECTED_DEFAULT)
         {
             cubeb_log!("Using new default output device");
-            self.core_stream_data.output_device =
-                match create_device_info(kAudioObjectUnknown, DeviceType::OUTPUT) {
-                    None => {
-                        cubeb_log!("Fail to create device info for output");
-                        return Err(Error::Error);
-                    }
-                    Some(d) => d,
-                };
+            self.core_stream_data.output_device = match create_device_info(
+                kAudioObjectUnknown,
+                DeviceType::OUTPUT,
+                self.core_stream_data.output_stream_params.prefs(),
+            ) {
+                None => {
+                    cubeb_log!("Fail to create device info for output");
+                    return Err(Error::Error);
+                }
+                Some(d) => d,
+            };
         }
 
         // Likewise, for the input side
@@ -5049,14 +5062,17 @@ impl<'ctx> AudioUnitStream<'ctx> {
                 .contains(device_flags::DEV_SELECTED_DEFAULT)
         {
             cubeb_log!("Using new default input device");
-            self.core_stream_data.input_device =
-                match create_device_info(kAudioObjectUnknown, DeviceType::INPUT) {
-                    None => {
-                        cubeb_log!("Fail to create device info for input");
-                        return Err(Error::Error);
-                    }
-                    Some(d) => d,
+            self.core_stream_data.input_device = match create_device_info(
+                kAudioObjectUnknown,
+                DeviceType::INPUT,
+                self.core_stream_data.input_stream_params.prefs(),
+            ) {
+                None => {
+                    cubeb_log!("Fail to create device info for input");
+                    return Err(Error::Error);
                 }
+                Some(d) => d,
+            }
         }
 
         cubeb_log!("Reinit: setup");
