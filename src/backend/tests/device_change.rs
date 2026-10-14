@@ -1174,3 +1174,77 @@ fn test_device_collection_change_on_default_device_change_duplex() {
         (Scope::Output, DeviceType::OUTPUT),
     ]);
 }
+
+#[test]
+fn test_device_listeners_with_switching_disabled() {
+    extern "C" fn data_callback(
+        _: *mut ffi::cubeb_stream,
+        _: *mut c_void,
+        _: *const c_void,
+        _: *mut c_void,
+        frames: std::os::raw::c_long,
+    ) -> std::os::raw::c_long {
+        frames
+    }
+
+    for disable_input in [false, true] {
+        for disable_output in [false, true] {
+            let mut input = ffi::cubeb_stream_params {
+                format: ffi::CUBEB_SAMPLE_FLOAT32NE,
+                rate: 48000,
+                channels: 1,
+                layout: ffi::CUBEB_LAYOUT_MONO,
+                prefs: if disable_input {
+                    ffi::CUBEB_STREAM_PREF_DISABLE_DEVICE_SWITCHING
+                } else {
+                    ffi::CUBEB_STREAM_PREF_NONE
+                },
+                ..Default::default()
+            };
+            let mut output = ffi::cubeb_stream_params {
+                channels: 2,
+                layout: ffi::CUBEB_LAYOUT_STEREO,
+                prefs: if disable_output {
+                    ffi::CUBEB_STREAM_PREF_DISABLE_DEVICE_SWITCHING
+                } else {
+                    ffi::CUBEB_STREAM_PREF_NONE
+                },
+                ..input
+            };
+            test_ops_stream_operation(
+                "device switching preferences",
+                ptr::null_mut(),
+                &mut input,
+                ptr::null_mut(),
+                &mut output,
+                256,
+                Some(data_callback),
+                None,
+                ptr::null_mut(),
+                |stream| {
+                    let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+                    stm.queue
+                        .run_sync(|| {
+                            assert_eq!(
+                                stm.core_stream_data.default_input_listener.is_none(),
+                                disable_input
+                            );
+                            assert_eq!(
+                                stm.core_stream_data.default_output_listener.is_none(),
+                                disable_output
+                            );
+                            assert_eq!(
+                                stm.core_stream_data.input_alive_listener.is_some(),
+                                disable_input
+                            );
+                            assert_eq!(
+                                stm.core_stream_data.output_alive_listener.is_some(),
+                                disable_output
+                            );
+                        })
+                        .unwrap();
+                },
+            );
+        }
+    }
+}
