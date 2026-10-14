@@ -4498,13 +4498,13 @@ impl<'ctx> CoreStreamData<'ctx> {
             return Err(r);
         }
 
-        // We have either default_input_listener or input_alive_listener.
-        // We cannot have both of them at the same time.
+        // A pinned input may share the output device's alive listener.
+        let input_alive_listener = self.input_alive_listener.is_some()
+            || (self.default_input_listener.is_none()
+                && self.input_device.id == self.output_device.id
+                && self.output_alive_listener.is_some());
         assert!(
-            !self.has_input()
-                || ((self.default_input_listener.is_some() != self.input_alive_listener.is_some())
-                    && (self.default_input_listener.is_some()
-                        || self.input_alive_listener.is_some()))
+            !self.has_input() || (self.default_input_listener.is_some() != input_alive_listener)
         );
 
         // We have either default_output_listener or output_alive_listener.
@@ -4686,6 +4686,8 @@ impl<'ctx> CoreStreamData<'ctx> {
                 .input_device
                 .flags
                 .contains(device_flags::DEV_SELECTED_DEFAULT)
+                && !(self.input_device.id == self.output_device.id
+                    && self.output_alive_listener.is_some())
             {
                 self.input_alive_listener = Some(device_property_listener::new(
                     self.input_device.id,

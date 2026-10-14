@@ -1237,6 +1237,9 @@ fn test_ops_timing_sensitive_device_listeners_with_switching_disabled() {
                             assert_eq!(
                                 stm.core_stream_data.input_alive_listener.is_some(),
                                 disable_input
+                                    && !(disable_output
+                                        && stm.core_stream_data.input_device.id
+                                            == stm.core_stream_data.output_device.id)
                             );
                             assert_eq!(
                                 stm.core_stream_data.output_alive_listener.is_some(),
