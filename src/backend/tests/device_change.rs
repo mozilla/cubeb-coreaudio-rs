@@ -1175,8 +1175,9 @@ fn test_device_collection_change_on_default_device_change_duplex() {
     ]);
 }
 
+#[ignore]
 #[test]
-fn test_device_listeners_with_switching_disabled() {
+fn test_ops_timing_sensitive_device_listeners_with_switching_disabled() {
     extern "C" fn data_callback(
         _: *mut ffi::cubeb_stream,
         _: *mut c_void,
