@@ -461,6 +461,9 @@ impl AggregateDevice {
         );
 
         if status == NO_ERR {
+            // The property may have changed between the two calls above. Truncate to what was
+            // read.
+            sub_devices.truncate(size / mem::size_of::<AudioObjectID>());
             Ok(sub_devices)
         } else {
             Err(Error::from(status))
@@ -584,6 +587,8 @@ impl AggregateDevice {
         if status != NO_ERR {
             return Err(Error::from(status));
         }
+        // The property may have changed between the two calls above. Truncate to what was read.
+        sub_devices.truncate(size / mem::size_of::<AudioObjectID>());
 
         let master_sub_device_uid = Self::get_master_device_uid(device_id)?;
 
