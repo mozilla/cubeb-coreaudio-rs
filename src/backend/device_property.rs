@@ -80,6 +80,8 @@ pub fn get_devices() -> Vec<AudioObjectID> {
     if ret != NO_ERR {
         return Vec::new();
     }
+    // The property may have changed between the two calls above. Truncate to what was read.
+    devices.truncate(size / mem::size_of::<AudioObjectID>());
     devices
 }
 
@@ -259,6 +261,8 @@ pub fn get_device_streams(
     if err != NO_ERR {
         return Err(err);
     }
+    // The property may have changed between the two calls above. Truncate to what was read.
+    streams.truncate(size / mem::size_of::<AudioObjectID>());
 
     let mut device_streams = streams
         .into_iter()
@@ -367,6 +371,8 @@ pub fn get_ranges_of_device_sample_rate(
     let mut ranges: Vec<AudioValueRange> = allocate_array_by_size(size);
     let err = audio_object_get_property_data(id, &address, &mut size, ranges.as_mut_ptr());
     if err == NO_ERR {
+        // The property may have changed between the two calls above. Truncate to what was read.
+        ranges.truncate(size / mem::size_of::<AudioValueRange>());
         Ok(ranges)
     } else {
         Err(err)
