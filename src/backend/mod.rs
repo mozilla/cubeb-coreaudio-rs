@@ -52,7 +52,7 @@ use std::os::raw::{c_uint, c_void};
 use std::ptr;
 use std::slice;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, LazyLock, Mutex, MutexGuard, Weak};
 use std::time::{Duration, Instant};
 const NO_ERR: OSStatus = 0;
@@ -532,6 +532,27 @@ fn audiounit_make_silent(io_data: &AudioBuffer) {
     for data in bytes.iter_mut() {
         *data = 0;
     }
+}
+
+// Keep the application's terminal return on the stream: a short return can
+// still produce a full device buffer from buffered resampler output.
+extern "C" fn audiounit_data_callback(
+    stream: *mut ffi::cubeb_stream,
+    user_ptr: *mut c_void,
+    input: *const c_void,
+    output: *mut c_void,
+    frames: i64,
+) -> i64 {
+    let stm = unsafe { &*(stream as *const AudioUnitStream) };
+    let result = stm.callback_result.load(Ordering::SeqCst);
+    if result <= 0 {
+        return result;
+    }
+    let result = unsafe { stm.data_callback.unwrap()(stream, user_ptr, input, output, frames) };
+    if result < frames {
+        stm.callback_result.store(result.min(0), Ordering::SeqCst);
+    }
+    result
 }
 
 extern "C" fn audiounit_input_callback(
@@ -4363,7 +4384,7 @@ impl<'ctx> CoreStreamData<'ctx> {
             resampler_input_params,
             resampler_output_params,
             target_sample_rate,
-            stream.data_callback,
+            Some(audiounit_data_callback),
             stream.user_ptr,
             ffi::CUBEB_RESAMPLER_QUALITY_DESKTOP,
             reclock_policy,
@@ -4895,6 +4916,8 @@ struct AudioUnitStream<'ctx> {
     frames_written: AtomicUsize,
     stopped: AtomicBool,
     draining: AtomicBool,
+    // Positive enables callbacks; zero means draining, negative means error.
+    callback_result: AtomicI64,
     reinit_pending: AtomicBool,
     delayed_reinit: bool,
     destroy_pending: AtomicBool,
@@ -4943,6 +4966,7 @@ impl<'ctx> AudioUnitStream<'ctx> {
             frames_written: AtomicUsize::new(0),
             stopped: AtomicBool::new(true),
             draining: AtomicBool::new(false),
+            callback_result: AtomicI64::new(1),
             reinit_pending: AtomicBool::new(false),
             delayed_reinit: false,
             destroy_pending: AtomicBool::new(false),
@@ -4993,6 +5017,19 @@ impl<'ctx> AudioUnitStream<'ctx> {
         }
     }
 
+    fn prepare_start(&mut self) {
+        self.queue.debug_assert_is_current();
+        if self.callback_result.load(Ordering::SeqCst) <= 0 {
+            // A callback may still be finishing. Quiesce it before resetting
+            // either the application latch or the resampler's own drain state.
+            self.core_stream_data.stop_audiounits();
+            self.core_stream_data.resampler.reset();
+            self.callback_result.store(1, Ordering::SeqCst);
+        }
+        self.stopped.store(false, Ordering::SeqCst);
+        self.draining.store(false, Ordering::SeqCst);
+    }
+
     fn reinit(&mut self) -> Result<()> {
         self.queue.debug_assert_is_current();
         // Call stop_audiounits to avoid potential data race. If there is a running data callback,
@@ -5006,6 +5043,21 @@ impl<'ctx> AudioUnitStream<'ctx> {
         if self.stopped.load(Ordering::SeqCst) {
             // Something stopped the stream, reinit on next start
             self.delayed_reinit = true;
+            return Ok(());
+        }
+
+        let result = self.callback_result.load(Ordering::SeqCst);
+        if result <= 0 {
+            // The old device's buffered audio was lost. Complete the drain
+            // without starting a replacement or resuming application callbacks.
+            self.stopped.store(true, Ordering::SeqCst);
+            self.delayed_reinit = true;
+            self.draining.store(result == 0, Ordering::SeqCst);
+            self.notify_state_changed(if result < 0 {
+                State::Error
+            } else {
+                State::Drained
+            });
             return Ok(());
         }
 
@@ -5195,14 +5247,13 @@ impl Drop for AudioUnitStream<'_> {
 
 impl StreamOps for AudioUnitStream<'_> {
     fn start(&mut self) -> Result<()> {
-        let was_stopped = self.stopped.load(Ordering::SeqCst);
-        let was_draining = self.draining.load(Ordering::SeqCst);
-        self.stopped.store(false, Ordering::SeqCst);
-        self.draining.store(false, Ordering::SeqCst);
-
         self.queue
             .clone()
             .run_sync(|| -> Result<()> {
+                let was_stopped = self.stopped.load(Ordering::SeqCst);
+                let was_draining = self.draining.load(Ordering::SeqCst);
+                let callback_result = self.callback_result.load(Ordering::SeqCst);
+                self.prepare_start();
                 // Need reinitialization: device was changed when paused. It will be started after
                 // reinit because self.stopped is false.
                 if self.delayed_reinit {
@@ -5216,6 +5267,8 @@ impl StreamOps for AudioUnitStream<'_> {
                     if rv.is_err() {
                         self.stopped.store(was_stopped, Ordering::SeqCst);
                         self.draining.store(was_draining, Ordering::SeqCst);
+                        self.callback_result
+                            .store(callback_result, Ordering::SeqCst);
                         return rv;
                     }
                     self.delayed_reinit = false;
@@ -5227,6 +5280,8 @@ impl StreamOps for AudioUnitStream<'_> {
                         cubeb_log!("({:p}) start failed.", self.core_stream_data.stm_ptr);
                         self.stopped.store(was_stopped, Ordering::SeqCst);
                         self.draining.store(was_draining, Ordering::SeqCst);
+                        self.callback_result
+                            .store(callback_result, Ordering::SeqCst);
                         return rv;
                     }
                     Ok(())

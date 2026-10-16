@@ -4,7 +4,19 @@ use std::os::raw::{c_long, c_uint, c_void};
 use std::ptr;
 
 #[derive(Debug)]
-pub struct Resampler(AutoRelease<ffi::cubeb_resampler>);
+pub struct Resampler(AutoRelease<ffi::cubeb_resampler>, Option<ResamplerConfig>);
+
+#[derive(Clone, Debug)]
+struct ResamplerConfig {
+    stream: *mut ffi::cubeb_stream,
+    input_params: Option<ffi::cubeb_stream_params>,
+    output_params: Option<ffi::cubeb_stream_params>,
+    target_rate: c_uint,
+    data_callback: ffi::cubeb_data_callback,
+    user_ptr: *mut c_void,
+    quality: ffi::cubeb_resampler_quality,
+    reclock: ffi::cubeb_resampler_reclock,
+}
 
 impl Resampler {
     #[allow(clippy::too_many_arguments)]
@@ -18,6 +30,16 @@ impl Resampler {
         quality: ffi::cubeb_resampler_quality,
         reclock: ffi::cubeb_resampler_reclock,
     ) -> Self {
+        let config = ResamplerConfig {
+            stream,
+            input_params,
+            output_params,
+            target_rate,
+            data_callback,
+            user_ptr,
+            quality,
+            reclock,
+        };
         let raw_resampler = unsafe {
             let in_params = match &mut input_params {
                 Some(p) => p,
@@ -40,7 +62,7 @@ impl Resampler {
         };
         assert!(!raw_resampler.is_null(), "Failed to create resampler");
         let resampler = AutoRelease::new(raw_resampler, ffi::cubeb_resampler_destroy);
-        Self(resampler)
+        Self(resampler, Some(config))
     }
 
     pub fn fill(
@@ -61,6 +83,22 @@ impl Resampler {
         }
     }
 
+    // Recreate the processors as well as their internal drain state. Call only
+    // after the audio callbacks have stopped.
+    pub fn reset(&mut self) {
+        let config = self.1.as_ref().expect("Uninitialized resampler").clone();
+        *self = Self::new(
+            config.stream,
+            config.input_params,
+            config.output_params,
+            config.target_rate,
+            config.data_callback,
+            config.user_ptr,
+            config.quality,
+            config.reclock,
+        );
+    }
+
     pub fn destroy(&mut self) {
         if !self.0.as_ptr().is_null() {
             self.0.reset(ptr::null_mut());
@@ -76,9 +114,9 @@ impl Drop for Resampler {
 
 impl Default for Resampler {
     fn default() -> Self {
-        Self(AutoRelease::new(
-            ptr::null_mut(),
-            ffi::cubeb_resampler_destroy,
-        ))
+        Self(
+            AutoRelease::new(ptr::null_mut(), ffi::cubeb_resampler_destroy),
+            None,
+        )
     }
 }
