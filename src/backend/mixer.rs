@@ -42,7 +42,7 @@ pub fn get_channel_order(channel_layout: ChannelLayout) -> Vec<audio_mixer::Chan
     order
 }
 
-fn get_default_channel_order(channel_count: usize) -> Vec<audio_mixer::Channel> {
+pub(crate) fn get_default_channel_order(channel_count: usize) -> Vec<audio_mixer::Channel> {
     assert_ne!(channel_count, 0);
     let mut channels = Vec::with_capacity(channel_count);
     for channel in CHANNEL_ORDER.iter().take(channel_count) {
@@ -56,6 +56,27 @@ fn get_default_channel_order(channel_count: usize) -> Vec<audio_mixer::Channel> 
         ]);
     }
 
+    channels
+}
+
+// The input device comes first in a duplex aggregate so its input channels are
+// first. Its output channels also come first, and must not receive playback.
+pub(crate) fn aggregate_output_channel_order(
+    input_device_output_channels: usize,
+    output_device_channels: usize,
+    output_device_layout: Vec<Channel>,
+) -> Vec<Channel> {
+    let mut channels = vec![Channel::Silence; input_device_output_channels];
+    if output_device_layout.len() == output_device_channels
+        && output_device_layout
+            .iter()
+            .all(|channel| *channel != Channel::Discrete && *channel != Channel::Silence)
+        && !Mixer::duplicate_channel_present(&output_device_layout)
+    {
+        channels.extend(output_device_layout);
+    } else {
+        channels.extend(get_default_channel_order(output_device_channels));
+    }
     channels
 }
 
@@ -510,4 +531,20 @@ fn test_non_silent_duplicate_channels() {
         Channel::Discrete,
     ];
     assert!(!Mixer::duplicate_channel_present(&non_duplicate));
+}
+
+#[test]
+fn test_aggregate_output_channel_order() {
+    for layout in [
+        vec![Channel::FrontLeft, Channel::FrontRight],
+        vec![Channel::Discrete, Channel::Discrete],
+        vec![Channel::FrontLeft, Channel::FrontLeft],
+    ] {
+        let channels = aggregate_output_channel_order(2, 2, layout);
+        let mixer =
+            audio_mixer::Mixer::<f32>::new(&[Channel::FrontLeft, Channel::FrontRight], &channels);
+        let mut output = [0.0; 4];
+        mixer.mix(&[0.25, 0.75], &mut output);
+        assert_eq!(output, [0.0, 0.0, 0.25, 0.75]);
+    }
 }
