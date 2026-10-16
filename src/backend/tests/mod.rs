@@ -5,6 +5,7 @@ mod api;
 mod backlog;
 mod device_change;
 mod device_property;
+mod drain;
 mod interfaces;
 mod manual;
 mod parallel;
