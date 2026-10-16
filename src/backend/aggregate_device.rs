@@ -403,6 +403,7 @@ impl AggregateDevice {
 
         unsafe {
             let sub_devices = CFArrayCreateMutable(ptr::null(), 0, &kCFTypeArrayCallBacks);
+            let _cleanup = finally(|| CFRelease(sub_devices as *const c_void));
             // The order of the items in the array is significant and is used to determine the order of the streams
             // of the AudioAggregateDevice.
             for device in input_sub_devices {
@@ -423,7 +424,6 @@ impl AggregateDevice {
 
             let size = mem::size_of::<CFMutableArrayRef>();
             let status = audio_object_set_property_data(device_id, &address, size, &sub_devices);
-            CFRelease(sub_devices as *const c_void);
             if status == NO_ERR {
                 Ok(())
             } else {
@@ -561,7 +561,7 @@ impl AggregateDevice {
         if status != NO_ERR {
             return Err(Error::from(status));
         }
-        assert!(size > 0);
+        debug_assert!(size > 0);
         let subdevices_num = size / mem::size_of::<AudioObjectID>();
         if subdevices_num < 2 {
             cubeb_log!(

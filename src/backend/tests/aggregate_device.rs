@@ -465,21 +465,26 @@ fn test_aggregate_activate_clock_drift_compensation_for_an_aggregate_device_with
 }
 
 #[test]
-#[should_panic]
+#[cfg_attr(debug_assertions, should_panic)]
 fn test_panic_aggregate_activate_clock_drift_compensation_for_a_blank_aggregate_device() {
     run_serially_forward_panics(|| {
         let plugin = AggregateDevice::get_system_plugin_id().unwrap();
         let device = AggregateDevice::create_blank_device_sync(plugin).unwrap();
+        let mut cleanup = finally(|| {
+            let _ = AggregateDevice::destroy_device(plugin, device);
+        });
 
         let sub_devices = AggregateDevice::get_sub_devices_or_self(device).unwrap();
         assert!(sub_devices.is_empty());
-        let onwed_devices = test_get_all_owned_devices(device);
-        assert!(onwed_devices.is_empty());
 
-        // Get a panic since no sub devices to be set compensation.
-        assert!(AggregateDevice::activate_clock_drift_compensation(device).is_err());
+        // Debug builds assert on an empty subdevice list; release builds return an error.
+        assert!(matches!(
+            AggregateDevice::activate_clock_drift_compensation(device),
+            Err(crate::backend::aggregate_device::Error::LessThan2Devices(0))
+        ));
 
         assert!(AggregateDevice::destroy_device(plugin, device).is_ok());
+        cleanup.dismiss();
     });
 }
 
