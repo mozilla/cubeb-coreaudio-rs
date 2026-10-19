@@ -267,12 +267,14 @@ impl BufferManager {
     fn pull_data(&mut self, data: *mut c_void, needed_samples: usize) {
         assert_eq!(needed_samples % self.output_channel_count(), 0);
         let needed_frames = needed_samples / self.output_channel_count();
+        // During upmixing the output slice is larger than the stored input
+        // needed for these frames. Leave subsequent input frames in the ring.
         let to_pull = needed_frames * self.stored_channel_count();
         match &mut self.consumer {
             IntegerRingBufferConsumer(p) => {
                 let input: &mut [i16] =
                     unsafe { slice::from_raw_parts_mut::<i16>(data as *mut i16, needed_samples) };
-                let pulled = p.pop_slice(input);
+                let pulled = p.pop_slice(&mut input[..to_pull]);
                 if pulled < to_pull {
                     cubeb_alog!(
                         "Underrun during input data pull: (needed: {}, available: {})",
@@ -297,7 +299,7 @@ impl BufferManager {
             FloatRingBufferConsumer(p) => {
                 let input: &mut [f32] =
                     unsafe { slice::from_raw_parts_mut::<f32>(data as *mut f32, needed_samples) };
-                let pulled = p.pop_slice(input);
+                let pulled = p.pop_slice(&mut input[..to_pull]);
                 if pulled < to_pull {
                     cubeb_alog!(
                         "Underrun during input data pull: (needed: {}, available: {})",
@@ -373,6 +375,48 @@ impl fmt::Debug for BufferManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn check_upmix_preserves_input<T: Copy + fmt::Debug + PartialEq + Default>(
+        format: SampleFormat,
+        mut input: [T; 4],
+    ) {
+        let mut buffer = BufferManager::new(format, 4, 1, 0, 2);
+        buffer.push_data(input.as_mut_ptr() as *mut c_void, input.len());
+
+        let output = buffer.get_linear_data(2) as *const T;
+        assert_eq!(
+            unsafe { slice::from_raw_parts(output, 4) },
+            &[input[0], input[0], input[1], input[1]]
+        );
+        assert_eq!(buffer.available_frames(), 2);
+
+        // The remaining input must survive the first read. Request an extra
+        // frame to check that underrun silence is also upmixed correctly.
+        let output = buffer.get_linear_data(3) as *const T;
+        assert_eq!(
+            unsafe { slice::from_raw_parts(output, 6) },
+            &[
+                input[2],
+                input[2],
+                input[3],
+                input[3],
+                T::default(),
+                T::default()
+            ]
+        );
+        assert_eq!(buffer.available_frames(), 0);
+    }
+
+    #[test]
+    fn upmix_preserves_unconsumed_integer_frames() {
+        check_upmix_preserves_input(SampleFormat::S16NE, [100i16, -200, 300, -400]);
+    }
+
+    #[test]
+    fn upmix_preserves_unconsumed_float_frames() {
+        check_upmix_preserves_input(SampleFormat::Float32NE, [0.1f32, -0.2, 0.3, -0.4]);
+    }
+
     #[test]
     fn remix_stereo_ints() {
         let mut data = [i16::MAX / 2 + 1, i16::MAX / 2 + 1];
