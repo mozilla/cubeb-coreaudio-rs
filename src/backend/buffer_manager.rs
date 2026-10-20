@@ -146,6 +146,17 @@ pub enum RingBufferProducer {
     FloatRingBufferProducer(ringbuf::HeapProd<f32>),
 }
 
+impl RingBufferProducer {
+    // Query only from the producer thread: ringbuf updates this endpoint's
+    // cached indices even though occupied_len takes a shared reference.
+    fn available_samples(&self) -> usize {
+        match self {
+            IntegerRingBufferProducer(p) => p.occupied_len(),
+            FloatRingBufferProducer(p) => p.occupied_len(),
+        }
+    }
+}
+
 pub enum LinearBuffer {
     IntegerLinearBuffer(Vec<i16>),
     FloatLinearBuffer(Vec<f32>),
@@ -337,6 +348,7 @@ impl BufferManager {
 
         p
     }
+    // Consumer-thread query (the output callback for duplex streams).
     pub fn available_frames(&self) -> usize {
         assert_ne!(self.stored_channel_count(), 0);
         let stored_samples = match &self.consumer {
@@ -345,6 +357,12 @@ impl BufferManager {
         };
         stored_samples / self.stored_channel_count()
     }
+    // Producer-thread query for duplex input callback logging. Do not touch
+    // the consumer here: its cached indices belong to the output callback.
+    pub fn available_frames_from_producer(&self) -> usize {
+        self.producer.available_samples() / self.stored_channel_count()
+    }
+
     pub fn trim(&mut self, final_frame_count: usize) {
         let final_sample_count = final_frame_count * self.stored_channel_count();
         match &mut self.consumer {
@@ -373,6 +391,70 @@ impl fmt::Debug for BufferManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn producer_frame_count_tracks_push_and_pull() {
+        for format in [SampleFormat::S16NE, SampleFormat::Float32NE] {
+            for (input_channels, output_channels) in [(1, 1), (2, 1), (2, 2)] {
+                let mut manager = BufferManager::new(format, 8, input_channels, 0, output_channels);
+                assert_eq!(manager.available_frames_from_producer(), 0);
+                let mut ints = [0i16; 16];
+                let mut floats = [0.0f32; 16];
+                let data = if format == SampleFormat::S16NE {
+                    ints.as_mut_ptr().cast()
+                } else {
+                    floats.as_mut_ptr().cast()
+                };
+                manager.push_data(data, 8);
+                assert_eq!(manager.available_frames_from_producer(), 8);
+                assert_eq!(manager.available_frames(), 8);
+                manager.get_linear_data(3);
+                assert_eq!(manager.available_frames_from_producer(), 5);
+                manager.get_linear_data(5);
+                assert_eq!(manager.available_frames_from_producer(), 0);
+            }
+        }
+    }
+
+    #[test]
+    fn producer_logging_during_concurrent_consumption() {
+        const SAMPLES: usize = 4096;
+        let manager = BufferManager::new(SampleFormat::Float32NE, 2, 1, 0, 1);
+        let mut producer = manager.producer;
+        let FloatRingBufferConsumer(mut consumer) = manager.consumer else {
+            unreachable!()
+        };
+        // Each callback owns its endpoint, including any cached index writes
+        // made by length queries. This also runs under TSan without CoreAudio.
+        std::thread::scope(|scope| {
+            scope.spawn(move || {
+                for value in 0..SAMPLES {
+                    loop {
+                        assert!(producer.available_samples() <= 16);
+                        let FloatRingBufferProducer(p) = &mut producer else {
+                            unreachable!()
+                        };
+                        if p.try_push(value as f32).is_ok() {
+                            break;
+                        }
+                        std::thread::yield_now();
+                    }
+                }
+            });
+            scope.spawn(move || {
+                for expected in 0..SAMPLES {
+                    loop {
+                        assert!(consumer.occupied_len() <= 16);
+                        if let Some(value) = consumer.try_pop() {
+                            assert_eq!(value, expected as f32);
+                            break;
+                        }
+                        std::thread::yield_now();
+                    }
+                }
+            });
+        });
+    }
+
     #[test]
     fn remix_stereo_ints() {
         let mut data = [i16::MAX / 2 + 1, i16::MAX / 2 + 1];
