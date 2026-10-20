@@ -7,6 +7,7 @@ pub const DRIFT_COMPENSATION: u32 = 1;
 pub struct AggregateDevice {
     plugin_id: AudioObjectID,
     device_id: AudioObjectID,
+    input_device_output_channels: u32,
     // For log only
     input_id: AudioObjectID,
     output_id: AudioObjectID,
@@ -83,6 +84,9 @@ impl AggregateDevice {
         Self::activate_clock_drift_compensation(device_id)?;
         Self::workaround_for_airpod(device_id, input_id, output_id)?;
 
+        let input_device_output_channels =
+            get_channel_count(input_id, DeviceType::OUTPUT).unwrap_or(0);
+
         cleanup.dismiss();
 
         cubeb_log!(
@@ -94,6 +98,7 @@ impl AggregateDevice {
         Ok(Self {
             plugin_id,
             device_id,
+            input_device_output_channels,
             input_id,
             output_id,
         })
@@ -101,6 +106,10 @@ impl AggregateDevice {
 
     pub fn get_device_id(&self) -> AudioObjectID {
         self.device_id
+    }
+
+    pub fn get_input_device_output_channels(&self) -> u32 {
+        self.input_device_output_channels
     }
 
     // The following APIs are set to `pub` for testing purpose.
@@ -670,6 +679,7 @@ impl Default for AggregateDevice {
         Self {
             plugin_id: kAudioObjectUnknown,
             device_id: kAudioObjectUnknown,
+            input_device_output_channels: 0,
             input_id: kAudioObjectUnknown,
             output_id: kAudioObjectUnknown,
         }
