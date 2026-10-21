@@ -42,7 +42,7 @@ pub fn get_channel_order(channel_layout: ChannelLayout) -> Vec<audio_mixer::Chan
     order
 }
 
-fn get_default_channel_order(channel_count: usize) -> Vec<audio_mixer::Channel> {
+pub(crate) fn get_default_channel_order(channel_count: usize) -> Vec<audio_mixer::Channel> {
     assert_ne!(channel_count, 0);
     let mut channels = Vec::with_capacity(channel_count);
     for channel in CHANNEL_ORDER.iter().take(channel_count) {
@@ -57,6 +57,28 @@ fn get_default_channel_order(channel_count: usize) -> Vec<audio_mixer::Channel> 
     }
 
     channels
+}
+
+// Get the channel order to mix into for a device with the given channel count
+// and reported channel layout.
+pub fn get_device_channel_order(channel_count: usize, channels: Vec<Channel>) -> Vec<Channel> {
+    // Some mono devices report the right channel, and some stereo devices report
+    // undefined channels. Force mono or stereo for these channel counts.
+    match channel_count {
+        1 => vec![Channel::FrontCenter],
+        2 => vec![Channel::FrontLeft, Channel::FrontRight],
+        _ if is_valid_channel_order(channel_count, &channels) => channels,
+        _ => {
+            cubeb_log!("Use invalid layout. Apply default layout instead");
+            get_default_channel_order(channel_count)
+        }
+    }
+}
+
+fn is_valid_channel_order(channel_count: usize, channels: &[Channel]) -> bool {
+    channels.len() == channel_count
+        && channels.iter().any(|channel| *channel != Channel::Silence)
+        && !Mixer::duplicate_channel_present(channels)
 }
 
 #[derive(Debug)]
@@ -175,7 +197,7 @@ impl Mixer {
         in_channel_count: usize,
         input_layout: ChannelLayout,
         out_channel_count: usize,
-        mut output_channels: Vec<audio_mixer::Channel>,
+        output_channels: Vec<audio_mixer::Channel>,
     ) -> Self {
         assert!(in_channel_count > 0);
         assert!(out_channel_count > 0);
@@ -197,29 +219,6 @@ impl Mixer {
         } else {
             get_channel_order(input_layout)
         };
-
-        // When having one or two channel, force mono or stereo. Some devices (namely,
-        // Bose QC35, mark 1 and 2), expose a single channel mapped to the right for
-        // some reason. Some devices (e.g., builtin speaker on MacBook Pro 2018) map
-        // the channel layout to the undefined channels.
-        if out_channel_count == 1 {
-            output_channels = vec![audio_mixer::Channel::FrontCenter];
-        } else if out_channel_count == 2 {
-            output_channels = vec![
-                audio_mixer::Channel::FrontLeft,
-                audio_mixer::Channel::FrontRight,
-            ];
-        }
-
-        let all_silence = vec![audio_mixer::Channel::Silence; out_channel_count];
-        if output_channels.is_empty()
-            || out_channel_count != output_channels.len()
-            || all_silence == output_channels
-            || Self::duplicate_channel_present(&output_channels)
-        {
-            cubeb_log!("Use invalid layout. Apply default layout instead");
-            output_channels = get_default_channel_order(out_channel_count);
-        }
 
         Self {
             mixer: MixerType::new(format, &input_channels, &output_channels),
@@ -510,4 +509,66 @@ fn test_non_silent_duplicate_channels() {
         Channel::Discrete,
     ];
     assert!(!Mixer::duplicate_channel_present(&non_duplicate));
+}
+
+#[test]
+fn test_device_channel_order_with_silent_prefix() {
+    for layout in [
+        vec![Channel::FrontLeft, Channel::FrontRight],
+        vec![Channel::Discrete, Channel::Discrete],
+        vec![Channel::FrontLeft, Channel::FrontLeft],
+    ] {
+        let mut channels = vec![Channel::Silence; 2];
+        channels.extend(get_device_channel_order(2, layout));
+        let mixer =
+            audio_mixer::Mixer::<f32>::new(&[Channel::FrontLeft, Channel::FrontRight], &channels);
+        let mut output = [0.0; 4];
+        mixer.mix(&[0.25, 0.75], &mut output);
+        assert_eq!(output, [0.0, 0.0, 0.25, 0.75]);
+    }
+}
+
+#[test]
+fn test_get_device_channel_order() {
+    assert_eq!(
+        get_device_channel_order(1, vec![Channel::FrontRight]),
+        vec![Channel::FrontCenter]
+    );
+    assert_eq!(
+        get_device_channel_order(2, vec![Channel::Silence; 2]),
+        vec![Channel::FrontLeft, Channel::FrontRight]
+    );
+    let surround = get_channel_order(ChannelLayout::_3F2_LFE);
+    assert_eq!(get_device_channel_order(6, surround.clone()), surround);
+    for invalid in [
+        vec![],
+        vec![Channel::FrontLeft, Channel::FrontRight],
+        vec![Channel::Silence; 6],
+        vec![Channel::FrontLeft; 6],
+    ] {
+        assert_eq!(
+            get_device_channel_order(6, invalid),
+            get_default_channel_order(6)
+        );
+    }
+    let channels = vec![Channel::Silence, Channel::FrontRight, Channel::Discrete];
+    assert_eq!(get_device_channel_order(3, channels.clone()), channels);
+}
+
+#[test]
+fn test_mono_output_with_silent_prefix() {
+    let mut channels = vec![Channel::Silence];
+    channels.extend(get_device_channel_order(1, vec![Channel::FrontRight]));
+    let mut mixer = Mixer::new(SampleFormat::Float32NE, 1, ChannelLayout::MONO, 2, channels);
+    mixer.update_buffer_size(1);
+    unsafe {
+        *(mixer.get_buffer_mut_ptr() as *mut f32) = 0.5;
+    }
+    let mut output = [0.0f32; 2];
+    mixer.mix(
+        1,
+        output.as_mut_ptr() as *mut c_void,
+        mem::size_of_val(&output),
+    );
+    assert_eq!(output, [0.0, 0.5]);
 }

@@ -4131,11 +4131,17 @@ impl<'ctx> CoreStreamData<'ctx> {
                 return Err(Error::Error);
             }
 
+            let input_device_output_channels = self
+                .aggregate_device
+                .as_ref()
+                .map_or(0, AggregateDevice::get_input_device_output_channels);
+
             // Simple case of stereo output, map to the stereo pair (that might not be the first
             // two channels). Fall back to regular mixing if this fails.
             let mut maybe_need_mixer = true;
             if self.output_stream_params.channels() == 2
                 && self.output_stream_params.layout() == ChannelLayout::STEREO
+                && input_device_output_channels == 0
             {
                 let layout = AudioChannelLayout {
                     mChannelLayoutTag: kAudioChannelLayoutTag_Stereo,
@@ -4160,8 +4166,8 @@ impl<'ctx> CoreStreamData<'ctx> {
 
             // Notice: when we are using aggregate device, the output_hw_desc.mChannelsPerFrame is
             // the total of all the output channel count of the devices added in the aggregate device.
-            // Due to our aggregate device settings, the data recorded by the input device's output
-            // channels will be appended at the end of the raw data given by the output callback.
+            // The input device's output channels are first in the aggregate. When present,
+            // the mixer will leave them silent and route playback to the output device.
             let params = unsafe {
                 let mut p = *self.output_stream_params.as_ptr();
                 p.channels = if maybe_need_mixer {
@@ -4204,15 +4210,8 @@ impl<'ctx> CoreStreamData<'ctx> {
                 }
             }
 
-            let device_layout = self
-                .get_output_channel_layout()
-                .inspect_err(|_| {
-                    cubeb_log!(
-                        "({:p}) Could not get any channel layout. Defaulting to no channels.",
-                        self.stm_ptr
-                    );
-                })
-                .unwrap_or_default();
+            let device_layout =
+                self.get_output_channel_layout(self.output_dev_desc.mChannelsPerFrame);
 
             cubeb_log!(
                 "({:p} Using output device channel layout {:?}",
@@ -4847,13 +4846,52 @@ impl<'ctx> CoreStreamData<'ctx> {
         Ok(())
     }
 
-    fn get_output_channel_layout(&self) -> Result<Vec<mixer::Channel>> {
+    fn get_output_channel_layout(&self, channel_count: u32) -> Vec<mixer::Channel> {
         self.debug_assert_is_on_stream_queue();
         assert!(!self.output_unit.is_null());
         if self.using_voice_processing_unit() {
-            return Ok(get_channel_order(ChannelLayout::MONO));
+            return mixer::get_device_channel_order(
+                channel_count as usize,
+                get_channel_order(ChannelLayout::MONO),
+            );
         }
-        get_channel_layout(self.output_unit)
+        if let Some(aggregate_device) = &self.aggregate_device {
+            let input_device_output_channels = aggregate_device.get_input_device_output_channels();
+            if input_device_output_channels >= channel_count {
+                cubeb_log!(
+                    "({:p}) Invalid aggregate output channel count: input device {}, aggregate {}",
+                    self.stm_ptr,
+                    input_device_output_channels,
+                    channel_count
+                );
+            } else if input_device_output_channels > 0 {
+                let output_device_channels =
+                    (channel_count - input_device_output_channels) as usize;
+                let output_device_layout =
+                    get_device_preferred_channel_layout(self.output_device.id, DeviceType::OUTPUT)
+                        .ok()
+                        .and_then(|layout| audiounit_convert_channel_layout(layout.as_ref()).ok())
+                        .unwrap_or_default();
+                // The input device comes first in a duplex aggregate. Its output
+                // channels must remain silent so playback reaches only the output device.
+                let mut channels =
+                    vec![mixer::Channel::Silence; input_device_output_channels as usize];
+                channels.extend(mixer::get_device_channel_order(
+                    output_device_channels,
+                    output_device_layout,
+                ));
+                return channels;
+            }
+        }
+        let channels = get_channel_layout(self.output_unit)
+            .inspect_err(|_| {
+                cubeb_log!(
+                    "({:p}) Could not get any channel layout. Defaulting to the channel count.",
+                    self.stm_ptr
+                );
+            })
+            .unwrap_or_default();
+        mixer::get_device_channel_order(channel_count as usize, channels)
     }
 }
 

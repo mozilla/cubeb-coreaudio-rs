@@ -1,5 +1,30 @@
 use super::*;
 
+pub fn get_device_preferred_channel_layout(
+    id: AudioDeviceID,
+    devtype: DeviceType,
+) -> std::result::Result<AutoRelease<AudioChannelLayout>, OSStatus> {
+    assert_ne!(id, kAudioObjectUnknown);
+    debug_assert_running_serially();
+
+    let address = get_property_address(Property::DevicePreferredChannelLayout, devtype);
+    let mut size = 0;
+    let status = audio_object_get_property_data_size(id, &address, &mut size);
+    if status != NO_ERR {
+        return Err(status);
+    }
+    if size < mem::size_of::<AudioChannelLayout>() {
+        return Err(kAudioHardwareBadPropertySizeError as OSStatus);
+    }
+    let mut layout = make_sized_audio_channel_layout(size);
+    let status = audio_object_get_property_data(id, &address, &mut size, layout.as_mut());
+    if status == NO_ERR {
+        Ok(layout)
+    } else {
+        Err(status)
+    }
+}
+
 pub fn get_device_uid(
     id: AudioDeviceID,
     devtype: DeviceType,
@@ -395,6 +420,7 @@ pub enum Property {
     DeviceLatency,
     DeviceManufacturer,
     DeviceName,
+    DevicePreferredChannelLayout,
     DeviceSampleRate,
     DeviceSampleRates,
     DeviceSource,
@@ -421,6 +447,7 @@ impl From<Property> for AudioObjectPropertySelector {
             Property::DeviceLatency => kAudioDevicePropertyLatency,
             Property::DeviceManufacturer => kAudioObjectPropertyManufacturer,
             Property::DeviceName => kAudioObjectPropertyName,
+            Property::DevicePreferredChannelLayout => kAudioDevicePropertyPreferredChannelLayout,
             Property::DeviceSampleRate => kAudioDevicePropertyNominalSampleRate,
             Property::DeviceSampleRates => kAudioDevicePropertyAvailableNominalSampleRates,
             Property::DeviceSource => kAudioDevicePropertyDataSource,
