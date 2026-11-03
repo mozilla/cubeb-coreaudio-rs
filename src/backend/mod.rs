@@ -4849,49 +4849,37 @@ impl<'ctx> CoreStreamData<'ctx> {
     fn get_output_channel_layout(&self, channel_count: u32) -> Vec<mixer::Channel> {
         self.debug_assert_is_on_stream_queue();
         assert!(!self.output_unit.is_null());
-        if self.using_voice_processing_unit() {
-            return mixer::get_device_channel_order(
-                channel_count as usize,
-                get_channel_order(ChannelLayout::MONO),
+
+        // The input device comes first in a duplex aggregate. Its output channels
+        // must remain silent so playback reaches only the output device.
+        let skipped_channels = self
+            .aggregate_device
+            .as_ref()
+            .map(AggregateDevice::get_input_device_output_channels)
+            .filter(|&channels| channels < channel_count)
+            .unwrap_or(0);
+        let device_layout = if self.using_voice_processing_unit() {
+            Ok(get_channel_order(ChannelLayout::MONO))
+        } else if skipped_channels > 0 {
+            get_device_preferred_channel_layout(self.output_device.id, DeviceType::OUTPUT)
+                .map_err(|_| Error::Error)
+                .and_then(|layout| audiounit_convert_channel_layout(layout.as_ref()))
+        } else {
+            get_channel_layout(self.output_unit)
+        }
+        .inspect_err(|_| {
+            cubeb_log!(
+                "({:p}) Could not get any channel layout. Defaulting to the channel count.",
+                self.stm_ptr
             );
-        }
-        if let Some(aggregate_device) = &self.aggregate_device {
-            let input_device_output_channels = aggregate_device.get_input_device_output_channels();
-            if input_device_output_channels >= channel_count {
-                cubeb_log!(
-                    "({:p}) Invalid aggregate output channel count: input device {}, aggregate {}",
-                    self.stm_ptr,
-                    input_device_output_channels,
-                    channel_count
-                );
-            } else if input_device_output_channels > 0 {
-                let output_device_channels =
-                    (channel_count - input_device_output_channels) as usize;
-                let output_device_layout =
-                    get_device_preferred_channel_layout(self.output_device.id, DeviceType::OUTPUT)
-                        .ok()
-                        .and_then(|layout| audiounit_convert_channel_layout(layout.as_ref()).ok())
-                        .unwrap_or_default();
-                // The input device comes first in a duplex aggregate. Its output
-                // channels must remain silent so playback reaches only the output device.
-                let mut channels =
-                    vec![mixer::Channel::Silence; input_device_output_channels as usize];
-                channels.extend(mixer::get_device_channel_order(
-                    output_device_channels,
-                    output_device_layout,
-                ));
-                return channels;
-            }
-        }
-        let channels = get_channel_layout(self.output_unit)
-            .inspect_err(|_| {
-                cubeb_log!(
-                    "({:p}) Could not get any channel layout. Defaulting to the channel count.",
-                    self.stm_ptr
-                );
-            })
-            .unwrap_or_default();
-        mixer::get_device_channel_order(channel_count as usize, channels)
+        })
+        .unwrap_or_default();
+        let mut channels = vec![mixer::Channel::Silence; skipped_channels as usize];
+        channels.extend(mixer::get_device_channel_order(
+            (channel_count - skipped_channels) as usize,
+            device_layout,
+        ));
+        channels
     }
 }
 

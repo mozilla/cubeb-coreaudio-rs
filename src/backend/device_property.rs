@@ -1,30 +1,5 @@
 use super::*;
 
-pub fn get_device_preferred_channel_layout(
-    id: AudioDeviceID,
-    devtype: DeviceType,
-) -> std::result::Result<AutoRelease<AudioChannelLayout>, OSStatus> {
-    assert_ne!(id, kAudioObjectUnknown);
-    debug_assert_running_serially();
-
-    let address = get_property_address(Property::DevicePreferredChannelLayout, devtype);
-    let mut size = 0;
-    let status = audio_object_get_property_data_size(id, &address, &mut size);
-    if status != NO_ERR {
-        return Err(status);
-    }
-    if size < mem::size_of::<AudioChannelLayout>() {
-        return Err(kAudioHardwareBadPropertySizeError as OSStatus);
-    }
-    let mut layout = make_sized_audio_channel_layout(size);
-    let status = audio_object_get_property_data(id, &address, &mut size, layout.as_mut());
-    if status == NO_ERR {
-        Ok(layout)
-    } else {
-        Err(status)
-    }
-}
-
 pub fn get_device_uid(
     id: AudioDeviceID,
     devtype: DeviceType,
@@ -327,6 +302,34 @@ pub fn get_device_streams(
     }
 
     Ok(device_streams)
+}
+
+pub fn get_device_preferred_channel_layout(
+    id: AudioDeviceID,
+    devtype: DeviceType,
+) -> std::result::Result<AutoRelease<AudioChannelLayout>, OSStatus> {
+    assert_ne!(id, kAudioObjectUnknown);
+    debug_assert_running_serially();
+
+    let address = get_property_address(Property::DevicePreferredChannelLayout, devtype);
+    let mut size = 0;
+    let status = audio_object_get_property_data_size(id, &address, &mut size);
+    if status != NO_ERR {
+        return Err(status);
+    }
+    let layout_size = mem::size_of::<AudioChannelLayout>();
+    if size < layout_size
+        || !(size - layout_size).is_multiple_of(mem::size_of::<AudioChannelDescription>())
+    {
+        return Err(kAudioHardwareBadPropertySizeError as OSStatus);
+    }
+    let mut layout = make_sized_audio_channel_layout(size);
+    let status = audio_object_get_property_data(id, &address, &mut size, layout.as_mut());
+    if status == NO_ERR {
+        Ok(layout)
+    } else {
+        Err(status)
+    }
 }
 
 pub fn get_device_sample_rate(

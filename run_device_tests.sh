@@ -12,6 +12,7 @@ fi
 echo "RUST_BACKTRACE is set to ${RUST_BACKTRACE}\n"
 
 cargo test test_aggregate ${CARGO_TEST_FLAGS} -- --ignored --nocapture
+cargo test test_duplex_aggregate_playback_reaches_only_output_device ${CARGO_TEST_FLAGS} -- --ignored --nocapture
 
 cargo test test_switch_device ${CARGO_TEST_FLAGS} -- --ignored --nocapture
 cargo test test_switch_while_paused ${CARGO_TEST_FLAGS} -- --ignored --nocapture

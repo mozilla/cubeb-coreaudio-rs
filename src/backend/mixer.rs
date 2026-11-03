@@ -42,7 +42,7 @@ pub fn get_channel_order(channel_layout: ChannelLayout) -> Vec<audio_mixer::Chan
     order
 }
 
-pub(crate) fn get_default_channel_order(channel_count: usize) -> Vec<audio_mixer::Channel> {
+fn get_default_channel_order(channel_count: usize) -> Vec<audio_mixer::Channel> {
     assert_ne!(channel_count, 0);
     let mut channels = Vec::with_capacity(channel_count);
     for channel in CHANNEL_ORDER.iter().take(channel_count) {
@@ -201,6 +201,7 @@ impl Mixer {
     ) -> Self {
         assert!(in_channel_count > 0);
         assert!(out_channel_count > 0);
+        assert!(is_valid_channel_order(out_channel_count, &output_channels));
 
         cubeb_log!(
             "Creating a mixer with input channel count: {}, input layout: {:?},\
@@ -512,23 +513,6 @@ fn test_non_silent_duplicate_channels() {
 }
 
 #[test]
-fn test_device_channel_order_with_silent_prefix() {
-    for layout in [
-        vec![Channel::FrontLeft, Channel::FrontRight],
-        vec![Channel::Discrete, Channel::Discrete],
-        vec![Channel::FrontLeft, Channel::FrontLeft],
-    ] {
-        let mut channels = vec![Channel::Silence; 2];
-        channels.extend(get_device_channel_order(2, layout));
-        let mixer =
-            audio_mixer::Mixer::<f32>::new(&[Channel::FrontLeft, Channel::FrontRight], &channels);
-        let mut output = [0.0; 4];
-        mixer.mix(&[0.25, 0.75], &mut output);
-        assert_eq!(output, [0.0, 0.0, 0.25, 0.75]);
-    }
-}
-
-#[test]
 fn test_get_device_channel_order() {
     assert_eq!(
         get_device_channel_order(1, vec![Channel::FrontRight]),
@@ -556,19 +540,44 @@ fn test_get_device_channel_order() {
 }
 
 #[test]
-fn test_mono_output_with_silent_prefix() {
-    let mut channels = vec![Channel::Silence];
-    channels.extend(get_device_channel_order(1, vec![Channel::FrontRight]));
-    let mut mixer = Mixer::new(SampleFormat::Float32NE, 1, ChannelLayout::MONO, 2, channels);
-    mixer.update_buffer_size(1);
-    unsafe {
-        *(mixer.get_buffer_mut_ptr() as *mut f32) = 0.5;
+fn test_mixer_keeps_silent_prefix_silent() {
+    for (input_layout, input, device_layout, expected) in [
+        (
+            ChannelLayout::STEREO,
+            vec![0.25_f32, 0.75],
+            vec![Channel::Discrete, Channel::Discrete],
+            vec![0.0, 0.0, 0.25, 0.75],
+        ),
+        (
+            ChannelLayout::MONO,
+            vec![0.5],
+            vec![Channel::FrontRight],
+            vec![0.0, 0.5],
+        ),
+    ] {
+        let mut channels = vec![Channel::Silence; expected.len() - device_layout.len()];
+        channels.extend(get_device_channel_order(device_layout.len(), device_layout));
+        let mut mixer = Mixer::new(
+            SampleFormat::Float32NE,
+            input.len(),
+            input_layout,
+            expected.len(),
+            channels,
+        );
+        mixer.update_buffer_size(1);
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                input.as_ptr() as *const u8,
+                mixer.get_buffer_mut_ptr(),
+                input.len() * mem::size_of::<f32>(),
+            );
+        }
+        let mut output = vec![0.0f32; expected.len()];
+        mixer.mix(
+            1,
+            output.as_mut_ptr() as *mut c_void,
+            output.len() * mem::size_of::<f32>(),
+        );
+        assert_eq!(output, expected);
     }
-    let mut output = [0.0f32; 2];
-    mixer.mix(
-        1,
-        output.as_mut_ptr() as *mut c_void,
-        mem::size_of_val(&output),
-    );
-    assert_eq!(output, [0.0, 0.5]);
 }

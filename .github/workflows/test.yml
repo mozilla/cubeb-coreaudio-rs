@@ -42,7 +42,7 @@ jobs:
         brew install blackhole-2ch blackhole-16ch
         sudo killall -9 coreaudiod
         SwitchAudioSource -s "BlackHole 2ch" -t input
-        SwitchAudioSource -s "BlackHole 16ch" -t output
+        SwitchAudioSource -s "BlackHole 2ch" -t output
 
     - name: Build
       run: cargo build --verbose
