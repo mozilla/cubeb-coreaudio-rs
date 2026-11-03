@@ -461,7 +461,7 @@ pub fn test_device_channels_in_scope(
     if size == 0 {
         return Ok(0);
     }
-    let mut stream_list = vec![0, (size / mem::size_of::<AudioObjectID>()) as u32];
+    let mut stream_list: Vec<AudioObjectID> = vec![0; size / mem::size_of::<AudioObjectID>()];
     let status = run_serially(|| unsafe {
         AudioObjectGetPropertyData(
             id,
@@ -500,8 +500,19 @@ pub fn test_device_channels_in_scope(
             if status != NO_ERR {
                 return false;
             }
-            ttype == kAudioStreamTerminalTypeMicrophone
-                || (INPUT_MICROPHONE..OUTPUT_UNDEFINED).contains(&ttype)
+            // With a VPIO unit around, output devices get an extra input stream, a tap, with
+            // the terminal type of the device's output. Skip output terminal types only, as real
+            // inputs can be of any other type (e.g. ZoomAudioDevice's input is S/PDIF). A tap on
+            // a device whose output type is also an input type (S/PDIF, line, ...) still counts.
+            ![
+                kAudioStreamTerminalTypeUnknown,
+                kAudioStreamTerminalTypeSpeaker,
+                kAudioStreamTerminalTypeHeadphones,
+                kAudioStreamTerminalTypeLFESpeaker,
+                kAudioStreamTerminalTypeReceiverSpeaker,
+            ]
+            .contains(&ttype)
+                && !(OUTPUT_UNDEFINED..BIDIRECTIONAL_UNDEFINED).contains(&ttype)
         })
         .map(|s: &AudioObjectID| {
             let address = AudioObjectPropertyAddress {
