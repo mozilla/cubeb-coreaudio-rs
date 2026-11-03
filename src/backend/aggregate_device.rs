@@ -84,8 +84,15 @@ impl AggregateDevice {
         Self::activate_clock_drift_compensation(device_id)?;
         Self::workaround_for_airpod(device_id, input_id, output_id)?;
 
-        let input_device_output_channels =
-            get_channel_count(input_id, DeviceType::OUTPUT).unwrap_or(0);
+        let input_device_output_channels = get_channel_count(input_id, DeviceType::OUTPUT)
+            .inspect_err(|e| {
+                cubeb_log!(
+                    "Cannot get the output channel count of input device {}: {}",
+                    input_id,
+                    e
+                );
+            })
+            .unwrap_or(0);
 
         cleanup.dismiss();
 
