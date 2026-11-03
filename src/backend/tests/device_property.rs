@@ -346,6 +346,36 @@ fn test_panic_get_device_streams_by_unknown_device() {
     .is_err());
 }
 
+// get_device_preferred_channel_layout
+// ------------------------------------
+#[test]
+fn test_get_device_preferred_channel_layout() {
+    if let Some(device) = test_get_default_device(Scope::Output) {
+        let layout =
+            run_serially(|| get_device_preferred_channel_layout(device, DeviceType::OUTPUT))
+                .unwrap();
+        let layout = layout.as_ref();
+        if layout.mChannelLayoutTag == kAudioChannelLayoutTag_UseChannelDescriptions {
+            let channels = run_serially(|| get_channel_count(device, DeviceType::OUTPUT)).unwrap();
+            assert_eq!(layout.mNumberChannelDescriptions, channels);
+        }
+    } else {
+        println!("No output device.");
+    }
+}
+
+#[test]
+#[should_panic]
+fn test_panic_get_device_preferred_channel_layout_by_unknown_device() {
+    assert!(
+        run_serially_forward_panics(|| get_device_preferred_channel_layout(
+            kAudioObjectUnknown,
+            DeviceType::OUTPUT
+        ))
+        .is_err()
+    );
+}
+
 // get_device_sample_rate
 // ------------------------------------
 #[test]

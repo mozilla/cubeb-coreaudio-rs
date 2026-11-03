@@ -1282,25 +1282,35 @@ fn test_ops_stereo_input_duplex_stream_init_and_destroy() {
     );
 }
 
+#[ignore]
 #[test]
-fn test_duplex_aggregate_routes_playback_to_output_device() {
-    let output_device = test_get_devices_in_scope(Scope::Output)
-        .into_iter()
-        .find(|&device| {
-            run_serially(|| get_device_name(device, DeviceType::OUTPUT))
-                .map(|name| name.into_string() == "BlackHole 16ch")
-                .unwrap_or(false)
-        })
-        .expect("Need BlackHole 16ch as the output device");
-    let input_device = test_get_devices_in_scope(Scope::Input)
-        .into_iter()
-        .find(|&device| {
-            device != output_device
-                && run_serially(|| get_device_name(device, DeviceType::INPUT))
-                    .map(|name| name.into_string() == "BlackHole 2ch")
+fn test_duplex_aggregate_playback_reaches_only_output_device() {
+    const RATE: u32 = 48_000;
+    // The tone starts after half a second of silence, so both loopback captures are running.
+    const SILENT_FRAMES: usize = RATE as usize / 2;
+    const TONE_AMPLITUDE: f32 = 0.1;
+    // Each stream runs for 2 seconds, and must deliver at least 1 second of frames.
+    const RUN_SECONDS: u64 = 2;
+    const MIN_FRAMES: usize = RATE as usize;
+    let find_device = |scope: Scope, devtype: DeviceType, name: &str| {
+        test_get_devices_in_scope(scope)
+            .into_iter()
+            .find(|&device| {
+                run_serially(|| get_device_name(device, devtype))
+                    .map(|device_name| device_name.into_string() == name)
                     .unwrap_or(false)
-        })
-        .expect("Need BlackHole 2ch as the input device");
+            })
+    };
+    let (input_device, output_device) = match (
+        find_device(Scope::Input, DeviceType::INPUT, "BlackHole 2ch"),
+        find_device(Scope::Output, DeviceType::OUTPUT, "BlackHole 16ch"),
+    ) {
+        (Some(input_device), Some(output_device)) => (input_device, output_device),
+        _ => {
+            println!("Need BlackHole 2ch and BlackHole 16ch to check the output routing.");
+            return;
+        }
+    };
     assert_eq!(
         run_serially(|| get_channel_count(input_device, DeviceType::OUTPUT)).unwrap(),
         2
@@ -1341,10 +1351,10 @@ fn test_duplex_aggregate_routes_playback_to_output_device() {
             let output =
                 unsafe { slice::from_raw_parts_mut(output_buffer as *mut f32, frames * 2) };
             for pair in output.chunks_exact_mut(2) {
-                let sample = if probe.output_frames >= 24_000 {
-                    (2.0 * std::f32::consts::PI * 440.0 * probe.output_frames as f32 / 48_000.0)
+                let sample = if probe.output_frames >= SILENT_FRAMES {
+                    (2.0 * std::f32::consts::PI * 440.0 * probe.output_frames as f32 / RATE as f32)
                         .sin()
-                        * 0.1
+                        * TONE_AMPLITUDE
                 } else {
                     0.0
                 };
@@ -1384,7 +1394,7 @@ fn test_duplex_aggregate_routes_playback_to_output_device() {
 
     let mut input_params = cubeb_backend::ffi::cubeb_stream_params {
         format: ffi::CUBEB_SAMPLE_FLOAT32NE,
-        rate: 48000,
+        rate: RATE,
         channels: 2,
         layout: ffi::CUBEB_LAYOUT_STEREO,
         ..Default::default()
@@ -1394,7 +1404,7 @@ fn test_duplex_aggregate_routes_playback_to_output_device() {
 
     let mut output_params = cubeb_backend::ffi::cubeb_stream_params {
         format: ffi::CUBEB_SAMPLE_FLOAT32NE,
-        rate: 48000,
+        rate: RATE,
         channels: 2,
         layout: ffi::CUBEB_LAYOUT_STEREO,
         ..Default::default()
@@ -1440,7 +1450,7 @@ fn test_duplex_aggregate_routes_playback_to_output_device() {
                     let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
                     assert!(stm.core_stream_data.aggregate_device.is_some());
                     assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
-                    thread::sleep(Duration::from_secs(2));
+                    thread::sleep(Duration::from_secs(RUN_SECONDS));
                     assert_eq!(unsafe { OPS.stream_stop.unwrap()(stream) }, ffi::CUBEB_OK);
                 },
             );
@@ -1450,24 +1460,145 @@ fn test_duplex_aggregate_routes_playback_to_output_device() {
             );
         },
     );
-    assert!(probe.output_frames >= 48_000, "No tone was played");
+    assert!(probe.output_frames >= MIN_FRAMES, "No tone was played");
     assert!(
-        probe.input_frames >= 48_000,
+        probe.input_frames >= MIN_FRAMES,
         "No input loopback was captured"
     );
     assert!(
-        capture.input_frames >= 48_000,
+        capture.input_frames >= MIN_FRAMES,
         "No output loopback was captured"
     );
     assert!(
-        probe.input_peak < 0.01,
+        probe.input_peak < TONE_AMPLITUDE / 10.0,
         "Tone reached the input device's output: peak {}",
         probe.input_peak
     );
     assert!(
-        capture.input_peak > 0.02,
+        capture.input_peak > TONE_AMPLITUDE / 5.0,
         "Tone did not reach the selected output device: peak {}",
         capture.input_peak
+    );
+}
+
+#[test]
+fn test_duplex_aggregate_skips_input_device_output_channels() {
+    let is_aggregate = |device: AudioObjectID, devtype: DeviceType| {
+        run_serially(|| get_device_transport_type(device, devtype)).unwrap_or(0)
+            == kAudioDeviceTransportTypeAggregate
+    };
+    let output_devices: Vec<AudioObjectID> = test_get_devices_in_scope(Scope::Output)
+        .into_iter()
+        .filter(|&device| !is_aggregate(device, DeviceType::OUTPUT))
+        .collect();
+    let devices = test_get_devices_in_scope(Scope::Input)
+        .into_iter()
+        .filter(|&device| {
+            !is_aggregate(device, DeviceType::INPUT)
+                && run_serially(|| get_channel_count(device, DeviceType::OUTPUT)).unwrap_or(0) > 0
+        })
+        .find_map(|input_device| {
+            output_devices
+                .iter()
+                .find(|&&output_device| output_device != input_device)
+                .map(|&output_device| (input_device, output_device))
+        });
+    let (input_device, output_device) = match devices {
+        Some(devices) => devices,
+        None => {
+            println!("Need an input device with output channels, and another output device.");
+            return;
+        }
+    };
+
+    let mut input_params = ffi::cubeb_stream_params {
+        format: ffi::CUBEB_SAMPLE_FLOAT32NE,
+        rate: 48000,
+        channels: 1,
+        layout: ffi::CUBEB_LAYOUT_MONO,
+        ..Default::default()
+    };
+    let mut output_params = ffi::cubeb_stream_params {
+        format: ffi::CUBEB_SAMPLE_FLOAT32NE,
+        rate: 48000,
+        channels: 2,
+        layout: ffi::CUBEB_LAYOUT_STEREO,
+        ..Default::default()
+    };
+
+    test_ops_stream_operation(
+        "duplex aggregate: skip the input device's output channels",
+        input_device as ffi::cubeb_devid,
+        &mut input_params,
+        output_device as ffi::cubeb_devid,
+        &mut output_params,
+        4096,
+        Some(noop_data_callback),
+        None,
+        ptr::null_mut(),
+        |stream| {
+            let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
+            let core_stream_data = &mut stm.core_stream_data;
+            let aggregate_device = core_stream_data
+                .aggregate_device
+                .as_ref()
+                .expect("Duplex stream on different devices should use an aggregate device");
+
+            // Count the output channels before the output device's, in the order the aggregate
+            // device actually has.
+            let aggregate_device_id = aggregate_device.get_device_id();
+            let skipped_channels = run_serially(|| {
+                let output_sub_devices =
+                    AggregateDevice::get_sub_devices_or_self(output_device).unwrap();
+                AggregateDevice::get_sub_devices(aggregate_device_id)
+                    .unwrap()
+                    .into_iter()
+                    .take_while(|device| !output_sub_devices.contains(device))
+                    .map(|device| get_channel_count(device, DeviceType::OUTPUT).unwrap())
+                    .sum::<u32>()
+            });
+            assert!(
+                skipped_channels > 0,
+                "The input device should come before the output device"
+            );
+            assert_eq!(
+                skipped_channels,
+                aggregate_device.get_input_device_output_channels()
+            );
+
+            // Mix a stereo frame as the output callback would.
+            let channels = core_stream_data.output_dev_desc.mChannelsPerFrame as usize;
+            let mixer = core_stream_data
+                .mixer
+                .as_mut()
+                .expect("Stereo output into the aggregate device should need a mixer");
+            let input = [0.25_f32, 0.75];
+            mixer.update_buffer_size(1);
+            unsafe {
+                ptr::copy_nonoverlapping(
+                    input.as_ptr() as *const u8,
+                    mixer.get_buffer_mut_ptr(),
+                    mem::size_of_val(&input),
+                );
+            }
+            let mut output = vec![1.0_f32; channels];
+            mixer.mix(
+                1,
+                output.as_mut_ptr() as *mut c_void,
+                output.len() * mem::size_of::<f32>(),
+            );
+            let (skipped, played) = output.split_at(skipped_channels as usize);
+            assert!(
+                skipped.iter().all(|sample| *sample == 0.0),
+                "Playback reached the input device's output channels: {:?}",
+                output
+            );
+            assert!(
+                played.iter().any(|sample| *sample != 0.0),
+                "Playback did not reach the output device's channels: {:?}",
+                output
+            );
+        },
     );
 }
 
