@@ -1285,13 +1285,16 @@ fn test_ops_stereo_input_duplex_stream_init_and_destroy() {
 #[ignore]
 #[test]
 fn test_duplex_aggregate_playback_reaches_only_output_device() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
     const RATE: u32 = 48_000;
     // The tone starts after half a second of silence, so both loopback captures are running.
     const SILENT_FRAMES: usize = RATE as usize / 2;
     const TONE_AMPLITUDE: f32 = 0.1;
-    // Each stream runs for 2 seconds, and must deliver at least 1 second of frames.
-    const RUN_SECONDS: u64 = 2;
+    // Each stream must deliver at least 1 second of frames. Sanitizer builds can run the
+    // callbacks slower than real time, so wait for the frames rather than a fixed duration.
     const MIN_FRAMES: usize = RATE as usize;
+    const TIMEOUT: Duration = Duration::from_secs(30);
     let find_device = |scope: Scope, devtype: DeviceType, name: &str| {
         test_get_devices_in_scope(scope)
             .into_iter()
@@ -1321,13 +1324,13 @@ fn test_duplex_aggregate_playback_reaches_only_output_device() {
     );
 
     struct RoutingProbe {
-        output_frames: usize,
-        input_frames: usize,
+        output_frames: AtomicUsize,
+        input_frames: AtomicUsize,
         input_peak: f32,
     }
 
     struct CaptureProbe {
-        input_frames: usize,
+        input_frames: AtomicUsize,
         input_peak: f32,
     }
 
@@ -1345,23 +1348,24 @@ fn test_duplex_aggregate_playback_reaches_only_output_device() {
             probe.input_peak = input
                 .iter()
                 .fold(probe.input_peak, |peak, sample| peak.max(sample.abs()));
-            probe.input_frames += frames;
+            probe.input_frames.fetch_add(frames, Ordering::SeqCst);
         }
         if !output_buffer.is_null() {
             let output =
                 unsafe { slice::from_raw_parts_mut(output_buffer as *mut f32, frames * 2) };
+            let mut output_frames = probe.output_frames.load(Ordering::SeqCst);
             for pair in output.chunks_exact_mut(2) {
-                let sample = if probe.output_frames >= SILENT_FRAMES {
-                    (2.0 * std::f32::consts::PI * 440.0 * probe.output_frames as f32 / RATE as f32)
-                        .sin()
+                let sample = if output_frames >= SILENT_FRAMES {
+                    (2.0 * std::f32::consts::PI * 440.0 * output_frames as f32 / RATE as f32).sin()
                         * TONE_AMPLITUDE
                 } else {
                     0.0
                 };
                 pair[0] = sample;
                 pair[1] = sample;
-                probe.output_frames += 1;
+                output_frames += 1;
             }
+            probe.output_frames.store(output_frames, Ordering::SeqCst);
         }
         nframes
     }
@@ -1380,7 +1384,9 @@ fn test_duplex_aggregate_playback_reaches_only_output_device() {
             probe.input_peak = input
                 .iter()
                 .fold(probe.input_peak, |peak, sample| peak.max(sample.abs()));
-            probe.input_frames += nframes as usize;
+            probe
+                .input_frames
+                .fetch_add(nframes as usize, Ordering::SeqCst);
         }
         nframes
     }
@@ -1411,13 +1417,13 @@ fn test_duplex_aggregate_playback_reaches_only_output_device() {
     };
 
     let mut probe = RoutingProbe {
-        output_frames: 0,
-        input_frames: 0,
+        output_frames: AtomicUsize::new(0),
+        input_frames: AtomicUsize::new(0),
         input_peak: 0.0,
     };
 
     let mut capture = CaptureProbe {
-        input_frames: 0,
+        input_frames: AtomicUsize::new(0),
         input_peak: 0.0,
     };
 
@@ -1450,7 +1456,18 @@ fn test_duplex_aggregate_playback_reaches_only_output_device() {
                     let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
                     assert!(stm.core_stream_data.aggregate_device.is_some());
                     assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
-                    thread::sleep(Duration::from_secs(RUN_SECONDS));
+                    let start = std::time::Instant::now();
+                    while [
+                        &probe.output_frames,
+                        &probe.input_frames,
+                        &capture.input_frames,
+                    ]
+                    .iter()
+                    .any(|frames| frames.load(Ordering::SeqCst) < MIN_FRAMES)
+                        && start.elapsed() < TIMEOUT
+                    {
+                        thread::sleep(Duration::from_millis(10));
+                    }
                     assert_eq!(unsafe { OPS.stream_stop.unwrap()(stream) }, ffi::CUBEB_OK);
                 },
             );
@@ -1460,13 +1477,16 @@ fn test_duplex_aggregate_playback_reaches_only_output_device() {
             );
         },
     );
-    assert!(probe.output_frames >= MIN_FRAMES, "No tone was played");
     assert!(
-        probe.input_frames >= MIN_FRAMES,
+        probe.output_frames.load(Ordering::SeqCst) >= MIN_FRAMES,
+        "No tone was played"
+    );
+    assert!(
+        probe.input_frames.load(Ordering::SeqCst) >= MIN_FRAMES,
         "No input loopback was captured"
     );
     assert!(
-        capture.input_frames >= MIN_FRAMES,
+        capture.input_frames.load(Ordering::SeqCst) >= MIN_FRAMES,
         "No output loopback was captured"
     );
     assert!(
