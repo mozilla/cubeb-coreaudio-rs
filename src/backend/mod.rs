@@ -4490,13 +4490,21 @@ impl<'ctx> CoreStreamData<'ctx> {
             return Err(r);
         }
 
-        // We have either default_input_listener or input_alive_listener.
+        // Same-device duplex shares the output liveness listener: CoreAudio rejects
+        // registering the same object/address/callback/client-data tuple twice.
+        let has_input_alive_listener = self.input_alive_listener.is_some()
+            || (self.default_input_listener.is_none()
+                && self
+                    .output_alive_listener
+                    .as_ref()
+                    .is_some_and(|listener| listener.device == self.input_device.id));
+
+        // We have either default_input_listener or a liveness listener covering input.
         // We cannot have both of them at the same time.
         assert!(
             !self.has_input()
-                || ((self.default_input_listener.is_some() != self.input_alive_listener.is_some())
-                    && (self.default_input_listener.is_some()
-                        || self.input_alive_listener.is_some()))
+                || ((self.default_input_listener.is_some() != has_input_alive_listener)
+                    && (self.default_input_listener.is_some() || has_input_alive_listener))
         );
 
         // We have either default_output_listener or output_alive_listener.
@@ -4678,6 +4686,10 @@ impl<'ctx> CoreStreamData<'ctx> {
                 .input_device
                 .flags
                 .contains(device_flags::DEV_SELECTED_DEFAULT)
+                && !self
+                    .output_alive_listener
+                    .as_ref()
+                    .is_some_and(|listener| listener.device == self.input_device.id)
             {
                 self.input_alive_listener = Some(device_property_listener::new(
                     self.input_device.id,
