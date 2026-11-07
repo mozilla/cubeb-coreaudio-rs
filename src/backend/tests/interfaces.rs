@@ -1079,6 +1079,56 @@ fn test_ops_stream_init_and_destroy() {
 }
 
 #[test]
+#[ignore = "requires duplex audio hardware or a virtual loopback device"]
+fn test_ops_stream_init_explicit_same_device_duplex() -> std::result::Result<(), std::io::Error> {
+    let mut tested = 0;
+    for device in get_devices_info_in_scope(Scope::Output) {
+        if !super::utils::test_device_in_scope(device.id, Scope::Input) {
+            continue;
+        }
+        let rate = run_serially(|| get_device_sample_rate(device.id, DeviceType::OUTPUT)).map_err(
+            |status| std::io::Error::other(format!("reading device sample rate: {status}")),
+        )?;
+        let mut params = ffi::cubeb_stream_params {
+            format: ffi::CUBEB_SAMPLE_FLOAT32NE,
+            rate: rate as u32,
+            channels: 1,
+            layout: ffi::CUBEB_LAYOUT_MONO,
+            ..Default::default()
+        };
+        let mut output_params = params;
+        for output_device in [ptr::null_mut(), device.id as ffi::cubeb_devid] {
+            println!(
+                "device {}: explicit input, output {output_device:p}",
+                device.label
+            );
+            // Reopen to also check listener cleanup. Never start playback.
+            for _ in 0..2 {
+                test_ops_stream_operation(
+                    "stream: explicit same-device duplex",
+                    device.id as ffi::cubeb_devid,
+                    &mut params,
+                    output_device,
+                    &mut output_params,
+                    256,
+                    Some(noop_data_callback),
+                    None,
+                    ptr::null_mut(),
+                    |_stream| {},
+                );
+            }
+        }
+        tested += 1;
+    }
+    if tested == 0 {
+        return Err(std::io::Error::other(
+            "no duplex device available for the test",
+        ));
+    }
+    Ok(())
+}
+
+#[test]
 fn test_ops_stream_start() {
     test_default_output_stream_operation("stream: start", |stream| {
         assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
