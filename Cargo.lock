@@ -12,12 +12,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "atomic"
-version = "0.4.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64f46ca51dca4837f1520754d1c8c36636356b81553d928dc9c177025369a06e"
-
-[[package]]
 name = "audio-mixer"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -166,7 +160,6 @@ dependencies = [
 name = "cubeb-coreaudio"
 version = "0.1.0"
 dependencies = [
- "atomic",
  "audio-mixer",
  "bitflags 2.10.0",
  "coreaudio-sys-utils",
