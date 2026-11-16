@@ -5,6 +5,7 @@
 
 #[macro_use]
 extern crate bitflags;
+extern crate coreaudio_sys_utils;
 #[macro_use]
 extern crate cubeb_backend;
 #[macro_use]
@@ -17,3 +18,4 @@ mod backend;
 mod capi;
 
 pub use crate::capi::audiounit_rust_init;
+pub use crate::capi::audiounit_stream_get_workgroup;
