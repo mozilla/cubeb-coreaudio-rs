@@ -1079,6 +1079,179 @@ fn test_ops_stream_init_and_destroy() {
 }
 
 #[test]
+#[ignore = "requires duplex audio hardware or a virtual loopback device"]
+fn test_ops_stream_init_explicit_same_device_duplex() -> std::result::Result<(), std::io::Error> {
+    let mut tested = 0;
+    for device in get_devices_info_in_scope(Scope::Output) {
+        if !super::utils::test_device_in_scope(device.id, Scope::Input) {
+            continue;
+        }
+        let rate = run_serially(|| get_device_sample_rate(device.id, DeviceType::OUTPUT)).map_err(
+            |status| std::io::Error::other(format!("reading device sample rate: {status}")),
+        )?;
+        let mut params = ffi::cubeb_stream_params {
+            format: ffi::CUBEB_SAMPLE_FLOAT32NE,
+            rate: rate as u32,
+            channels: 1,
+            layout: ffi::CUBEB_LAYOUT_MONO,
+            ..Default::default()
+        };
+        let mut output_params = params;
+        for output_device in [ptr::null_mut(), device.id as ffi::cubeb_devid] {
+            println!(
+                "device {}: explicit input, output {output_device:p}",
+                device.label
+            );
+            // Reopen to also check listener cleanup. Never start playback.
+            for _ in 0..2 {
+                test_ops_stream_operation(
+                    "stream: explicit same-device duplex",
+                    device.id as ffi::cubeb_devid,
+                    &mut params,
+                    output_device,
+                    &mut output_params,
+                    256,
+                    Some(noop_data_callback),
+                    None,
+                    ptr::null_mut(),
+                    |_stream| {},
+                );
+            }
+        }
+        tested += 1;
+    }
+    if tested == 0 {
+        return Err(std::io::Error::other(
+            "no duplex device available for the test",
+        ));
+    }
+    Ok(())
+}
+
+#[test]
+#[ignore = "requires duplex audio hardware or a virtual loopback device"]
+fn test_ops_stream_init_explicit_same_device_separate_streams(
+) -> std::result::Result<(), std::io::Error> {
+    let mut tested = 0;
+    for device in get_devices_info_in_scope(Scope::Output) {
+        if !super::utils::test_device_in_scope(device.id, Scope::Input) {
+            continue;
+        }
+        let rate = run_serially(|| get_device_sample_rate(device.id, DeviceType::OUTPUT)).map_err(
+            |status| std::io::Error::other(format!("reading device sample rate: {status}")),
+        )?;
+        for input_first in [true, false] {
+            println!(
+                "device {}: separate streams, input first: {input_first}",
+                device.label
+            );
+            test_ops_context_operation("context: separate same-device streams", |context| {
+                let input_device = test_object_id_to_devid(context, device.id, DeviceType::INPUT);
+                let output_device = test_object_id_to_devid(context, device.id, DeviceType::OUTPUT);
+                let mut params = ffi::cubeb_stream_params {
+                    format: ffi::CUBEB_SAMPLE_FLOAT32NE,
+                    rate: rate as u32,
+                    channels: 1,
+                    layout: ffi::CUBEB_LAYOUT_MONO,
+                    ..Default::default()
+                };
+                let mut second_params = params;
+                // Reopen both streams to check listener cleanup in the same context.
+                for _ in 0..2 {
+                    test_ops_stream_operation_on_context(
+                        "stream: first separate same-device stream",
+                        context,
+                        if input_first {
+                            input_device
+                        } else {
+                            ptr::null()
+                        },
+                        if input_first {
+                            &mut params
+                        } else {
+                            ptr::null_mut()
+                        },
+                        if input_first {
+                            ptr::null()
+                        } else {
+                            output_device
+                        },
+                        if input_first {
+                            ptr::null_mut()
+                        } else {
+                            &mut params
+                        },
+                        256,
+                        Some(noop_data_callback),
+                        None,
+                        ptr::null_mut(),
+                        |first| {
+                            // Keep the first stream alive while opening and reopening the
+                            // other direction. Each stream needs its own liveness listener.
+                            for _ in 0..2 {
+                                test_ops_stream_operation_on_context(
+                                    "stream: second separate same-device stream",
+                                    context,
+                                    if input_first {
+                                        ptr::null()
+                                    } else {
+                                        input_device
+                                    },
+                                    if input_first {
+                                        ptr::null_mut()
+                                    } else {
+                                        &mut second_params
+                                    },
+                                    if input_first {
+                                        output_device
+                                    } else {
+                                        ptr::null()
+                                    },
+                                    if input_first {
+                                        &mut second_params
+                                    } else {
+                                        ptr::null_mut()
+                                    },
+                                    256,
+                                    Some(noop_data_callback),
+                                    None,
+                                    ptr::null_mut(),
+                                    |second| {
+                                        assert_ne!(first, second);
+                                        for (stream, is_input) in
+                                            [(first, input_first), (second, !input_first)]
+                                        {
+                                            let stream =
+                                                unsafe { &*(stream as *const AudioUnitStream) };
+                                            let data = &stream.core_stream_data;
+                                            assert_eq!(
+                                                data.input_alive_listener.is_some(),
+                                                is_input
+                                            );
+                                            assert_eq!(
+                                                data.output_alive_listener.is_some(),
+                                                !is_input
+                                            );
+                                        }
+                                    },
+                                );
+                            }
+                        },
+                    );
+                }
+            });
+        }
+        tested += 1;
+    }
+    if tested == 0 {
+        return Err(std::io::Error::other(
+            "no duplex device available for the test",
+        ));
+    }
+    Ok(())
+}
+
+#[test]
 fn test_ops_stream_start() {
     test_default_output_stream_operation("stream: start", |stream| {
         assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
