@@ -1402,17 +1402,8 @@ fn test_ops_timing_sensitive_multiple_voice_stream_init_and_destroy() {
         // We disable VPIO on Monterey.
         return;
     }
-    let start = Instant::now();
-    let mut t1 = start;
-    let mut t2 = start;
-    let mut t3 = start;
-    let mut t4 = start;
-    let mut t5 = start;
-    let mut t6 = start;
-    let mut t7 = start;
-    let mut t8 = start;
-    let mut t9 = start;
-    let mut t10 = start;
+    let mut units = Vec::new();
+    let mut reused_units = Vec::new();
     test_ops_context_operation("multiple duplex voice streams", |context_ptr| {
         // First stream uses vpio, creates the shared vpio unit.
         test_default_duplex_voice_stream_operation_on_context(
@@ -1421,6 +1412,7 @@ fn test_ops_timing_sensitive_multiple_voice_stream_init_and_destroy() {
             |stream| {
                 let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
                 assert!(stm.core_stream_data.using_voice_processing_unit());
+                units.push(stm.core_stream_data.input_unit);
 
                 // Two concurrent vpio streams are supported.
                 test_default_input_voice_stream_operation_on_context(
@@ -1429,6 +1421,7 @@ fn test_ops_timing_sensitive_multiple_voice_stream_init_and_destroy() {
                     |stream| {
                         let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
                         assert!(stm.core_stream_data.using_voice_processing_unit());
+                        units.push(stm.core_stream_data.input_unit);
 
                         // Three concurrent vpio streams are supported.
                         test_default_duplex_voice_stream_operation_on_context(
@@ -1437,13 +1430,14 @@ fn test_ops_timing_sensitive_multiple_voice_stream_init_and_destroy() {
                             |stream| {
                                 let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
                                 assert!(stm.core_stream_data.using_voice_processing_unit());
+                                units.push(stm.core_stream_data.input_unit);
                             },
                         );
                     },
                 );
             },
         );
-        t1 = Instant::now();
+
         // Fourth stream uses vpio, allows reuse of one already created.
         test_default_duplex_voice_stream_operation_on_context(
             "multiple voice streams: stream 4, duplex",
@@ -1451,7 +1445,12 @@ fn test_ops_timing_sensitive_multiple_voice_stream_init_and_destroy() {
             |stream| {
                 let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
                 assert!(stm.core_stream_data.using_voice_processing_unit());
-                t2 = Instant::now();
+                let unit = stm.core_stream_data.input_unit;
+                let index = units
+                    .iter()
+                    .position(|&u| u == unit)
+                    .expect("expected a reused voice unit");
+                reused_units.push(units.remove(index));
 
                 // Fifth stream uses vpio, allows reuse of one already created.
                 test_default_duplex_voice_stream_operation_on_context(
@@ -1460,7 +1459,12 @@ fn test_ops_timing_sensitive_multiple_voice_stream_init_and_destroy() {
                     |stream| {
                         let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
                         assert!(stm.core_stream_data.using_voice_processing_unit());
-                        t3 = Instant::now();
+                        let unit = stm.core_stream_data.input_unit;
+                        let index = units
+                            .iter()
+                            .position(|&u| u == unit)
+                            .expect("expected a reused voice unit");
+                        reused_units.push(units.remove(index));
 
                         // Sixth stream uses vpio, allows reuse of one already created.
                         test_default_input_voice_stream_operation_on_context(
@@ -1469,7 +1473,12 @@ fn test_ops_timing_sensitive_multiple_voice_stream_init_and_destroy() {
                             |stream| {
                                 let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
                                 assert!(stm.core_stream_data.using_voice_processing_unit());
-                                t4 = Instant::now();
+                                let unit = stm.core_stream_data.input_unit;
+                                let index = units
+                                    .iter()
+                                    .position(|&u| u == unit)
+                                    .expect("expected a reused voice unit");
+                                reused_units.push(units.remove(index));
 
                                 // Seventh stream uses vpio, but is created anew.
                                 test_default_input_voice_stream_operation_on_context(
@@ -1478,74 +1487,17 @@ fn test_ops_timing_sensitive_multiple_voice_stream_init_and_destroy() {
                                     |stream| {
                                         let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
                                         assert!(stm.core_stream_data.using_voice_processing_unit());
-                                        t5 = Instant::now();
+                                        assert!(!reused_units
+                                            .contains(&stm.core_stream_data.input_unit));
                                     },
                                 );
-                                t6 = Instant::now();
                             },
                         );
-                        t7 = Instant::now();
                     },
                 );
-                t8 = Instant::now();
             },
         );
-        t9 = Instant::now();
     });
-    t10 = Instant::now();
-
-    let reuse_vpio_1 = t2 - t1;
-    let reuse_vpio_2 = t3 - t2;
-    let reuse_vpio_3 = t4 - t3;
-    let create_standalone_vpio = t5 - t4;
-    assert!(
-        create_standalone_vpio > reuse_vpio_1 * 2,
-        "Failed create_standalone_vpio={}s > reuse_vpio_1={}s * 2",
-        create_standalone_vpio.as_secs_f32(),
-        reuse_vpio_1.as_secs_f32()
-    );
-    assert!(
-        create_standalone_vpio > reuse_vpio_2 * 2,
-        "Failed create_standalone_vpio={}s > reuse_vpio_2={}s * 2",
-        create_standalone_vpio.as_secs_f32(),
-        reuse_vpio_2.as_secs_f32()
-    );
-    assert!(
-        create_standalone_vpio > reuse_vpio_3 * 2,
-        "Failed create_standalone_vpio={}s > reuse_vpio_3={}s * 2",
-        create_standalone_vpio.as_secs_f32(),
-        reuse_vpio_3.as_secs_f32()
-    );
-
-    let recycle_vpio_1 = t6 - t5;
-    let recycle_vpio_2 = t7 - t6;
-    let recycle_vpio_3 = t8 - t7;
-    let recycle_vpio_4 = t9 - t8;
-    let dispose_vpios = t10 - t9;
-    assert!(
-        dispose_vpios > recycle_vpio_1 * 2,
-        "Failed dispose_vpios={}s > recycle_vpio_1 ={}s * 2",
-        dispose_vpios.as_secs_f32(),
-        recycle_vpio_1.as_secs_f32()
-    );
-    assert!(
-        dispose_vpios > recycle_vpio_2 * 2,
-        "Failed dispose_vpios={}s > recycle_vpio_2 ={}s * 2",
-        dispose_vpios.as_secs_f32(),
-        recycle_vpio_2.as_secs_f32()
-    );
-    assert!(
-        dispose_vpios > recycle_vpio_3 * 2,
-        "Failed dispose_vpios={}s > recycle_vpio_3 ={}s * 2",
-        dispose_vpios.as_secs_f32(),
-        recycle_vpio_3.as_secs_f32()
-    );
-    assert!(
-        dispose_vpios > recycle_vpio_4 * 2,
-        "Failed dispose_vpios={}s > recycle_vpio_4 ={}s * 2",
-        dispose_vpios.as_secs_f32(),
-        recycle_vpio_4.as_secs_f32()
-    );
 }
 
 #[test]
@@ -1556,7 +1508,7 @@ fn test_ops_timing_sensitive_multiple_duplex_voice_stream_start() {
         return;
     }
     test_ops_context_operation("multiple duplex voice streams", |context_ptr| {
-        let start = Instant::now();
+        let mut first_unit = std::ptr::null_mut();
         // First stream uses vpio, creates the shared vpio unit.
         test_default_duplex_voice_stream_operation_on_context(
             "multiple duplex voice streams: stream 1",
@@ -1564,10 +1516,11 @@ fn test_ops_timing_sensitive_multiple_duplex_voice_stream_start() {
             |stream| {
                 let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
                 assert!(stm.core_stream_data.using_voice_processing_unit());
+                first_unit = stm.core_stream_data.input_unit;
                 assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
             },
         );
-        let d1 = start.elapsed();
+
         // Second stream uses vpio, allows reuse of the one already created.
         test_default_duplex_voice_stream_operation_on_context(
             "multiple duplex voice streams: stream 2",
@@ -1575,16 +1528,9 @@ fn test_ops_timing_sensitive_multiple_duplex_voice_stream_start() {
             |stream| {
                 let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
                 assert!(stm.core_stream_data.using_voice_processing_unit());
+                assert_eq!(first_unit, stm.core_stream_data.input_unit);
                 assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
             },
-        );
-        let d2 = start.elapsed() - d1;
-        // d1 being significantly longer than d2 is proof we reuse vpio.
-        assert!(
-            d1 > d2 * 2,
-            "Failed d1={}s > d2={}s * s",
-            d1.as_secs_f32(),
-            d2.as_secs_f32()
         );
     });
 }
@@ -1597,7 +1543,7 @@ fn test_ops_timing_sensitive_multiple_duplex_voice_stream_params() {
         return;
     }
     test_ops_context_operation("multiple duplex voice streams with params", |context_ptr| {
-        let start = Instant::now();
+        let mut first_unit = std::ptr::null_mut();
         // First stream uses vpio, creates the shared vpio unit.
         test_default_duplex_voice_stream_operation_on_context(
             "multiple duplex voice streams: stream 1",
@@ -1605,6 +1551,7 @@ fn test_ops_timing_sensitive_multiple_duplex_voice_stream_params() {
             |stream| {
                 let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
                 assert!(stm.core_stream_data.using_voice_processing_unit());
+                first_unit = stm.core_stream_data.input_unit;
                 assert_eq!(
                     unsafe {
                         OPS.stream_set_input_processing_params.unwrap()(
@@ -1621,7 +1568,7 @@ fn test_ops_timing_sensitive_multiple_duplex_voice_stream_params() {
                 );
             },
         );
-        let d1 = start.elapsed();
+
         // Second stream uses vpio, allows reuse of the one already created.
         test_default_duplex_voice_stream_operation_on_context(
             "multiple duplex voice streams: stream 2",
@@ -1629,6 +1576,7 @@ fn test_ops_timing_sensitive_multiple_duplex_voice_stream_params() {
             |stream| {
                 let stm = unsafe { &mut *(stream as *mut AudioUnitStream) };
                 assert!(stm.core_stream_data.using_voice_processing_unit());
+                assert_eq!(first_unit, stm.core_stream_data.input_unit);
                 assert_eq!(unsafe { OPS.stream_start.unwrap()(stream) }, ffi::CUBEB_OK);
                 let queue = stm.queue.clone();
                 // Test that input processing params does not carry over when reusing vpio.
@@ -1665,14 +1613,6 @@ fn test_ops_timing_sensitive_multiple_duplex_voice_stream_params() {
                 assert_eq!(r, NO_ERR);
                 assert_eq!(mute, 0);
             },
-        );
-        let d2 = start.elapsed() - d1;
-        // d1 being significantly longer than d2 is proof we reuse vpio.
-        assert!(
-            d1 > d2 * 2,
-            "Failed d1={}s > d2={}s * 2",
-            d1.as_secs_f32(),
-            d2.as_secs_f32()
         );
     });
 }
