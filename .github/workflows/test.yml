@@ -37,7 +37,7 @@ jobs:
       run: |
         brew install switchaudio-osx
 
-    - name: Setup blackhole-2ch
+    - name: Setup blackhole
       run: |
         brew install blackhole-2ch blackhole-16ch
         sudo killall -9 coreaudiod
