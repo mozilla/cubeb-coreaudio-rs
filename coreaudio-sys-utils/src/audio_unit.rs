@@ -132,6 +132,33 @@ pub fn dispose_audio_unit(unit: AudioUnit) -> OSStatus {
     unsafe { AudioComponentInstanceDispose(unit) }
 }
 
+// Dispose an audio unit on a background queue instead of blocking the caller.
+//
+// AudioComponentInstanceDispose makes a synchronous round-trip to coreaudiod,
+// which can stall for a long time when the active output device is slow to
+// respond (e.g. a third-party virtual audio device). When the caller is the
+// shared AudioIPC server RPC thread, that stall blocks every audio client (e.g.
+// connection setup and AudioContext creation), freezing the UI
+// (https://bugzilla.mozilla.org/show_bug.cgi?id=2045209). Use this only during
+// final stream teardown, where `unit` has already been uninitialized and
+// detached from its stream, so it is solely owned here and safe to dispose off
+// the serial queue.
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
+pub fn dispose_audio_unit_async(unit: AudioUnit) {
+    // `AudioUnit` is a raw pointer to a detached, solely-owned component
+    // instance, so it is safe to move to the disposing queue.
+    struct SendAudioUnit(AudioUnit);
+    unsafe impl Send for SendAudioUnit {}
+
+    let unit = SendAudioUnit(unit);
+    crate::dispatch::Queue::get_global_queue().run_async(move || {
+        let unit = unit;
+        unsafe {
+            AudioComponentInstanceDispose(unit.0);
+        }
+    });
+}
+
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub fn audio_output_unit_start(unit: AudioUnit) -> OSStatus {
     assert!(!unit.is_null());
