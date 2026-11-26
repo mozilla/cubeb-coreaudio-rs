@@ -47,6 +47,10 @@ jobs:
     - name: Build
       run: cargo build --verbose
 
+    - name: Test denied microphone access
+      timeout-minutes: 3
+      run: bash .github/run_microphone_permission_test.sh
+
     - name: Regular Test
       run: sh run_tests.sh
 

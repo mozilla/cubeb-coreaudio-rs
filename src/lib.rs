@@ -11,6 +11,9 @@ extern crate cubeb_backend;
 extern crate float_cmp;
 extern crate mach2;
 
+#[cfg(target_os = "macos")]
+extern crate objc2_av_foundation;
+
 extern crate num_traits;
 
 mod backend;

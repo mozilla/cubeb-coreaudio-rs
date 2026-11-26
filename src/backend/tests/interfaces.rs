@@ -514,6 +514,68 @@ fn test_ops_context_stream_init_no_stream_params() {
     });
 }
 
+#[cfg(target_os = "macos")]
+#[test]
+#[ignore = "requires an app with a denied microphone TCC decision"]
+fn test_ops_context_stream_init_permission_denied() {
+    use objc2_av_foundation::{AVAuthorizationStatus, AVCaptureDevice, AVMediaTypeAudio};
+
+    let status =
+        unsafe { AVCaptureDevice::authorizationStatusForMediaType(AVMediaTypeAudio.unwrap()) };
+    assert_eq!(
+        status,
+        AVAuthorizationStatus::Denied,
+        "the test app needs a denied microphone TCC decision"
+    );
+
+    const NAME: &str = "context: denied microphone permission";
+    test_ops_context_operation(NAME, |context_ptr| {
+        let mut input = ffi::cubeb_stream_params {
+            format: ffi::CUBEB_SAMPLE_FLOAT32NE,
+            rate: 44100,
+            channels: 1,
+            ..Default::default()
+        };
+        let mut output = ffi::cubeb_stream_params {
+            channels: 2,
+            ..input
+        };
+        let name = CString::new(NAME).unwrap();
+
+        for (output, mode) in [(ptr::null_mut(), "input-only"), (&mut output, "duplex")] {
+            let mut stream = ptr::null_mut();
+            let result = unsafe {
+                OPS.stream_init.unwrap()(
+                    context_ptr,
+                    &mut stream,
+                    name.as_ptr(),
+                    ptr::null_mut(),
+                    &mut input,
+                    ptr::null_mut(),
+                    output,
+                    4096,
+                    Some(noop_data_callback),
+                    None,
+                    ptr::null_mut(),
+                )
+            };
+            assert_eq!(result, ffi::CUBEB_ERROR_PERMISSION_DENIED, "{mode}");
+            assert!(stream.is_null(), "{}", mode);
+        }
+
+        assert!(
+            test_get_default_device(Scope::Output).is_some(),
+            "the test requires a default output device"
+        );
+        test_default_output_stream_operation_on_context_with_callback(
+            "output-only stream with denied microphone permission",
+            context_ptr,
+            Some(noop_data_callback),
+            |_| {},
+        );
+    });
+}
+
 #[test]
 fn test_ops_context_stream_init_no_input_stream_params() {
     let name = "context: stream_init with no input stream params";
