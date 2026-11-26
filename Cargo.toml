@@ -10,7 +10,7 @@ crate-type = ["staticlib", "rlib"]
 [dependencies]
 bitflags = "2"
 coreaudio-sys-utils = { path = "coreaudio-sys-utils" }
-cubeb-backend = "0.34.1"
+cubeb-backend = "0.39"
 float-cmp = "0.6"
 libc = "0.2"
 mach2 = "0.4"
@@ -19,6 +19,9 @@ audio-mixer = "0.2"
 ringbuf = "0.5.2"
 triple_buffer = "5.0.5"
 whatsys = "0.3"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-av-foundation = { version = "0.3", default-features = false, features = ["std", "AVCaptureDevice", "AVMediaFormat"] }
 
 [dev-dependencies]
 itertools = "0.11"

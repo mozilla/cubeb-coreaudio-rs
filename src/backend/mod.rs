@@ -55,6 +55,22 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, LazyLock, Mutex, MutexGuard, Weak};
 use std::time::{Duration, Instant};
+#[cfg(target_os = "macos")]
+fn microphone_permission_denied() -> bool {
+    use objc2_av_foundation::{AVAuthorizationStatus, AVCaptureDevice, AVMediaTypeAudio};
+
+    // CoreAudio does not expose microphone authorization. Query AVFoundation
+    // without prompting so an undetermined status retains the normal OS flow.
+    let status = unsafe {
+        AVMediaTypeAudio
+            .map(|media_type| AVCaptureDevice::authorizationStatusForMediaType(media_type))
+    };
+    matches!(
+        status,
+        Some(AVAuthorizationStatus::Denied | AVAuthorizationStatus::Restricted)
+    )
+}
+
 const NO_ERR: OSStatus = 0;
 
 const AU_OUT_BUS: AudioUnitElement = 0;
@@ -3076,6 +3092,17 @@ impl ContextOps for AudioUnitContext {
         if data_callback.is_none() {
             cubeb_log!("Cannot init a stream without a data callback");
             return Err(Error::InvalidParameter);
+        }
+
+        // Loopback is rejected separately by stream setup and is not microphone capture.
+        #[cfg(target_os = "macos")]
+        if input_stream_params.is_some()
+            && !input_stream_params.is_some_and(|p| p.prefs().contains(StreamPrefs::LOOPBACK))
+            && !output_stream_params.is_some_and(|p| p.prefs().contains(StreamPrefs::LOOPBACK))
+            && microphone_permission_denied()
+        {
+            cubeb_log!("Microphone access denied or restricted");
+            return Err(Error::PermissionDenied);
         }
 
         let in_stm_settings = if let Some(params) = input_stream_params {
